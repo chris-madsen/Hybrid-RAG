@@ -109,6 +109,18 @@ The first normalized Bifröst provider attempt SHALL match the ACE-authorized no
 - **WHEN** PreLLM is invoked again for the same ingress projection
 - **THEN** the attempt is blocked pending fresh ACE authorization.
 
+### Requirement: Terminal custom provider guard
+
+A production-certified Bifröst deployment SHALL place the ACE plugin after every other custom
+plugin that can mutate the provider-bound request. Repository compile/contract checks SHALL NOT
+be treated as proof of live plugin ordering or final upstream bytes.
+
+#### Scenario: later custom mutator is not ruled out
+- **WHEN** the loaded Bifröst plugin order and final provider wire have not been observed
+- **THEN** structural Gateway checks may pass
+- **AND** final provider-wire G11 remains `NOT-RUN` or fails
+- **AND** no claim is made that ACE was the last mutating hook.
+
 ### Requirement: Honest evidence stages
 
 Repository structural/process closure SHALL remain distinct from real provider and agent acceptance.
