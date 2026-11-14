@@ -27,7 +27,7 @@ Existing implementation is **partially implemented**. This change specifies gate
 
 ## Migration
 
-1. Introduce SDK alongside old transport behind testing boundary.
+1. Use the Gateway-only transport; do not restore the retired transport alongside it.
 2. Wire real providers under explicit config and policy without claiming default readiness until approved.
 3. Replace regex whole-file symbol selection with AST spans, preserve lexical fallback for offline use with explicit partial label.
 4. Add integration/agent E2E and Harbor tasks; record run fingerprints.
