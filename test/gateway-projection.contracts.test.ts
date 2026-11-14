@@ -279,6 +279,37 @@ test('gateway denies private source egress without explicit cloud opt-in', async
   }
 });
 
+test('gateway caller cannot downgrade retrieved code to public data', async () => {
+  let transformations = 0;
+  const observing: ContextTransformService = {
+    transform: () => {
+      transformations += 1;
+      return Effect.succeed(ok(transformed));
+    },
+  };
+  const publicOnlyPolicy: ProjectDataPolicy = {
+    ...defaultLocalPolicy(workspace.value),
+    cloudOptIn: true,
+    allowedCloudProviders: ['other_external'],
+    allowedCloudDataClassesByProvider: {
+      other_external: ['public'],
+    },
+  };
+  const service = makeGatewayProjectionService(observing, {
+    policy: publicOnlyPolicy,
+    allowedProviders: ['mock'],
+    clock: gatewaySecurity.clock,
+    audit: gatewaySecurity.audit,
+  });
+  const decision = await Effect.runPromise(service.project(request({ dataClass: 'public' })));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Ok') {
+    assert.equal(decision.value.kind, 'BLOCK');
+    assert.equal(decision.value.receipt.reasonCode, 'DATA_CLASS_DENIED');
+  }
+  assert.equal(transformations, 0, 'repository evidence classification must be authorized before retrieval');
+});
+
 test('gateway blocks likely secret material before appending retrieved context', async () => {
   const secretContext: ContextTransformService = {
     transform: () => Effect.succeed(ok({
