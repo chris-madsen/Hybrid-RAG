@@ -1,23 +1,16 @@
-# Proposal — Harbor evaluation and provider-reported token ledger
+# Proposal — Harbor evaluation and causal ACE evidence
 
 ## Why
 
-Token improvement must be established against a strong current Codex baseline before large retrieval engineering investments.
+ACE performance claims require paired agent tasks with matched model/runtime identity, independent quality checks and real evidence that ACE actually participated in the model-bound path. A token difference without a successful Gateway projection is not attributable to ACE.
 
-## What Changes
+## What changes
 
-Integrate Harbor test runner, isolated fixtures, quality grader and Codex usage normalization. Produce auditable baseline report and initial Serena comparison.
+Use Harbor for reproducible paired tasks. Keep a strong unmodified/native baseline and a matched ACE arm configured through Bifröst Gateway. Preserve exact agent/model/reasoning/task/source identities, failures, provider usage and ACE projection receipts. Evaluate correctness before cost/token claims.
 
-## Capabilities
+## Non-goals
 
-### New Capabilities
-
-- `agent-benchmarking` — Harbor baseline, complete usage and comparative evidence.
-
-## Impact
-
-- **Domain contexts:** consult `docs/architecture/01-strategic-ddd.md`; references ADR-001…010 as applicable.
-- **Dependencies:** previous numbered changes must be reviewed and completed first.
-- **Non-goals:** Observability dashboards, artificial token estimation, 5x claims before controlled holdout.
-- **Risk:** provider contracts/versions, security and provenance must be tested before asserting production behavior.
-- **Acceptance:** normative scenarios in `specs/*/spec.md` plus `tasks.md`; no performance claim without measured evaluation.
+- claiming savings from retrieval metrics alone;
+- forcing trivial ACE use to manufacture attribution;
+- treating missing usage as zero;
+- requiring one particular coding-agent brand as permanent architecture.
