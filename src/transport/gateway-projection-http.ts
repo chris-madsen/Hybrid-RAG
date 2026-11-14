@@ -36,7 +36,9 @@ export interface GatewayProjectionHttpResponse {
 const schemaVersion = 'ace.gateway.v1';
 const defaultMaxBodyBytes = 4 * 1024 * 1024;
 // The HTTP request is a JSON envelope containing Base64, not raw provider bytes.
-export const maxEnvelopeBytesFor = (bodyBytes: number): number => 4 * Math.ceil(bodyBytes / 3) + 64 * 1024;
+// The query is repeated outside bodyBase64 and can occupy nearly all of the
+// original Chat body. Bound both representations, not just the encoded bytes.
+export const maxEnvelopeBytesFor = (bodyBytes: number): number => 4 * Math.ceil(bodyBytes / 3) + bodyBytes + 64 * 1024;
 export const isLoopbackGatewayHttpHost = (host: string): boolean => {
   const normalizedHost = host.toLowerCase();
   if (normalizedHost === 'localhost') return true;
