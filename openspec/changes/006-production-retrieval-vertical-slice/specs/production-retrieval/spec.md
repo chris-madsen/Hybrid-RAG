@@ -6,7 +6,7 @@
 
 ### Requirement: Real executable production composition
 
-The system SHALL expose `ace_context` through a standards-compliant official TypeScript retired optional tool-call protocol SDK facade and SHALL invoke selected, configured real retrieval providers in the production runtime when required by an authorized request, rather than satisfying the capability with a disconnected adapter, test double or lexical fallback.
+The system SHALL invoke selected, configured real retrieval providers from the production ACE runtime when required by an authorized Bifröst Gateway projection, rather than satisfying the capability with a disconnected adapter, test double or lexical fallback.
 
 #### Scenario: DBC-01 actual provider wiring
 
