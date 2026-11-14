@@ -28,6 +28,7 @@ Source tree has 128 TypeScript files under `src/` (57 domain, 22 application, 39
 - ACE-ARCH-004 — generic application code does not import MCP gateway implementation
 - ACE-ARCH-005 — application services do not import concrete adapters
 - ACE-ARCH-006 — domain does not import application orchestration
+- ACE-ARCH-007 — domain does not import Node filesystem, HTTP/network or child-process providers; pure node:path/util remain allowed
 
 A native import-edge rule cannot prove provider failures are never turned into false completion, privacy authorization occurs at send time, or provenance/Graphiti readiness is production-certified. Do not add syntactic approximations that falsely claim those semantics.
 

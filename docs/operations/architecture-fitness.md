@@ -25,6 +25,7 @@ The rules remain `severity: warning`, so real findings are visible but do not bl
 - `ACE-ARCH-001 / ace-domain-no-adapter-import` — domain does not directly import or re-export concrete adapters.
 - `ACE-ARCH-002 / ace-mcp-transport-no-gateway-projection-import` — explicit MCP stdio transport does not import or re-export Gateway Projection implementation modules.
 - `ACE-ARCH-003 / ace-gateway-transport-no-mcp-import` — Gateway Projection HTTP transport does not import or re-export MCP SDK/framing modules.
+- `ACE-ARCH-007 / ace-domain-no-provider-io-import` — pure functional domain modules must not import Node filesystem, network or process-execution capabilities; keep provider I/O in adapters and application orchestration.
 - `ACE-ARCH-004 / ace-application-no-mcp-gateway-import` — application interfaces must not import the MCP-specific gateway implementation. Shared `ContextProvider` is owned by `src/application/ports.ts` (#237).
 - `ACE-ARCH-005 / ace-application-no-adapter-import` — Effect application code depends on inward ports, not concrete adapters. The historical `AsyncMemoryArchivePort` import was repaired in #237; initial rule stays report-only as required by QG2.
 - `ACE-ARCH-006 / ace-domain-no-application-import` — pure domain logic must not import application orchestration. It complements the existing domain→adapters rule.
