@@ -33,6 +33,16 @@ achievement. See [ADR-017](docs/docs/references/ADR-017-bifrost-unified-llm-gate
 [OpenSpec 007](openspec/changes/007-hybrid-context-engine/),
 and the [2026-10-21 targeted code review](docs/reviews/2026-10-21-hybrid-context-static-code-review.md).
 
+## Source-verified Docker image
+
+Build ACE in a clean Git checkout, then package and verify those exact compiled bytes. The Docker context excludes `.git`; the image never fabricates a commit identity.
+
+```bash
+make ace-image ACE_NODE_IMAGE='node:22-bookworm-slim@sha256:<verified-64-hex>' ACE_IMAGE_TAG=ace:local
+```
+
+The Make target runs `npm run build` before `docker build`. The image copies `dist/` and verifies `dist/runtime-provenance.json` against the copied source and `dist/bin/ace-runtime.js`. Packaging fails when provenance is missing or stale. This proves source/build identity only; it does not certify Bifröst final-provider delivery or agent E2E behavior.
+
 ## Current implementation
 
 The TypeScript + Effect modular monolith now implements substantial slices across foundation, retrieval, temporal memory, routing and acceptance. Full unified production readiness is still evidence-gated:
