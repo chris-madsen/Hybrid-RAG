@@ -58,8 +58,23 @@ const requirements = [
   {
     id: 'BIFROST_REQUEST_BOUND_HOST',
     file: 'integrations/bifrost/ace-connector/plugin/main.go',
-    contains: ['BifrostContextKeyRequestID', 'BifrostContextKeySessionID', 'durableActiveTranscriptDigest', 'ACE Gateway requires an explicit Bifrost provider/model route'],
-    excludes: ['ace.session_id', 'ace.attempt_group_id', 'ace.host_attestation', 'bifrost:auto'],
+    contains: [
+      'newPhysicalRequestID',
+      'schemas.HarnessSessionHeaders',
+      'schemas.NormalizeSessionID',
+      'BifrostContextKeySessionID',
+      'receipt.RequestID != physicalRequestID',
+      'resolvedSession != sessionCorrelation',
+      'durableActiveTranscriptDigest',
+      'ACE Gateway requires an explicit Bifrost provider/model route',
+    ],
+    excludes: [
+      'ace.session_id',
+      'ace.attempt_group_id',
+      'ace.host_attestation',
+      'bifrost:auto',
+      'ctx.Value(schemas.BifrostContextKeyRequestID)',
+    ],
   },
   {
     id: 'GATEWAY_EGRESS_POLICY',
