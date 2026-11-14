@@ -71,6 +71,11 @@ const requirements = [
     contains: ['ACE_GATEWAY_EXTERNAL_LLM_OPT_IN', 'ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', 'allowedCloudDataClassesByProvider'],
   },
   {
+    id: 'OPENSPEC_STRICT_VALIDATION',
+    file: '.github/workflows/ace-openspec.yml',
+    contains: ['@fission-ai/openspec@1.17.0', 'openspec validate --all --strict --no-interactive', 'Prove strict validation rejects an invalid scenario'],
+  },
+  {
     id: 'OPENSPEC_GATEWAY_AUTHORITY',
     file: 'openspec/config.yaml',
     contains: ['Bifröst LLM Gateway is the sole supported ACE context delivery path', 'active change 010-gateway-only-ownership'],
