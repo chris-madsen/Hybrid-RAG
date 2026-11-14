@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-15  
 **Tier:** T1 process/security hardening. No ACE runtime API or provider behavior changes.  
-**Stacked base:** `codex/sdlc-finalization-2026-11-14@f08b26f141415c75dc18eb625c2116d4fdfe3ae4`.
+**Stacked base validated against:** `codex/sdlc-finalization-2026-11-14@e7591b3feb9893cb51a1e85c93dd73da16de6596`.
 
 ## Why this exists
 
