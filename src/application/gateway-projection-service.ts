@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
-import { authorizeOutbound, type DataClass, type ProjectDataPolicy } from '../domain/policy.js';
+import { type DataClass, type ProjectDataPolicy } from '../domain/policy.js';
 import { containsLikelySecret } from '../domain/sensitive-text.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
 import { err, ok, type Result } from '../domain/result.js';
@@ -13,6 +13,8 @@ import {
   validateGatewayProjectionRequest,
 } from '../domain/gateway-projection.js';
 import type { AceTransformResult, ContextTransformService } from './context-transform-service.js';
+import { authorizeAndAudit } from './policy-service.js';
+import type { AuditSink, ClockPort } from './ports.js';
 
 export interface GatewayProjectionService {
   readonly project: (value: unknown) => Effect.Effect<Result<GatewayProjectionDecision, DomainError>>;
@@ -20,6 +22,8 @@ export interface GatewayProjectionService {
 export interface GatewayProjectionSecurity {
   readonly policy: ProjectDataPolicy;
   readonly allowedProviders: readonly string[];
+  readonly clock: ClockPort;
+  readonly audit: AuditSink;
 }
 
 
@@ -79,24 +83,46 @@ const requestBodyIdentityValid = (
 const gatewayDataClass = (value: GatewayProjectionRequest['dataClass']): DataClass =>
   value === 'private' ? 'private_source' : value;
 
-const egressAllowed = (
+const authorizeGatewayEgress = (
   request: GatewayProjectionRequest,
   security: GatewayProjectionSecurity,
-): Result<boolean, DomainError> => {
-  if (!security.allowedProviders.some((provider) => provider.toLowerCase() === request.provider.toLowerCase())) return ok(false);
-  const workspaceId = makeWorkspaceId(request.workspaceId);
-  if (workspaceId._tag === 'Err') return workspaceId;
-  const decision = authorizeOutbound({
-    workspaceId: workspaceId.value,
-    operation: 'gateway_llm_projection',
-    destination: 'other_external',
-    dataClasses: [gatewayDataClass(request.dataClass)],
-    paths: [],
-    secretDetected: false,
-  }, security.policy);
-  if (decision._tag === 'Err') return decision;
-  return ok(decision.value.outcome === 'allowed');
-};
+  secretDetected = false,
+): Effect.Effect<Result<{ readonly allowed: boolean; readonly reasonCode: string }, DomainError>> =>
+  Effect.gen(function* () {
+    const workspaceId = makeWorkspaceId(request.workspaceId);
+    if (workspaceId._tag === 'Err') return workspaceId;
+    if (!security.allowedProviders.some((provider) => provider.toLowerCase() === request.provider.toLowerCase())) {
+      const written = yield* security.audit.append({
+        occurredAtMs: security.clock.nowMs(),
+        correlationId: request.requestId,
+        component: 'gateway-egress-policy',
+        category: 'policy',
+        policyVersion: security.policy.policyVersion,
+        outcome: 'denied',
+        reasonCode: 'POLICY_DENIED',
+      });
+      if (written._tag === 'Err') return written;
+      return ok({ allowed: false, reasonCode: 'POLICY_DENIED' });
+    }
+    const authorized = yield* authorizeAndAudit(
+      security.policy,
+      {
+        workspaceId: workspaceId.value,
+        operation: 'gateway_llm_projection',
+        destination: 'other_external',
+        dataClasses: [gatewayDataClass(request.dataClass)],
+        paths: [],
+        secretDetected,
+      },
+      request.requestId,
+      { clock: security.clock, audit: security.audit },
+    );
+    if (authorized._tag === 'Err') return authorized;
+    return ok({
+      allowed: authorized.value.decision.outcome === 'allowed',
+      reasonCode: authorized.value.decision.reasonCode,
+    });
+  });
 
 const appendContext = (body: Record<string, unknown>, context: AceTransformResult): Result<string, DomainError> => {
   if (!Array.isArray(body.messages)) return err(domainError('PROTECTED_GROUP_INVALID', 'body.messages', 'OpenAI Chat request must contain messages'));
@@ -149,9 +175,9 @@ export const makeGatewayProjectionService = (
       return block(request, 'HOST_COMPACTION_ACTIVE');
     }
     if (request.attestation.providerManagedHistoryCapability !== 'visible') return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
-    const authorized = egressAllowed(request, security);
+    const authorized = yield* authorizeGatewayEgress(request, security);
     if (authorized._tag === 'Err') return authorized;
-    if (!authorized.value) return block(request, 'POLICY_DENIED');
+    if (!authorized.value.allowed) return block(request, authorized.value.reasonCode);
     const body = parseBody(request);
     if (body._tag === 'Err') return body;
     if (!requestBodyIdentityValid(body.value, request)) return block(request, 'BODY_IDENTITY_MISMATCH');
@@ -166,7 +192,11 @@ export const makeGatewayProjectionService = (
     if (result.status !== 'ready' || !result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
       return block(request, 'TRANSFORM_NOT_READY');
     }
-    if (containsLikelySecret(result.contextText)) return block(request, 'SECRET_DETECTED');
+    if (containsLikelySecret(result.contextText)) {
+      const secretDecision = yield* authorizeGatewayEgress(request, security, true);
+      if (secretDecision._tag === 'Err') return secretDecision;
+      return block(request, secretDecision.value.reasonCode);
+    }
     const projected = appendContext(body.value, result);
     if (projected._tag === 'Err') return block(request, projected.error.code);
     if (Buffer.from(projected.value, 'base64').length > 4 * 1024 * 1024) return block(request, 'PROJECTED_BODY_TOO_LARGE');
