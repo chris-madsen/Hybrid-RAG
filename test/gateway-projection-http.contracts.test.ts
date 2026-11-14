@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Effect } from 'effect';
 import {
+  createGatewayProjectionServer,
   handleGatewayProjectionHttp,
   isLoopbackGatewayHttpHost,
   maxEnvelopeBytesFor,
@@ -77,4 +78,50 @@ test('gateway allows Base64 and JSON framing beyond the raw four MiB body limit'
   const encodedBytes = Buffer.alloc(rawBytes).toString('base64').length;
   assert.ok(encodedBytes > rawBytes);
   assert.ok(maxEnvelopeBytesFor(rawBytes) >= encodedBytes + rawBytes + 1024, 'query duplicates the user message outside Base64');
+});
+
+test('projection HTTP refuses local callers without the configured shared secret', async () => {
+  const server = createGatewayProjectionServer(service, { authToken: 'in-memory-test-token' });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const url = `http://127.0.0.1:${address.port}/internal/ace-gateway/v1/project`;
+  try {
+    const anonymous = await fetch(url, { method: 'POST', body: '{}' });
+    assert.equal(anonymous.status, 401);
+    const wrong = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer wrong' }, body: '{}' });
+    assert.equal(wrong.status, 401);
+    const authenticated = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer in-memory-test-token' },
+      body: '{}',
+    });
+    assert.equal(authenticated.status, 200);
+    const result = await authenticated.json() as { kind: string };
+    assert.equal(result.kind, 'BLOCK');
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('projection HTTP without a server credential is NOT_READY, not public', async () => {
+  const server = createGatewayProjectionServer(service, { authToken: '' });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  try {
+    const reply = await fetch(`http://127.0.0.1:${address.port}/internal/ace-gateway/v1/project`, {
+      method: 'POST',
+      body: '{}',
+    });
+    assert.equal(reply.status, 503);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
