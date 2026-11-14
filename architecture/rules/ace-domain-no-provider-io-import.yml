@@ -1,0 +1,18 @@
+id: ace-domain-no-provider-io-import
+language: TypeScript
+rule:
+  kind: string_fragment
+  regex: '^node:(?:fs(?:/promises)?|https?|http2|net|tls|dgram|child_process|dns(?:/promises)?)(?:/.*)?$'
+  inside:
+    any:
+      - kind: import_statement
+      - kind: export_statement
+    stopBy: end
+severity: warning
+message: Domain code must not directly access filesystem, network or process I/O capabilities.
+note: |
+  ACE-ARCH-007. Domain invariants and transitions stay pure. Keep provider
+  effects and external resources in typed application ports and adapters.
+metadata:
+  contract: ADR-019 / Functional DDD pure domain and application Effect boundaries
+  repair: Move external I/O behind an inward-facing port and keep domain logic pure.

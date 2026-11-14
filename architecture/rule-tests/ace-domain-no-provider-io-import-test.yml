@@ -1,0 +1,17 @@
+id: ace-domain-no-provider-io-import
+valid:
+  - |
+    import { extname } from 'node:path';
+  - |
+    import { TextDecoder } from 'node:util';
+  - |
+    const note = "import { readFile } from 'node:fs/promises';";
+invalid:
+  - |
+    import { readFile } from 'node:fs/promises';
+  - |
+    import { request } from 'node:https';
+  - |
+    export { spawn } from 'node:child_process';
+  - |
+    import type { Server } from 'node:http';

@@ -139,6 +139,13 @@ test('legacy handwritten MCP framing is removed; official SDK remains sole expli
   assert.doesNotMatch(runtime, /runMcpStdio\(/u);
 });
 
+test('context application owns its retrieval port rather than importing MCP transport', async () => {
+  const application = await readFile(join(process.cwd(), 'src/application/context-transform-service.ts'), 'utf8');
+  const ports = await readFile(join(process.cwd(), 'src/application/ports.ts'), 'utf8');
+  assert.doesNotMatch(application, /gateway\/mcp-gateway/u);
+  assert.match(ports, /export interface ContextProvider/u);
+});
+
 test('workspace persistence lives in adapters; application code owns its port', async () => {
   const adapter = await readFile(join(process.cwd(), 'src/adapters/file-workspace-store.ts'), 'utf8');
   const runtime = await readFile(join(process.cwd(), 'src/bin/ace-mcp.ts'), 'utf8');
