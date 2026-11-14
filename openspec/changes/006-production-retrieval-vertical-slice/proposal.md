@@ -18,7 +18,7 @@ A running agent/Gateway path can appear healthy while real Qdrant/AST/LSP adapte
 
 ## In scope / out of scope
 
-In scope: real runtime composition, semantic/spans, retired optional tool-call protocol conformance, contract tests, integration regression, realistic benchmark attribution and owner quality gate. Out: autonomous code mutation, microservices, new parsers/vector databases/embedding algorithms, Jev promotion, dashboards, rewritten Graphiti, general LSP server reimplementation.
+In scope: real runtime composition, semantic/spans, Gateway/connector conformance, contract tests, integration regression, realistic benchmark attribution and owner quality gate. Out: autonomous code mutation, microservices, new parsers/vector databases/embedding algorithms, Jev promotion, dashboards, rewritten Graphiti, general LSP server reimplementation.
 
 ## Dependencies
 
