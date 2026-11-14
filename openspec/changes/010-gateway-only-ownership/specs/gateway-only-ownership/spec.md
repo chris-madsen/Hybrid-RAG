@@ -46,6 +46,24 @@ For a supported request the plugin SHALL bind ACE projection to Bifröst's actua
 - **THEN** active compaction or an unknown compaction epoch blocks the request
 - **AND** only separately retained G11/benchmark evidence may support an exclusive-context claim.
 
+### Requirement: Destination authorization before private-source projection
+
+Gateway SHALL know and authorize the exact LLM provider before retrieving or injecting private source context. Automatic provider routing SHALL NOT satisfy this requirement.
+
+#### Scenario: provider is not explicitly identified
+- **WHEN** a Gateway Chat request uses an unprefixed model whose provider would be selected later
+- **THEN** the connector rejects the request
+- **AND** ACE does not retrieve private source evidence for that request.
+
+#### Scenario: provider or cloud data class is not authorized
+- **WHEN** the explicit provider is absent from the configured Gateway provider allowlist, cloud opt-in is false, or `private_source` is denied by project policy
+- **THEN** Gateway returns a BLOCK decision before retrieval
+- **AND** no private ACE context is appended.
+
+#### Scenario: selected context contains likely secret material
+- **WHEN** retrieved context matches the repository secret-content guard
+- **THEN** Gateway blocks before constructing the provider-bound projected body.
+
 ### Requirement: Protected additive projection
 
 The currently certified Chat projection SHALL preserve the original provider body except for exactly one ACE verified-evidence system message.
