@@ -29,10 +29,22 @@ For a supported request the plugin SHALL bind ACE projection to Bifröst's actua
 - **THEN** projection returns a fail-closed error
 - **AND** no provider attempt is authorized by ACE.
 
-#### Scenario: legacy transcript field interpretation
-- **WHEN** Gateway v1 emits `durableActiveTranscriptRevision` and `durableActiveTranscriptDigest`
-- **THEN** on the Gateway-only Bifröst path they identify the exact Bifröst-visible request snapshot
-- **AND** they do not assert access to the coding agent's private durable transcript store.
+#### Scenario: Bifröst has no coding-host transcript proof
+- **WHEN** Gateway v1 requires durable-transcript fields but Bifröst observed only the provider-compatible HTTP request
+- **THEN** the connector sets `hostTranscriptAttested=false` and `hostCompactionEpoch="unknown"`
+- **AND** any request digest/revision marker is non-authoritative for the coding agent's durable transcript
+- **AND** ACE SHALL NOT infer exclusive host-context or no-compaction ownership from those fields.
+
+#### Scenario: additive delivery with unattested host history
+- **WHEN** the exact Bifröst-visible Chat request is bound, provider-managed history is visible, and host transcript state is explicitly unattested
+- **THEN** Gateway MAY add the verified ACE evidence message
+- **AND** the receipt preserves the unknown host-compaction state
+- **AND** no token-savings or exclusive-context claim is implied.
+
+#### Scenario: strict host ownership claim
+- **WHEN** a trusted host-side attestor sets `hostTranscriptAttested=true`
+- **THEN** active compaction or an unknown compaction epoch blocks the request
+- **AND** only separately retained G11/benchmark evidence may support an exclusive-context claim.
 
 ### Requirement: Protected additive projection
 
