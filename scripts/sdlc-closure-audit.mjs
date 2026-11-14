@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
 const root = resolve(rootIndex >= 0 && args[rootIndex + 1] ? args[rootIndex + 1] : process.cwd());
+const openspecOnly = args.includes('--openspec-only');
 
 const requirements = [
   {
@@ -58,10 +59,61 @@ const requirements = [
     contains: ['BifrostContextKeyRequestID', 'BifrostContextKeySessionID', 'durableActiveTranscriptDigest', 'bifrost:auto'],
     excludes: ['ace.session_id', 'ace.attempt_group_id', 'ace.host_attestation'],
   },
+  {
+    id: 'OPENSPEC_GATEWAY_AUTHORITY',
+    file: 'openspec/config.yaml',
+    contains: ['Bifröst LLM Gateway is the sole supported ACE context delivery path', 'active change 010-gateway-only-ownership'],
+    excludes: ['Hermes ContextEngine request-time transformation', 'retired optional tool-call protocol facade'],
+  },
 ];
 
 const results = [];
-for (const requirement of requirements) {
+
+const activeOpenSpecGuard = async () => {
+  const changesRoot = resolve(root, 'openspec/changes');
+  const forbiddenDirs = new Set(['008-hermes-context-integration', '009-bifrost-hermes-ownership']);
+  const forbiddenText = [
+    'retired optional tool-call protocol',
+    '`ace_context`',
+    '`ace_expand`',
+    'Hermes ContextEngine',
+    'Hermes native ContextEngine',
+  ];
+  const violations = [];
+  const forbiddenActiveDirs = [];
+  const walk = async (directory) => {
+    const entries = await readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      if (directory === changesRoot && entry.isDirectory()) {
+        if (entry.name === 'archive') continue;
+        if (forbiddenDirs.has(entry.name)) forbiddenActiveDirs.push(entry.name);
+      }
+      const full = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (directory === changesRoot && entry.name === 'archive') continue;
+        await walk(full);
+        continue;
+      }
+      if (!entry.isFile() || !['proposal.md', 'design.md', 'spec.md'].includes(entry.name)) continue;
+      const text = await readFile(full, 'utf8');
+      const found = forbiddenText.filter((needle) => text.includes(needle));
+      if (found.length) violations.push({ file: full.slice(root.length + 1), forbidden: found });
+    }
+  };
+  try {
+    await walk(changesRoot);
+  } catch {
+    return { id: 'OPENSPEC_ACTIVE_GATEWAY_ONLY', status: 'FAIL', reason: 'missing_changes_tree' };
+  }
+  return {
+    id: 'OPENSPEC_ACTIVE_GATEWAY_ONLY',
+    status: forbiddenActiveDirs.length === 0 && violations.length === 0 ? 'PASS' : 'FAIL',
+    ...(forbiddenActiveDirs.length ? { forbiddenActiveDirs } : {}),
+    ...(violations.length ? { violations } : {}),
+  };
+};
+
+if (!openspecOnly) for (const requirement of requirements) {
   let text;
   try {
     text = await readFile(resolve(root, requirement.file), 'utf8');
@@ -79,6 +131,8 @@ for (const requirement of requirements) {
     ...(forbidden.length ? { forbidden } : {}),
   });
 }
+
+results.push(await activeOpenSpecGuard());
 
 const summary = {
   schemaVersion: 'ace.sdlc-closure.v1',
