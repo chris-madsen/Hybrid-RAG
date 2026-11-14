@@ -12,12 +12,13 @@ The current SDLC catalog marks QG6/G12 as PARTIAL ACTIVE: scheduled OSV and dete
 
 | ID | Change | Oracle |
 |---|---|---|
-| QG6-01 | Pin GitHub CodeQL action to an exact commit and analyze JavaScript/TypeScript on relevant PRs plus schedule/manual runs | workflow security + actual CodeQL job |
+| QG6-01 | Pin GitHub CodeQL action to an exact commit and analyze maintained JavaScript/TypeScript (`src/`, `scripts/`) on relevant PRs plus schedule/manual runs | workflow security + actual CodeQL job + clean extraction |
 | QG6-02 | Mutation pilot changes real security decisions in a temporary copy only; existing contract tests must fail against every mutant | `npm run test:mutation:critical` exits 0 only when all mutants are killed |
 | QG6-03 | Mutation runner never edits the caller worktree and cleans temporary files | source tree copied to temp; root node_modules linked read-only by convention |
 | QG6-04 | Remote Markdown links provide scheduled signal but never block PR/release because external websites are nondeterministic | scheduled/manual nonblocking Lychee step |
 | QG6-05 | Closure audit recognizes QG6 only when CodeQL + mutation are committed, not merely documented | positive/negative source checks |
 | QG6-06 | QG4 remains report-only by owner design and QG5 remains active; no unrelated promotion to blocking branch protection | docs truth + unchanged owner rule |
+| QG6-07 | CodeQL result policy is explicit | extraction errors and security-severity ≥ 7 block; lower severity remains visible signal; SARIF gate has positive/high/extraction fixtures |
 
 ## Selected mutations
 
