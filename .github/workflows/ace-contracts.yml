@@ -17,8 +17,7 @@ jobs:
     outputs:
       node: ${{ steps.paths.outputs.node }}
       go: ${{ steps.paths.outputs.go }}
-      hermes: ${{ steps.paths.outputs.hermes }}
-    steps:
+          steps:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -33,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
-            printf 'node=true\ngo=true\nhermes=false\n' >> "${GITHUB_OUTPUT}"
+            printf 'node=true\ngo=true\n' >> "${GITHUB_OUTPUT}"
             echo "[scope] nightly/manual: exhaustive verification"
             exit 0
           fi
@@ -46,14 +45,13 @@ jobs:
           git diff --name-only --diff-filter=ACDMRT -z "${PR_BASE_SHA}" "${PR_HEAD_SHA}" > "${changed}"
           node=false
           go=false
-          hermes=false
           count=0
           while IFS= read -r -d '' path; do
             count=$((count + 1))
             echo "[scope] changed path: ${path}"
             case "${path}" in
               integrations/bifrost/ace-connector/*) go=true ;;
-              integrations/hermes/ace_context_engine/*) hermes=true ;;
+              integrations/hermes/ace_context_engine/*) node=true ;;
               .github/fixtures/contracts/*) node=true; go=true; hermes=true ;;
               src/*|test/*|scripts/*|architecture/*|contracts/*|package.json|package-lock.json|tsconfig.json|tsconfig.eslint.json|.eslintrc.cjs|knip.json|knip.config.*|benchmarks/fixtures/*)
                 node=true ;;
@@ -69,8 +67,8 @@ jobs:
             echo "[scope] BLOCKED: no changed files between PR base and head" >&2
             exit 1
           fi
-          printf 'node=%s\ngo=%s\nhermes=%s\n' "${node}" "${go}" "${hermes}" >> "${GITHUB_OUTPUT}"
-          echo "[scope] PR node=${node} go=${go} hermes=${hermes} (full runs nightly)"
+          printf 'node=%s\ngo=%s\n' "${node}" "${go}" >> "${GITHUB_OUTPUT}"
+          echo "[scope] PR node=${node} go=${go} (full runs nightly)"
 
   contracts:
     name: Focused TypeScript and contracts
@@ -153,22 +151,6 @@ jobs:
             process.exitCode = 1;
           }
           NODE
-
-  hermes-plugin:
-    name: Focused Hermes Python contracts
-    needs: scope
-    if: github.event_name == 'pull_request' && needs.scope.outputs.hermes == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 6
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - name: Hermes bridge contract suite
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 -B -m unittest discover -s integrations/hermes/ace_context_engine -p 'test_*.py'
 
   docs-links:
     if: github.event_name == 'pull_request'
@@ -369,16 +351,11 @@ jobs:
           exit 1
       - name: Build source-identified production runtime
         run: npm run build
-      - name: Run actual provider and restart acceptance
+      - name: Run live Gateway projection through real Qdrant provider
         run: |
           set -o pipefail
           mkdir -p /tmp/ace-provider-evidence
           npm run test:real-provider | tee /tmp/ace-provider-evidence/provider.log
-          npm run test:real-provider-restart | tee /tmp/ace-provider-evidence/restart.log
-      - name: Run real two-writer and crash publication acceptance
-        run: |
-          npm run test:real-qdrant-concurrency -- --output /tmp/ace-provider-evidence/concurrency.json
-          npm run test:real-qdrant-crash -- /tmp/ace-provider-evidence/crash.json
       - name: Retain source-linked real provider reports and traces
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

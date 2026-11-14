@@ -70,7 +70,7 @@ const input = {
   },
   memory: {
     enabled: enabled('ACE_ENABLE_GRAPHITI'),
-    // Current Graphiti integration is an explicitly local stdio MCP boundary.
+    // Graphiti native provider is not configured; do not assert graph readiness.
     localOnly: true,
   },
   worktree: {

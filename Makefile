@@ -3,7 +3,7 @@ SHELL := bash
 EMBEDDING_PYTHON ?= 3.13
 ACE_IMAGE_TAG ?= ace:local
 
-.PHONY: help install install-python-providers install-embedding-providers check lint lint-ts lint-rust probe-providers qdrant-up verify build test feedback-preflight feedback-stage0 acquire-repobench-r convert-repobench-r resolve-repobench-r harbor-task-identities freeze-feedback-tasks prepare-harbor-feedback adapt-repobench-r collect-feedback-loop report-feedback-summary report-harbor-retrieval ace-image clean
+.PHONY: help install install-python-providers install-embedding-providers check lint lint-ts lint-rust probe-providers qdrant-up verify build test feedback-preflight acquire-repobench-r convert-repobench-r resolve-repobench-r harbor-task-identities freeze-feedback-tasks prepare-harbor-feedback adapt-repobench-r collect-feedback-loop report-feedback-summary report-harbor-retrieval ace-image clean
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -43,8 +43,6 @@ lint-rust: ## Run rustfmt and Clippy when a Rust crate is present
 probe-providers: ## Run the read-only external capability probe
 	npm run probe:providers
 
-report-harbor-paired: ## Render the verified native-vs-ACE Harbor paired report
-	npm run report:harbor-paired
 
 report-harbor-retrieval: ## Render the production retrieval native-vs-ACE report
 	npm run report:harbor-retrieval
@@ -62,8 +60,6 @@ qdrant-up: ## Start the local Qdrant container without exposing it beyond localh
 feedback-preflight: ## Record real feedback-loop provider readiness and provenance
 	npm run preflight:feedback-loop -- $(ARGS)
 
-feedback-stage0: ## Run the real ast-grep -> Qdrant -> Gateway -> LSP stage-0 trace
-	npm run test:feedback-stage0
 
 acquire-repobench-r: ## Acquire and pin official RepoBench-R records and source identities
 	npm run acquire:repobench-r -- $(ARGS)

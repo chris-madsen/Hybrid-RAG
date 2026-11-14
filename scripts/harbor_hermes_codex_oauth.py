@@ -1,7 +1,7 @@
 """Harbor Hermes adapter using ChatGPT/Codex subscription OAuth.
 
-Harbor 0.24.0's built-in Hermes adapter supports MCP but routes OpenAI through
-API keys or OpenRouter. This adapter preserves Harbor's Hermes runtime and
+Harbor 0.24.0's built-in Hermes adapter routes OpenAI through
+API keys or OpenRouter. ACE context must be delivered through the configured LLM Gateway. This adapter preserves Harbor's Hermes runtime and
 session/ATIF behavior while selecting Hermes's native openai-codex provider and
 staging a dedicated host Hermes auth store into the ephemeral task container.
 Hermes owns the refresh-token chain; Codex CLI / VS Code credentials are never
@@ -247,9 +247,6 @@ class HermesCodexOAuth(Hermes):
             env=env,
             timeout_sec=10,
         )
-        mcp_command = self._build_register_mcp_servers_command()
-        if mcp_command:
-            await self.exec_as_agent(environment, command=mcp_command, env=env, timeout_sec=10)
         skills_command = self._build_register_skills_command()
         if skills_command:
             await self.exec_as_agent(environment, command=skills_command, env=env, timeout_sec=10)
