@@ -4,7 +4,7 @@
 
 **Baseline:** `main@6df583fad7d45a4cda6586632240b6f364c08a8a` (2026-11-14).  
 **Architecture authority:** ADR-014/017/019, root `AGENTS.md`, `docs/research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md`, and QG2 pilot `docs/reviews/2026-11-10-sdlc-qg2-architecture-rule-selection.md`.  
-**Status:** source-audited targeted fixes, **not** unconditional certification of all ACE behavior.
+**Status:** structural remediation merged through #246; this ledger distinguishes automatically enforced structural/process conformance from capability-specific real provider/agent acceptance.
 
 ## Scope and source evidence
 
@@ -14,11 +14,12 @@ Source tree has 128 TypeScript files under `src/` (57 domain, 22 application, 39
 
 | ID | Baseline defect | Fix and proof | State |
 |---|---|---|---|
-| A-001 | `context-transform-service.ts` imports `ContextProvider` from the retired optional tool-call protocol-specific `gateway/retired-tool-protocol-gateway.ts`; application owns neither the port nor a neutral import | #237 places `ContextProvider` in `src/application/ports.ts`, preserves a type re-export in gateway and adds regression; `ACE-ARCH-004` reports recurrence | Fixed in PR; merge pending |
-| A-002 | `graphiti-lifecycle-gate.ts` and `retained-memory.ts` import `AsyncMemoryArchivePort` from concrete `adapters/file-memory-archive.ts` | #237 moves port type to `application/ports.ts` and keeps adapter's compatibility type re-export; `ACE-ARCH-005` reports application→adapter imports | Fixed in PR; merge pending |
-| A-003 | `application/file-workspace-store.ts` implements concrete Node filesystem persistence and cross-process fencing rather than an adapter-owned `WorkspaceStore` | Separate #245 relocates the existing implementation into `adapters/file-workspace-store.ts` and updates composition, exports and race test without changing the persistence schema or algorithm | Fixed in PR; merge pending |
-| A-004 | Policy denial prefix logic did not reject files beneath the `.git/` and `secrets/` prefixes and `.env.*` variants consistently | #237 normalizes the path and enforces exact/descendant and traversal-negative fixtures in existing contract tests | Fixed in PR; merge pending |
-| A-005 | Gateway v1 public DTO/schema authority is manually duplicated among JSON Schema, TypeScript and Go | Separate #244 implements TypeSpec compiler/OpenAPI/JSON Schema/SDK codegen, strict schema diff tests and incremental typed HTTP response binding | TypeSpec vertical slice staged; production Go/other wire migration needs independent proof |
+| A-001 | `context-transform-service.ts` imported a provider-specific gateway port rather than application ownership | #237 moved `ContextProvider` to `src/application/ports.ts`; later Gateway-only retirement removed the legacy tool surface | **MERGED #237/#246** |
+| A-002 | application memory services imported `AsyncMemoryArchivePort` from a concrete file adapter | #237 moved the port to `application/ports.ts`; architecture rules guard application→adapter recurrence | **MERGED #237** |
+| A-003 | application layer owned concrete Node filesystem workspace persistence | #245 relocated the implementation to `adapters/file-workspace-store.ts` and retained race/persistence semantics | **MERGED #245** |
+| A-004 | Policy denial prefix logic did not reject descendants of `.git/`, `secrets/`, and `.env.*` consistently | #237 normalized paths and added descendant/traversal negative fixtures | **MERGED #237** |
+| A-005 | Gateway v1 public DTO/schema authority was manually duplicated among JSON Schema, TypeScript and Go | #244 added pinned TypeSpec/OpenAPI/JSON Schema/SDK generation, regeneration drift checks and exhaustive DTO compatibility; #246 retained Gateway-only v1 | **MERGED #244/#246; wider contract migration remains staged** |
+| A-006 | After #246 the Bifröst plugin correctly failed closed but required custom `ace.session_id` / attempt / provider / host-attestation context that no repository integration populated | `2026-11-14-sdlc-finalization-g02.md` derives session/request identity from pinned Bifröst HTTP context, attests the exact inbound body, binds normalized model/provider, and compiles the native plugin against the pinned upstream SHA in CI | **FIXED IN THIS FINALIZATION PR; merge pending** |
 
 ## Architecture fitness enforcement
 
@@ -36,9 +37,11 @@ A native import-edge rule cannot prove provider failures are never turned into f
 
 ## Remaining acceptance / exclusions
 
-1. Independent PR CI and security on **each** final HEAD; review and integrate #237 and #245, then rerun `verify:pr` on the merged code. No branch protection/required-check settings are changed.
-2. Functional acceptance of T2 ACE slices requires actual agent/provider E2E, authorization/freshness negative tests and G02 evidence where relevant. The import scan alone does not certify them.
-3. The separate TS-00…TS-06 migration under #244 must retain old-version compatibility and cannot treat generated retired optional tool-call protocol/native schemas as transport replacements without SDK and JSONL proof.
-4. Previously inventoried worker lifecycle/persistence similarities remain *candidates* for separate semantic review, not established violations mandating consolidation. No large refactor is authorized from matching filenames alone.
+1. The structural/process refactor is checked by `npm run check:sdlc-closure`, `verify:pr`, Gateway-only audit, architecture rules, security gates, QG5 compatibility and TypeSpec regeneration. These checks may certify **repository structural/process conformance**, not external runtime behavior.
+2. G11 remains capability-specific. A production claim for a changed provider path still requires real agent/provider evidence, source freshness/authorization negatives and exact tested SHA. Mock or static plugin tests never substitute for that evidence.
+3. Retry/fallback and streaming are intentionally fail-closed or uncertified until request-local reauthorization/final-wire evidence is implemented. Their NOT-RUN status is not a structural-refactor failure.
+4. TypeSpec is authoritative for the migrated Gateway v1 generated surface; broader public contracts remain staged and must not be deleted or rewritten merely to make a closure score green.
+5. Previously inventoried lifecycle/persistence similarities remain candidates for semantic review, not proven architectural defects.
 
-**Claim allowed:** the identified structural import violations were repaired and covered by report-only regression rules. **Claim prohibited:** all historical ACE automatically conforms to every functional architecture/security invariant solely because static tests pass.
+**Allowed claim after this finalization PR merges:** historical ACE source is automatically guarded against the accepted **structural/process** architecture regressions covered by the installed gates, and the sole agent-facing path is Gateway-only.  
+**Still prohibited:** claiming that every semantic/provider/security property of every historical capability is production-certified without its applicable G11 evidence.
