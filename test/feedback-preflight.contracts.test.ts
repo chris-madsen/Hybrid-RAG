@@ -205,13 +205,14 @@ test('Hermes feedback jobs and manifests preserve exact gpt-6-luna model and xhi
     n_attempts: 1,
   });
   const native = validateFeedbackHarborJob(job(false));
-  const pair = validateMatchingFeedbackHarborJobs(job(false), job(true));
+  const pair = validateMatchingFeedbackHarborJobs(job(false), job(false));
   assert.equal(native._tag, 'Ok');
   if (native._tag === 'Ok') {
     assert.equal(native.value.model, 'openai-codex/gpt-6-luna');
     assert.equal(native.value.reasoningEffort, 'xhigh');
   }
   assert.equal(pair._tag, 'Ok');
+  assert.equal(validateFeedbackHarborJob(job(true))._tag, 'Err');
 
   const manifest = validateFeedbackExperimentManifest({
     schemaVersion: 1,
