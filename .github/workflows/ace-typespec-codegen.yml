@@ -50,3 +50,18 @@ jobs:
         run: ./node_modules/.bin/tsx --test test/mcp-sdk-runtime.conformance.test.ts test/context-bridge.contracts.test.ts
       - name: Exercise real Gateway HTTP and domain v1 compatibility tests
         run: ./node_modules/.bin/tsx --test test/gateway-projection-http.contracts.test.ts test/gateway-projection.contracts.test.ts test/gateway-schema.contracts.test.ts
+
+      - name: Export changed generated output for review before pinning
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync, existsSync } from 'node:fs';
+          const list = execFileSync('git', ['diff', '--name-only', '--', 'typespec/generated', 'src/generated/ace-gateway'], { encoding: 'utf8' })
+            .trim().split('\n').filter(Boolean);
+          for (const path of list) {
+            if (!existsSync(path)) continue;
+            console.log('ACE_UPDATED_GENERATED ' + JSON.stringify({path, base64: readFileSync(path).toString('base64')}));
+          }
+          console.log('ACE_UPDATED_GENERATED_COUNT ' + list.length);
+          NODE

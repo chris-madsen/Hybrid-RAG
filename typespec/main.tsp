@@ -9,6 +9,7 @@ using JsonSchema;
 // OpenSpec owns behavior, while domain functions own hash/identity checks.
 // Do not claim provider-wire delivery or introduce a token admission gate.
 @service(#{ title: "ACE Gateway Projection v1" })
+@TypeSpec.OpenAPI.info(#{ version: "1.0.0" })
 namespace AceGatewayV1 {
   @minLength(1)
   scalar EvidenceId extends string;
@@ -113,6 +114,10 @@ namespace AceGatewayV1 {
     error: { code: string; message: string };
   }
 
+  // Supported OpenAPI metadata only; these attributes are not access control.
+  // Runtime authorization and final-send safety remain independent domain duties.
+  @TypeSpec.OpenAPI.extension("x-ace-runtime-policy-owner", "domain-policy")
+  @TypeSpec.OpenAPI.extension("x-ace-final-provider-wire", "not_certified")
   @post
   @route("/internal/ace-gateway/v1/project")
   op project(@body request: ProjectionRequest): ProjectionDecision | GatewayError;

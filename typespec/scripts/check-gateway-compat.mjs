@@ -8,6 +8,12 @@ import Ajv2020 from 'ajv/dist/2020.js';
 // TypeSpec JSON Schema must accept/reject exactly the same controlled cases.
 const root = resolve(import.meta.dirname, '../..');
 const load = (name) => JSON.parse(readFileSync(resolve(root, name), 'utf8'));
+const generatedOpenApi = load('typespec/generated/openapi.json');
+assert.equal(generatedOpenApi.info.version, '1.0.0', 'Gateway v1 must not emit unversioned 0.0.0 metadata');
+const generatedProjectOperation = generatedOpenApi.paths?.['/internal/ace-gateway/v1/project']?.post;
+assert.ok(generatedProjectOperation, 'the existing project route must be generated');
+assert.equal(generatedProjectOperation['x-ace-runtime-policy-owner'], 'domain-policy');
+assert.equal(generatedProjectOperation['x-ace-final-provider-wire'], 'not_certified');
 const generatedRequest = load('typespec/generated/schema/ProjectionRequest.json');
 const generatedDecision = load('typespec/generated/schema/ProjectionDecision.json');
 const legacyRequest = load('contracts/ace-gateway/v1/projection-request.schema.json');
