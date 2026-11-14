@@ -41,6 +41,16 @@ const requirements = [
     contains: ['Full nightly deterministic TypeScript, architecture, build and property suite', 'npm run verify:full'],
   },
   {
+    id: 'QG6_SECURITY_DEPTH',
+    file: '.github/workflows/ace-code-health.yml',
+    contains: ['github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066', 'test:mutation:critical', 'Scheduled remote Markdown links (signal only)'],
+  },
+  {
+    id: 'QG6_MUTATION_ORACLE',
+    file: 'scripts/nightly-targeted-mutation.mjs',
+    contains: ['MUT-POLICY-DATA-CLASS', 'MUT-GATEWAY-POLICY-BYPASS', 'MUT-GATEWAY-SECRET-BYPASS', 'baseline failed', 'SURVIVED'],
+  },
+  {
     id: 'GATEWAY_ONLY',
     file: 'package.json',
     contains: ['"test:gateway-only-audit"', '"check:gateway-only"'],
