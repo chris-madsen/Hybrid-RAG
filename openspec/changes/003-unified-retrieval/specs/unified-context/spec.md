@@ -41,7 +41,7 @@ The system SHALL reduce irrelevant context through ranking, deduplication and di
 #### Scenario: Long required snippet
 
 - **WHEN** a relevant generated source has at least 2000 lines
-- **THEN** the source is preserved exactly and can be fetched completely via `ace_expand`
+- **THEN** the source is preserved exactly with a verifiable digest and remains available for authorized internal retrieval/re-projection without silent truncation
 
 #### Scenario: Pathological result
 
