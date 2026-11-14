@@ -24,7 +24,7 @@ const runtime = await resolveRealProviderRuntime(import.meta.dirname);
 const directory = await mkdtemp(join(tmpdir(), 'ace-gateway-real-provider-'));
 const workspace = join(directory, 'workspace');
 await mkdir(workspace);
-const workspaceId = 'gateway-real-' + randomUUID();
+const workspaceId = randomUUID();
 const code = [
   'export function retryAfterTransientFailure(input: string) {',
   '  let attempt = 0;',
