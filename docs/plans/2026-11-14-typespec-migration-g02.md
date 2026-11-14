@@ -10,7 +10,7 @@
 
 | Surface and version | Present authority (pre-migration) | Runtime reader / client | Target TypeSpec owner | Status at baseline |
 |---|---|---|---|---|
-| Gateway Projection HTTP v1 `POST /internal/ace-gateway/v1/project` | `contracts/ace-gateway/v1/projection-request.schema.json` and `projection-decision.schema.json`; `src/domain/gateway-projection.ts` validates request | `src/transport/gateway-projection-http.ts`; Go connector under `integrations/bifrost` | `typespec/ace-gateway/v1/main.tsp` | Handwritten; discrepancies must fail migration |
+| Gateway Projection HTTP v1 `POST /internal/ace-gateway/v1/project` | `contracts/ace-gateway/v1/projection-request.schema.json` and `projection-decision.schema.json`; `src/domain/gateway-projection.ts` validates request | `src/transport/gateway-projection-http.ts`; Go connector under `integrations/bifrost` | `typespec/main.tsp` | Handwritten; discrepancies must fail migration |
 | Gateway health/capabilities v1 | `src/transport/gateway-projection-http.ts` | HTTP clients, local agents | Separate TypeSpec operation after project slice | Existing, no claimed migration |
 | Gateway delivery recording v1 | HTTP returns 501, not certified | Bifrost connector | **No generated successful send contract** until real final-send evidence | Not implemented/certified |
 | Explicit MCP tool plane | `src/gateway/mcp-gateway.ts` Effect schemas, official MCP SDK transport | `src/transport/mcp-sdk-stdio.ts` | Gradual TypeSpec schema emitter → SDK mapping **if faithful** | Distinct plane, no alternate MCP transport |
@@ -52,3 +52,21 @@ Existing gateway request constraints that must survive: strict object fields; en
 - PLAN: each TSP-01..08 with exact source SHA, job run and explicit negative fixtures; unresolved phases visible.
 
 **Implementation evidence:** attach tested HEAD/merge SHA, command/output and failure fixtures to PR. This pre-code G02 text intentionally precedes the implementation commit.
+
+## Implementation evidence and deliberate migration boundary
+
+The staged codegen implementation is in [PR #244](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/244).
+
+| Stage | Implemented scope | Required next-level proof / exclusion |
+|---|---|---|
+| TS-00 | Source authority and pre-code G02 matrix; existing Gateway, MCP and Hermes contracts inventoried | This is not a semantic audit of every external provider |
+| TS-01 | Pinned TypeSpec 1.17.0 + HTTP/OpenAPI3/JSON Schema emitters + maintained @hey-api/openapi-ts 0.99.0, versioned Gateway v1 project operation, generated SDK and server wire DTO | Existing Go DTO/transport retains v1 wire compatibility |
+| TS-02 | Exhaustive TypeScript DTO/domain field coverage, required vs optional, union/enum, null/unknown and large int64 fixture parity in `check-gateway-compat.mjs` | Only mechanically identical fields are mapped; business behavior stays handwritten |
+| TS-03 | Official `@TypeSpec.OpenAPI.info` and `extension` metadata emitted for v1 and runtime-policy ownership | Metadata alone **never authorizes** a provider send; no invented scopes, runtime policy remains independently tested |
+| TS-04 | Versioned MCP tool input and Hermes JSONL *candidate* JSON Schemas, checked against retained v1 baseline and real SDK/bridge tests | Old runtime encoders/decoders and official MCP SDK remain in place because they differ on unknown-field acceptance; no alternate MCP transport |
+| TS-05 | Lockfile, tracked generator outputs and .gitattributes, clean regeneration + drift verification + deliberately stale artifact and mutated output negative fixtures in GitHub Actions | No unreviewed generated edits; no ad-hoc installs in workflow |
+| TS-06 | Gateway HTTP success response now typechecks against the copied maintained generated SDK DTO; actual HTTP behavior and domain decision rules unchanged | Legacy hand-written schema/Go DTO removal requires additional provider/Go compatibility and real agent E2E; **not** claimed in this PR |
+
+**Integration safety:** no new token budget admission gate, no additional network send, no production approval, no branch-protection change. Review the exact CI HEAD and synthetic merge SHA separately. The report-only architecture rules stay report-only.
+
+Local runbook: `docs/operations/typespec-codegen.md`. TSP gates are scope-qualified; successful contract-generation tests do **not** establish final-provider wire or production readiness.

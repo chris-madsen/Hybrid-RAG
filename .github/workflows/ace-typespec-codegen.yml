@@ -27,8 +27,14 @@ jobs:
           node-version: '22'
       - name: Install from generated lockfile
         run: npm ci --prefix typespec --ignore-scripts --no-audit --no-fund
+      - name: Seed an obsolete generated artifact (negative drift fixture)
+        run: |
+          mkdir -p typespec/generated
+          printf 'obsolete schema' > typespec/generated/__obsolete-schema-fixture.json
       - name: Compile TypeSpec and generate maintained TypeScript SDK
         run: npm --prefix typespec run generate
+      - name: Verify the obsolete artifact was removed by generation
+        run: test ! -e typespec/generated/__obsolete-schema-fixture.json
       - name: Check generated files and lockfile are immutable under regeneration
         run: |
           git diff --exit-code -- typespec/package-lock.json typespec/generated src/generated/ace-gateway
@@ -36,6 +42,16 @@ jobs:
             echo "Untracked codegen output detected"
             exit 1
           fi
+      - name: Prove generated drift is rejected (negative mutation fixture)
+        run: |
+          cp typespec/generated/openapi.json "$RUNNER_TEMP/openapi.generated.backup.json"
+          printf '\n' >> typespec/generated/openapi.json
+          if git diff --quiet -- typespec/generated/openapi.json; then
+            echo "A mutated generated contract evaded the drift gate"
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/openapi.generated.backup.json" typespec/generated/openapi.json
+          git diff --exit-code -- typespec/generated/openapi.json
       - name: Typecheck the generated SDK
         run: npm --prefix typespec run check:sdk
       - name: Prove strict Gateway v1 runtime schema compatibility
@@ -49,4 +65,4 @@ jobs:
       - name: Exercise official MCP and native bridge adapters with existing contract tests
         run: ./node_modules/.bin/tsx --test test/mcp-sdk-runtime.conformance.test.ts test/context-bridge.contracts.test.ts
       - name: Exercise real Gateway HTTP and domain v1 compatibility tests
-        run: ./node_modules/.bin/tsx --test test/gateway-projection-http.contracts.test.ts test/gateway-projection.contracts.test.ts test/gateway-schema.contracts.test.ts
+        run: ./node_modules/.bin/tsx --test test/gateway-projection-http.contracts.test.ts test/gateway-projection.contracts.test.ts test/gateway-schema.contracts.test.ts test/data-class-policy.contracts.test.ts test/bifrost-plugin.contracts.test.ts
