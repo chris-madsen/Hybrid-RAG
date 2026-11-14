@@ -29,6 +29,7 @@
 - The trusted attestor is the pinned Bifröst HTTP/plugin process itself because it observes the exact model-bound request bytes.
 - Session identity comes from Bifröst's existing coding-harness session resolver; request ID is the attempt-group identity for the physical HTTP request.
 - Transcript revision is the Bifröst request ID and transcript digest is SHA-256 of the exact inbound provider body.
+- Gateway v1 retains legacy field names `durableActiveTranscriptRevision` / `durableActiveTranscriptDigest`. In this Gateway-only Bifröst seam they identify the **exact visible model-bound request snapshot**, not the agent's private durable transcript store. `hostTranscriptAttested=true` means Bifröst attests the bytes it actually received. `compactionEnabled=false` / epoch 0 mean this Bifröst seam performs no host-side transcript compaction; they do not claim knowledge of any compaction the agent may have performed before constructing the request.
 - No host compaction is claimed at this seam: `compactionEnabled=false`, epoch 0, and a constant controls digest identifies that mode.
 - Provider is derived from the model using Bifröst's own `ParseModelString` semantics; a later routing mismatch fails closed in PreLLM.
 - Workspace remains configured deployment identity, not caller-controlled state.
