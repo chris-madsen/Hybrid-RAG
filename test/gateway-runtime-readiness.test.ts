@@ -45,6 +45,7 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       ACE_ENABLE_GRAPHITI: 'false',
       ACE_GATEWAY_HTTP_HOST: '127.0.0.1',
       ACE_GATEWAY_HTTP_PORT: String(port),
+      ACE_GATEWAY_HTTP_SHARED_SECRET: 'readiness-fixture-secret',
     },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
@@ -103,7 +104,7 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
     };
     const response = await fetch(base + '/project', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', authorization: 'Bearer readiness-fixture-secret' },
       body: JSON.stringify(request),
     });
     assert.equal(response.status, 200);
