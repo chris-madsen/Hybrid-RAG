@@ -1,0 +1,8 @@
+name: ACE CodeQL scope
+
+paths:
+  - "src/**"
+  - "scripts/**"
+
+paths-ignore:
+  - "src/generated/**"

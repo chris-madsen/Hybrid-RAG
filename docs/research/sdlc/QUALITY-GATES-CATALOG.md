@@ -33,7 +33,7 @@
 | G09 | PR | **TypeSpec contract-first** generation and public wire compatibility | new or migrated public contract | automated | **ACTIVE for Gateway v1**; wider migration remains staged |
 | G10 | PR | requirement↔code↔test↔provider proof | T1/T2 | review + tests | **ACTIVE process + closure audit** |
 | G11 | provider acceptance | real provider and restart/data safety | changed capability | integration | **ACTIVE selective; capability-specific evidence required** |
-| G12 | nightly | advisories, property/fuzz/mutation/security depth | selected packages | automated | **PARTIAL ACTIVE** (OSV report + Gateway property/nightly); CodeQL/mutation still planned |
+| G12 | nightly | advisories, property/fuzz/mutation/security depth | selected packages | automated | **ACTIVE** (OSV report + deterministic/property suite + pinned CodeQL + targeted critical mutation; remote links are scheduled signal-only) |
 | G13 | release | SBOM, license, provenance, vulnerabilities | releases | artifact validation | **ACTIVE release evidence** |
 | G14 | end | complete PR cross-phase consistency | T1/T2 | human+agent | **ACTIVE** |
 
@@ -141,7 +141,7 @@ ACE already has specialized commands for Qdrant, crash/restart, real LSP, Graphi
 - No P0 static scanner can substitute for this gate.
 
 ### G12 — Nightly
-Choose selected stable slow checks: CodeQL, vulnerability/advisory scan, external link checker, fuzz/property tests for parse/structured outputs, targeted mutation testing for policy/freshness/completeness and occasional crash/restart. Do not set an arbitrary 100% coverage floor in a codebase with important provider boundaries. Record trend and failing *changed invariants* rather than vanity metrics.
+Installed depth includes pinned CodeQL for JavaScript/TypeScript, scheduled OSV advisory reporting, deterministic/property checks, and a targeted mutation gate that deliberately breaks data-class/Gateway security decisions and requires existing contract tests to kill each mutant. Remote Markdown links are scheduled signal-only because external availability is nondeterministic. Do not set an arbitrary 100% coverage floor; add new mutants only for accepted critical invariants with a clear existing oracle.
 
 ### G13 — Production supply chain (already exists)
 ACE already binds package-lock digest, SBOM, production npm audit, image and base image digests, builder evidence, license review and signature verification to a release commit. **Do not recreate** this via a toy PR gate; add earlier scanners as defense in depth, while the release artifact remains authoritative.
