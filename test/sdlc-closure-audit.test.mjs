@@ -47,3 +47,32 @@ test('active OpenSpec guard rejects superseded integration changes and retired d
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+test('architecture authority guard rejects a revived Hermes/tool delivery path', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-architecture-closure-negative-'));
+  try {
+    const arch = join(root, 'docs', 'docs', 'architecture');
+    mkdirSync(arch, { recursive: true });
+    for (const name of [
+      '01-strategic-ddd.md',
+      '02-event-storming.md',
+      '03-tactical-ddd.md',
+      '04-fsm-workflows.md',
+      '05-contracts-and-deployment.md',
+      '06-traceability-and-review.md',
+      '07-architecture-fitness-contracts.md',
+    ]) {
+      writeFileSync(join(arch, name), '# current\n');
+    }
+    writeFileSync(join(arch, '05-contracts-and-deployment.md'), '# stale\nHermes ContextEngine\n');
+    const run = spawnSync(process.execPath, [audit, '--root', root, '--architecture-only'], { encoding: 'utf8' });
+    assert.equal(run.status, 1, run.stderr || run.stdout);
+    const result = JSON.parse(run.stdout);
+    const guard = result.results.find((entry) => entry.id === 'ARCHITECTURE_GATEWAY_AUTHORITY');
+    assert.equal(guard?.status, 'FAIL');
+    assert.ok(guard?.violations?.some((entry) => entry.forbidden.includes('Hermes ContextEngine')));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
