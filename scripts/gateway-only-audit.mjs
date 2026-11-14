@@ -16,6 +16,10 @@ for (const path of paths) {
   const hits = [];
   for (let i = 0; i < lines.length; i++) {
     matcher.lastIndex = 0;
+    // Pin integrity hashes are opaque bytes, not protocol references. Never
+    // mutate a checked-in SRI digest solely because its base64 contains a
+    // three-letter substring. The exception is restricted to this exact field.
+    if (path === 'package-lock.json' && /^\\s*"integrity":\\s*"sha(?:256|512)-[A-Za-z0-9+/=]+"\\s*,?\\s*$/u.test(lines[i])) continue;
     if (matcher.test(lines[i])) hits.push(i + 1);
   }
   if (pathMatch || hits.length) results.push({

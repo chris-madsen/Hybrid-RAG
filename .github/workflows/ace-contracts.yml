@@ -17,7 +17,7 @@ jobs:
     outputs:
       node: ${{ steps.paths.outputs.node }}
       go: ${{ steps.paths.outputs.go }}
-          steps:
+    steps:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -51,8 +51,7 @@ jobs:
             echo "[scope] changed path: ${path}"
             case "${path}" in
               integrations/bifrost/ace-connector/*) go=true ;;
-              integrations/hermes/ace_context_engine/*) node=true ;;
-              .github/fixtures/contracts/*) node=true; go=true; hermes=true ;;
+              .github/fixtures/contracts/*) node=true; go=true ;;
               src/*|test/*|scripts/*|architecture/*|contracts/*|package.json|package-lock.json|tsconfig.json|tsconfig.eslint.json|.eslintrc.cjs|knip.json|knip.config.*|benchmarks/fixtures/*)
                 node=true ;;
               docs/*|benchmarks/reports/*|AGENTS.md|README.md|LICENSE|.agents/*|.codex/*|.github/workflows/*|.github/fixtures/markdown-links/*)
