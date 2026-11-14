@@ -1,5 +1,3 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # ACE — Tactical DDD: Entities, Value Objects, Aggregates, invariants
 
 **Статус:** Proposed; модель выведена из PRD/ADR, именование и поля — новые проектные предложения. Следование этому документу не означает необходимость DDD framework, ORM или отдельной БД для каждого контекста.
@@ -107,7 +105,7 @@
 
 **Инварианты:** нет bundle до Policy Gate; хотя бы одна честно указанная provenance на значимые claims; `VerifiedCurrent` невозможен без live revision check; `partial` не скрывается; long outputs lossless; никому не выдавать enterprise/private sources из другого workspace; data from retrieval treated untrusted.
 
-**Queries/retired optional tool-call protocol projection:** `ace_context`, `ace_expand`, `ace_memory_search`; read-only с точки зрения файлов репозитория. `ace_index_status` optional internal. Корректный retired optional tool-call protocol tool contract описан в `05-contracts-and-deployment.md`.
+**Gateway projection:** agent-facing model requests arrive only through `ace.gateway.v1`; retrieval, exact-source access and memory lookup are internal ACE use cases behind application ports. Gateway projection remains read-only with respect to repository source. Contract ownership is described in `05-contracts-and-deployment.md` and active OpenSpec change 010.
 
 ## 8. BC-07 Trust & Policy
 
@@ -181,4 +179,4 @@ For a new feature, document (a) `State` ADT, (b) `Command` ADT, (c) `DomainError
 
 For example, `IndexGeneration` is a versioned state plus pure `canPublish/decidePublication` rules; the Effect application layer performs Qdrant publication and atomic pointer/CAS with crash/replay safeguards. `ContextRequest` is a typed result process, not a mutable domain object's lifecycle; operational request trace events are not necessarily durable domain events.
 
-**TypeSpec owns the external protocol contract, not internal state.** A context's discriminated union maps explicitly to generated JSON/HTTP/retired optional tool-call protocol DTOs, and adapters validate untrusted payloads. Source freshness, private-code policy and real provider selection remain enforced at I/O time, not by TypeSpec annotations alone.
+**TypeSpec owns the external versioned Gateway protocol contract, not internal state.** A context's discriminated union maps explicitly to generated JSON/HTTP DTOs, and adapters validate untrusted payloads. Source freshness, private-code policy and real provider selection remain enforced at I/O time, not by TypeSpec annotations alone.
