@@ -15,9 +15,7 @@ import {
 } from '../src/domain/feedback-loop-experiment.js';
 import {
   dockerImageMatchesDigest,
-  feedbackAceContextBridgeCommand,
   feedbackHermesAgentImportPath,
-  feedbackHermesContextPluginPath,
   feedbackHermesVersion,
   validateFeedbackHarborJob,
   validateMatchingFeedbackHarborJobs,
@@ -465,8 +463,8 @@ const harborJob = (withAce = false, overrides: Record<string, unknown> = {}): Re
   ...overrides,
 });
 
-test('feedback Harbor identity pins Hermes, ChatGPT OAuth model routing and ACE only on optional arm', () => {
-  const checked = validateMatchingFeedbackHarborJobs(harborJob(), harborJob(true));
+test('feedback Harbor identity rejects retired direct ACE injection and accepts a Gateway-routed pair', () => {
+  const checked = validateMatchingFeedbackHarborJobs(harborJob(), harborJob());
   assert.equal(checked._tag, 'Ok');
   if (checked._tag === 'Ok') {
     assert.equal(checked.value.agent, 'hermes');
@@ -474,16 +472,16 @@ test('feedback Harbor identity pins Hermes, ChatGPT OAuth model routing and ACE 
     assert.equal(checked.value.model, 'openai-codex/gpt-5.6-luna');
     assert.equal(checked.value.reasoningEffort, 'high');
     assert.equal(checked.value.hasAceContextEngine, false);
-    assert.equal(checked.value.aceContextBridgeCommand, feedbackAceContextBridgeCommand);
+    assert.equal(checked.value.gatewayDelivery, 'bifrost-provider-endpoint');
   }
-  assert.equal(validateMatchingFeedbackHarborJobs(harborJob(), harborJob())._tag, 'Err');
-  assert.equal(validateMatchingFeedbackHarborJobs(harborJob(true), harborJob(true))._tag, 'Err');
+  assert.equal(validateFeedbackHarborJob(harborJob(true))._tag, 'Err');
+  assert.equal(validateMatchingFeedbackHarborJobs(harborJob(), harborJob(true))._tag, 'Err');
 });
 
 test('feedback Harbor identity rejects different frozen task sets between Hermes arms', () => {
   assert.equal(validateMatchingFeedbackHarborJobs(
     harborJob(),
-    harborJob(true, { tasks: [{ path: '/frozen/task-b' }] }),
+    harborJob(false, { tasks: [{ path: '/frozen/task-b' }] }),
   )._tag, 'Err');
 });
 
