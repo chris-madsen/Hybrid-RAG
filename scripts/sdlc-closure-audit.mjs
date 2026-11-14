@@ -43,7 +43,12 @@ const requirements = [
   {
     id: 'QG6_SECURITY_DEPTH',
     file: '.github/workflows/ace-code-health.yml',
-    contains: ['github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066', 'test:mutation:critical', 'Scheduled remote Markdown links (signal only)'],
+    contains: ['github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066', 'config-file: ./.github/codeql/codeql-config.yml', 'check-codeql-sarif.mjs', 'test:mutation:critical', 'Scheduled remote Markdown links (signal only)'],
+  },
+  {
+    id: 'QG6_CODEQL_RESULT_GATE',
+    file: 'scripts/check-codeql-sarif.mjs',
+    contains: ['diagnostics/extraction-errors', "'security-severity'", 'securitySeverity >= 7', 'HIGH_SECURITY_FINDINGS', 'EXTRACTION_FAILED'],
   },
   {
     id: 'QG6_MUTATION_ORACLE',
