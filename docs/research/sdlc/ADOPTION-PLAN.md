@@ -40,17 +40,19 @@
 
 See [research comparison](QUALITY-GATES-VIDEO-SPHERICON-ACE.md), [gate catalog](QUALITY-GATES-CATALOG.md), and [implementation plan](QUALITY-GATES-IMPLEMENTATION-PLAN.md).
 
-Recommended order:
-1. **QG0:** offline local Markdown links — no broad npm install for docs-only CI.
-2. **QG1:** source secret scanning and GitHub workflow syntax/security, pinned tools.
-3. **QG2:** two to four verified ACE-specific architecture rules with positive+negative fixtures and human-approved scope.
-4. **QG3:** read-only G02 Design Consistency with a real acceptance crosswalk; already introduced as a *manual procedural* gate in this SDLC.
-5. **QG4–QG6:** report-only Knip, compatibility checks and nightly vulnerability/mutation/property tests when justified.
-6. **QG7/8 conditional:** typed SCIP/easement, mise, TypeSpec or SQL schema tools only if an actual ACE contract/scale problem requires them.
+Current implementation status:
+1. **QG0 — ACTIVE:** offline local Markdown links with positive/negative fixtures.
+2. **QG1 — ACTIVE:** PR secret scanning plus actionlint/zizmor workflow checks; scheduled history scan remains report-only.
+3. **QG2 — ACTIVE / report-only:** ACE-specific ast-grep architecture rules with valid/invalid fixtures and source scan.
+4. **QG3 / G02 — ACTIVE procedural gate:** T2 implementation requires a pre-code acceptance crosswalk and owner decisions; it is intentionally not an automatic architectural approval.
+5. **QG4 — ACTIVE report-only:** Knip dependency/unused-code reporting plus scheduled OSV advisory reporting.
+6. **QG5 — ACTIVE for accepted Gateway v1:** in-place compatibility guard plus TypeSpec regeneration/DTO/schema compatibility.
+7. **QG6 — PARTIAL ACTIVE:** nightly full deterministic/property verification and OSV reporting are installed; CodeQL and targeted mutation checks remain optional/planned until measured need justifies them.
+8. **QG7/8 conditional:** typed SCIP/easement or additional toolchain managers are not required for SDLC closure unless a measured invariant cannot be proved with the existing graph/tests.
 
 Do not copy Sphericon's PostgreSQL/Go SQL testing, frontend bundle-size gate, worktree isolation daemon or TypeSpec generators as mandatory ACE checks. Existing ACE deterministic tests, real providers and release supply-chain proof remain independent authoritative checks.
 
-A future tool PR must show both a clean fixture and deliberately violating fixture, observed commands and GitHub CI result at the exact PR SHA. All proposed tools remain NOT INSTALLED until those PRs are completed.
+Any future gate/tool extension must still show a clean fixture and deliberately violating fixture, observed commands and GitHub CI result at the exact PR SHA. Do not relabel optional/planned gates as required closure criteria.
 
 ## Owner decision update — TypeSpec and functional domain
 
