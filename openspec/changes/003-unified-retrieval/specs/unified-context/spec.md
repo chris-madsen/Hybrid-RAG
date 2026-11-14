@@ -13,7 +13,7 @@ The system SHALL assemble local candidates, AST/LSP facts, documentation and opt
 #### Scenario: Multi-source issue
 
 - **WHEN** a query requires code, types and an ADR
-- **THEN** one `ace_context` request returns a deduplicated bundle with cited evidence
+- **THEN** one authorized Gateway projection assembles a deduplicated source-attributed context result for the model-bound request
 
 #### Scenario: Simple known symbol
 
