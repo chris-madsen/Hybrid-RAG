@@ -26,7 +26,7 @@ For a supported Chat request the plugin uses Bifröst's own trusted context:
 - `BifrostContextKeyRequestID` — physical ingress request and initial attempt-group identity.
 - `BifrostContextKeySessionID` — session resolved by Bifröst from supported coding-harness/session headers.
 - deployment-configured workspace ID;
-- provider/model derived with the pinned Bifröst `ParseModelString` semantics;
+- explicit provider/model derived with the pinned Bifröst `ParseModelString` semantics; unprefixed/automatic provider routing is rejected;
 - SHA-256 of the exact inbound JSON body.
 
 Gateway v1 retains required legacy fields named `durableActiveTranscriptRevision` and `durableActiveTranscriptDigest`. Bifröst does **not** possess the evidence needed to populate them as durable-host facts. Therefore the connector sets `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, an explicit `bifrost-visible-request-only` engine marker, and an `unattested:<request-id>` revision marker. The digest is the exact visible request body only as a request-binding diagnostic; while `hostTranscriptAttested=false` it MUST NOT be interpreted as durable transcript proof.
@@ -55,13 +55,22 @@ Legacy passthrough/degraded decision variants remain decodable only for v1 compa
 
 The connector checks semantic preservation, not merely hashes: model, stream flags, tools, unknown fields and all original messages remain identical; the single inserted message is a system message carrying the ACE verified-evidence envelope.
 
+## Destination authorization
+
+Private ACE source context is an outbound data transfer once it is inserted into an LLM request. Before retrieval/injection, Gateway Core therefore requires both:
+
+- `ACE_GATEWAY_EXTERNAL_LLM_OPT_IN=true`;
+- the exact Bifröst provider name in `ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON`.
+
+The application service applies the existing `ProjectDataPolicy` to `other_external/private_source` and blocks likely secret material before constructing the projected body. Because automatic provider routing would make the destination unknown at authorization time, the connector rejects unprefixed models. PreLLM then proves that the authorized provider/model did not drift before the first network attempt. Retry/fallback remains blocked pending fresh authorization.
+
 ## Provider attempt guard
 
 Before the provider call, PreLLM verifies:
 
 - an APPLY receipt exists for the current request;
 - the selected normalized model matches the projected model;
-- an explicit requested provider did not change (an unprefixed model may use trusted Bifröst auto-routing);
+- the selected provider is exactly the explicitly authorized provider and the normalized model matches;
 - the exact inserted ACE context survived Bifröst normalization;
 - no configured fallback is active;
 - the receipt has not already authorized another PreLLM attempt.
