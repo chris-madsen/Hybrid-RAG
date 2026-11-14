@@ -1086,7 +1086,9 @@ const main = async (): Promise<void> => {
     readiness.unified_context = { state: 'not_ready', reason: 'real_provider_disabled' };
     process.stderr.write('ace-runtime context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+ast-grep+TypeScript-LS composition; provider outage remains not_ready\n');
   }
-  const gatewayAllowedLlmProviders = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', []);
+  const gatewayAllowedLlmProviders = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', [])
+    .map((provider) => provider.trim().toLowerCase())
+    .filter((provider) => provider.length > 0);
   const gatewayExternalLlmOptIn = process.env.ACE_GATEWAY_EXTERNAL_LLM_OPT_IN === 'true';
   const gatewayPolicy = {
     ...defaultLocalPolicy(registered.value.workspaceId),
