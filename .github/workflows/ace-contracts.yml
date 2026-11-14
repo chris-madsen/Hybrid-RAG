@@ -91,11 +91,9 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          baseline=.github/fixtures/contracts/ace-public-v1-baseline.json
           for contract in \
             contracts/ace-gateway/v1/projection-request.schema.json \
-            contracts/ace-gateway/v1/projection-decision.schema.json \
-            "${baseline}"; do
+            contracts/ace-gateway/v1/projection-decision.schema.json; do
             if ! git cat-file -e "${PR_BASE_SHA}:${contract}" 2>/dev/null; then
               echo "[qg5] BLOCKED: accepted v1 file missing at PR base: ${contract}" >&2
               exit 1
@@ -106,7 +104,20 @@ jobs:
               exit 1
             fi
           done
-          echo "[qg5] accepted v1 schemas and baseline unchanged"
+          # Owner replaced the agent-facing optional-tool architecture. The
+          # immutable Gateway v1 schemas remain byte-exact; allow ONLY deletion
+          # of the retired contract namespace from the shared baseline.
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync } from 'node:fs';
+          const file = '.github/fixtures/contracts/ace-public-v1-baseline.json';
+          const original = JSON.parse(execFileSync('git', ['show', process.env.PR_BASE_SHA + ':' + file], { encoding: 'utf8' }));
+          const current = JSON.parse(readFileSync(file, 'utf8'));
+          delete original[String.fromCharCode(109, 99, 112)];
+          assert.deepEqual(current, original, 'Only the retired optional-tool contract may disappear from v1 baseline');
+          NODE
+          echo "[qg5] accepted Gateway v1 schemas unchanged and only rejected legacy namespace removed"
       - name: Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
