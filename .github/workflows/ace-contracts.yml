@@ -132,7 +132,7 @@ jobs:
         env:
           ACE_TEST_BASE: ${{ github.event.pull_request.base.sha }}
         run: npm run verify:pr
-      - name: Full nightly deterministic TypeScript, Hermes, architecture, build and property suite
+      - name: Full nightly deterministic TypeScript, architecture, build and property suite
         if: github.event_name != 'pull_request'
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -300,7 +300,7 @@ jobs:
 
   real-qdrant:
     # Real Qdrant service + real FastEmbed model, not mocked provider wires.
-    # Keep a single shared cache for the composed provider/crash acceptance.
+    # Keep a single shared cache for the composed Gateway/provider acceptance.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 65
