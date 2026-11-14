@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Что ACE может перенять из Roo Code: исследование и план экспериментов
 
 > **Статус:** исследование кода и план, **не утверждение о выигрышах ACE и не согласование новой реализации**.
@@ -18,7 +20,7 @@
 
 В текущем ACE:
 
-`ast-grep/структурные кандидаты → dense + sparse(BM25)/RRF → [опционально reranker] → точная повторная проверка исходника + LSP → компактная доставка/expand/receipts → MCP agent`.
+`ast-grep/структурные кандидаты → dense + sparse(BM25)/RRF → [опционально reranker] → точная повторная проверка исходника + LSP → компактная доставка/expand/receipts → retired optional tool-call protocol agent`.
 
 **Это сравнение реализаций, а не доказательство превосходства одной системы.** Roo Code **не показал в изученном `codebase_search`** слияния sparse + dense по RRF или проверки LSP-определений; это *не* утверждение, что в Roo вообще нет других поисковых инструментов. У Roo отдельно есть `search_files` через ripgrep; он не интегрирован в указанную ветку векторного поиска как RRF.
 
@@ -38,11 +40,11 @@
 | Порог релевантности и top-K | Конфигурируемые `minScore` и `maxResults` | Предел кандидатов и стратегии; similarity threshold требует проверки по веткам | **Калибровать**, не копировать raw threshold в RRF |
 | Инкрементальные изменения | VS Code watcher + debounce + SHA256 file cache | Snapshot reconciliation, content digests, reused vectors, safe publish | **Изучить UX/event batching**, сохранить atomic snapshots |
 | Большие репозитории | `p-limit`, Mutex, ограниченное число pending batches и retries | Есть реальные 1k/10k index-scale runner и частичная переиндексация | **Сравнить cold/change-only время и RSS**, оптимизировать при реальной нужде |
-| Статус индекса | Indexed/Indexing/Error/Standby, прогресс в UI, per-folder состояние | `ace_workspace_status`, readiness/coverage; нет Roo VS Code UI | **Перенять observability**, но сначала на MCP/CLI |
+| Статус индекса | Indexed/Indexing/Error/Standby, прогресс в UI, per-folder состояние | `ace_workspace_status`, readiness/coverage; нет Roo VS Code UI | **Перенять observability**, но сначала на retired optional tool-call protocol/CLI |
 | Выдача агенту | Путь, score, строки и `codeChunk` | `ContextBundle`, source proof, expand, delivery metrics, reusable receipts | **Не упрощать контракт**; улучшить human-readable диагностику |
 | Поставщики embedding | Несколько cloud/local providers через единый интерфейс | Process embedding port, разные worker/provider конфигурации | **Не дублировать** абстракцию; только измерять модели |
 
-Важное различие: **Roo Code — VS Code agent + RAG**, а **ACE — отдельный context engine с MCP API**. UI Roo можно использовать как ориентир для будущего клиента ACE, но интерфейс VS Code не должен проникнуть в ядро ACE.
+Важное различие: **Roo Code — VS Code agent + RAG**, а **ACE — отдельный context engine с retired optional tool-call protocol API**. UI Roo можно использовать как ориентир для будущего клиента ACE, но интерфейс VS Code не должен проникнуть в ядро ACE.
 
 ### Точные места в исходниках Roo Code
 
@@ -65,7 +67,7 @@
 - [`src/adapters/qdrant-context-provider.ts`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/66410b246de11af0e559abec70bf5dd96fa8be77/src/adapters/qdrant-context-provider.ts): retrieval stages, embedding, reranker, source reread, LSP, provenance.
 - [`src/domain/context-delivery.ts`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/66410b246de11af0e559abec70bf5dd96fa8be77/src/domain/context-delivery.ts): locate/inspect projection, expand handles, duplicate suppression, delivery metrics.
 - [`src/domain/retrieval-quality-evaluation.ts`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/66410b246de11af0e559abec70bf5dd96fa8be77/src/domain/retrieval-quality-evaluation.ts): Recall@k, MRR, nDCG и unknown-safe экономика.
-- [`src/bin/ace-mcp.ts`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/66410b246de11af0e559abec70bf5dd96fa8be77/src/bin/ace-mcp.ts): композиция Qdrant/embeddings/LSP/MCP.
+- [`src/bin/ace-retired-tool-protocol.ts`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/66410b246de11af0e559abec70bf5dd96fa8be77/src/bin/ace-retired-tool-protocol.ts): композиция Qdrant/embeddings/LSP/retired optional tool-call protocol.
 
 ## 2. Кандидаты к заимствованию — по приоритетам
 
@@ -152,7 +154,7 @@
 
 **Факт Roo:** per-folder instances/status и progress notifications; пользователь видит `Indexed`, `Indexing`, `Error`, `Standby` и может менять поиск из UI.
 
-**Что перенять:** стабильные поля статуса ACE для CLI/MCP, затем (по необходимости) тонкий VS Code client/extension panel. **Не пытаться одновременно писать IDE-расширение и проверять retrieval.** Сначала нужен HTML/JSON report и ясное `NOT_READY` с причиной.
+**Что перенять:** стабильные поля статуса ACE для CLI/retired optional tool-call protocol, затем (по необходимости) тонкий VS Code client/extension panel. **Не пытаться одновременно писать IDE-расширение и проверять retrieval.** Сначала нужен HTML/JSON report и ясное `NOT_READY` с причиной.
 
 **Приёмка:** в монорепо и multi-root workspace status не смешивается; нет false-green при частичном индексе; source identities и policy isolation сохранены.
 
@@ -176,7 +178,7 @@
 | Удаление Qdrant collection при смене dimension / удаление старых chunks перед успешной публикацией новых | У ACE есть snapshot/alias/lease/provenance invariants; нельзя ухудшать crash consistency |
 | Поиск в состоянии `Indexing` с подразумеваемым полным охватом | Частичное покрытие должно отражаться в `sourceCoverage`, warning и `complete=false` при required evidence |
 | Автоматический облачный embedding без политики | Возможен egress приватного кода; запрет по умолчанию |
-| Прямая зависимость ACE domain на `vscode` | Разрушит MCP/CLI/Harbor/headless portability |
+| Прямая зависимость ACE domain на `vscode` | Разрушит retired optional tool-call protocol/CLI/Harbor/headless portability |
 | Raw source или credential в диагностических отчётах Git | Секреты/приватный код не должны попадать в публичные artifacts; хэшированная redacted telemetry по умолчанию |
 
 Это инженерные рекомендации по **нашей** политике ACE; они не утверждают, что Roo Code «небезопасен». В частности, недопустимость destructive index changes связана с более строгими гарантиями нашего проекта.
@@ -207,7 +209,7 @@
 
 **Слой retrieval:** Recall@1/3/5, MRR, nDCG@5, correct file+exact span, latency p50/p95, ошибочные scopes, duplicate sources, failures/partial, payload `structuredContentBytes`, `newContextBytes`, `projectionBytesAvoided`; model-tokenized body count как отдельная **оценка**, а не счёт модели.
 
-**Слой agent:** успешность задачи, quality/grader, actual `ace_context`/expand calls, native file reads, *real provider-reported* input/cached/output tokens, total cost, elapsed time. Токены MCP-пейлоада нельзя молча добавлять к provider totals повторно или считать их синонимом.
+**Слой agent:** успешность задачи, quality/grader, actual `ace_context`/expand calls, native file reads, *real provider-reported* input/cached/output tokens, total cost, elapsed time. Токены retired optional tool-call protocol-пейлоада нельзя молча добавлять к provider totals повторно или считать их синонимом.
 
 **Минимальный per-query record:** `dataset/task_id | source_sha | strategy | candidate_type | path+range | rank | LSP/AST proof | freshness | response_bytes | retrieval_ms | gold_match | errors`. Для agent record добавить model/runtime, tool call correlation, actual usage и quality.
 
@@ -240,7 +242,7 @@
 - [ ] Добавить explicit path scope и провести scoped/non-scoped retrieval paired eval.
 - [ ] Сравнить `index_scheduler` c нынешним ACE на 1k/10k и edit-storm; оставить только если delta объяснима.
 - [ ] При диагностированном недостаточном coverage провести language-aware fallback в *отдельном несемантическом источнике*.
-- [ ] Улучшить status/progress MCP/CLI, без обязательного UI.
+- [ ] Улучшить status/progress retired optional tool-call protocol/CLI, без обязательного UI.
 
 ### P2 — исследование без блокирования продукта
 - [ ] Сопоставить Roo embedded vector retrieval как один внешний baseline, при одинаковых источниках и эмбеддингах.

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Tasks — Production retrieval vertical slice
 
 **State: REAL PROVIDER + FORCED-USE HARBOR DIAGNOSTIC; DBC-12 NOT CLOSED.** The
@@ -7,7 +9,7 @@ explicitly open; prior port-level `[x]` markers do not satisfy those gates.
 
 ## Architecture/approval
 - [x] Owner approved ADR-012's six acceptance rules on 2026-10-19. **Separate open approvals remain:** production embedding model/runtime, exact LSP winner, cloud data handling and provider license/version evidence.
-- [x] Establish valid Codex/official MCP SDK integration and conformance contract; remove homemade transport from production bootstrap after migration. Official SDK client and Codex Harbor calls are evidenced; cancellation/error contracts pass.
+- [x] Establish valid Codex/official retired optional tool-call protocol SDK integration and conformance contract; remove homemade transport from production bootstrap after migration. Official SDK client and Codex Harbor calls are evidenced; cancellation/error contracts pass.
 - [x] Pin real Qdrant, semantic embedding, Tree-sitter grammar and selected LSP; no SHA256 vector as semantic provider. Final production approval remains owner-gated.
 
 ## Vertical slice
@@ -27,7 +29,7 @@ explicitly open; prior port-level `[x]` markers do not satisfy those gates.
 - [x] DBC-06 source failure completeness / degraded truthful response (`npm run test:real-provider-outage`: unavailable Qdrant yields `complete=false`, `partialSources=["code","qdrant"]`, current local evidence and explicit outage warning).
 - [x] DBC-07 policy denial outbound count zero and safe audit (`npx tsx --test test/provider-and-multiprocess-contracts.test.ts`: Vertex adapter and gateway composition make zero HTTP calls; existing audit contract verifies redacted safe decision record).
 - [x] DBC-08 byte-identical original and generated 2000+ line content (`npm run test:real-provider` plus the >2000-line Unicode/mixed-newline artifact round-trip contract).
-- [x] DBC-09 official MCP SDK conformance with **Codex**, cancellation/error paths. The official TypeScript client covers handshake/list/call/error/concurrency/cancellation, and Harbor proves actual Codex→MCP→ACE calls.
+- [x] DBC-09 official retired optional tool-call protocol SDK conformance with **Codex**, cancellation/error paths. The official TypeScript client covers handshake/list/call/error/concurrency/cancellation, and Harbor proves actual Codex→retired optional tool-call protocol→ACE calls.
 - [x] DBC-10 stable Codex historical episode IDs after append and replay (`npm run test:memory-process`: separate export workers preserve the first episode ID after append; archive import/replay remains idempotent).
 - [ ] DBC-11 shared digest archive delete and derived purge correctness.
 - [ ] DBC-12 realistic Harbor attribution and quality gate. The current B0 run retained native and natural 9/9 reward summaries, but natural made zero ACE calls; forced made 10 actual calls, all returned `not_ready`, and 8/9 trials failed Harbor reward-file collection. This is honest wiring/provider-outage evidence, not normative attribution closure or a token-savings result.

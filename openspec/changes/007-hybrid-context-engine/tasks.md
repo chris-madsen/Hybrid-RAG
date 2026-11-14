@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Tasks — Hybrid Context Engine completion
 
 **Implementation/current main (reviewed 2026-10-22):** `main@665345df0ecea707179e8fcd2905aed8495681d3`; PRs #123–#144 are merged. **Separate pinned external H6 evidence sources:** ACE `b20646c966575e8280ea792e4f851ab1e28ec867` and Chess `23a7bb6b27023e8520941841d69745dd623d0933`. These are not interchangeable commits; merged code and external evidence do not imply a completed scored five-strategy/Harbor gate. See the [post-merge baseline evidence](../../../docs/reviews/2026-10-22-h6-postmerge-baseline-665345d.md).
@@ -6,7 +8,7 @@
 
 ## Already present on main
 
-- [x] Agent-neutral MCP facade.
+- [x] Agent-neutral retired optional tool-call protocol facade.
 - [x] ast-grep structural provider.
 - [x] Generic maintained LSP adapter.
 - [x] Qdrant immutable collections + atomic current alias.
@@ -48,7 +50,7 @@
 - [x] Accept known bundle/evidence identities, including evidence-only reuse without a bundle ID.
 - [x] Suppress unchanged repeated bodies while retaining exact expansion.
 - [x] Add new/reused/duplicate-avoided/expanded byte metrics.
-- [x] Prove receipt portability across independent MCP clients and actual process restart, including unchanged, changed, unknown and stale receipts; exact expansion remains covered by the MCP contract suite.
+- [x] Prove receipt portability across independent retired optional tool-call protocol clients and actual process restart, including unchanged, changed, unknown and stale receipts; exact expansion remains covered by the retired optional tool-call protocol contract suite.
 
 ## H5 Context assembly
 
@@ -59,7 +61,7 @@
 ## H6 Evaluation
 
 - [x] Freeze the multi-repository retrieval holdout and exact source manifests in an external evidence workspace before scored tuning; do not vendor source repositories or generated holdout fixtures into ACE.
-- [x] Add benchmark-only stage-rank/provider trace boundary, canonical candidate IDs, durable JSONL/terminal receipts and frozen-run identity validation without adding MCP tools.
+- [x] Add benchmark-only stage-rank/provider trace boundary, canonical candidate IDs, durable JSONL/terminal receipts and frozen-run identity validation without adding retired optional tool-call protocol tools.
 - [ ] Run sparse/BM25-only vs dense-only vs hybrid RRF vs hybrid+reranker vs hybrid+reranker+Working Context ablation on the frozen holdout.
 - [ ] Run Native Codex vs dense ACE vs hybrid ACE vs hybrid+receipt/delta Harbor arms.
 - [x] Run the separate frozen CPU reranker holdout and record a rejection verdict for the current candidate set; no concrete model identity is approved.

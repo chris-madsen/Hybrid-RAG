@@ -144,8 +144,7 @@ const manifest = {
     acePackage: `${packageJson.name}@${packageJson.version}`,
     node: process.version,
     typescript: packageJson.dependencies?.typescript ?? 'unknown',
-    mcpServerSdk: packageJson.dependencies?.['@modelcontextprotocol/server'] ?? 'unknown',
-    mcpClientSdk: packageJson.dependencies?.['@modelcontextprotocol/client'] ?? 'unknown',
+    gatewayWire: 'ace.gateway.v1',
     packageLockSha256: sha256(packageLock),
   },
   mandatoryChecks: {

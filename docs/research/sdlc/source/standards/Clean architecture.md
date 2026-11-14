@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Clean Architecture — dependency inversion with practical boundaries
 
 ## Purpose
@@ -6,7 +8,7 @@ Preserve domain and application testability without reflexive interface/abstract
 ## Rules
 1. Map **Effect application use case → pure functions over readonly ADTs → typed port → adapter**; an OO service/entity class is not required.
 2. Define ports in application/domain-facing contracts, not alongside vendor SDK types.
-3. Keep generated TypeSpec wire DTOs and vendor JSON/HTTP/MCP/Qdrant/SQL DTOs at the adapter boundary; map explicitly to validated domain ADTs.
+3. Keep generated TypeSpec wire DTOs and vendor JSON/HTTP/retired optional tool-call protocol/Qdrant/SQL DTOs at the adapter boundary; map explicitly to validated domain ADTs.
 4. Do input validation at trust boundary and domain validation at invariant boundary.
 5. Errors are explicit, typed, and mapped to public outcomes once.
 6. Application owns transaction/compensation orchestration, not low-level format.
@@ -27,7 +29,7 @@ Preserve domain and application testability without reflexive interface/abstract
 - Effect services and layers express dependency injection.
 - Qdrant supplies retrieval candidates, not authoritative code identity.
 - AST/LSP proofs retain exact parsed and semantic evidence.
-- MCP is explicit tool plane; Bifrost projected context is a distinct boundary.
+- retired optional tool-call protocol is explicit tool plane; Bifrost projected context is a distinct boundary.
 - Graphiti represents derived memory and never owner-approved truth by default.
 
 ## Red flags

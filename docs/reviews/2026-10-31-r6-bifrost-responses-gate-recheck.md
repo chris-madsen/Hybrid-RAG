@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # R6 Bifrost Responses gate recheck
 
 **Date:** 2026-10-31
@@ -28,7 +30,7 @@ The merged dedicated route uses a custom `chatgpt_passthrough` path, not the req
 
 - `src/transport/gateway-projection-http.ts:44-58` advertises only `openai.chat.completions`; `record-delivery` returns HTTP 501 (`PROVIDER_WIRE_NOT_CERTIFIED`).
 - `integrations/bifrost/ace-connector/plugin/main.go:177-178` rejects requests without `ChatRequest`; `PostLLMHook` at `:195-196` is a no-op. This is not a Responses final-egress integration. It was not invoked because Chat Completions is prohibited for this task.
-- `src/bin/ace-mcp.ts:1133-1145` constructs `makeContextAssembler()` without a token counter.
+- `src/bin/ace-retired-tool-protocol.ts:1133-1145` constructs `makeContextAssembler()` without a token counter.
 - `src/domain/context-assembly.ts:65-66,90,135` falls back to `ceil(text.length / 4)` and labels it `character_estimate`. `src/application/context-transform-service.ts:174-186` marks that output `partial`, not model-ready.
 - `src/application/gateway-projection-service.ts:65` derives `budgetTokens` from remaining deadline time rather than a verified model context window/output reserve.
 - The approved plan's corrected requested pair is model ID `openai-codex/gpt-6-luna` and `reasoning_effort=xhigh` as separate values. Neither exact support on the selected route nor the effective context window/pre-send model counter was verified. In the runner, `BIFROST_SOURCE_ROOT`, `ACE_BIFROST_BASE_URL`, `ACE_CONTEXT_MODEL`, and `ACE_CONTEXT_WINDOW` were unset.

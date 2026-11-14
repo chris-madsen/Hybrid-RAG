@@ -1,9 +1,11 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — единый план исправления корректности и доведения до production
 
 **Дата ревизии:** 2026-10-19  
 **База объединения:** `main` @ `f935ded2159b88859204e03a44033969a5f2c468`, 2026-10-19, с перепроверкой критичных мест исходного кода и OpenSpec. Содержит существенные задачи из **обоих** планов: [Claude post-merge correctness](./2026-10-19-post-merge-correctness-plan.md) и [ACE production completion roadmap](./2026-10-19-ace-production-completion-roadmap.md).  
 **Статус:** **единый канонический execution backlog, предложен к ревью**; это не отчёт о прохождении E2E и не заявление о готовности. Предыдущие два плана сохраняются как источники и исторические записи, но **не должны независимо запускаться как конкурирующие очереди задач**.  
-**Цель:** завершить Adaptive Context Engine (ACE) как agent-neutral, read-only MCP context engine, сочетающий доказуемо актуальный код, разрешённую проектную документацию и локальную temporal memory, и измерить влияние на Codex в Harbor.
+**Цель:** завершить Adaptive Context Engine (ACE) как agent-neutral, read-only retired optional tool-call protocol context engine, сочетающий доказуемо актуальный код, разрешённую проектную документацию и локальную temporal memory, и измерить влияние на Codex в Harbor.
 
 > **Текущий implementation/evidence status:** см. [ACE implementation / evidence ledger — 2026-10-20](../reviews/2026-10-20-implementation-evidence-ledger.md). Ledger отделяет уже слитую реализацию от ещё не выполненных real-provider/Harbor/owner gates; открытые чекбоксы ниже не означают, что код отсутствует.
 
@@ -13,13 +15,13 @@
 
 | Подсистема | Подтверждённый уровень на 2026-10-19 | Чего это **не** доказывает |
 |---|---|---|
-| Official MCP SDK | `ace_context`, `ace_expand`, `ace_workspace_status`, `ace_memory_search` через официальный TS SDK; client/Codex E2E, ошибки/отмена | Полноту всех провайдеров и production deployment |
+| Official retired optional tool-call protocol SDK | `ace_context`, `ace_expand`, `ace_workspace_status`, `ace_memory_search` через официальный TS SDK; client/Codex E2E, ошибки/отмена | Полноту всех провайдеров и production deployment |
 | Code retrieval | Настоящая экспериментальная цепочка **FastEmbed/ONNX → local Qdrant → Tree-sitter → direct TS Language Service → exact worktree digest/range → ContextBundle**; 2000-строчный/25-строчный E2E, exact expansion, race/outage | Утверждённую embedding/LSP конфигурацию, большой semantic holdout, 5× |
 | Index persistence | Контентный `index_key`, warm Qdrant reuse без повторного embedding при идентичном snapshot, rebuild после dirty edit, restart E2E | Инкрементальную индексацию изменённых файлов / overlay и масштабируемый cold start |
 | Embedding comparison | FastEmbed/ONNX vs Sentence-Transformers/PyTorch CPU, pinned модель/артефакты, девять синтетических запросов; FastEmbed выиграл текущий эксперимент по скорости | Production approval или переносимость качества на реальные многоязычные репозитории |
 | Semantic analysis | Direct TS LS уже включён; Serena 2.0.0 установлена и смогла пройти same-name smoke | Решение Serena-vs-TS LS на одинаковых больших fixtures, ресурсах и агентных задачах |
 | Vertex | Рабочий `retrieveContexts` адаптер и IAM/API smoke. Создан и **одобрен владельцем** corpus `ace-europe-stage2` в `europe-west4`; ответ пустого corpus честно пуст | Retrieval реальных разрешённых документов, валидные версии/цитаты, DBC-14 |
-| Memory | Immutable archive, стабильные episode ID при append, idempotent replay, shared-blob retention, cross-process tests; локальный FalkorDB healthy; Graphiti MCP boundary умеет enqueue `add_memory` и `delete_episode` | Реальные extraction/recall, подтверждение асинхронного завершения, derived purge, восстановление после crash, runtime `ace_memory_search` |
+| Memory | Immutable archive, стабильные episode ID при append, idempotent replay, shared-blob retention, cross-process tests; локальный FalkorDB healthy; Graphiti retired optional tool-call protocol boundary умеет enqueue `add_memory` и `delete_episode` | Реальные extraction/recall, подтверждение асинхронного завершения, derived purge, восстановление после crash, runtime `ace_memory_search` |
 | Routing | Детерминированная policy и Jev-кандидат со spike/tests | Автоматический required-source routing в реальном `ace_context` и обоснованный Jev production use |
 | Harbor | Native vs forced ACE 3 задачи × 3 повтора: обе группы **9/9 quality**; у forced ACE **1 571 768** vs native **891 950** total raw tokens; ratio **0.567482×** (ACE хуже); исторические артефакты сохранены | Преимущество ACE; forced-use не проверяет natural agent tool choice, не измеряет локальные compute/index costs |
 | Local k3s | Qdrant и FalkorDB как dev-инфраструктура; проверена возможность disposable pod restart | Безопасный live worktree access из pod и production ACE workload |
@@ -33,9 +35,9 @@
 
 ## 1A. Немедленные correctness-гейты после PR #8: пять треков Клода
 
-**Источник:** [post-merge correctness review/plan](./2026-10-19-post-merge-correctness-plan.md). Основания перепроверены статически в \`main\` на указанном SHA; актуальные файлы: \`src/adapters/http-provider-boundaries.ts\`, \`src/adapters/qdrant-context-provider.ts\`, \`src/adapters/typescript-language-service.ts\`, \`src/adapters/local-code-index.ts\`, \`src/adapters/process-embedding.ts\`, \`src/bin/ace-mcp.ts\`, \`src/domain/memory.ts\`.
+**Источник:** [post-merge correctness review/plan](./2026-10-19-post-merge-correctness-plan.md). Основания перепроверены статически в \`main\` на указанном SHA; актуальные файлы: \`src/adapters/http-provider-boundaries.ts\`, \`src/adapters/qdrant-context-provider.ts\`, \`src/adapters/typescript-language-service.ts\`, \`src/adapters/local-code-index.ts\`, \`src/adapters/process-embedding.ts\`, \`src/bin/ace-retired-tool-protocol.ts\`, \`src/domain/memory.ts\`.
 
-**Первая задача инженера — получить RED fixture** на зафиксированном commit, а не менять код вслепую. Воспроизводимость допускает controlled synthetic fixture; итоговая приёмка требует real Qdrant/worker/official MCP/Graphiti там, где это указано. Для публичного статуса фиксировать отдельно evidence static review и реальные результаты.
+**Первая задача инженера — получить RED fixture** на зафиксированном commit, а не менять код вслепую. Воспроизводимость допускает controlled synthetic fixture; итоговая приёмка требует real Qdrant/worker/official retired optional tool-call protocol/Graphiti там, где это указано. Для публичного статуса фиксировать отдельно evidence static review и реальные результаты.
 
 | Трек | Приоритет проверки | Инвариант и риск | Часть стратегического W |
 |---|---|---|---|
@@ -49,7 +51,7 @@
 
 **Статическое основание:** \`qdrantPointId(candidateId)\` в \`http-provider-boundaries.ts\` не зависит от \`index_key\`; \`reuseOrPopulateQdrantSnapshot\` переиспользует snapshot по filtered count; \`pruneQdrant...\` удаляет чужие ключи. Если при индексации S2 остаётся неизменившийся candidateId из S1, одинаковая точка потенциально перезаписывается ещё до завершения S2. Одни unit mocks не доказывают продакшн-гонку.
 
-- [ ] **RED reproduction:** две независимые ACE MCP-процесса и реальный Qdrant, общий workspace/collection. A читает опубликованный S1, B меняет **только один** файл и собирает S2; проверить доступ к неизменённым символам S1 до/во время/после B.
+- [ ] **RED reproduction:** две независимые ACE retired optional tool-call protocol-процесса и реальный Qdrant, общий workspace/collection. A читает опубликованный S1, B меняет **только один** файл и собирает S2; проверить доступ к неизменённым символам S1 до/во время/после B.
 - [ ] Зафиксировать формальный scope идентичности: \`workspace + immutable snapshot/index_key + candidate_id + embedding/schema identity\`. Сделать deterministic collision-resistant Qdrant point IDs; не превращать произвольные идентификаторы в UUID отбрасыванием не-hex знаков.
 - [ ] Спроектировать состояния \`building → validated → published → retired\`, persisted manifest точного состава: candidate IDs/digests, provider/model+preprocessing, coverage, schema/parser revisions. Публикация — только **после** доказанного целостного upsert/verify; count-only check не удовлетворяет membership.
 - [ ] Считать uncommitted reader S1 валидным до завершения его lease/snapshot transaction. Заменить unconditional prune на coordinated reader lifecycle (lease/refcount/equivalent), с process death и recovery; age/grace alone не доказывает отсутствие читателя.
@@ -90,7 +92,7 @@
 
 ### C-D — Один resolved embedding config + фактический receipt worker
 
-**Статическое основание:** \`ace-mcp.ts\` вычисляет defaults/revisions для имён/trace, тогда как \`makeProcessEmbeddingPort\` запускает \`spawn(...)\` без явного controlled resolved env. Рабочий Python runtime может увидеть иные настройки; совпадение vector dimension это не исключает.
+**Статическое основание:** \`ace-retired-tool-protocol.ts\` вычисляет defaults/revisions для имён/trace, тогда как \`makeProcessEmbeddingPort\` запускает \`spawn(...)\` без явного controlled resolved env. Рабочий Python runtime может увидеть иные настройки; совпадение vector dimension это не исключает.
 
 - [ ] Единый типизированный \`ResolvedEmbeddingConfig\`: provider, upstream model/revision, **actual** artifact model/revision/digest, dimension, preprocessing, runtime build/version, effective execution mode/pinning flag.
 - [ ] При spawn передавать ровно этот config через allowlisted env/protocol с безопасным наследованием нужного PATH/runtime; никакой credential leakage.
@@ -122,7 +124,7 @@
 - [ ] Ввести общий **RED → GREEN → real-provider E2E** пакет с exact fixture hashes, code commit, provider versions, request IDs, failure traces и memory decision timestamps. Предварительно сохранить failing assertions, прежде чем менять производственный код.
 - [ ] Cross-track matrix: **C-D model mismatch × C-A warm cache**, **C-C missing files × C-A membership**, **C-B stale dependency × C-A concurrent index publication**, **C-E as-of × W06 Graphiti delayed projection**, плюс Qdrant/worker/Graphiti outages.
 - [ ] Standard CI: \`npm ci\`, \`npm run check\`, \`npm test\`, \`npm run lint\`, \`npm run build\` и существующая Python artifact-integrity suite; выполнить OpenSpec strict validation по реально установленной версии CLI.
-- [ ] Separate **real**: два независимых ACE MCP процесса + Qdrant, worker FastEmbed/ONNX & Sentence-Transformers, Tree-sitter/Serena-TS LS, Graphiti/FalkorDB с локальным inference и actual Codex client там, где применимо. Mock-only тесты оставить локальной контрактной ступенью, а не финальным gate.
+- [ ] Separate **real**: два независимых ACE retired optional tool-call protocol процесса + Qdrant, worker FastEmbed/ONNX & Sentence-Transformers, Tree-sitter/Serena-TS LS, Graphiti/FalkorDB с локальным inference и actual Codex client там, где применимо. Mock-only тесты оставить локальной контрактной ступенью, а не финальным gate.
 - [ ] Любая правка observable contract требует OpenSpec delta, negative recovery oracle и compatibility/migration notes до production acceptance; не менять Accepted ADR без owner decision.
 - [ ] После C-A/C-C/C-D измерить *настоящий* cold start / validated warm reuse / dirty delta; только затем запускать итоговый Harbor natural/forced comparison и принимать DBC-12.
 - [ ] В PR описывать *что доказано*, *что остаётся static risk*, *что не удалось проверить в этом environment*; не закрывать DBC и не продвигать experimental provider по одному зелёному CI.
@@ -143,7 +145,7 @@
 | W05 | P1 | Vertex ingestion **только разрешённых** fixtures, реальные citations/version/conflict | DBC-07, 14 | Да для capabilities с документацией |
 | W06 | P0 | Реальный local-only Graphiti inference + факты/temporal recall с **C-E as-of truth** | DBC-10, 11 | Да для memory capability |
 | W07 | P0 | Durable outbox/ack/reconciliation, source-safe purge, аварийное восстановление | DBC-10, 11 | Да для memory capability |
-| W08 | P0 | Unified code+docs+memory и MCP `ace_memory_search` + **C-C coverage truth**, correct routing/completeness | DBC-01, 06, 11, 14 | Да для объединённой ACE |
+| W08 | P0 | Unified code+docs+memory и retired optional tool-call protocol `ace_memory_search` + **C-C coverage truth**, correct routing/completeness | DBC-01, 06, 11, 14 | Да для объединённой ACE |
 | W09 | P1 | Билингвальная проверка memory-admission filter и экономика записи/поиска | DBC-11, 12 | Да, если включать фильтр по умолчанию |
 | W10 | P1 | Deterministic required-source planner на runtime; Jev — отдельно как опциональный эксперимент | DBC-01, 06, 07, 14 | Planner — да; Jev — нет |
 | W11 | P0 | Аутентифицированный host helper и безопасное live-tree подключение pod в существующем k3s | DBC-05, 07, 08, 13 | Да для k3s production deployment |
@@ -243,10 +245,10 @@
 
 **Historical prerequisite: C-E** для release temporal search: `as_of` должен иметь настоящую историю transitions, а не текущую mutable state.
 
-**Сейчас:** FalkorDB healthy; архив работает; Graphiti add_memory MCP отдаёт `pending`. **Ни extraction, ни `search_memory_facts` provider E2E пока не доказаны.**
+**Сейчас:** FalkorDB healthy; архив работает; Graphiti add_memory retired optional tool-call protocol отдаёт `pending`. **Ни extraction, ни `search_memory_facts` provider E2E пока не доказаны.**
 
 - [ ] Выбрать/запустить поддерживаемую установленной Graphiti версией **локальную** LLM + embeddings (+ reranker, если используется), проверить реальную конфигурацию factory/client; **Ollama не требовать**. Измерить outbound policy: отсутствие запросов с private dialogues на внешние endpoints.
-- [ ] Запустить Graphiti MCP against existing local FalkorDB. Импортировать разрешённый synthetic + проверенный Codex fixture, сохранить оригинальные bytes/digest/session IDs в archive.
+- [ ] Запустить Graphiti retired optional tool-call protocol against existing local FalkorDB. Импортировать разрешённый synthetic + проверенный Codex fixture, сохранить оригинальные bytes/digest/session IDs в archive.
 - [ ] Доказать путь `archive → admission → add_memory enqueue → processing complete → Graphiti search_memory_facts → original episode citation`; Graphiti-derived facts по умолчанию `proposed/unverified`.
 - [ ] Передавать точное `reference_time` исходного эпизода, проверять temporal as-of, superseded/rejected/accepted distinctions, конфликты и group/workspace isolation.
 - [ ] Измерить generation/embedding token cost (или честно `unknown`), p50/p95 ingest/search, memory/storage, ошибки extractor и качество на вопросах через дни/недели.
@@ -267,17 +269,17 @@
 
 **Completeness prerequisite: C-C.** Единый bundle объединяет не только найденное, но и честный per-source/index coverage status.
 
-**Самая важная функциональная интеграция:** сейчас `ace-mcp.ts` создаёт code context (+ условный Vertex DocumentationPort), но **не инжектирует Graphiti-backed MemorySearchPort**; `ace_memory_search` возвращает `not_ready`. В самом Qdrant `includeMemory` отмечает missing provider. Отдельный `ace-memory` CLI не является unified runtime.
+**Самая важная функциональная интеграция:** сейчас `ace-retired-tool-protocol.ts` создаёт code context (+ условный Vertex DocumentationPort), но **не инжектирует Graphiti-backed MemorySearchPort**; `ace_memory_search` возвращает `not_ready`. В самом Qdrant `includeMemory` отмечает missing provider. Отдельный `ace-memory` CLI не является unified runtime.
 
 - [ ] Реализовать адаптер `Graphiti.search_memory_facts → typed TemporalMemoryPort` с проверяемой связью к archived originals, статусами и evidence classes.
-- [ ] Подключить память в `makeMcpGateway` runtime `ace-mcp.ts`, не заменяя отдельный import/delete CLI; обеспечить `ace_memory_search` и `ace_context(include_memory=true)` на реальном провайдере.
+- [ ] Подключить память в `makeRetiredToolProtocolGateway` runtime `ace-retired-tool-protocol.ts`, не заменяя отдельный import/delete CLI; обеспечить `ace_memory_search` и `ace_context(include_memory=true)` на реальном провайдере.
 - [ ] Собрать deterministic required-source planner в **runtime**: запрос на реализацию → code + structural/semantic; «почему приняли решение» → память/документация; cross-source → оба/три источника **если разрешены**.
 - [ ] Разделить `required`, `optional`, `not_requested`, `denied`, `unavailable`; `complete` только когда все *обязательные* источники и freshness соблюдены; не вызывать тяжёлые provider без необходимости.
 - [ ] Слить evidence с source types, revisions, timestamps, exact citations, conflictKey, priority current code > derived docs/memory для вопросов «что делает код сейчас», без молчаливого уничтожения исторического решения.
 - [ ] E2E: одна Codex session спрашивает cross-file behavior, затем rationale из Vertex и historical rejected decision из Graphiti; видит проверяемые три источника и no-silent-omission.
 - [ ] Проверить mixed failure: Graphiti down + code up, Vertex opt-in off, source edited mid-request, stale docs, contradictory accepted/proposed claims. Не превращать отказ cloud policy в технический fallback.
 
-**DoD:** совместная реальная MCP демонстрация 3 источников и typed partial/failure flow; DBC-01/06/07/11/14.
+**DoD:** совместная реальная retired optional tool-call protocol демонстрация 3 источников и typed partial/failure flow; DBC-01/06/07/11/14.
 
 ### W09 — Admission filter и экономика memory (P1)
 
@@ -304,7 +306,7 @@
 
 - [ ] Утвердить контракт host-side helper: аутентификация pod, workspace binding, allowlisted canonical relative paths, expected digest/version, race-aware exact reads; **не** принимать caller-controlled absolute roots.
 - [ ] Реализовать mTLS/Unix-socket или эквивалентный строго локальный authenticated boundary с least privilege; негативные path traversal/symlink swap/rename/concurrent-write attacks, zero user-worktree writes.
-- [ ] Сконфигурировать минимальные контейнеры/Deployments/PVC/secrets/health/readiness/NetworkPolicy для ACE MCP и имеющихся Qdrant/FalkorDB без лишних микросервисов; кластера заново не создавать.
+- [ ] Сконфигурировать минимальные контейнеры/Deployments/PVC/secrets/health/readiness/NetworkPolicy для ACE retired optional tool-call protocol и имеющихся Qdrant/FalkorDB без лишних микросервисов; кластера заново не создавать.
 - [ ] На существующем k3s доказать, что running Codex worktree (включая uncommitted/untracked изменения) корректно виден ACE до/после изменений, pod/service restart, token rotation, denial и out-of-sync errors.
 - [ ] Описать rollback (helper off → `not_ready`), back-up/restore и ресурсные лимиты; index/archive persistence, cloud egress allowlist.
 
@@ -350,7 +352,7 @@
 | 06 failure truth | **Real outage/degraded gate пройден** | Multi-provider partial matrix после W08 |
 | 07 policy safety | **Denial-before-network test пройден** | Проверки реальных Vertex/Graphiti/local routes и k3s |
 | 08 exact bytes | **Real exact expand + Unicode gate пройден** | Сохранить no-truncation при новых транспортных форматах |
-| 09 official MCP | **SDK/Codex client/Harbor invocation доказаны** | Сохранить conformance при deployment |
+| 09 official retired optional tool-call protocol | **SDK/Codex client/Harbor invocation доказаны** | Сохранить conformance при deployment |
 | 10 stable memory IDs | **Cross-process JSONL append/replay пройден** | Сохранить invariant после real Graphiti integration |
 | 11 memory safe delete | Archive shared-blob sub-gate прошёл | **Real Graphiti derived purge + crash consistency** |
 | 12 benchmark attribution | **Не пройден**; forced 3×3 отрицателен | Frozen natural optional paired, correlated provider traces, full cost/quality |
@@ -363,7 +365,7 @@
 
 - [ ] Проверить лицензии, pinning/SBOM, image provenance, secret handling, backup/restore, pod restart, resource budgets, retention и deletion runbook.
 - [ ] Устранить документационную рассинхронизацию `docs/README.md` vs текущий code/PR; сделать короткую installation/configuration matrix: *local dev*, *experimental real provider*, *production-approved*, *degraded*, *offline*. Объяснить `ACE_ENABLE_EXPERIMENTAL_QDRANT` и явный `ACE_ALLOW_LOCAL_FALLBACK`.
-- [ ] Проверить `npm ci`, typecheck/lint/contracts/build, OpenSpec strict, real-provider integration, MCP Codex E2E, Graphiti, Vertex, K8s race, Harbor в соответствующих реальных environments; все отсутствующие тесты назвать.
+- [ ] Проверить `npm ci`, typecheck/lint/contracts/build, OpenSpec strict, real-provider integration, retired optional tool-call protocol Codex E2E, Graphiti, Vertex, K8s race, Harbor в соответствующих реальных environments; все отсутствующие тесты назвать.
 - [ ] Согласовать результаты production embedding и semantic provider, cloud data scope, resource/cost budget; получить явный owner sign-off по фактическим тестам.
 - [ ] Обновить OpenSpec 001–006, актуальные ADR statuses/evidence и release notes. Не архивировать 006 при любом открытом обязательном gate.
 
@@ -382,7 +384,7 @@
 |---|---|---|
 | **S0 — truth, RED и critical correctness** | W00 + C-A/C-B/C-C/C-D (C-E параллельно memory); регрессии на исходном состоянии | Repro baseline, negative fixtures, fixed snapshot/worker/LSP/coverage evidence; старый negative Harbor не переписывать |
 | **S1 — code retrieval quality & freshness** | W01–W04, W12 (code), после корректности C-A/C-B/C-C/C-D | Approved/provider-recommended embedding + LSP, real semantic holdout, incremental index proof, precise ContextBundle |
-| **S2 — documentation & memory** | W05–W10 + C-E, W12 (mixed) | Только разрешённый Vertex cited content + working Graphiti temporal recall/purge + unified routed MCP |
+| **S2 — documentation & memory** | W05–W10 + C-E, W12 (mixed) | Только разрешённый Vertex cited content + working Graphiti temporal recall/purge + unified routed retired optional tool-call protocol |
 | **S3 — operational deployment & economics** | W11, W13, W12 (deployment) | Real k3s live worktree, measured 3-arm natural Harbor, cold/warm cost+latency, reliable restart |
 | **S4 — acceptance** | W14–W15 | DBC matrix backed by raw evidence, permissions/owner sign-off, честный scoped release verdict |
 
@@ -416,7 +418,7 @@
 3. Сохранять оригинальные Codex сообщения и temporal history; `Graphiti pending` не считать `completed`; не auto-approve inferred decisions.
 4. Не использовать hash vectors как настоящие embeddings, не требовать Ollama, не запускать Jev приватно без opt-in.
 5. `not_ready`, `partial`, `stale`, `policy_denied` должны быть различимы; пропавший required provider никогда не даёт `complete=true`.
-6. Не выдумывать порог обрезки оригинального `ace_expand` и не повторять source body дважды в MCP text + structured payload ради удобства.
+6. Не выдумывать порог обрезки оригинального `ace_expand` и не повторять source body дважды в retired optional tool-call protocol text + structured payload ради удобства.
 7. Не заявлять 5×, cost-savings или production readiness, пока **реальные** trials/approval не подтвердят это. Измеренный отрицательный forced-use run остаётся отрицательным.
 8. Работать через reviewable feature branches / PR; **не пушить в `main` напрямую** без отдельного явно данного разрешения (AGENTS.md).
 

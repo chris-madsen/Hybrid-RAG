@@ -8,14 +8,12 @@ export interface RuntimeIdentity {
   readonly acePackage: string;
   readonly node: string;
   readonly typescript: string;
-  readonly mcpClientSdk: string;
-  readonly mcpServerSdk: string;
 }
 
 export interface RuntimeProvenanceManifest {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly runtimeId: 'ace-harbor-runtime-v1';
-  readonly executablePath: 'dist/bin/ace-mcp.js';
+  readonly executablePath: 'dist/bin/ace-runtime.js';
   readonly executableSha256: string;
   readonly sourceCommit: string;
   readonly sourceCleanAtBuild: boolean;
@@ -57,11 +55,11 @@ export const validateRuntimeProvenance = (
   manifestDigest: (entries: readonly RuntimeSourceManifestEntry[]) => string,
 ): readonly string[] => {
   const failures: string[] = [];
-  if (manifest.schemaVersion !== 2) failures.push('manifest_schema_invalid');
+  if (manifest.schemaVersion !== 3) failures.push('manifest_schema_invalid');
   if (manifest.runtimeId !== 'ace-harbor-runtime-v1' || observed.runtimeId !== manifest.runtimeId) {
     failures.push('runtime_id_mismatch');
   }
-  if (manifest.executablePath !== 'dist/bin/ace-mcp.js' || !sha256(manifest.executableSha256)) {
+  if (manifest.executablePath !== 'dist/bin/ace-runtime.js' || !sha256(manifest.executableSha256)) {
     failures.push('executable_identity_invalid');
   }
   if (manifest.executableSha256 !== observed.executableSha256) failures.push('executable_digest_mismatch');
@@ -81,9 +79,7 @@ export const validateRuntimeProvenance = (
   }
   if (!sha256(manifest.bundleManifestSha256)) failures.push('bundle_manifest_invalid');
   if (manifest.buildRuntime.acePackage !== observed.runtime.acePackage
-    || manifest.buildRuntime.typescript !== observed.runtime.typescript
-    || manifest.buildRuntime.mcpClientSdk !== observed.runtime.mcpClientSdk
-    || manifest.buildRuntime.mcpServerSdk !== observed.runtime.mcpServerSdk) {
+    || manifest.buildRuntime.typescript !== observed.runtime.typescript) {
     failures.push('runtime_identity_mismatch');
   }
   return failures;

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Design — Hermes ContextEngine request projection
 
 ## Runtime path
@@ -82,7 +84,7 @@ interface AceTransformResult {
 
 ## Direct bridge
 
-The TypeScript bridge is a long-lived JSONL subprocess. It uses the same ACE runtime/provider composition as the MCP executable but a separate transport. Each line carries one request and one response keyed by `requestId`. stderr contains diagnostics and identities only; raw context/source/credential values are forbidden.
+The TypeScript bridge is a long-lived JSONL subprocess. It uses the same ACE runtime/provider composition as the retired optional tool-call protocol executable but a separate transport. Each line carries one request and one response keyed by `requestId`. stderr contains diagnostics and identities only; raw context/source/credential values are forbidden.
 
 ## Evidence
 

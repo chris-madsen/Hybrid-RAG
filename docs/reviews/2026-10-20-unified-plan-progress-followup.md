@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Follow-up: unified ACE plan progress review
 
 **Date:** 2026-10-20  
@@ -16,7 +18,7 @@ claim production readiness.
 | **F1 — Qdrant lease/state ownership** | **Fixed in implementation** | PR #66 isolates default collections by state owner, makes lease reaping conservative by default, and tests independent state roots. A real concurrent reader/writer test with different hosts/PID namespaces is still pending. |
 | **F2 — full Qdrant maintenance payloads** | **Fixed in implementation** | PR #67 restricts maintenance scrolls to the payload fields they consume. W04 scale measurements and real interrupted-reader evidence are still pending. |
 | **F3 — namespace from requested embedding config** | **Fixed in implementation** | PR #71 binds the default namespace to the verified worker identity fingerprint, after Qdrant reachability and embedding preflight. The actual selected model/artifact comparison, target-host measurements and owner approval remain pending. |
-| **F4 — inconsistent startup failure disposition** | **Fixed/documented** | PR #72 defines the startup disposition table; PR #71 keeps the actual MCP executable alive with structured `not_ready` when embedding preflight fails, with a real executable regression test. Other provider-specific failure dispositions still require real deployment/readiness evidence. |
+| **F4 — inconsistent startup failure disposition** | **Fixed/documented** | PR #72 defines the startup disposition table; PR #71 keeps the actual retired optional tool-call protocol executable alive with structured `not_ready` when embedding preflight fails, with a real executable regression test. Other provider-specific failure dispositions still require real deployment/readiness evidence. |
 | **F5 — incomplete temporal decision result** | **Fixed in domain contract** | PRs #69/#70 preserve all linked decision states and define valid-time `as_of` semantics, including late import, tombstones and legacy uncertainty. Real Graphiti extraction/search and crash-recovery evidence remain pending. |
 | **F6 — stale evidence ledger** | **Fixed in documentation** | The ledger now targets exact-main `6a410f2`, records merged PRs #65–#73, and records the W00 receipt digest. |
 

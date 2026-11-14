@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — single-agent, agent-neutral SDLC architecture
 
 ## Purpose and authority
@@ -83,7 +85,7 @@ Use [design_feature.md](source/commands/design_feature.md) with conditional rese
 5. Events: only when event contracts change.
 6. Persistence: only for Qdrant/archive/Graphiti/other state mapping changes.
 7. Standards: link canonical ACE engineering rules.
-8. API: only when public HTTP/MCP/gateway-projection contract changes.
+8. API: only when public HTTP/retired optional tool-call protocol/gateway-projection contract changes.
 
 Do not create eight files automatically. In T2, sections may be split if needed. In a limited T1 fix, a short design and test mapping suffice.
 
@@ -128,7 +130,7 @@ The 13 [standard files](source/standards/) are separate references and are read 
 2. A successful empty result differs from unavailable, denied, stale and not-ready.
 3. A complete result requires required-source coverage and evidence.
 4. Actual LSP semantic evidence differs from textual symbol resemblance.
-5. MCP explicit tool success is not proof of Bifrost provider-bound injection.
+5. retired optional tool-call protocol explicit tool success is not proof of Bifrost provider-bound injection.
 6. Hermes native request-time bridge is a separate owned integration.
 7. Private source must not leave local environment without approved policy.
 8. Vertex documentation egress must remain authorized and isolated.

@@ -6,8 +6,6 @@ export type FeedbackReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 export const feedbackHermesAgentImportPath = 'scripts.harbor_hermes_codex_oauth:HermesCodexOAuth' as const;
 export const feedbackHermesVersion = 'v0.22.3' as const;
 export const feedbackHermesProviderPrefix = 'openai-codex/' as const;
-export const feedbackAceContextBridgeCommand = '/ace/scripts/harbor-ace-context-bridge.sh' as const;
-export const feedbackHermesContextPluginPath = '/ace/integrations/hermes/ace_context_engine' as const;
 
 export interface FeedbackHarborJobIdentity {
   readonly agent: 'hermes';
@@ -21,7 +19,7 @@ export interface FeedbackHarborJobIdentity {
 }
 
 export interface FeedbackHarborPairIdentity extends FeedbackHarborJobIdentity {
-  readonly aceContextBridgeCommand: typeof feedbackAceContextBridgeCommand;
+  readonly gatewayDelivery: 'bifrost-provider-endpoint';
 }
 
 type JsonObject = Readonly<Record<string, unknown>>;
@@ -39,13 +37,9 @@ export const dockerImageDigestPattern = /^sha256:[a-f0-9]{64}$/u;
 
 const validateContextEngine = (kwargs: JsonObject, path: string): Result<boolean, DomainError> => {
   const enabled = kwargs.ace_context_enabled;
-  if (enabled === undefined) return ok(false);
+  if (enabled === undefined || enabled === false) return ok(false);
   if (typeof enabled !== 'boolean') return invalid(`${path}.ace_context_enabled`, 'ace_context_enabled must be boolean');
-  if (enabled && (!/^[a-f0-9]{64}$/u.test(String(kwargs.ace_context_bridge_sha256))
-    || !/^[a-f0-9]{64}$/u.test(String(kwargs.context_plugin_sha256)))) {
-    return invalid(path, 'ACE bridge and ContextEngine plugin must have pinned SHA-256 identities');
-  }
-  return ok(enabled);
+  return invalid(`${path}.ace_context_enabled`, 'direct ACE ContextEngine injection is retired; route the agent through the Bifrost provider endpoint');
 };
 
 export const validateFeedbackHarborJob = (
@@ -79,7 +73,9 @@ export const validateFeedbackHarborJob = (
     return invalid(`${path}.agents[0].kwargs.version`, `Hermes version must be pinned to ${feedbackHermesVersion}`);
   }
   if (!isFeedbackReasoningEffort(effort)) return invalid(`${path}.agents[0].kwargs.reasoning_effort`, 'reasoning effort must be low, medium, high or xhigh');
-  if (agent?.mcp_servers !== undefined) return invalid(`${path}.agents[0].mcp_servers`, 'primary feedback jobs must not use MCP for ACE context injection');
+  if (Object.keys(agent ?? {}).some((key) => key.endsWith('_servers'))) {
+    return invalid(`${path}.agents[0]`, 'model-invoked server registry is not permitted in Gateway-only feedback jobs');
+  }
   const contextEngine = validateContextEngine(kwargs ?? {}, `${path}.agents[0].kwargs`);
   if (contextEngine._tag === 'Err') return contextEngine;
   if (root.n_concurrent_trials !== 1) return invalid(`${path}.n_concurrent_trials`, 'feedback jobs must be serial');
@@ -98,23 +94,24 @@ export const validateFeedbackHarborJob = (
 
 export const validateMatchingFeedbackHarborJobs = (
   native: unknown,
-  aceOptional: unknown,
+  aceGateway: unknown,
 ): Result<FeedbackHarborPairIdentity, DomainError> => {
   const nativeIdentity = validateFeedbackHarborJob(native, 'native_job');
   if (nativeIdentity._tag === 'Err') return nativeIdentity;
-  const aceIdentity = validateFeedbackHarborJob(aceOptional, 'ace_optional_job');
+  const aceIdentity = validateFeedbackHarborJob(aceGateway, 'ace_gateway_job');
   if (aceIdentity._tag === 'Err') return aceIdentity;
   if (nativeIdentity.value.model !== aceIdentity.value.model
     || nativeIdentity.value.agentVersion !== aceIdentity.value.agentVersion
     || nativeIdentity.value.reasoningEffort !== aceIdentity.value.reasoningEffort) {
-    return invalid('harbor_jobs', 'native and ACE optional jobs must pin the same Hermes/model/reasoning identity');
+    return invalid('harbor_jobs', 'native and Gateway-routed jobs must pin the same Hermes/model/reasoning identity');
   }
   if (JSON.stringify(nativeIdentity.value.taskPaths) !== JSON.stringify(aceIdentity.value.taskPaths)) {
-    return invalid('harbor_jobs.tasks', 'native and ACE optional jobs must pin the same frozen task paths in the same order');
+    return invalid('harbor_jobs.tasks', 'native and Gateway-routed jobs must pin the same frozen task paths in the same order');
   }
-  if (nativeIdentity.value.hasAceContextEngine) return invalid('native_job.agents[0].kwargs.ace_context_enabled', 'native Hermes baseline must not enable ACE ContextEngine');
-  if (!aceIdentity.value.hasAceContextEngine) return invalid('ace_optional_job.agents[0].kwargs.ace_context_enabled', 'ACE optional Hermes job must enable the pinned ContextEngine plugin');
-  return ok({ ...nativeIdentity.value, aceContextBridgeCommand: feedbackAceContextBridgeCommand });
+  if (nativeIdentity.value.hasAceContextEngine || aceIdentity.value.hasAceContextEngine) {
+    return invalid('harbor_jobs', 'Gateway-only feedback jobs must not enable a direct ACE ContextEngine');
+  }
+  return ok({ ...nativeIdentity.value, gatewayDelivery: 'bifrost-provider-endpoint' });
 };
 
 export const dockerImageMatchesDigest = (digest: string, inspection: unknown): boolean => {

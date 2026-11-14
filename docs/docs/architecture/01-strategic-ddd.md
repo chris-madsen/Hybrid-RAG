@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — Strategic DDD: поддомены, Bounded Contexts и Context Map
 
 **Статус:** Proposed Architecture v1.0 · **Дата:** 2026-10-17 · **Основание:** PRD v1.0 и ADR-000…ADR-010.
@@ -6,7 +8,7 @@
 
 ## 1. Domain vision и ценностное предложение
 
-**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. MCP remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
+**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. retired optional tool-call protocol remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
 
 **Adaptive Context Engine (ACE)** — внешний агентонезависимый слой для coding-агентов (включая управляемых LangGraph), который по смысловому запросу поставляет релевантный, текущий, проверяемый и при необходимости исторический контекст. Продукт не пишет код самостоятельно, не управляет скрытой памятью Codex и не заменяет инструменты coding-агента.
 
@@ -25,7 +27,7 @@
 | `VerifiedCurrent` | Проверена идентичность наблюдаемого содержания в момент проверки. Не гарантия отсутствия последующей конкурентной правки. |
 | `SemanticFact` | Определение/тип/reference из live language service в пределах его модели языка. |
 | `UnknownDynamicEdge` | Связь, потенциально скрытая DI/reflection/dynamic dispatch/runtime; отсутствие references не доказывает отсутствие вызовов. |
-| `ContextRequest` | Авторизованный запрос на контекст из native/gateway adapter либо явного MCP tool call; не обязательно MCP. |
+| `ContextRequest` | Авторизованный запрос на контекст из native/gateway adapter либо явного retired optional tool-call protocol tool call; не обязательно retired optional tool-call protocol. |
 | `RetrievalPlan` | План обращения к одному/нескольким источникам; Jev пока исследовательский кандидат. |
 | `ContextBundle` | Набор evidence, excerpts, отношений и предупреждений с disclosure-ссылками; не patch и не сохранённый файл. |
 | `SessionEpisode` | Неизменённый фрагмент оригинальной сессии Codex с provenance и временными метками. |
@@ -46,7 +48,7 @@
 | **Semantic Code Intelligence** | Supporting | AST, LSP, definitions, refs, types, structural queries и ограниченность статического анализа. |
 | **Documentation Knowledge** | Supporting | Поиск в разрешённых документах через Vertex AI RAG Engine. |
 | **Trust & Data Policy** | Generic / critical | Разрешения, data residency, secret filtering, fail-closed решения, безопасное журналирование. |
-| **Agent Access** | Generic / interface | Planned Bifrost projection, existing native Hermes bridge, and separate explicit MCP tools. |
+| **Agent Access** | Generic / interface | Planned Bifrost projection, existing native Hermes bridge, and separate explicit retired optional tool-call protocol tools. |
 | **Experimentation & Evaluation** | **Core для продукта/портфолио** | Harbor, воспроизводимые сравнения, реальный usage, качество, статистика. |
 
 ## 4. Bounded Contexts (BC)
@@ -67,7 +69,7 @@
 
 **BC-08 Evaluation**: формирует reproducible experimental record, контролирует baseline и holdout, собирает provider-reported токены. Harbor — runner, а не источник бизнес-истины.
 
-**Agent Access (ACL)** — supporting adapter/module, **не отдельный Core BC**: переводит запросы к отдельным native/gateway projection и explicit MCP tool endpoints во внутренние команды ACE. Bifrost connector — planned, Hermes native и MCP tools — existing. Системные состояния не управляются из model-generated snippets.
+**Agent Access (ACL)** — supporting adapter/module, **не отдельный Core BC**: переводит запросы к отдельным native/gateway projection и explicit retired optional tool-call protocol tool endpoints во внутренние команды ACE. Bifrost connector — planned, Hermes native и retired optional tool-call protocol tools — existing. Системные состояния не управляются из model-generated snippets.
 
 ## 5. Context Map
 
@@ -76,10 +78,10 @@ flowchart TB
   LG["LangGraph external orchestrator"] --> AG["Existing coding agents"]
   AG -->|"LLM endpoint: planned"| BF["Bifrost gateway + thin Go connector: planned"]
   BF -->|"ACE projection API: planned"| ACL["ACE Gateway projection adapter"]
-  AG -.->|"Explicit MCP tools: existing"| MCP["ACE MCP tool facade"]
+  AG -.->|"Explicit retired optional tool-call protocol tools: existing"| retired optional tool-call protocol["ACE retired optional tool-call protocol tool facade"]
   HE["Hermes native ContextEngine: existing"] --> J["Direct ACE JSONL bridge"]
   ACL --> O["BC-06 Context Orchestration / CORE"]
-  MCP --> O
+  retired optional tool-call protocol --> O
   J --> O
   O --> P["BC-07 Trust & Policy"]
   O --> W["BC-01 Workspace Truth"]
@@ -104,7 +106,7 @@ flowchart TB
 | Documentation Knowledge → Orchestration | **ACL к внешнему SaaS** | DocEvidence: document_id/version/section, authorisation marker, excerpt. |
 | Engineering Memory → Orchestration | **Published Language + ACL** | MemoryEvidence со ссылкой на original episode и статусом решения. |
 | Trust & Policy → все внешние I/O | **Conformist to mandatory policy API** | Allowed/Denied + reason code; отсутствие решения = Denied. |
-| Context Orchestration → Agent Access | **Published Language** | ContextBundle/Projection with distinct gateway/native model-delivery and MCP tool transports; no Qdrant/Graphiti/Vertex DTO leakage. |
+| Context Orchestration → Agent Access | **Published Language** | ContextBundle/Projection with distinct gateway/native model-delivery and retired optional tool-call protocol tool transports; no Qdrant/Graphiti/Vertex DTO leakage. |
 | Evaluation → Harbor | **Anti-Corruption Layer** | Internal BenchmarkRun ↔ pinned Harbor execution/result. |
 
 BC **не** является Kubernetes Deployment. Предложение: один modular-monolith process для собственных модулей + готовые stateful зависимости (Qdrant, backend Graphiti) и внешний Vertex. Не проектировать 8 микросервисов.
@@ -124,7 +126,7 @@ BC **не** является Kubernetes Deployment. Предложение: од
 
 ## 7. Стратегия интеграции и риски
 
-- **Single logical MCP entrypoint**; адаптеры к провайдерам — ports, не зависимости Domain Model.
+- **Single logical retired optional tool-call protocol entrypoint**; адаптеры к провайдерам — ports, не зависимости Domain Model.
 - **DDD modules в монолите**: `packages/domain-*` либо модульные директории — решение структуры репозитория будет принято в spike, а не сейчас.
 - Внешние вызовы проходят Policy Gate **до** отправки payload и redaction; локальные безопасные поиски доступны при деградации.
 - Все внешние результаты — недоверенные данные; RAG snippets и transcript fragments не являются инструкциями.
@@ -142,6 +144,6 @@ BC **не** является Kubernetes Deployment. Предложение: од
 
 ## Architecture correction: Bounded Context is not a runnable provider (proposed, 2026-10-18)
 
-Context Orchestration is accountable for the **observable capability** of delivering current, symbol-specific context via the selected authorized request path (existing native Hermes ContextEngine, planned Bifrost Gateway projection, or explicit MCP tool call). Code Discovery owns candidate retrieval semantics, Semantic Intelligence owns AST spans / language-service facts, Workspace Truth owns local source freshness, and Evaluation owns **attribution** of agent-run token results to real ACE invocations. These ownership lines are useful only if runtime composition actually delegates to each provider when required. A port, value object or mock is an implementation artifact, not a delivered bounded-context capability.
+Context Orchestration is accountable for the **observable capability** of delivering current, symbol-specific context via the selected authorized request path (existing native Hermes ContextEngine, planned Bifrost Gateway projection, or explicit retired optional tool-call protocol tool call). Code Discovery owns candidate retrieval semantics, Semantic Intelligence owns AST spans / language-service facts, Workspace Truth owns local source freshness, and Evaluation owns **attribution** of agent-run token results to real ACE invocations. These ownership lines are useful only if runtime composition actually delegates to each provider when required. A port, value object or mock is an implementation artifact, not a delivered bounded-context capability.
 
-**Dependency direction:** external agent → selected gateway/native projection adapter (or explicit MCP tools) → policy-gated ACE orchestration → selected mature provider adapters → current source verification → ranked bundle/projection. Bifrost gateway implementation is still planned, not production evidence. Each provider's native DTO belongs in its own adapter, not domain code. A deterministic fallback is explicitly marked fallback/degraded; it never silently becomes the selected Qdrant/AST/LSP implementation. No new microservice is implied by these boundaries. See proposed ADR-012 and `07-architecture-fitness-contracts.md` for proof requirements.
+**Dependency direction:** external agent → selected gateway/native projection adapter (or explicit retired optional tool-call protocol tools) → policy-gated ACE orchestration → selected mature provider adapters → current source verification → ranked bundle/projection. Bifrost gateway implementation is still planned, not production evidence. Each provider's native DTO belongs in its own adapter, not domain code. A deterministic fallback is explicitly marked fallback/degraded; it never silently becomes the selected Qdrant/AST/LSP implementation. No new microservice is implied by these boundaries. See proposed ADR-012 and `07-architecture-fitness-contracts.md` for proof requirements.

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Research Codebase — evidence-only investigation
 
 ## Role and non-negotiable boundaries
@@ -30,7 +32,7 @@ Before reading files:
 ## Research decomposition
 
 For nontrivial questions, identify two to four coherent investigation tracks:
-- **Entry points:** exported APIs, CLI, HTTP/MCP handlers, command registration, configuration and runtime composition.
+- **Entry points:** exported APIs, CLI, HTTP/retired optional tool-call protocol handlers, command registration, configuration and runtime composition.
 - **Behavior:** domain/application services, state transitions, typed ports, error branches, cancellation.
 - **Storage/providers:** adapters, indexes, schema, persistence, external calls and data flow.
 - **Tests/evidence:** what scenarios are exercised, mocked versus real runtime, accepted evidence at a specific SHA.
@@ -81,7 +83,7 @@ Each investigation brief should state:
 | Boundary | Questions requiring answers |
 |---|---|
 | TypeScript + Effect core | Who owns business invariants? Where is the Effect service composed and error channel mapped? |
-| MCP explicit tools | What tool is registered? What input/output schema? Is the call truly via official SDK? |
+| retired optional tool-call protocol explicit tools | What tool is registered? What input/output schema? Is the call truly via official SDK? |
 | Bifrost projection | What is currently implemented? Is model-bound egress proven or only mock-wire? |
 | Hermes bridge | What is native request-time context injection? Who owns transcript/compaction? |
 | Qdrant | Which SDK/collection/index path is live? How is snapshot/current source identity checked? |

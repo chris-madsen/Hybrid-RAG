@@ -1,14 +1,16 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Real-provider E2E — Qdrant + FastEmbed + Tree-sitter + TypeScript LS
 
 **Date:** 2026-10-19
 **Status:** exploratory real-provider evidence; not production approval.
-**Scope:** read-only MCP retrieval paths on synthetic 2000-line TypeScript and
+**Scope:** read-only retired optional tool-call protocol retrieval paths on synthetic 2000-line TypeScript and
 two-file fixtures.
 
 ## Composition exercised
 
 ```text
-Codex-shaped MCP client
+Codex-shaped retired optional tool-call protocol client
   -> official @modelcontextprotocol/server stdio SDK
   -> ACE gateway / ace_context
   -> FastEmbed worker (ONNX Runtime, local process)
@@ -43,7 +45,7 @@ epochs from mixing changed source snapshots.
 | FastEmbed | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, FastEmbed 0.7.4, ONNX Runtime 1.31.0; local worker returned 384 finite values |
 | Tree-sitter | Python `tree-sitter` 0.26.0 + `tree-sitter-typescript` 0.23.2; returned symbol ranges used in candidates |
 | TypeScript LS | Workspace TypeScript 5.9.3; definition lookup agreed with selected structural nodes |
-| MCP | Official SDK answered `initialize` and `tools/call`; no handwritten transport was used by the executable |
+| retired optional tool-call protocol | Official SDK answered `initialize` and `tools/call`; no handwritten transport was used by the executable |
 
 ## Observed result
 
@@ -68,15 +70,15 @@ retrieval was in flight, and observed `complete=false`, `partialSources=["code"]
 and `stale index or AST slice disagrees with current original bytes`. No stale
 evidence was labelled `current`.
 
-The restart gate reuses one workspace/state directory across three MCP processes. The collection name is stable for the workspace+embedding configuration. An unchanged second observation reuses the exact content-derived Qdrant snapshot without new vectors; after a dirty-tree edit, generation 3 is rebuilt and obsolete points are pruned. This proves truthful warm reuse/stale isolation, **not** the incremental changed-file rebuild/overlay still required by DBC-13.
+The restart gate reuses one workspace/state directory across three retired optional tool-call protocol processes. The collection name is stable for the workspace+embedding configuration. An unchanged second observation reuses the exact content-derived Qdrant snapshot without new vectors; after a dirty-tree edit, generation 3 is rebuilt and obsolete points are pruned. This proves truthful warm reuse/stale isolation, **not** the incremental changed-file rebuild/overlay still required by DBC-13.
 
 The DBC-06 outage gate forces Qdrant to an unavailable loopback port with explicit local AST fallback enabled. It returns current local evidence as a labelled partial bundle, lists Qdrant as failed, and never reports `complete=true`. A separate `test:real-provider-hard-outage` run keeps fallback disabled and requires honest `NOT_READY`, so degraded and unavailable modes remain distinct.
 
 The official SDK client used `@modelcontextprotocol/client` and
-`StdioClientTransport` against the actual `ace-mcp` executable. It verifies
+`StdioClientTransport` against the actual `ace-retired-tool-protocol` executable. It verifies
 initialization, tool listing/calls, errors, concurrency and cancellation
 propagation into the underlying Effect. The Harbor ACE arm additionally proves
-actual Codex→MCP→ACE invocation: 9/9 successful calls, current source evidence
+actual Codex→retired optional tool-call protocol→ACE invocation: 9/9 successful calls, current source evidence
 and provider receipts in all nine trials.
 
 The policy gate exercised the Vertex adapter and the unified gateway composition
@@ -119,7 +121,7 @@ ACE_EMBEDDING_WORKER="$PWD/scripts/fastembed-worker.sh" \
 ACE_TREE_SITTER_HELPER="$PWD/scripts/tree-sitter-structural.py" \
 ACE_TREE_SITTER_PYTHON="$PWD/.venv-system/bin/python" \
 ACE_WORKSPACE_ROOT=/path/to/fixture \
-npm run mcp:stdio
+npm run retired-tool-protocol:stdio
 ```
 
 `ACE_ENABLE_EXPERIMENTAL_QDRANT` deliberately names this path experimental:

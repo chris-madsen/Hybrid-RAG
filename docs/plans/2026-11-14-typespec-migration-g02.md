@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE TypeSpec staged adoption — TS-00 inventory, G02 and executable acceptance
 
 **Date:** 2026-11-14  
@@ -13,7 +15,7 @@
 | Gateway Projection HTTP v1 `POST /internal/ace-gateway/v1/project` | `contracts/ace-gateway/v1/projection-request.schema.json` and `projection-decision.schema.json`; `src/domain/gateway-projection.ts` validates request | `src/transport/gateway-projection-http.ts`; Go connector under `integrations/bifrost` | `typespec/main.tsp` | Handwritten; discrepancies must fail migration |
 | Gateway health/capabilities v1 | `src/transport/gateway-projection-http.ts` | HTTP clients, local agents | Separate TypeSpec operation after project slice | Existing, no claimed migration |
 | Gateway delivery recording v1 | HTTP returns 501, not certified | Bifrost connector | **No generated successful send contract** until real final-send evidence | Not implemented/certified |
-| Explicit MCP tool plane | `src/gateway/mcp-gateway.ts` Effect schemas, official MCP SDK transport | `src/transport/mcp-sdk-stdio.ts` | Gradual TypeSpec schema emitter → SDK mapping **if faithful** | Distinct plane, no alternate MCP transport |
+| Explicit retired optional tool-call protocol tool plane | `src/gateway/retired-tool-protocol-gateway.ts` Effect schemas, official retired optional tool-call protocol SDK transport | `src/transport/retired-tool-protocol-sdk-stdio.ts` | Gradual TypeSpec schema emitter → SDK mapping **if faithful** | Distinct plane, no alternate retired optional tool-call protocol transport |
 | Hermes native JSONL bridge and receipts | `src/bin/ace-context-bridge.ts`, `integrations/hermes/ace_context_engine` | Hermes Python ContextEngine and ACE stdio | Versioned JSON schema where compiler semantics fit | Distinct plane; no assumption of native TypeSpec emitter |
 | Domain ADTs, policies and error interpretation | Domain TypeScript + accepted OpenSpec | Effect application use cases | **NOT GENERATED** | Existing source of behavior, preserved |
 
@@ -26,7 +28,7 @@ Existing gateway request constraints that must survive: strict object fields; en
 | TSP-01/02 TypeSpec genuinely compiles reproducibly | ADR-019 / project owner | `typespec/` pinned compiler, emitters, lockfile, generated OpenAPI/Schema and typed SDK | TS-01, TS-05 | `npm ci`, `tsp compile`, drift diff/check | No (tool chain only) |
 | TSP-03/04 public contract remains compatible | ADR-017 / Gateway v1 OpenSpec | Generated DTO SDK and exhaustive gateway wire mapping | TS-01/02/06 | Good/bad fixtures, unknown variants, every field/enum, mapping failure | Bifrost mock wire; real final send separate |
 | TSP-05/07 permissions and invalid input are not silently accepted | ADR-017 + `src/domain/policy.ts` | TypeSpec metadata is descriptive; existing runtime guard remains authoritative | TS-03, TS-04 | Negative unknown/denied/partial tests against actual adapter | Real provider if claiming egress |
-| TSP-06/08 existing native/MCP/Go consumers continue to work | ADR-014/016/017, official MCP SDK | Protocol boundary mapping to generated schemas; old v1 artifacts available | TS-04, TS-06 | Contract roundtrip across DTO→domain→adapter, SDK serialization, Go contract tests | Hermes/Go E2E needed for production claims |
+| TSP-06/08 existing native/retired optional tool-call protocol/Go consumers continue to work | ADR-014/016/017, official retired optional tool-call protocol SDK | Protocol boundary mapping to generated schemas; old v1 artifacts available | TS-04, TS-06 | Contract roundtrip across DTO→domain→adapter, SDK serialization, Go contract tests | Hermes/Go E2E needed for production claims |
 | ARCH-01 migration never inserts implementation into domain | ADR-019 Functional DDD | application-owned ports, adapters separate; no new provider I/O in domain | each slice | architecture rules, dependency scan and negative fixtures | No |
 | PERF-01 token-savings telemetry remains nonblocking | explicit owner decision 2026-11-14 | Hermes receipts / reporting only; do not merge closed #239 | all | no budget-induced BLOCK test | Usage measurement separate from approval |
 
@@ -38,7 +40,7 @@ Existing gateway request constraints that must survive: strict object fields; en
 2. **TS-01:** pinned stable TypeSpec compiler 1.17.0, official HTTP/OpenAPI/JSON Schema emitters, pinned Hey API TypeScript SDK generator; real Gateway v1 operation; generate and validate outputs. Version numbers require lockfile and CI proof.
 3. **TS-02:** field/enum exhaustiveness, missing vs null, negative DTO mapping fixtures; do not silently default fields.
 4. **TS-03:** scope/classification metadata only if supported in TypeSpec/OpenAPI, not an invented policy. Runtime deny remains independent.
-5. **TS-04:** evaluate JSON Schema outputs for official MCP SDK and Hermes JSONL; only migrate one if real version/variant parity can be proved; no homegrown MCP emitter.
+5. **TS-04:** evaluate JSON Schema outputs for official retired optional tool-call protocol SDK and Hermes JSONL; only migrate one if real version/variant parity can be proved; no homegrown retired optional tool-call protocol emitter.
 6. **TS-05:** deterministic `generate`, check-generated drift, generated artifact ownership and scope-aware CI. False-positive and intentionally broken-output fixture.
 7. **TS-06:** incremental migration of verified surfaces only. Remove handwritten duplicated sources **after** verified compatibility; compatibility shims require documented removal points.
 
@@ -59,11 +61,11 @@ The staged codegen implementation is in [PR #244](https://github.com/chris-madse
 
 | Stage | Implemented scope | Required next-level proof / exclusion |
 |---|---|---|
-| TS-00 | Source authority and pre-code G02 matrix; existing Gateway, MCP and Hermes contracts inventoried | This is not a semantic audit of every external provider |
+| TS-00 | Source authority and pre-code G02 matrix; existing Gateway, retired optional tool-call protocol and Hermes contracts inventoried | This is not a semantic audit of every external provider |
 | TS-01 | Pinned TypeSpec 1.17.0 + HTTP/OpenAPI3/JSON Schema emitters + maintained @hey-api/openapi-ts 0.99.0, versioned Gateway v1 project operation, generated SDK and server wire DTO | Existing Go DTO/transport retains v1 wire compatibility |
 | TS-02 | Exhaustive TypeScript DTO/domain field coverage, required vs optional, union/enum, null/unknown and large int64 fixture parity in `check-gateway-compat.mjs` | Only mechanically identical fields are mapped; business behavior stays handwritten |
 | TS-03 | Official `@TypeSpec.OpenAPI.info` and `extension` metadata emitted for v1 and runtime-policy ownership | Metadata alone **never authorizes** a provider send; no invented scopes, runtime policy remains independently tested |
-| TS-04 | Versioned MCP tool input and Hermes JSONL *candidate* JSON Schemas, checked against retained v1 baseline and real SDK/bridge tests | Old runtime encoders/decoders and official MCP SDK remain in place because they differ on unknown-field acceptance; no alternate MCP transport |
+| TS-04 | Versioned retired optional tool-call protocol tool input and Hermes JSONL *candidate* JSON Schemas, checked against retained v1 baseline and real SDK/bridge tests | Old runtime encoders/decoders and official retired optional tool-call protocol SDK remain in place because they differ on unknown-field acceptance; no alternate retired optional tool-call protocol transport |
 | TS-05 | Lockfile, tracked generator outputs and .gitattributes, clean regeneration + drift verification + deliberately stale artifact and mutated output negative fixtures in GitHub Actions | No unreviewed generated edits; no ad-hoc installs in workflow |
 | TS-06 | All four existing Gateway HTTP v1 routes are described in TypeSpec; real HTTP project/health/capability responses and the delivery-not-certified 501 error are compile-checked against the maintained generated SDK DTO; business behavior unchanged | Legacy hand-written schema/Go DTO removal requires additional provider/Go compatibility and real agent E2E; **not** claimed in this PR |
 

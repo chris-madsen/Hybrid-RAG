@@ -123,10 +123,10 @@ try {
 }
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
-for (const path of ['dist', 'src', 'scripts', 'integrations/hermes/ace_context_engine', 'package.json', 'package-lock.json', 'tsconfig.json']) {
+for (const path of ['dist', 'src', 'scripts', 'package.json', 'package-lock.json', 'tsconfig.json']) {
   await cp(join(sourceRoot, path), join(output, path), { recursive: true });
 }
-for (const path of ['scripts/harbor-ace-context-bridge.sh', 'scripts/fastembed-worker.sh', 'scripts/fastembed-sparse-worker.sh']) {
+for (const path of ['scripts/fastembed-worker.sh', 'scripts/fastembed-sparse-worker.sh']) {
   await chmod(join(output, path), 0o755);
 }
 await mkdir(join(output, 'runtime/python'), { recursive: true });

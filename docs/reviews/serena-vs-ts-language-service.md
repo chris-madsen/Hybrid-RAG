@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Serena vs direct TypeScript Language Service
 
 **Date:** 2026-10-19
@@ -8,7 +10,7 @@
 | Path | Result |
 |---|---|
 | Serena `2.0.0` installation | Installed with `uv tool install -p 3.13 serena-agent` |
-| Serena project health check | Passed through isolated `uv tool run --from serena-agent`; the system `/home/ilja/.local/bin/serena` has an incompatible MCP/Pydantic environment and is not used as evidence |
+| Serena project health check | Passed through isolated `uv tool run --from serena-agent`; the system `/home/ilja/.local/bin/serena` has an incompatible retired optional tool-call protocol/Pydantic environment and is not used as evidence |
 | Serena same-name tools run | Passed: `find_symbol` distinguished `UserRepository/save` and `AuditRepository/save`; `find_referencing_symbols` returned the corresponding call site for each; diagnostics returned `{}` |
 | Direct TypeScript LS | `npm run test:real-same-name` passed with structural spans, distinct definitions, references and assignment write locations |
 | Real retrieval slice | Direct TypeScript LS verified the selected Tree-sitter candidates in the Qdrant E2E |

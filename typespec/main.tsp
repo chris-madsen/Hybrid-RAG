@@ -1,4 +1,3 @@
-import "./native-and-mcp.tsp";
 import "@typespec/http";
 import "@typespec/openapi3";
 import "@typespec/openapi";

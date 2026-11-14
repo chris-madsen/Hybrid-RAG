@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +25,9 @@ const DefaultMaxBodyBytes int64 = 4 * 1024 * 1024
 const maxEnvelopeOverhead int64 = 64 * 1024
 
 func maxEnvelopeBytes(bodyBytes int64) int64 {
-	return 4*((bodyBytes+2)/3) + maxEnvelopeOverhead
+	// The envelope duplicates the user query outside the Base64 body. Its
+	// UTF-8 bytes can be as large as the original request body.
+	return 4*((bodyBytes+2)/3) + bodyBytes + maxEnvelopeOverhead
 }
 
 
@@ -193,6 +196,7 @@ type Decision struct {
 
 type Client struct {
 	Endpoint     string
+	AuthToken    string
 	HTTPClient   *http.Client
 	MaxBodyBytes int64
 }
@@ -290,6 +294,9 @@ func (c Client) Project(ctx context.Context, request Request) (Decision, error) 
 		return Decision{}, fmt.Errorf("create projection request: %w", err)
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
+	if c.AuthToken != "" {
+		httpRequest.Header.Set("Authorization", "Bearer "+c.AuthToken)
+	}
 	response, err := safeClient.Do(httpRequest)
 	if err != nil {
 		return Decision{}, fmt.Errorf("ACE projection request failed: %w", err)
@@ -324,7 +331,7 @@ func (c Client) Project(ctx context.Context, request Request) (Decision, error) 
 	if int64(len(decision.BodyBase64)) > 4*((maxBodyBytes+2)/3) {
 		return Decision{}, errors.New("ACE projected response body exceeds bound")
 	}
-	if decision.Kind == "APPLY" || decision.Kind == "DEGRADED_AUTHORIZED" {
+	if decision.Kind == "APPLY" {
 		decoded, err := base64.StdEncoding.DecodeString(decision.BodyBase64)
 		if err != nil || int64(len(decoded)) > maxBodyBytes {
 			return Decision{}, errors.New("ACE projected body is invalid or exceeds configured bound")
@@ -339,6 +346,76 @@ func (c Client) Project(ctx context.Context, request Request) (Decision, error) 
 	return decision, nil
 }
 
+// Only one request-local rewrite is supported by ace.gateway.v1. A digest
+// proves identity of supplied bytes, not that ACE was allowed to mutate the
+// model, tools, system instructions, stream mode or the user turn.
+func validateChatProjection(original, projected []byte, rewrites []string) error {
+	if len(rewrites) != 1 || rewrites[0] != "append_verified_context_system_message" {
+		return errors.New("ACE projection requests an unsupported wire rewrite")
+	}
+	decode := func(body []byte) (map[string]any, error) {
+		decoder := json.NewDecoder(bytes.NewReader(body))
+		decoder.UseNumber()
+		var value map[string]any
+		if err := decoder.Decode(&value); err != nil || value == nil {
+			return nil, errors.New("ACE provider body must be a JSON object")
+		}
+		var trailing any
+		if err := decoder.Decode(&trailing); err != io.EOF {
+			return nil, errors.New("ACE provider body has trailing JSON")
+		}
+		return value, nil
+	}
+	base, err := decode(original)
+	if err != nil {
+		return err
+	}
+	next, err := decode(projected)
+	if err != nil {
+		return err
+	}
+	baseMessages, baseOK := base["messages"].([]any)
+	nextMessages, nextOK := next["messages"].([]any)
+	if !baseOK || !nextOK || len(nextMessages) != len(baseMessages)+1 {
+		return errors.New("ACE must add exactly one context message")
+	}
+	delete(base, "messages")
+	delete(next, "messages")
+	if !reflect.DeepEqual(base, next) {
+		return errors.New("ACE projection modified protected provider fields")
+	}
+	insertAt := len(baseMessages)
+	for i, item := range baseMessages {
+		message, ok := item.(map[string]any)
+		if !ok {
+			return errors.New("ACE base message is not an object")
+		}
+		if message["role"] != "system" {
+			insertAt = i
+			break
+		}
+	}
+	added, ok := nextMessages[insertAt].(map[string]any)
+	if !ok || len(added) != 2 || added["role"] != "system" {
+		return errors.New("ACE context message has invalid role or fields")
+	}
+	content, ok := added["content"].(string)
+	if !ok || !strings.Contains(content, "[ACE verified context]\n") ||
+		!strings.HasSuffix(content, "\n[/ACE verified context]") {
+		return errors.New("ACE context message lacks the verified evidence envelope")
+	}
+	for i, message := range baseMessages {
+		j := i
+		if i >= insertAt {
+			j++
+		}
+		if !reflect.DeepEqual(message, nextMessages[j]) {
+			return errors.New("ACE projection mutated a protected conversation message")
+		}
+	}
+	return nil
+}
+
 func Apply(requestBody []byte, decision Decision) ([]byte, error) {
 	digest := sha256.Sum256(requestBody)
 	if decision.Receipt.BaseBodySHA256 != hex.EncodeToString(digest[:]) {
@@ -348,12 +425,7 @@ func Apply(requestBody []byte, decision Decision) ([]byte, error) {
 		return nil, errors.New("projection receipt decision mismatch")
 	}
 	switch decision.Kind {
-	case "UNCHANGED_AUTHORIZED":
-		if decision.BodyBase64 != "" {
-			return nil, errors.New("unchanged decision must not include a projected body")
-		}
-		return append([]byte(nil), requestBody...), nil
-	case "APPLY", "DEGRADED_AUTHORIZED":
+	case "APPLY":
 		if decision.BodyBase64 == "" {
 			return nil, errors.New("projection decision has no body")
 		}
@@ -368,8 +440,14 @@ func Apply(requestBody []byte, decision Decision) ([]byte, error) {
 		if decision.Receipt.ProjectedBodySHA256 != hex.EncodeToString(projectedDigest[:]) {
 			return nil, errors.New("projection output digest mismatch")
 		}
+		if err := validateChatProjection(requestBody, body, decision.Receipt.PermittedWireRewrites); err != nil {
+			return nil, err
+		}
 		return body, nil
 	case "BLOCK":
+		if decision.BodyBase64 != "" || decision.Receipt.ReasonCode == "" {
+			return nil, errors.New("ACE BLOCK decision must have a reason and no provider body")
+		}
 		return nil, fmt.Errorf("ACE projection blocked: %s", decision.Receipt.ReasonCode)
 	default:
 		return nil, fmt.Errorf("unsupported ACE projection decision: %s", decision.Kind)

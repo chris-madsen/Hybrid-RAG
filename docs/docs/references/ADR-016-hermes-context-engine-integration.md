@@ -1,72 +1,18 @@
-# ADR-016 — Hermes ContextEngine как основной путь интеграции ACE
+# ADR-016 — Hermes native ContextEngine integration (superseded)
 
-**Статус:** Accepted direction; implementation and evidence pending
-**Дата:** 2026-10-23
-**Проект:** Adaptive Context Engine (ACE)
+**Status:** Superseded by the explicit owner decision of 2026-11-14.
 
-## Решение
+The Hermes-native context bridge described in the historical experiment is
+not an alternative or fallback integration for ACE agents. The only supported
+model-bound context path is the configured Bifröst LLM Gateway and the local
+versioned ACE Gateway Projection API. Hermes must use the configured provider
+endpoint rather than a native ACE context hook.
 
-Для текущего Hermes feedback loop ACE не должен передавать обязательный контекст через MCP tool call. MCP остаётся дополнительной плоскостью для явных операций: `ace_expand`, диагностика и операторские запросы.
+Internal ACE context transformation, source verification, retrieval, archival
+memory and receipt handling are unchanged by this decision. Past Hermes-native
+benchmarks are historical evidence and do not certify actual Gateway-to-model
+egress. Gateway final-send, retries, streaming and real agent E2E require
+separate tests and owner acceptance.
 
-Основной путь — Hermes `ContextEngine.select_context(...)`, который выполняется перед provider request и возвращает request-only представление контекста. Durable Hermes transcript и исходная история сессии не переписываются.
-
-Если зафиксированный Hermes runtime не предоставляет совместимый `select_context`, допустим временный fallback через `pre_llm_call`, который добавляет ACE context к текущему user message. Fallback не заменяет основной ContextEngine contract и требует отдельного runtime evidence.
-
-## Граница интеграции
-
-ACE предоставляет прямой локальный JSONL bridge, не зависящий от MCP transport:
-
-```text
-Hermes ContextEngine
-        |
-        | JSONL request/response, local subprocess
-        v
-ACE context-transform service
-        |
-        +-- workspace/worktree observation
-        +-- dense+sparse retrieval / RRF
-        +-- structural/LSP verification
-        +-- source-aware delivery and receipts
-        v
-request-only ContextProjection
-```
-
-Bridge принимает версию запроса, session/turn/request identity, workspace identity, query, budget и known evidence state. Ответ содержит bounded context text, evidence/receipt identity, provider/runtime identity, estimated tokens, selected/omitted evidence и typed readiness status.
-
-## Инварианты
-
-- Transformation влияет только на следующий provider request.
-- Durable Hermes history остаётся byte-stable, кроме существующего request-sidecar механизма, необходимого для точного replay/cache поведения.
-- Tool-call/result пары, provider-specific reasoning carriers и другие обязательные логические message groups не разрываются.
-- Текущие проверенные source bytes имеют приоритет над stale index, memory и docs.
-- Timeout, malformed response, provider outage, missing receipt или identity mismatch дают `UNKNOWN`/`BLOCKED`; они не превращаются в `ACE_NOT_USED` или measured zero.
-- Hermes v0.22.3 сам fail-open для обычных исключений из `select_context()`: host ловит `Exception` и отправляет исходный request. Поэтому strict ACE feedback runtime намеренно завершает Hermes process через `SystemExit` при blocked transform, чтобы provider request не ушёл без обязательного ACE context. Это version-specific seam и должно заново проверяться при каждом обновлении Hermes.
-- Native и Hermes+ACE arms используют одинаковые model/provider/reasoning/task/image/source/runtime identities. Намеренная разница — только request-time ACE transformation.
-- ACE context receipts не содержат raw source payloads, auth state или credentials.
-- Context economy считается только вместе с task quality и verified transformation evidence.
-
-## Runtime pinning
-
-Перед реализацией нужно проверить, что exact pinned Hermes runtime поддерживает:
-
-```text
-ContextEngine.select_context(request_messages, conversation_messages, incoming_message, budget_tokens)
-```
-
-Нельзя считать host Hermes compatibility доказательством для Harbor-пина. Если `v0.22.3` не содержит совместимый contract, нужно принять отдельное owner decision о runtime pin или временном `pre_llm_call` fallback.
-
-## Последствия
-
-Плюсы:
-
-- ACE управляет фактическим model context, а не ждёт добровольного tool call.
-- Durable transcript и request projection разделены.
-- Retrieval остаётся в ACE и не дублируется Python plugin’ом.
-- MCP сохраняет полезность для exact expansion и диагностики.
-
-Цена:
-
-- Нужен Python Hermes plugin и прямой local bridge между Python и TypeScript.
-- Нужно сохранять message-group/provider invariants.
-- Benchmark evidence должен связывать plugin, bridge, ACE runtime, source revision и каждый transformation receipt.
-- Реальный Hermes smoke обязателен; Codex evidence не закрывает эту интеграцию.
+See [ADR-017](ADR-017-bifrost-unified-llm-gateway.md) and
+[Gateway-only G02](../../plans/2026-11-14-gateway-only-retirement-g02.md).

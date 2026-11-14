@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # agent-benchmarking — Spec Delta
 
 ## Purpose
@@ -8,7 +10,7 @@ Harbor baseline, complete usage and comparative evidence.
 
 ### Requirement: Strong native Hermes baseline
 
-The system SHALL run a native Hermes baseline with normal shell, code-search and test capabilities available and no ACE MCP server. The paired ACE-optional arm SHALL use the same pinned Hermes version, `openai-codex` model, reasoning effort, task input and permissions, adding only the ACE MCP server.
+The system SHALL run a native Hermes baseline with normal shell, code-search and test capabilities available and no ACE retired optional tool-call protocol server. The paired ACE-optional arm SHALL use the same pinned Hermes version, `openai-codex` model, reasoning effort, task input and permissions, adding only the ACE retired optional tool-call protocol server.
 
 #### Scenario: Baseline preparation
 

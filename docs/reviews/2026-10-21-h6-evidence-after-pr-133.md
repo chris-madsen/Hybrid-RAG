@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE Hybrid milestone — H6 evidence after PR #133
 
 This is a new current evidence ledger for the H6 work after the provider-probe,
@@ -65,10 +67,10 @@ contents must remain unchanged after the first scored run.
 
 ## Retrieval evidence currently available
 
-The generic runner performs real MCP calls through the existing
+The generic runner performs real retired optional tool-call protocol calls through the existing
 `ace_workspace_status` and `ace_context` surface and records raw/runtime IDs,
 canonical IDs, stage ranks, byte metrics, provider identities and terminal
-receipts. It does not add an MCP tool.
+receipts. It does not add an retired optional tool-call protocol tool.
 
 A real-provider dense diagnostic run on v3 produced the following non-release
 result:

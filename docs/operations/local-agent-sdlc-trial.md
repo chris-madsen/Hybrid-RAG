@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Local agent SDLC trial — reproducible operator procedure
 
 Status: local **developer-process** experiment, not ACE provider/agent quality acceptance or release approval. Canonical rules: `AGENTS.md`, `docs/operations/ai-assisted-sdlc.md`, `docs/research/sdlc/PROMPTS-ACE.md`, accepted ADR/OpenSpec. The `.agents/skills/ace-sdlc` and `.codex/skills/ace-sdlc` entries only route to those rules.
@@ -22,9 +24,9 @@ The preflight is **read-only and offline**: it does not fetch or update Git, run
 
 Provide the coding agent with this exact task:
 
-> Follow `AGENTS.md`, `.agents/skills/ace-sdlc/SKILL.md` and the full Research stage of `docs/operations/ai-assisted-sdlc.md`. Research the actual source-backed path by which `ace_context` is registered in MCP stdio. Identify the runtime composition, source identity, typed unavailable behavior and real versus mocked provider evidence. Record the current SHA and file/line citations. Do **not** change code or suggest a redesign during Research.
+> Follow `AGENTS.md`, `.agents/skills/ace-sdlc/SKILL.md` and the full Research stage of `docs/operations/ai-assisted-sdlc.md`. Research the actual source-backed path by which `ace_context` is registered in retired optional tool-call protocol stdio. Identify the runtime composition, source identity, typed unavailable behavior and real versus mocked provider evidence. Record the current SHA and file/line citations. Do **not** change code or suggest a redesign during Research.
 
-Acceptance: no modified source files; research facts tied to real code, and no Bifröst model-bound injection claim derived from MCP tool success.
+Acceptance: no modified source files; research facts tied to real code, and no Bifröst model-bound injection claim derived from retired optional tool-call protocol tool success.
 
 ## 3. Second agent trial — isolated T1 defect or bounded improvement
 

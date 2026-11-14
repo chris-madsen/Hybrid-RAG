@@ -1,13 +1,15 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-014 — Агентонезависимый многоуровневый Hybrid Context Engine
 
 **Статус:** **Accepted**
 **Дата:** 2026-10-21
 **Проект:** Adaptive Context Engine (ACE)
-**Источник решения:** прямое решение владельца от 21.10.2026: брать архитектурные принципы Cursor-подобного многоуровневого code-aware retrieval, но выбирать собственные maintained компоненты и сохранять универсальное MCP-подключение.
+**Источник решения:** прямое решение владельца от 21.10.2026: брать архитектурные принципы Cursor-подобного многоуровневого code-aware retrieval, но выбирать собственные maintained компоненты и сохранять универсальное retired optional tool-call protocol-подключение.
 
 ## Контекст
 
-> **Уточнение 2026-10-24 / ADR-017:** Для model-bound context delivery выбран планируемый Bifrost Gateway + ACE Projection API; Hermes использует реализованный native ContextEngine. MCP остаётся для явных tool calls, не для обязательной инъекции LLM-контекста. LangGraph — внешний оркестратор, не часть ACE. Старое MCP-first описание ниже историческое.
+> **Уточнение 2026-10-24 / ADR-017:** Для model-bound context delivery выбран планируемый Bifrost Gateway + ACE Projection API; Hermes использует реализованный native ContextEngine. retired optional tool-call protocol остаётся для явных tool calls, не для обязательной инъекции LLM-контекста. LangGraph — внешний оркестратор, не часть ACE. Старое retired optional tool-call protocol-first описание ниже историческое.
 
 Цель ACE — не просто выполнять vector search по коду. Агент не должен многократно заново читать одни и те же файлы, искать те же символы и повторно получать тот же контекст, если проектное состояние не изменилось.
 
@@ -17,7 +19,7 @@ Cursor используется как архитектурная аналоги
 
 ## Решение
 
-1. **ACE остаётся agent-neutral Context Engine.** Ядро не зависит от конкретного агента, IDE, LangGraph или адаптера; MCP — для явных вызовов tools, native/gateway adapters — для доставки контекста модели (ADR-016/017).
+1. **ACE остаётся agent-neutral Context Engine.** Ядро не зависит от конкретного агента, IDE, LangGraph или адаптера; retired optional tool-call protocol — для явных вызовов tools, native/gateway adapters — для доставки контекста модели (ADR-016/017).
 2. **Structural code units:** maintained ast-grep/Tree-sitter tooling определяет структурные границы и compact outlines. Собственные parser/node tables запрещены без отдельного доказанного gap.
 3. **Hybrid code retrieval:** Qdrant остаётся выбранным локальным store и должен поддерживать минимум две независимые retrieval ветви:
    - dense semantic retrieval;
@@ -25,7 +27,7 @@ Cursor используется как архитектурная аналоги
    с native fusion (первый кандидат — RRF).
 4. **Reranking:** fused shortlist MAY проходить через локальный maintained cross-encoder/reranker. Конкретная модель выбирается только по quality/latency/license benchmark.
 5. **Semantic enrichment:** definitions/references/types/diagnostics получают через maintained LSP servers behind generic LSP adapter. LSP не заменяет fuzzy retrieval.
-6. **Working Context:** Git/working-tree state является first-class retrieval prior. IDE/agent MAY передать доверенные focus/open-file/range hints через native/gateway adapter или явный MCP tool call; hints не являются source truth.
+6. **Working Context:** Git/working-tree state является first-class retrieval prior. IDE/agent MAY передать доверенные focus/open-file/range hints через native/gateway adapter или явный retired optional tool-call protocol tool call; hints не являются source truth.
 7. **Docs and memory stay separate sources:** Vertex — authorized docs; Graphiti/FalkorDB — temporal derived memory; current source bytes — truth for current implementation.
 8. **Progressive disclosure:** initial ContextBundle отдаёт минимально достаточный verified context; exact original доступен losslessly через `ace_expand`.
 9. **Delta delivery:** стабильные evidence/bundle identities должны позволять клиенту указать уже известный контекст и не получать неизменившиеся большие body повторно.
@@ -57,11 +59,11 @@ Turbopuffer — сильная cloud/object-storage search platform и разу�
 | Fusion | Qdrant Query API / RRF |
 | Reranking | FastEmbed cross-encoder candidate, evidence-gated |
 | Semantic relations | real LSP servers through generic adapter |
-| Working state | Git/worktree + optional MCP host hints |
+| Working state | Git/worktree + optional retired optional tool-call protocol host hints |
 | Documentation | Vertex RAG under policy |
 | Temporal memory | Graphiti + FalkorDB + immutable ACE source archive |
 | Model-bound delivery | Bifrost / ACE Gateway Projection API (planned, ADR-017); Hermes native ContextEngine (implemented, ADR-016) |
-| Explicit tools | MCP: `ace_expand`, status, optional `ace_context` search; not required for injection |
+| Explicit tools | retired optional tool-call protocol: `ace_expand`, status, optional `ace_context` search; not required for injection |
 | Exact expansion | ACE artifact handle / ace_expand |
 
 ## Acceptance

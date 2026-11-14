@@ -1,205 +1,70 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { readHarborFourArmTrialObservations } from '../src/adapters/harbor-four-arm-trial-evidence.js';
 
-test('raw Harbor adapter reads trial facts and keeps uninstrumented native reads unknown', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-trial-adapter-');
-  const aggregatePath = join(root, 'result.json');
-  const trialDirectory = join(root, 'trial-0');
-  await mkdir(join(trialDirectory, 'agent'), { recursive: true });
-  await writeFile(aggregatePath, '{"n_total_trials":1}\n', 'utf8');
-  await writeFile(join(trialDirectory, 'result.json'), JSON.stringify({
-    trial_id: 'trial-0',
-    task_name: 'task-a',
-    exception_info: null,
-    verifier_result: { rewards: { reward: 1 } },
-    agent_result: { n_input_tokens: 11, n_cache_tokens: 2, n_output_tokens: 3 },
-    started_at: '2026-10-22T10:00:00.000Z',
-    finished_at: '2026-10-22T10:00:01.250Z',
-  }) + '\n', 'utf8');
-  await writeFile(join(trialDirectory, 'agent', 'codex.txt'), 'plain Codex output without ACE events\n', 'utf8');
-
-  const observations = await readHarborFourArmTrialObservations('native', aggregatePath);
-  assert.equal(observations.length, 1);
-  const [observation] = observations;
-  assert.equal(observation?.success, true);
-  assert.equal(observation?.rawInputTokens, 11);
-  assert.equal(observation?.cachedInputTokens, 2);
-  assert.equal(observation?.latencyMs, 1250);
-  assert.equal(observation?.observedAceCalls, 0);
-  assert.equal(observation?.nativeFileReads, null);
-  assert.equal(observation?.timedOut, null);
-});
-
-test('raw Harbor adapter blocks when a trial result has no verifier outcome', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-trial-adapter-missing-');
-  const aggregatePath = join(root, 'result.json');
-  const trialDirectory = join(root, 'trial-0');
-  await mkdir(join(trialDirectory, 'agent'), { recursive: true });
-  await writeFile(aggregatePath, '{"n_total_trials":1}\n', 'utf8');
-  await writeFile(join(trialDirectory, 'result.json'), JSON.stringify({ task_name: 'task-a' }) + '\n', 'utf8');
-  await writeFile(join(trialDirectory, 'agent', 'codex.txt'), 'missing verifier\n', 'utf8');
-
-  await assert.rejects(
-    readHarborFourArmTrialObservations('native', aggregatePath),
-    /BLOCKED: missing verifier reward/u,
-  );
-});
-
-test('raw Harbor adapter keeps verifier timeouts out of quality and savings evidence', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-trial-adapter-timeout-');
-  const aggregatePath = join(root, 'result.json');
-  const trialDirectory = join(root, 'trial-0');
-  await mkdir(join(trialDirectory, 'agent'), { recursive: true });
-  await writeFile(aggregatePath, '{"n_total_trials":1}\n', 'utf8');
-  await writeFile(join(trialDirectory, 'result.json'), JSON.stringify({
-    task_name: 'task-a',
-    exception_info: { type: 'VerifierTimeoutError', message: 'verifier timed out' },
-    timed_out: true,
-    agent_result: { n_input_tokens: 100, n_output_tokens: 10 },
-  }) + '\n', 'utf8');
-  await writeFile(join(trialDirectory, 'agent', 'codex.txt'), 'verifier timeout\n', 'utf8');
-
-  await assert.rejects(
-    readHarborFourArmTrialObservations('native', aggregatePath),
-    /BLOCKED: Harbor trial timed out/u,
-  );
-});
-
-test('raw Harbor adapter rejects a missing aggregate even if trial directories exist', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-missing-aggregate-');
-  const trialDirectory = join(root, 'trial-0');
-  await mkdir(join(trialDirectory, 'agent'), { recursive: true });
-  await writeFile(join(trialDirectory, 'result.json'), '{}\n', 'utf8');
-  await assert.rejects(
-    readHarborFourArmTrialObservations('native', join(root, 'missing-result.json')),
-  );
-});
-
-test('raw Harbor adapter rejects aggregate results without a matching trial count', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-trial-count-');
-  const trialDirectory = join(root, 'trial-0');
-  await mkdir(join(trialDirectory, 'agent'), { recursive: true });
-  await writeFile(join(root, 'result.json'), '{}\n', 'utf8');
-  await writeFile(join(trialDirectory, 'result.json'), '{}\n', 'utf8');
-  await assert.rejects(
-    readHarborFourArmTrialObservations('native', join(root, 'result.json')),
-    /missing a positive n_total_trials/u,
-  );
-});
-
-test('raw Harbor adapter orders serial trials by timestamps, not lexical directory names', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-trial-order-');
-  await writeFile(join(root, 'result.json'), '{"n_total_trials":2}\n', 'utf8');
-  for (const [directory, task, started] of [
-    ['trial-10', 'second', '2026-10-22T10:00:02.000Z'],
-    ['trial-2', 'first', '2026-10-22T10:00:01.000Z'],
-  ]) {
-    const path = join(root, directory);
-    await mkdir(join(path, 'agent'), { recursive: true });
-    await writeFile(join(path, 'result.json'), JSON.stringify({
-      task_name: task,
-      verifier_result: { rewards: { reward: 1 } },
-      exception_info: null,
-      started_at: started,
-      finished_at: '2026-10-22T10:00:03.000Z',
-      agent_result: { n_input_tokens: 10, n_output_tokens: 1, n_cache_tokens: 0 },
-    }) + '\n', 'utf8');
-    await writeFile(join(path, 'agent', 'codex.txt'), 'empty trace\n', 'utf8');
+const withTrial = async (fn: (root: string, dir: string, aggregate: string) => Promise<void>): Promise<void> => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-gateway-trial-'));
+  const dir = join(root, 'trial-1');
+  const aggregate = join(root, 'aggregate.json');
+  try {
+    await mkdir(join(dir, 'agent'), { recursive: true });
+    await writeFile(aggregate, JSON.stringify({ n_total_trials: 1 }));
+    await writeFile(join(dir, 'result.json'), JSON.stringify({
+      trial_id: 't1', task_name: 'task-1',
+      started_at: '2026-11-14T10:00:00Z', finished_at: '2026-11-14T10:01:00Z',
+      verifier_result: { rewards: { reward: 1 } }, exception_info: null,
+      agent_result: { n_input_tokens: 120, n_output_tokens: 15 },
+    }));
+    await fn(root, dir, aggregate);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
-  const result = await readHarborFourArmTrialObservations('native', join(root, 'result.json'));
-  assert.deepEqual(result.map((item) => item.taskName), ['first', 'second']);
+};
+
+test('native Harbor baseline has no Gateway requests or fabricated telemetry', async () => {
+  await withTrial(async (_, __, aggregate) => {
+    const [result] = await readHarborFourArmTrialObservations('native', aggregate);
+    assert.equal(result?.observedAceCalls, 0);
+    assert.equal(result?.successfulAceCalls, 0);
+    assert.equal(result?.rawInputTokens, 120);
+    assert.equal(result?.newContextBytes, null);
+  });
 });
 
-
-test('raw Harbor adapter keeps four-arm context correlation stable while recording ace_expand separately', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-expand-');
-  const aggregatePath = join(root, 'result.json');
-  const trialDirectory = join(root, 'trial-0');
-  await mkdir(join(trialDirectory, 'agent'), { recursive: true });
-  await writeFile(aggregatePath, '{"n_total_trials":1}\n', 'utf8');
-  await writeFile(join(trialDirectory, 'result.json'), JSON.stringify({
-    trial_id: 'trial-expand',
-    task_name: 'task-a',
-    exception_info: null,
-    verifier_result: { rewards: { reward: 1 } },
-    agent_result: { n_input_tokens: 11, n_cache_tokens: 2, n_output_tokens: 3 },
-    started_at: '2026-10-22T10:00:00.000Z',
-    finished_at: '2026-10-22T10:00:01.000Z',
-  }) + '\n', 'utf8');
-  const contextEvent = {
-    type: 'item.completed',
-    item: {
-      type: 'mcp_tool_call', server: 'ace', tool: 'ace_context', error: null, status: 'completed',
-      result: { structured_content: {
-        complete: true, requestId: 'request-context',
-        delivery_metrics: { uniqueContentBytes: 10, newContextBytes: 8, reusedContextBytes: 2, duplicateContextBytesAvoided: 1 },
-        evidence: [{ source: 'code', freshness: 'current', proofClass: 'direct', receiptId: 'receipt-context', reusedContentBytes: 2 }],
-      } },
-    },
-  };
-  const expandEvent = {
-    type: 'item.completed',
-    item: {
-      type: 'mcp_tool_call', server: 'ace', tool: 'ace_expand', error: null, status: 'completed',
-      result: { structured_content: {
-        content_utf8: 'const x = 1;\n', digest: 'a'.repeat(64), offset: 0, total_bytes: 13,
-        delivery_metrics: { expanded_bytes: 13, total_bytes: 13 },
-      } },
-    },
-  };
-  await writeFile(join(trialDirectory, 'agent', 'codex.txt'), JSON.stringify(contextEvent) + '\n' + JSON.stringify(expandEvent) + '\n', 'utf8');
-
-  const [observation] = await readHarborFourArmTrialObservations('dense', aggregatePath);
-  assert.equal(observation?.observedAceCalls, 1, 'four-arm context-call contract must stay context-only');
-  assert.equal(observation?.successfulAceCalls, 1, 'provider-correlated successful calls remain ace_context only');
-  const extended = observation as typeof observation & { readonly observedAceToolCalls?: number; readonly successfulAceToolCalls?: number };
-  assert.equal(extended?.observedAceToolCalls, 2);
-  assert.equal(extended?.successfulAceToolCalls, 2);
-  assert.equal(observation?.successfulRequestIds.length, 1);
-  assert.equal(observation?.uniqueContextBytes, 10, 'ace_expand delivery metrics must not erase context metrics');
+test('Gateway arm without request-bound receipts is blocked, not counted as success', async () => {
+  await withTrial(async (_, __, aggregate) => {
+    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /missing Gateway projection receipts/u);
+  });
 });
 
+test('authenticated projection is not silently promoted to final-provider delivery evidence', async () => {
+  await withTrial(async (_, dir, aggregate) => {
+    const receipt = {
+      kind: 'APPLY',
+      receipt: { schemaVersion: 'ace.gateway.v1', receiptId: 'rc1', requestId: 'req1', decision: 'APPLY' },
+    };
+    await writeFile(join(dir, 'agent', 'ace-gateway-projection.jsonl'), JSON.stringify(receipt) + '\n');
+    const [result] = await readHarborFourArmTrialObservations('hybrid', aggregate);
+    assert.equal(result?.observedAceCalls, 1);
+    assert.equal(result?.successfulAceCalls, 0);
+    assert.equal(result?.rawOutputTokens, 15);
+    assert.deepEqual(result?.successfulRequestIds, []);
+  });
+});
 
-test('raw Harbor adapter reads Hermes MCP session calls and preserves ACE correlation', async () => {
-  const root = await mkdtemp('/tmp/ace-harbor-hermes-adapter-');
-  const aggregatePath = join(root, 'result.json');
-  const trialDirectory = join(root, 'trial-0');
-  await mkdir(join(trialDirectory, 'agent'), { recursive: true });
-  await writeFile(aggregatePath, '{"n_total_trials":1}\n', 'utf8');
-  await writeFile(join(trialDirectory, 'result.json'), JSON.stringify({
-    trial_id: 'trial-hermes',
-    task_name: 'task-a',
-    exception_info: null,
-    verifier_result: { rewards: { reward: 1 } },
-    agent_result: { n_input_tokens: 21, n_output_tokens: 5 },
-    started_at: '2026-10-23T10:00:00.000Z',
-    finished_at: '2026-10-23T10:00:02.000Z',
-  }) + '\n', 'utf8');
-  const structured = {
-    complete: true,
-    requestId: 'hermes-request-1',
-    delivery_metrics: { uniqueContentBytes: 12, newContextBytes: 12, reusedContextBytes: 0, duplicateContextBytesAvoided: 0 },
-    evidence: [{ source: 'code', freshness: 'current', proofClass: 'direct', receiptId: 'hermes-receipt-1', reusedContentBytes: 0 }],
-  };
-  const session = {
-    id: 'session-1',
-    messages: [
-      {
-        role: 'assistant',
-        content: '',
-        tool_calls: [{ id: 'call-1', function: { name: 'mcp_ace_ace_context', arguments: '{"query":"where"}' } }],
-      },
-      { role: 'tool', tool_call_id: 'call-1', content: JSON.stringify({ structured_content: structured }) },
-    ],
-  };
-  await writeFile(join(trialDirectory, 'agent', 'hermes-session.jsonl'), JSON.stringify(session) + '\n', 'utf8');
-
-  const [observation] = await readHarborFourArmTrialObservations('dense', aggregatePath);
-  assert.equal(observation?.observedAceCalls, 1);
-  assert.equal(observation?.successfulAceCalls, 1);
-  assert.deepEqual(observation?.successfulRequestIds, ['hermes-request-1']);
-  assert.equal(observation?.uniqueContextBytes, 12);
+test('malformed, duplicate and native-contaminating projection receipts fail closed', async () => {
+  await withTrial(async (_, dir, aggregate) => {
+    const path = join(dir, 'agent', 'ace-gateway-projection.jsonl');
+    await writeFile(path, '{"kind":"FAKE_SUCCESS"}\n');
+    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /malformed Gateway projection/u);
+    const record = { kind: 'BLOCK',
+      receipt: { schemaVersion: 'ace.gateway.v1', requestId: 'x', receiptId: 'r1', decision: 'BLOCK' },
+    };
+    await writeFile(path, JSON.stringify(record) + '\n' + JSON.stringify(record) + '\n');
+    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /duplicate Gateway projection/u);
+    await assert.rejects(readHarborFourArmTrialObservations('native', aggregate), /native baseline contains/u);
+  });
 });

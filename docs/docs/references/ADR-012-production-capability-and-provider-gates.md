@@ -1,17 +1,19 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-012 — Production capability gates, build-versus-buy and Meyer contracts
 
 **Status: Accepted — explicit owner approval on 2026-10-19.** Original proposal: 2026-10-18. This acceptance policy does not silently supersede earlier approved technical provider decisions.
 
 ## Context
 
-The repository implements validated DDD ports, a regex symbol index, deterministic hash vectors and a hand-rolled MCP transport. Real Qdrant/AST/LSP/Vertex/Graphiti adapters exist, but the running MCP bootstrap does not compose them. This is accurately labelled partial in parts of the README, yet the project's core capability cannot be accepted from port-level checkboxes and smoke tests.
+The repository implements validated DDD ports, a regex symbol index, deterministic hash vectors and a hand-rolled retired optional tool-call protocol transport. Real Qdrant/AST/LSP/Vertex/Graphiti adapters exist, but the running retired optional tool-call protocol bootstrap does not compose them. This is accurately labelled partial in parts of the README, yet the project's core capability cannot be accepted from port-level checkboxes and smoke tests.
 
 ## Accepted decision
 
 1. A **capability** is production-complete only when the runtime entrypoint composes approved real dependencies and a reproducible end-to-end test proves actual behavior and failure handling.
-2. Default to **selected mature implementations** (official MCP TypeScript SDK, Tree-sitter/ast-grep, Qdrant plus measured genuine embeddings, approved language service, Graphiti, Harbor). Custom algorithms/protocol implementations need a new owner-approved ADR with benchmarking/conformance justification.
+2. Default to **selected mature implementations** (official retired optional tool-call protocol TypeScript SDK, Tree-sitter/ast-grep, Qdrant plus measured genuine embeddings, approved language service, Graphiti, Harbor). Custom algorithms/protocol implementations need a new owner-approved ADR with benchmarking/conformance justification.
 3. Deterministic lexical fallback and test-double embeddings can remain as **explicitly named, opt-in/degraded/fixture-only paths**, not undisclosed production substitutes.
-4. **Architecture fitness tests** are contractual: Meyer preconditions/postconditions/invariants/frame and exceptional postconditions at the actual MCP/agent boundary; see `docs/architecture/07-architecture-fitness-contracts.md`.
+4. **Architecture fitness tests** are contractual: Meyer preconditions/postconditions/invariants/frame and exceptional postconditions at the actual retired optional tool-call protocol/agent boundary; see `docs/architecture/07-architecture-fitness-contracts.md`.
 5. Use **vertical slices and gates** before claiming coverage. "Documented controlled exception" is `not-ready`, never a passed production exit condition. Report `port-designed`, `adapter-implemented`, `real-provider-tested`, `agent-E2E-passed`, `benchmark-evaluated` separately.
 6. Benchmark claims require attribution: actual ACE calls and real retrieval-needed tests, unchanged strong Codex baseline, quality gate, total tokens/external costs. Zero ACE calls or forced trivial smoke is ineligible evidence of ACE savings.
 

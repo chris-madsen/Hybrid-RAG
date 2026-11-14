@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE remaining work and benchmark readiness — current-main refresh
 
 **Date:** 2026-10-20  
@@ -15,7 +17,7 @@ The remaining work is now materially smaller than in the previous revision.
 
 PR #88 closed several concrete correctness defects at the implementation + deterministic-test level:
 
-- Graphiti MCP errors can no longer be parsed as successful empty results;
+- Graphiti retired optional tool-call protocol errors can no longer be parsed as successful empty results;
 - memory deletion now has a durable deletion fence against stale projectors;
 - reconciliation can rebuild a missing projection intent from immutable archive truth;
 - Qdrant lease inspection/pruning is fenced against concurrent acquire and fails closed on non-ENOENT filesystem errors;
@@ -34,7 +36,7 @@ The historical forced-use result remains only a diagnostic: native used 891,950 
 
 | Finding | Current status on audited `main` | Remaining work |
 |---|---|---|
-| **F-01 Graphiti `isError` parsing** | **DONE — code/test level** | `replyJsonObject()` now rejects MCP `isError` before parsing structured/text JSON. Real Graphiti lifecycle evidence remains separate. |
+| **F-01 Graphiti `isError` parsing** | **DONE — code/test level** | `replyJsonObject()` now rejects retired optional tool-call protocol `isError` before parsing structured/text JSON. Real Graphiti lifecycle evidence remains separate. |
 | **F-02 delete/reconcile resurrection** | **DONE — code/test level** | Durable `beginDeletion/finalizeDeletion` fence blocks stale projection receipts and survives restart. Real multi-process Graphiti delete/reconcile acceptance still belongs to W06/W07. |
 | **F-03 archive → projection-intent crash gap** | **DONE — code/test level** | `reconcileProjectionIntents` scans immutable archived episodes and recreates missing intents for admitted episodes. Real crash/restart provider evidence still remains. |
 | **F-04 Qdrant lease acquire vs cleanup race** | **DONE — code/test level; bounded real concurrency evidence exists** | Workspace lease mutation fence + non-recursive `rmdir` + fail-closed EACCES/EIO handling are implemented. Production DBC-13 still needs selected-stack/target-storage evidence. |
@@ -43,7 +45,7 @@ The historical forced-use result remains only a diagnostic: native used 891,950 
 | **F-07 JSON-only DBC artifact loader** | **DONE — code/test level** | Release CLI hashes DBC artifacts as raw bytes and parses JSON only where the contract requires structured JSON. |
 | **F-08 temporal decision truth in Graphiti path** | **PARTIAL** | Decision history is now wired into the real Graphiti adapter; `decisionStates` and `conflicts` are populated. Historical recall is still provider-bounded top-K (currently max 1000) with local time filtering, so complete as-of recall is not yet proven. |
 | **F-09 English-centric routing** | **OPEN** | Deterministic routing still uses English substring intent checks. Explicit source obligations should replace hidden intent inference for correctness-sensitive mixed-source requests. |
-| **F-10 startup/readiness drift** | **OPEN** | Current docs say embedding preflight failure is fatal, while current runtime/tests intentionally keep MCP alive and expose `not_ready`. Choose one policy and align code, tests and operations docs. |
+| **F-10 startup/readiness drift** | **OPEN** | Current docs say embedding preflight failure is fatal, while current runtime/tests intentionally keep retired optional tool-call protocol alive and expose `not_ready`. Choose one policy and align code, tests and operations docs. |
 | **F-11 owner-approval trust root** | **OPEN — release governance** | Define what makes owner approval authoritative: protected PR/commit, signed attestation, or another explicit trust root. |
 | **F-12 stale execution/status docs** | **OPEN — documentation** | Some OpenSpec/execution-plan text still describes already-completed comparisons or pre-Qwen Graphiti selection. Refresh status without rewriting historical evidence. |
 
@@ -140,7 +142,7 @@ Use the simplest correctness mechanism first:
 
 Required regressions:
 
-- add the only correct implementation after MCP startup;
+- add the only correct implementation after retired optional tool-call protocol startup;
 - delete/rename the previous hit;
 - change an excluded/included path;
 - edit during context assembly;
@@ -172,7 +174,7 @@ A full custom live-language-server lifecycle is not required if rebuilding the s
 
 This is **not required for the first code-only frozen smoke**, but remains required before claiming robust unified code+docs+memory intent handling.
 
-Current source coverage types distinguish required/optional/not-requested, but MCP requirements are still derived from deterministic English keyword routing plus boolean include flags.
+Current source coverage types distinguish required/optional/not-requested, but retired optional tool-call protocol requirements are still derived from deterministic English keyword routing plus boolean include flags.
 
 - [ ] add an explicit request-level source obligation contract (for example required/optional source sets) while keeping existing booleans backward-compatible;
 - [ ] expose the executed source plan/coverage;
@@ -185,7 +187,7 @@ Do not introduce a routing LLM unless measured evidence later justifies one.
 ### S4 — Resolve F-10 readiness semantics
 
 - [ ] decide whether a pinned embedding **identity mismatch** is fatal while a transient provider startup outage is `not_ready`, or whether both should be one policy;
-- [ ] align `ace-mcp.ts`, `mcp-runtime-readiness.test.ts`, real timeout evidence and `ace-configuration-and-readiness-matrix.md`;
+- [ ] align `ace-retired-tool-protocol.ts`, `retired-tool-protocol-runtime-readiness.test.ts`, real timeout evidence and `ace-configuration-and-readiness-matrix.md`;
 - [ ] retain the distinction between “process can report status” and “provider is production-ready”.
 
 The current code/tests demonstrate non-fatal `not_ready` for embedding preflight failure, while the operations document still calls that class fatal.
@@ -336,7 +338,7 @@ Checked DBC-02/05/06/07/08/09/10 do not need to be reimplemented. They need exac
 
 4. Implement **S1 workspace-manifest reconciliation** using existing per-file caches; watcher only if later needed for performance.
 5. Implement **S2 semantic dependency fingerprint/rebuild**.
-6. Run live long-lived MCP regressions and then freeze the larger multi-repository benchmark holdout.
+6. Run live long-lived retired optional tool-call protocol regressions and then freeze the larger multi-repository benchmark holdout.
 7. Add **S3 explicit source obligations** before unified/multilingual intent claims.
 
 ### In parallel — close full-unified providers

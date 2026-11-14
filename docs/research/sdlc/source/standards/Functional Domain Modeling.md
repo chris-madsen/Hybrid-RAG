@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Functional Domain Modeling — DDD without rich mutable entities
 
 **Status:** selected ACE engineering style under the project owner decision dated 2026-11-05. This is a *modeling practice*, not a requirement to port all existing code immediately. See [functional DDD + TypeSpec architecture](../../ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md).
@@ -12,7 +14,7 @@ DDD's responsibilities, ubiquitous language, bounded contexts and invariants sur
 - **FP-02: ADTs for alternatives.** Model success, denial, partial/unavailable, stale, not-ready and error as explicit tagged cases when semantically distinct. Don't replace typed cases with booleans or catch-all \`string\`.
 - **FP-03: Pure transitions.** Domain rule is \`(State, Command) → Result<Transition, DomainError>\` or a state-independent pure function. It receives time/IDs/observations as explicit validated input when relevant.
 - **FP-04: Cohesive behavior.** Functions live in the bounded context that owns the invariant. External handlers should not duplicate those rules.
-- **FP-05: Functional core, Effect shell.** I/O, cancellation, concurrency limits, transactions, telemetry, network and process lifecycle live in Effect application/adapters. The domain never directly imports Qdrant, Vertex, MCP SDK or Bifrost client DTOs.
+- **FP-05: Functional core, Effect shell.** I/O, cancellation, concurrency limits, transactions, telemetry, network and process lifecycle live in Effect application/adapters. The domain never directly imports Qdrant, Vertex, retired optional tool-call protocol SDK or Bifrost client DTOs.
 - **FP-06: Aggregate as consistency boundary.** Owner for atomic state transition and version/CAS, not a mandatory mutable root-object instance.
 - **FP-07: No fake illegal-state safety.** Types are compile-time guarantees only for checked code; validate untrusted JSON/wire/persisted values at runtime. Branded IDs must be constructed through validated factories.
 - **FP-08: Exact errors and exhaustive matches.** A new ADT variant must trigger affected exhaustive switch/match/compiler/test updates. Use the project's pinned Effect release and idioms rather than modern APIs from an unverified version.

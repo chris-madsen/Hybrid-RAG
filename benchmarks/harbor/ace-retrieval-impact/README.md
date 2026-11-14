@@ -1,8 +1,10 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Paired retrieval-impact benchmark
 
 This is a **new unfrozen development task**, NOT a validated holdout or evidence of 5×. It requires finding the correct behavior across files with same-name retry concepts and verifying independent payment behavior.
 
-Run **native Codex and Codex+ACE** on identical task/image/model/settings using Harbor; preserve both raw job directories. The ACE environment must mount the actual harness, configure Qdrant and the embedding provider approved for the benchmark, plus Tree-sitter and TypeScript LS, and instrument MCP calls. Do not silently enable lexical fallback. Give the directories to `npm run gate:harbor -- <native-job-dir> <ace-job-dir> <report.json>`. The gate fails on missing Codex traces, zero attributable ACE calls, unequal number of trials, or reduced quality. A passing **diagnostic** gate is not production DBC-12 acceptance.
+Run **native Codex and Codex+ACE** on identical task/image/model/settings using Harbor; preserve both raw job directories. The ACE environment must mount the actual harness, configure Qdrant and the embedding provider approved for the benchmark, plus Tree-sitter and TypeScript LS, and instrument retired optional tool-call protocol calls. Do not silently enable lexical fallback. Give the directories to `npm run gate:harbor -- <native-job-dir> <ace-job-dir> <report.json>`. The gate fails on missing Codex traces, zero attributable ACE calls, unequal number of trials, or reduced quality. A passing **diagnostic** gate is not production DBC-12 acceptance.
 
 The old trivial TODO smoke is **not** a substitute. The deterministic task can be used for development, but a stronger frozen, hidden task suite with multiple repositories is required for any efficacy or 5× claim.
 
@@ -12,8 +14,8 @@ Set `ACE_HARNESS_ROOT` to the absolute repository root before starting Harbor. T
 
 Use the same frozen task manifest, model, reasoning budget, and verifier in all arms:
 
-1. **Native natural:** `benchmarks/harbor/ace-suite/retrieval-native-paired-job.json` (no ACE MCP).
-2. **ACE optional natural:** `benchmarks/harbor/ace-suite/retrieval-ace-natural-job.json` (ACE MCP configured, no forced ACE call).
+1. **Native natural:** `benchmarks/harbor/ace-suite/retrieval-native-paired-job.json` (no ACE retired optional tool-call protocol).
+2. **ACE optional natural:** `benchmarks/harbor/ace-suite/retrieval-ace-natural-job.json` (ACE retired optional tool-call protocol configured, no forced ACE call).
 3. **ACE forced diagnostic:** `benchmarks/harbor/ace-suite/retrieval-ace-paired-job.json` (additional must-call instruction; useful for wiring, **not** natural efficiency).
 
 After running the jobs and preserving raw Harbor agent logs, run:

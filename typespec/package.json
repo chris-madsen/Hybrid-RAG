@@ -10,7 +10,6 @@
     "generate": "npm run clean:generated && npm run generate:tsp && npm run generate:sdk && npm run generate:server-types",
     "check:sdk": "tsc --noEmit --project tsconfig.sdk.json",
     "check:compat": "node scripts/check-gateway-compat.mjs",
-    "check:mcp-hermes": "node scripts/check-mcp-hermes-contracts.mjs",
     "generate:server-types": "node scripts/sync-server-types.mjs",
     "clean:generated": "node scripts/clean-generated.mjs"
   },

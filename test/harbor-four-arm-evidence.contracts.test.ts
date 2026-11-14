@@ -146,7 +146,7 @@ test('raw Harbor trial task identities must match frozen job paths/ids in the ex
   assert.equal(reordered._tag, 'Err');
 });
 
-test('duplicate successful MCP request IDs cannot be replayed across trials or arms', () => {
+test('duplicate successful Gateway request IDs cannot be replayed across trials or arms', () => {
   const events = allObservations().map((item) => item.arm === 'hybrid' && item.trialId.endsWith('-0')
     ? { ...item, successfulRequestIds: ['dense-request-0'] }
     : item);

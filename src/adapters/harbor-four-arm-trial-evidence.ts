@@ -1,289 +1,134 @@
-import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import {
-  isObservedAceContextEvent,
-  isObservedAceToolEvent,
-  isSuccessfulAceContextEvent,
-  isSuccessfulAceToolEvent,
-  successfulAceContextRequestId,
-} from '../domain/harbor-mcp-evidence.js';
 import type { HarborFourArmName } from '../domain/harbor-four-arm.js';
 import type { HarborFourArmTrialObservation } from '../domain/harbor-four-arm-evidence.js';
 
-type JsonObject = Readonly<Record<string, unknown>>;
+// The Gateway-only adapter intentionally reads request-bound projection receipts,
+// not optional model-selected tool events. Projection is NOT proof of final model
+// egress; successfulAceCalls stays zero until a separately verified final-send
+// correlation schema is supported. No fake acceptance metrics are generated.
+type JsonRecord = Readonly<Record<string, unknown>>;
 
-const object = (value: unknown): JsonObject | undefined =>
-  typeof value === 'object' && value !== null && !Array.isArray(value) ? value as JsonObject : undefined;
-const integerOrNull = (value: unknown): number | null =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
-const numberOrNull = (value: unknown): number | null =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-const nonEmptyString = (value: unknown): string | undefined =>
+const object = (value: unknown): JsonRecord | undefined =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? value as JsonRecord : undefined;
+
+const nonEmpty = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-const readJson = async (path: string): Promise<JsonObject> => {
-  const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown;
-  const value = object(parsed);
+
+const integer = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+const readJson = async (path: string): Promise<JsonRecord> => {
+  const value = object(JSON.parse(await readFile(path, 'utf8')) as unknown);
   if (value === undefined) throw new Error(`BLOCKED: Harbor JSON must be an object: ${path}`);
   return value;
 };
 
-const trialDirectories = async (aggregatePath: string): Promise<readonly string[]> => {
-  // The CLI accepts an actual Harbor result file, not a directory locator.
-  // Previously a non-existent aggregate path silently worked if its parent
-  // happened to contain unrelated run directories.
+const trialDirs = async (aggregatePath: string): Promise<readonly string[]> => {
   const aggregate = await readJson(aggregatePath);
-  const expectedCount = integerOrNull(aggregate.n_total_trials ?? aggregate.nTotalTrials);
-  if (expectedCount === null || expectedCount <= 0) {
-    throw new Error(`BLOCKED: aggregate Harbor result is missing a positive n_total_trials: ${aggregatePath}`);
-  }
+  const count = integer(aggregate.n_total_trials ?? aggregate.nTotalTrials);
+  if (count === null || count < 1) throw new Error('BLOCKED: aggregate trial count missing or invalid');
   const parent = dirname(resolve(aggregatePath));
   const entries = await readdir(parent, { withFileTypes: true });
-  const paths = entries.filter((entry) => entry.isDirectory()).map((entry) => join(parent, entry.name)).sort();
-  if (paths.length !== expectedCount) {
-    throw new Error(`BLOCKED: aggregate n_total_trials=${expectedCount} does not match raw trial directories=${paths.length}: ${aggregatePath}`);
-  }
-  const started = await Promise.all(paths.map(async (path) => {
-    const raw = await readJson(join(path, 'result.json'));
-    const millis = typeof raw.started_at === 'string' ? Date.parse(raw.started_at) : Number.NaN;
-    return { path, millis };
+  const dirs = entries.filter((entry) => entry.isDirectory()).map((entry) => join(parent, entry.name)).sort();
+  if (dirs.length !== count) throw new Error('BLOCKED: trial directories do not match aggregate count');
+  const start = await Promise.all(dirs.map(async (path) => {
+    const data = await readJson(join(path, 'result.json'));
+    return { path, time: typeof data.started_at === 'string' ? Date.parse(data.started_at) : NaN };
   }));
-  // A frozen n_concurrent_trials=1 job's actual trial order is temporal.
-  // Directory names can sort trial-10 before trial-2.
-  if (started.every((item) => Number.isFinite(item.millis))) {
-    started.sort((left, right) => left.millis - right.millis);
-    if (started.some((item, index) => index > 0 && item.millis === started[index - 1]?.millis)) {
-      throw new Error('BLOCKED: raw Harbor trials have ambiguous identical start timestamps');
+  if (start.every((entry) => Number.isFinite(entry.time))) {
+    start.sort((left, right) => left.time - right.time);
+    if (start.some((entry, i) => i > 0 && entry.time === start[i - 1]?.time)) {
+      throw new Error('BLOCKED: ambiguous trial timestamp ordering');
     }
-    return started.map((item) => item.path);
+    return start.map((entry) => entry.path);
   }
-  // Missing timestamps are reported as unknown latency below and cannot
-  // authorize release, but preserve deterministic diagnostics.
-  return paths;
+  return dirs;
 };
 
-const deliveryMetrics = (event: unknown): JsonObject | undefined => {
-  const root = object(event);
-  const item = object(root?.item);
-  const result = object(item?.result);
-  const structured = object(result?.structured_content) ?? object(result?.structuredContent);
-  return object(structured?.delivery_metrics) ?? object(structured?.deliveryMetrics);
-};
-
-const structuredEvidenceReceiptIds = (event: unknown): {
-  readonly all: readonly string[];
-  readonly reused: readonly string[];
-} => {
-  const root = object(event);
-  const item = object(root?.item);
-  const result = object(item?.result);
-  const structured = object(result?.structured_content) ?? object(result?.structuredContent);
-  const evidence = Array.isArray(structured?.evidence) ? structured.evidence : [];
-  const all: string[] = [];
-  const reused: string[] = [];
-  for (const entry of evidence) {
-    const itemValue = object(entry);
-    const receiptId = nonEmptyString(itemValue?.receiptId ?? itemValue?.receipt_id);
-    if (receiptId !== undefined) all.push(receiptId);
-    const reusedBytes = numberOrNull(itemValue?.reusedContentBytes ?? itemValue?.reused_content_bytes);
-    if (receiptId !== undefined && reusedBytes !== null && reusedBytes > 0) reused.push(receiptId);
-  }
-  return { all: [...new Set(all)], reused: [...new Set(reused)] };
-};
-
-const metricsSum = (
-  metrics: readonly (JsonObject | undefined)[],
-  camel: string,
-  snake: string,
-): number | null => {
-  if (metrics.length === 0 || metrics.some((value) => value === undefined)) return null;
-  const values = metrics.map((value) => integerOrNull(value?.[camel] ?? value?.[snake]));
-  return values.every((value): value is number => value !== null)
-    ? values.reduce((total, value) => total + value, 0)
-    : null;
-};
-
-const hermesContentText = (value: unknown): string | undefined => {
-  if (typeof value === 'string') return value;
-  if (!Array.isArray(value)) return undefined;
-  const text = value
-    .map((part) => object(part))
-    .filter((part): part is JsonObject => part !== undefined)
-    .filter((part) => part.type === 'text' && typeof part.text === 'string')
-    .map((part) => part.text as string)
-    .join('');
-  return text.length === 0 ? undefined : text;
-};
-
-const hermesToolResult = (value: unknown): JsonObject | undefined => {
-  const direct = object(value);
-  if (direct !== undefined) {
-    const structured = object(direct.structured_content) ?? object(direct.structuredContent);
-    return structured === undefined ? { structured_content: direct } : { ...direct, structured_content: structured };
-  }
-  const text = hermesContentText(value);
-  if (text === undefined) return undefined;
-  try {
-    const parsed = object(JSON.parse(text) as unknown);
-    if (parsed === undefined) return undefined;
-    const structured = object(parsed.structured_content) ?? object(parsed.structuredContent);
-    return structured === undefined ? { structured_content: parsed } : { ...parsed, structured_content: structured };
-  } catch {
-    return undefined;
-  }
-};
-
-const hermesAceTool = (name: unknown): 'ace_context' | 'ace_expand' | undefined => {
-  if (name === 'ace_context' || name === 'mcp_ace_ace_context') return 'ace_context';
-  if (name === 'ace_expand' || name === 'mcp_ace_ace_expand') return 'ace_expand';
-  return undefined;
-};
-
-const hermesSessionEvents = async (path: string): Promise<readonly unknown[]> => {
-  const messages: JsonObject[] = [];
-  for (const line of (await readFile(path, 'utf8')).split(/\r?\n/u)) {
-    if (line.trim().length === 0) continue;
-    const parsed = object(JSON.parse(line) as unknown);
-    if (parsed === undefined) continue;
-    if (Array.isArray(parsed.messages)) {
-      messages.push(...parsed.messages.map(object).filter((item): item is JsonObject => item !== undefined));
-    } else {
-      messages.push(parsed);
-    }
-  }
-  const responses = new Map<string, JsonObject>();
-  for (const message of messages) {
-    if (message.role !== 'tool') continue;
-    const callId = nonEmptyString(message.tool_call_id);
-    if (callId !== undefined) responses.set(callId, message);
-  }
-  const events: unknown[] = [];
-  for (const message of messages) {
-    if (message.role !== 'assistant' || !Array.isArray(message.tool_calls)) continue;
-    for (const rawCall of message.tool_calls) {
-      const call = object(rawCall);
-      const fn = object(call?.function);
-      const tool = hermesAceTool(fn?.name);
-      if (tool === undefined) continue;
-      const callId = nonEmptyString(call?.id);
-      const response = callId === undefined ? undefined : responses.get(callId);
-      const result = response === undefined ? undefined : hermesToolResult(response.content);
-      events.push({
-        type: 'item.completed',
-        item: {
-          type: 'mcp_tool_call',
-          server: 'ace',
-          tool,
-          status: response === undefined ? 'failed' : 'completed',
-          error: response === undefined ? 'missing Hermes tool response' : null,
-          ...(result === undefined ? {} : { result }),
-        },
-      });
-    }
-  }
-  return events;
-};
-
-const agentEvidenceEvents = async (
+const readGatewayProjections = async (
+  arm: HarborFourArmName,
   directory: string,
-): Promise<{ readonly path: string; readonly events: readonly unknown[] }> => {
-  const agentDir = join(directory, 'agent');
-  const hermesPath = join(agentDir, 'hermes-session.jsonl');
-  if (existsSync(hermesPath)) return { path: hermesPath, events: await hermesSessionEvents(hermesPath) };
-  const codexPath = join(agentDir, 'codex.txt');
-  if (!existsSync(codexPath)) throw new Error(`BLOCKED: missing Hermes/Codex agent evidence under ${agentDir}`);
-  const events = (await readFile(codexPath, 'utf8')).split('\n').flatMap((line) => {
-    if (line.trim().length === 0) return [];
-    try {
-      return [JSON.parse(line) as unknown];
-    } catch {
-      return [];
+): Promise<readonly JsonRecord[]> => {
+  const path = join(directory, 'agent', 'ace-gateway-projection.jsonl');
+  if (!existsSync(path)) {
+    if (arm === 'native') return [];
+    throw new Error(`BLOCKED: missing Gateway projection receipts at ${path}; do not infer ACE delivery`);
+  }
+  const lines = (await readFile(path, 'utf8')).split(/\r?\n/u).filter((line) => line.trim().length > 0);
+  if (arm === 'native' && lines.length > 0) {
+    throw new Error('BLOCKED: native baseline contains ACE Gateway projection receipts');
+  }
+  const requests = new Set<string>();
+  return lines.map((line, index) => {
+    const parsed = object(JSON.parse(line) as unknown);
+    const receipt = object(parsed?.receipt);
+    const kind = parsed?.kind;
+    const requestId = nonEmpty(receipt?.requestId);
+    const receiptId = nonEmpty(receipt?.receiptId);
+    if (!parsed || !receipt || receipt.schemaVersion !== 'ace.gateway.v1'
+      || !['APPLY', 'UNCHANGED_AUTHORIZED', 'DEGRADED_AUTHORIZED', 'BLOCK'].includes(String(kind))
+      || kind !== receipt.decision || requestId === undefined || receiptId === undefined) {
+      throw new Error(`BLOCKED: malformed Gateway projection receipt ${index + 1}`);
     }
+    if (requests.has(requestId)) throw new Error('BLOCKED: duplicate Gateway projection request identity');
+    requests.add(requestId);
+    return parsed;
   });
-  return { path: codexPath, events };
 };
 
-const readTrial = async (arm: HarborFourArmName, directory: string): Promise<HarborFourArmTrialObservation> => {
-  const resultPath = join(directory, 'result.json');
-  const trial = await readJson(resultPath);
-  const taskName = nonEmptyString(trial.task_name ?? trial.trial_name);
-  if (taskName === undefined) throw new Error(`BLOCKED: missing task name: ${resultPath}`);
-  const verifier = trial.verifier_result === null || trial.verifier_result === undefined
-    ? undefined
-    : object(trial.verifier_result);
-  const exception = object(trial.exception_info);
-  if (exception?.type === 'VerifierTimeoutError' || trial.timed_out === true) {
-    throw new Error(`BLOCKED: Harbor trial timed out: ${resultPath}`);
-  }
+const readTrial = async (
+  arm: HarborFourArmName,
+  directory: string,
+): Promise<HarborFourArmTrialObservation> => {
+  const file = join(directory, 'result.json');
+  const record = await readJson(file);
+  const taskName = nonEmpty(record.task_name ?? record.trial_name);
+  if (taskName === undefined) throw new Error('BLOCKED: missing Harbor trial task name');
+  const verifier = object(record.verifier_result);
   const rewards = object(verifier?.rewards);
-  if (typeof rewards?.reward !== 'number' || !Number.isFinite(rewards.reward)) {
-    throw new Error(`BLOCKED: missing verifier reward: ${resultPath}`);
+  const reward = rewards?.reward;
+  if (typeof reward !== 'number' || !Number.isFinite(reward)) {
+    throw new Error('BLOCKED: raw verifier reward is missing');
   }
-  const exceptionPresent = trial.exception_info !== null && trial.exception_info !== undefined;
-  const success = !exceptionPresent && rewards.reward === 1;
-  const timedOut = typeof trial.timed_out === 'boolean' ? trial.timed_out : null;
-  const agentResult = object(trial.agent_result);
-  const startedAt = typeof trial.started_at === 'string' ? Date.parse(trial.started_at) : Number.NaN;
-  const finishedAt = typeof trial.finished_at === 'string' ? Date.parse(trial.finished_at) : Number.NaN;
-  const latencyMs = Number.isFinite(startedAt) && Number.isFinite(finishedAt) && finishedAt >= startedAt
-    ? finishedAt - startedAt
-    : null;
-  const agentEvidence = await agentEvidenceEvents(directory);
-  const parsedEvents = agentEvidence.events;
-  const observedAceCalls = parsedEvents.filter(isObservedAceContextEvent).length;
-  const observedAceToolCalls = parsedEvents.filter(isObservedAceToolEvent).length;
-  const successfulAceCalls = parsedEvents.filter(isSuccessfulAceContextEvent).length;
-  const successfulAceToolCalls = parsedEvents.filter(isSuccessfulAceToolEvent).length;
-  const successfulRequestIds = parsedEvents
-    .map(successfulAceContextRequestId)
-    .filter((value): value is string => value !== undefined);
-  // ace_context carries the provider requestId. ace_expand is an exact local
-  // artifact read and intentionally has no new provider requestId, so it is
-  // counted but cannot silently establish provider correlation.
-  if (successfulRequestIds.length !== successfulAceCalls) {
-    throw new Error(`BLOCKED: successful ACE calls are missing request correlation: ${agentEvidence.path}`);
+  const exception = object(record.exception_info);
+  if (exception?.type === 'VerifierTimeoutError' || record.timed_out === true) {
+    throw new Error('BLOCKED: Harbor trial timed out');
   }
-  const successfulEvents = parsedEvents.filter(isSuccessfulAceContextEvent);
-  const evidenceReceiptIds = [...new Set(successfulEvents.flatMap((event) => structuredEvidenceReceiptIds(event).all))];
-  const reusedReceiptIds = [...new Set(successfulEvents.flatMap((event) => structuredEvidenceReceiptIds(event).reused))];
-  const metrics = successfulEvents.map(deliveryMetrics);
-  const metricValues = {
-    uniqueContextBytes: metricsSum(metrics, 'uniqueContentBytes', 'unique_content_bytes'),
-    newContextBytes: metricsSum(metrics, 'newContextBytes', 'new_context_bytes'),
-    reusedContextBytes: metricsSum(metrics, 'reusedContextBytes', 'reused_context_bytes'),
-    duplicateContextAvoided: metricsSum(metrics, 'duplicateContextBytesAvoided', 'duplicate_context_bytes_avoided'),
-  };
-  const trialId = nonEmptyString(trial.trial_id) ?? basename(directory);
-  if (trialId === undefined || trialId.length === 0) throw new Error(`BLOCKED: missing trial ID: ${resultPath}`);
+  const agent = object(record.agent_result);
+  const began = typeof record.started_at === 'string' ? Date.parse(record.started_at) : NaN;
+  const finished = typeof record.finished_at === 'string' ? Date.parse(record.finished_at) : NaN;
+  const receipts = await readGatewayProjections(arm, directory);
   return {
     arm,
-    trialId,
+    trialId: nonEmpty(record.trial_id) ?? basename(directory),
     taskName,
-    success,
-    timedOut,
-    observedAceCalls,
-    successfulAceCalls,
-    observedAceToolCalls,
-    successfulAceToolCalls,
-    rawInputTokens: integerOrNull(agentResult?.n_input_tokens),
-    rawOutputTokens: integerOrNull(agentResult?.n_output_tokens),
-    cachedInputTokens: integerOrNull(agentResult?.n_cache_tokens),
-    // Current Harbor agent traces do not carry a native-read counter. Never
-    // infer zero from the absence of an ACE expand call.
+    success: (record.exception_info === null || record.exception_info === undefined) && reward === 1,
+    timedOut: typeof record.timed_out === 'boolean' ? record.timed_out : null,
+    observedAceCalls: receipts.length,
+    // Projection responses cannot establish that a provider actually received
+    // or processed the rewritten request. Keep the acceptance gate conservative.
+    successfulAceCalls: 0,
+    observedAceToolCalls: 0,
+    successfulAceToolCalls: 0,
+    rawInputTokens: integer(agent?.n_input_tokens),
+    rawOutputTokens: integer(agent?.n_output_tokens),
+    cachedInputTokens: integer(agent?.n_cache_tokens),
     nativeFileReads: null,
-    ...metricValues,
-    latencyMs,
-    successfulRequestIds,
-    evidenceReceiptIds,
-    reusedReceiptIds,
+    uniqueContextBytes: null,
+    newContextBytes: null,
+    reusedContextBytes: null,
+    duplicateContextAvoided: null,
+    latencyMs: Number.isFinite(began) && Number.isFinite(finished) && finished >= began ? finished - began : null,
+    successfulRequestIds: [],
+    evidenceReceiptIds: [],
+    reusedReceiptIds: [],
   };
 };
 
 export const readHarborFourArmTrialObservations = async (
   arm: HarborFourArmName,
   aggregatePath: string,
-): Promise<readonly HarborFourArmTrialObservation[]> => {
-  const directories = await trialDirectories(aggregatePath);
-  if (directories.length === 0) throw new Error(`BLOCKED: no Harbor trial directories beside ${aggregatePath}`);
-  return Promise.all(directories.map((directory) => readTrial(arm, directory)));
-};
+): Promise<readonly HarborFourArmTrialObservation[]> =>
+  Promise.all((await trialDirs(aggregatePath)).map((directory) => readTrial(arm, directory)));

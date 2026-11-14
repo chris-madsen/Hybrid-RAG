@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W06–W07 Graphiti preflight
 
 **Date:** 2026-10-20  
@@ -21,7 +23,7 @@
 - No official Graphiti checkout or executable is configured for the pinned
   commit.
 - No local FalkorDB is reachable.
-- The pinned Graphiti MCP does not expose the required local
+- The pinned Graphiti retired optional tool-call protocol does not expose the required local
   Sentence-Transformers embedder or a selectable local BGE/Sentence-Transformers
   reranker. Adding a shim, cloud fallback, or mock would violate the plan.
 - Amplifier face OAuth/model catalog is not live in this runner, so the
@@ -33,7 +35,7 @@ bytes were sent to any provider.
 
 ## Required unblock
 
-Install or mount the exact pinned upstream Graphiti MCP and its official
+Install or mount the exact pinned upstream Graphiti retired optional tool-call protocol and its official
 dependencies, start local FalkorDB, complete the loopback Amplifier OAuth
 device login, and verify the requested model in the live catalog. Only then
 run the committed synthetic lifecycle fixture and record projection, temporal

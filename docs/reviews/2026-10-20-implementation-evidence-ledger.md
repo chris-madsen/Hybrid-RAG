@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE implementation / evidence ledger — 2026-10-20 (updated)
 
 **Purpose:** W00 truth baseline. This file separates code that exists from real-provider, agent-E2E, benchmark and owner-approval evidence. It does not replace the normative unified plan or DBC manifests.
@@ -34,7 +36,7 @@ needs its own exact-main receipt.
 | ACE | `ace-harness 0.1.0` |
 | CI Node line | Node 22 in `.github/workflows/ace-contracts.yml` |
 | TypeScript | `5.9.3` |
-| MCP SDK client/server | `2.3.1` |
+| retired optional tool-call protocol SDK client/server | `2.3.1` |
 | Tree-sitter CI runtime | `tree-sitter 0.26.0`, `tree-sitter-typescript 0.23.2`; runtime helper also emits its effective identity |
 | Qdrant | runtime default receipt label `qdrant/1.19.2`; actual provider version must be captured by each real run |
 | embedding development default | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2@e8f8c211226b894fcb81acc59f3b34ba3efd5f42` |

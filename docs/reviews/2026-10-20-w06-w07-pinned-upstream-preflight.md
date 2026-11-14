@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W06/W07 pinned upstream preflight — 2026-10-20
 
 This follow-up records a real workaround attempt from branch commit
@@ -8,7 +10,7 @@ Pinned checkout identities were verified:
 
 - Amplifier Agent: `a289011169520f8cb2d023f0a486cbbb00082a8f`;
 - ChatGPT/Codex provider: `b1341edd1545ba4b89a416184797ccfbc346413b`;
-- Graphiti MCP: `3cc723cd292eb5c2ac5ea2c5539270b8e1b6389f`.
+- Graphiti retired optional tool-call protocol: `3cc723cd292eb5c2ac5ea2c5539270b8e1b6389f`.
 
 Receipt: `benchmarks/reports/amplifier-graphiti-preflight-9dc457b.json`.
 The preflight now observed PASS for the official Graphiti command, exact source

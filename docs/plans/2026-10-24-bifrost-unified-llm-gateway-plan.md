@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Unified Bifrost LLM Gateway for ACE — architecture and implementation plan
 
 **Date:** 2026-10-24  
@@ -5,7 +7,7 @@
 **Owner intent:** Bifrost as the single LLM-gateway frontend for configurable-endpoint agents; ACE Core stays an independent TypeScript/Effect context engine.  
 **Decision:** [ADR-017](../docs/references/ADR-017-bifrost-unified-llm-gateway.md) (accepted architectural direction; implementation/evidence conditional).  
 **Baseline:** Current ACE `main` must be pinned at implementation start. Reference Bifrost inspection: `maximhq/bifrost@fe7634a6c828927d05ffdd57c62be0aaab04193f` (not a release pin).  
-**Existing paths:** ADR-001/014 unified MCP/hybrid Context Engine; ADR-015/016 Hermes primary feedback/native request-only ContextEngine; current `integrations/hermes/ace_context_engine/` and ACE `src/` runtime are retained.
+**Existing paths:** ADR-001/014 unified retired optional tool-call protocol/hybrid Context Engine; ADR-015/016 Hermes primary feedback/native request-only ContextEngine; current `integrations/hermes/ace_context_engine/` and ACE `src/` runtime are retained.
 
 > This is a scoped implementation queue for **gateway context delivery**. It does not replace the consolidated ACE correctness/production roadmap, authorize a production provider selection, or re-label unresolved Harbor evidence as complete. Every implementation slice must have its own reviewable PR to `main`.
 
@@ -74,7 +76,7 @@ The three independently testable contracts are:
 
 ### Authoritative single-delivery invariant
 
-Each model request has one `projectionMode` among `native`, `gateway`, `assist-only`, `observe-only` or `off`. If `gateway` is selected, MCP contextual retrieval remains available but cannot silently inject a second, competing model context. A side channel may supply agent state **only** with authenticated session binding. This is not permission for an arbitrary HTTP header to select a different workspace.
+Each model request has one `projectionMode` among `native`, `gateway`, `assist-only`, `observe-only` or `off`. If `gateway` is selected, retired optional tool-call protocol contextual retrieval remains available but cannot silently inject a second, competing model context. A side channel may supply agent state **only** with authenticated session binding. This is not permission for an arbitrary HTTP header to select a different workspace.
 
 ## 2. Public endpoint contract versus internal ACE contract
 
@@ -134,7 +136,7 @@ Do not make blanket claims such as "Bifrost supports lossless Responses". Versio
 |---|---|---|
 | G3 | `FULL_PROVIDER_CONTEXT` | Request-local system/developer/user/assistant/tool context projection, protected group validation, no hidden provider-held history, attempt-level egress proof |
 | G2 | `GATEWAY_VISIBLE_ONLY` | Replace *all visible admissible request parts* but unseen continuation/provider state excluded; explicitly not advertised as full |
-| G1 | `CONTEXT_ASSIST` | MCP/skills/explicit tools; agent chooses what goes into context |
+| G1 | `CONTEXT_ASSIST` | retired optional tool-call protocol/skills/explicit tools; agent chooses what goes into context |
 | G0 | `OBSERVE_ONLY` | Logs/metrics/ingestion only, no substitution |
 
 A route may be `structured` (typed Bifrost request + conversion) or `native_passthrough` (original provider-native body). A flag named "raw" does **not** establish G3. `native_passthrough` may still rewrite `thread`, `model`, `max_tokens`, signed billing fields or unsupported structures, so require an allowlist of permissible changes plus evidence.
@@ -294,7 +296,7 @@ Define the baseline arms: unmodified agent direct provider; agent→Bifrost with
 - [ ] Connector can call ACE via authenticated, bounded local IPC without passing credentials or implementing ACE retrieval.
 - [ ] Every certified outbound attempt is reauthorized and tied to original, projected and effective wire digests.
 - [ ] An agent can configure Bifrost as its model endpoint without an ACE-specific fork, and real E2E proof is retained.
-- [ ] Existing Hermes ContextEngine remains functional; no double projection or silent competition with MCP context delivery.
+- [ ] Existing Hermes ContextEngine remains functional; no double projection or silent competition with retired optional tool-call protocol context delivery.
 - [ ] Strict Hermes H2/H3 arms pass authenticated host compaction-ownership gates; gateway receipts alone are insufficient proof that earlier agent history was preserved.
 - [ ] Operational runbook shows startup/readiness, credential rotation, audit redaction, timeout/cancellation and rollback.
 - [ ] No production-ready or 5× claim without the separate quality/provider/Harbor gates and owner approval.

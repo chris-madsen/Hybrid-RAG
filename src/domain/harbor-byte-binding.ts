@@ -40,7 +40,7 @@ const canonicalize = (value: unknown): unknown => {
 };
 
 /**
- * Returns the canonical effective Codex/MCP configuration payload to hash at
+ * Returns the canonical effective Codex/Gateway configuration payload to hash at
  * the imperative boundary. It includes the environment and the literal
  * config path, while the separately supplied config digest binds file bytes.
  */

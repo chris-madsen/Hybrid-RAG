@@ -1,22 +1,24 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Design — Observable provider composition and Design by Contract
 
 **Status: Proposed.** Normative cases in `specs/production-retrieval/spec.md` and `specs/architecture-fitness/spec.md`. PRD/ADR source and proposed ADR-012 prevail over opportunistic adapter convenience.
 
 ## Vertical runtime contract
 
-`Codex → official MCP SDK → gateway → ProjectDataPolicy → Context Orchestration → [Qdrant + real embeddings] → [Tree-sitter + approved LSP as required] → Workspace Truth digest/span verification → rank/dedupe/contextualize → ContextBundle → exact expansion`.
+`Codex → official retired optional tool-call protocol SDK → gateway → ProjectDataPolicy → Context Orchestration → [Qdrant + real embeddings] → [Tree-sitter + approved LSP as required] → Workspace Truth digest/span verification → rank/dedupe/contextualize → ContextBundle → exact expansion`.
 
 Vertex docs / Graphiti memory join only if task and policy request them. Each required source has `status: succeeded | unavailable | stale | denied | skipped_not_required`; `complete` requires all required sources to have succeeded and evidence verification to hold. A policy denial must not degrade to a forbidden cloud request. Cold-start unavailable providers produce `not_ready` or explicit degraded results, not fabricated success.
 
 ## API and source representation
 
-Use an official maintained TypeScript MCP SDK. Version-pin and test with installed Codex. Runtime-wired providers expose provenance receipts in **safe test diagnostics** (provider id/version, operation, input class, output source digest and duration), never raw secrets. AST symbol span is distinct from full-file exact expansion; never identify code symbols using regex alone in the production path. Do not silently limit exact artifacts.
+Use an official maintained TypeScript retired optional tool-call protocol SDK. Version-pin and test with installed Codex. Runtime-wired providers expose provenance receipts in **safe test diagnostics** (provider id/version, operation, input class, output source digest and duration), never raw secrets. AST symbol span is distinct from full-file exact expansion; never identify code symbols using regex alone in the production path. Do not silently limit exact artifacts.
 
 ## Contract test doubles vs real dependencies
 
 - In unit tests: deterministic ports and SHA256-derived test vectors allowed, labelled fixtures.
 - In provider tests: real Qdrant and real embedding model, AST grammar, approved LSP. Required operations instrumented; assertion is on actual call and result.
-- In agent E2E: actual Codex MCP handshake/call; verify output, code state, and counters. No `TODO→DONE` toy-only gate.
+- In agent E2E: actual Codex retired optional tool-call protocol handshake/call; verify output, code state, and counters. No `TODO→DONE` toy-only gate.
 - In benchmark: paired strong native Codex, pinned tasks/repos/model/permissions, quality; require ACE used for attribution.
 
 ## No accidental code rewrite

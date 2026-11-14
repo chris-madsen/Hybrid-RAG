@@ -25,7 +25,7 @@ import { diffWorkspaceManifests, workspaceManifestFromSnapshot, workspaceManifes
 
 /**
  * Test/spike-only degraded provider. It is intentionally not part of the
- * production MCP composition or public package exports.
+ * production Gateway composition or public package exports.
  */
 
 export interface LocalContextProviderOptions {
@@ -68,7 +68,7 @@ export const makeLocalContextProvider = (options: LocalContextProviderOptions) =
     const requestId = makeRequestId(options.newRequestId());
     if (requestId._tag === 'Err') return requestId;
     // Rank from indexed, limited candidates first; never re-read and hash the
-    // entire repository for each MCP request. Verify selected paths with exact reads.
+    // entire repository for each Gateway request. Verify selected paths with exact reads.
     const includeCode = input.includeCode ?? true;
     const requirements = input.sourceRequirements ?? legacySourceRequirements({
       includeCode,

@@ -5,9 +5,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
-import { Effect } from 'effect';
-import { createAceServer } from '../src/transport/mcp-sdk-stdio.js';
 import { projectContextForDelivery } from '../src/domain/context-delivery.js';
 import type { ContextBundle, RetrievalEvidence } from '../src/domain/retrieval.js';
 
@@ -40,26 +37,6 @@ const changedBase: ContextBundle = {
   }],
 };
 
-const makeStatelessServer = (bundle: ContextBundle = base) => createAceServer({
-  handle: (call) => {
-    const args = call.arguments as {
-      intent?: string;
-      known_bundle_id?: string;
-      known_evidence_ids?: readonly string[];
-    };
-    const projected = projectContextForDelivery(
-      bundle,
-      args.intent === 'inspect' ? 'inspect' : 'locate',
-      {
-        ...(args.known_bundle_id === undefined ? {} : { knownBundleId: args.known_bundle_id }),
-        ...(args.known_evidence_ids === undefined ? {} : { knownEvidenceIds: args.known_evidence_ids }),
-        receiptScope: 'portable-workspace',
-      },
-    );
-    return Effect.succeed({ status: 'ok' as const, result: { ...projected } });
-  },
-});
-
 const callContext = async (
   options: {
     readonly bundle?: ContextBundle;
@@ -67,37 +44,17 @@ const callContext = async (
     readonly knownBundleId?: string;
     readonly knownEvidenceIds?: readonly string[];
   } = {},
-): Promise<ContextBundle> => {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = makeStatelessServer(options.bundle);
-  const client = new Client({ name: 'portable-receipt-client', version: '1.0.0' });
-  await server.connect(serverTransport);
-  try {
-    await client.connect(clientTransport);
-    const response = await client.callTool({
-      name: 'ace_context',
-      arguments: {
-        workspace_id: 'portable-workspace',
-        query: 'find stable evidence',
-        intent: options.intent ?? 'inspect',
-        ...(options.knownBundleId === undefined ? {} : { known_bundle_id: options.knownBundleId }),
-        ...(options.knownEvidenceIds === undefined ? {} : { known_evidence_ids: options.knownEvidenceIds }),
-        working_context: {
-          focused_path: 'src/stable.ts',
-          open_paths: ['src/stable.ts'],
-          focused_range: { start_line: 1, end_line: 1 },
-        },
-      },
-    });
-    assert.equal(response.isError, undefined);
-    return response.structuredContent as unknown as ContextBundle;
-  } finally {
-    await client.close();
-    await server.close();
-  }
-};
+): Promise<ContextBundle> => projectContextForDelivery(
+  options.bundle ?? base,
+  options.intent ?? 'inspect',
+  {
+    receiptScope: 'portable-workspace',
+    ...(options.knownBundleId === undefined ? {} : { knownBundleId: options.knownBundleId }),
+    ...(options.knownEvidenceIds === undefined ? {} : { knownEvidenceIds: options.knownEvidenceIds }),
+  },
+);
 
-test('stable evidence receipts survive independent MCP client/server instances', async () => {
+test('stable evidence receipts survive independent Gateway context projections', async () => {
   const first = await callContext();
   const firstBundleId = first.bundleId;
   assert.match(firstBundleId ?? '', /^[a-f0-9]{64}$/u);

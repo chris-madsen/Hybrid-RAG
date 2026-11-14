@@ -19,7 +19,7 @@
     "kwargs": {"reasoning_effort": "high", "config": "benchmarks/harbor/ace-retrieval-codex-config.toml"}
   }],
   "extra_instructions": [
-    "This is the Codex+ACE arm. Before editing, call the configured native `ace` MCP server's `ace_context` tool with workspace_id `00000000-0000-4000-8000-000000000001`, a semantic query describing the behavior requested by this task, `include_docs: false`, and `include_memory: false`. Require a successful result with `complete: true` and at least one current source evidence item with a citation and content; use that evidence to locate the current implementation. If the tool is unavailable or does not return current evidence, do not claim success and do not substitute a fabricated result. Report the ACE citation used.",
+    "This is the Codex+ACE arm. Before editing, call the configured native `ace` retired optional tool-call protocol server's `ace_context` tool with workspace_id `00000000-0000-4000-8000-000000000001`, a semantic query describing the behavior requested by this task, `include_docs: false`, and `include_memory: false`. Require a successful result with `complete: true` and at least one current source evidence item with a citation and content; use that evidence to locate the current implementation. If the tool is unavailable or does not return current evidence, do not claim success and do not substitute a fabricated result. Report the ACE citation used.",
     "Do not call ACE in the native baseline; this instruction applies only to this ACE job."
   ],
   "environment": {

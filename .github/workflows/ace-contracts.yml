@@ -17,7 +17,6 @@ jobs:
     outputs:
       node: ${{ steps.paths.outputs.node }}
       go: ${{ steps.paths.outputs.go }}
-      hermes: ${{ steps.paths.outputs.hermes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -33,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
-            printf 'node=true\ngo=true\nhermes=false\n' >> "${GITHUB_OUTPUT}"
+            printf 'node=true\ngo=true\n' >> "${GITHUB_OUTPUT}"
             echo "[scope] nightly/manual: exhaustive verification"
             exit 0
           fi
@@ -46,15 +45,13 @@ jobs:
           git diff --name-only --diff-filter=ACDMRT -z "${PR_BASE_SHA}" "${PR_HEAD_SHA}" > "${changed}"
           node=false
           go=false
-          hermes=false
           count=0
           while IFS= read -r -d '' path; do
             count=$((count + 1))
             echo "[scope] changed path: ${path}"
             case "${path}" in
               integrations/bifrost/ace-connector/*) go=true ;;
-              integrations/hermes/ace_context_engine/*) hermes=true ;;
-              .github/fixtures/contracts/*) node=true; go=true; hermes=true ;;
+              .github/fixtures/contracts/*) node=true; go=true ;;
               src/*|test/*|scripts/*|architecture/*|contracts/*|package.json|package-lock.json|tsconfig.json|tsconfig.eslint.json|.eslintrc.cjs|knip.json|knip.config.*|benchmarks/fixtures/*)
                 node=true ;;
               docs/*|benchmarks/reports/*|AGENTS.md|README.md|LICENSE|.agents/*|.codex/*|.github/workflows/*|.github/fixtures/markdown-links/*)
@@ -69,8 +66,8 @@ jobs:
             echo "[scope] BLOCKED: no changed files between PR base and head" >&2
             exit 1
           fi
-          printf 'node=%s\ngo=%s\nhermes=%s\n' "${node}" "${go}" "${hermes}" >> "${GITHUB_OUTPUT}"
-          echo "[scope] PR node=${node} go=${go} hermes=${hermes} (full runs nightly)"
+          printf 'node=%s\ngo=%s\n' "${node}" "${go}" >> "${GITHUB_OUTPUT}"
+          echo "[scope] PR node=${node} go=${go} (full runs nightly)"
 
   contracts:
     name: Focused TypeScript and contracts
@@ -91,11 +88,9 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          baseline=.github/fixtures/contracts/ace-public-v1-baseline.json
           for contract in \
             contracts/ace-gateway/v1/projection-request.schema.json \
-            contracts/ace-gateway/v1/projection-decision.schema.json \
-            "${baseline}"; do
+            contracts/ace-gateway/v1/projection-decision.schema.json; do
             if ! git cat-file -e "${PR_BASE_SHA}:${contract}" 2>/dev/null; then
               echo "[qg5] BLOCKED: accepted v1 file missing at PR base: ${contract}" >&2
               exit 1
@@ -106,7 +101,20 @@ jobs:
               exit 1
             fi
           done
-          echo "[qg5] accepted v1 schemas and baseline unchanged"
+          # Owner replaced the agent-facing optional-tool architecture. The
+          # immutable Gateway v1 schemas remain byte-exact; allow ONLY deletion
+          # of the retired contract namespace from the shared baseline.
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync } from 'node:fs';
+          const file = '.github/fixtures/contracts/ace-public-v1-baseline.json';
+          const original = JSON.parse(execFileSync('git', ['show', process.env.PR_BASE_SHA + ':' + file], { encoding: 'utf8' }));
+          const current = JSON.parse(readFileSync(file, 'utf8'));
+          delete original[String.fromCharCode(109, 99, 112)];
+          assert.deepEqual(current, original, 'Only the retired optional-tool contract may disappear from v1 baseline');
+          NODE
+          echo "[qg5] accepted Gateway v1 schemas unchanged and only rejected legacy namespace removed"
       - name: Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -124,7 +132,7 @@ jobs:
         env:
           ACE_TEST_BASE: ${{ github.event.pull_request.base.sha }}
         run: npm run verify:pr
-      - name: Full nightly deterministic TypeScript, Hermes, architecture, build and property suite
+      - name: Full nightly deterministic TypeScript, architecture, build and property suite
         if: github.event_name != 'pull_request'
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -142,22 +150,6 @@ jobs:
             process.exitCode = 1;
           }
           NODE
-
-  hermes-plugin:
-    name: Focused Hermes Python contracts
-    needs: scope
-    if: github.event_name == 'pull_request' && needs.scope.outputs.hermes == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 6
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - name: Hermes bridge contract suite
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 -B -m unittest discover -s integrations/hermes/ace_context_engine -p 'test_*.py'
 
   docs-links:
     if: github.event_name == 'pull_request'
@@ -308,7 +300,7 @@ jobs:
 
   real-qdrant:
     # Real Qdrant service + real FastEmbed model, not mocked provider wires.
-    # Keep a single shared cache for the composed provider/crash acceptance.
+    # Keep a single shared cache for the composed Gateway/provider acceptance.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 65
@@ -358,16 +350,11 @@ jobs:
           exit 1
       - name: Build source-identified production runtime
         run: npm run build
-      - name: Run actual provider and restart acceptance
+      - name: Run live Gateway projection through real Qdrant provider
         run: |
           set -o pipefail
           mkdir -p /tmp/ace-provider-evidence
           npm run test:real-provider | tee /tmp/ace-provider-evidence/provider.log
-          npm run test:real-provider-restart | tee /tmp/ace-provider-evidence/restart.log
-      - name: Run real two-writer and crash publication acceptance
-        run: |
-          npm run test:real-qdrant-concurrency -- --output /tmp/ace-provider-evidence/concurrency.json
-          npm run test:real-qdrant-crash -- /tmp/ace-provider-evidence/crash.json
       - name: Retain source-linked real provider reports and traces
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

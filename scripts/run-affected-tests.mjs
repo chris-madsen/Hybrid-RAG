@@ -20,7 +20,7 @@ const BROAD_CONFIG_TRIGGERS = new Set([
 ]);
 const SMOKE_TESTS = new Set([
   'test/foundation.test.ts',
-  'test/mcp-sdk-runtime.conformance.test.ts',
+  'test/gateway-runtime-readiness.test.ts',
   'test/public-contract-compatibility.contracts.test.ts',
   'test/runtime-provenance.contracts.test.ts',
 ]);

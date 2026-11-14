@@ -73,6 +73,6 @@ await writeFile(resolve(outputArg), JSON.stringify({
   },
   metrics: metrics.value,
   observations,
-  note: 'Hybrid-without-reranker baseline derived from a real ACE MCP retrieval run; no reranker model is selected by this report.',
+  note: 'Hybrid-without-reranker baseline derived from a real ACE retrieval run; no reranker model is selected by this report.',
 }, null, 2) + '\n', 'utf8');
 process.stdout.write(JSON.stringify({ output: outputArg, fixtureSha256, strategy: retrievalRun.strategy, mrr: metrics.value.mrr }) + '\n');

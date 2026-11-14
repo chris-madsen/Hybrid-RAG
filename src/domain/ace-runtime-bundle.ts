@@ -16,11 +16,9 @@ export interface AceRuntimeBundleManifest {
 }
 
 export const requiredAceRuntimeBundlePaths = [
-  'dist/bin/ace-mcp.js',
-  'dist/bin/ace-context-bridge.js',
+  'dist/bin/ace-runtime.js',
+  'dist/bin/ace-gateway-http.js',
   'dist/runtime-provenance.json',
-  'scripts/harbor-ace-context-bridge.sh',
-  'integrations/hermes/ace_context_engine/engine.py',
   'node_modules/effect/package.json',
   'node_modules/.bin/ast-grep',
   'node_modules/.bin/typescript-language-server',

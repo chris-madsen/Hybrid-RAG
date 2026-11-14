@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE H6 post-merge source review (PRs #123–#134)
 
 **Reviewed:** 2026-10-21  
@@ -8,7 +10,7 @@
 
 ## Summary and product boundary
 
-ACE remains an agent-neutral, MCP-exposed multi-layer hybrid context engine for coding agents. Current-code search is local (structural ast-grep, dense and Qdrant sparse/BM25 + RRF, optional reranker and LSP). Vertex RAG supplies only explicitly authorized project documentation; Graphiti/FalkorDB + exact local archive provide temporal memory. Exact live source bytes outrank derived code-index/documentation/memory claims. This review is about **trustworthy evidence** for H6, not redesigning ACE or creating multi-agent task coordination.
+ACE remains an agent-neutral, retired optional tool-call protocol-exposed multi-layer hybrid context engine for coding agents. Current-code search is local (structural ast-grep, dense and Qdrant sparse/BM25 + RRF, optional reranker and LSP). Vertex RAG supplies only explicitly authorized project documentation; Graphiti/FalkorDB + exact local archive provide temporal memory. Exact live source bytes outrank derived code-index/documentation/memory claims. This review is about **trustworthy evidence** for H6, not redesigning ACE or creating multi-agent task coordination.
 
 **Implemented and no longer open solely because of the previous review:** #124 corrects same-file duplicate-byte accounting; #125 adds versioned, workspace-scoped per-evidence receipts for changed bundles; #126 introduces durable trace sink with failure propagation; #127 covers real process restarts. #130–#133 add capability probing, generic multi-repository runner, reranker freeze/evaluation and four-arm Harbor job preparation. #134 records an H6 ledger. Keep these milestones distinct from provider-E2E, scored five-strategy quality, Harbor results and owner approval.
 
@@ -18,11 +20,11 @@ ACE remains an agent-neutral, MCP-exposed multi-layer hybrid context engine for 
 
 ### H6-CR-01 — P1 — source/compiled-runtime identity is not enforced by the generic runner
 
-**Static evidence:** `parseBindings` compares only `git rev-parse HEAD` to the frozen revision; it never checks tracked/untracked/dirty-tree bytes. [`scripts/retrieval-benchmark-runner.ts:105-124`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/2fe96a88968fb393dd57cf3771d08efbcfa251fa/scripts/retrieval-benchmark-runner.ts#L105-L124). The executed MCP runtime chooses `dist/bin/ace-mcp.js` merely when that path exists, otherwise source via tsx; it does not validate that `dist` was compiled from `runtimeCommit`. [`scripts/retrieval-benchmark-runner.ts:309-323`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/2fe96a88968fb393dd57cf3771d08efbcfa251fa/scripts/retrieval-benchmark-runner.ts#L309-L323). The report then claims a `runtimeCommit` from `git rev-parse HEAD` and holdout repository revisions. [`scripts/retrieval-benchmark-runner.ts:409-450`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/2fe96a88968fb393dd57cf3771d08efbcfa251fa/scripts/retrieval-benchmark-runner.ts#L409-L450).
+**Static evidence:** `parseBindings` compares only `git rev-parse HEAD` to the frozen revision; it never checks tracked/untracked/dirty-tree bytes. [`scripts/retrieval-benchmark-runner.ts:105-124`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/2fe96a88968fb393dd57cf3771d08efbcfa251fa/scripts/retrieval-benchmark-runner.ts#L105-L124). The executed retired optional tool-call protocol runtime chooses `dist/bin/ace-retired-tool-protocol.js` merely when that path exists, otherwise source via tsx; it does not validate that `dist` was compiled from `runtimeCommit`. [`scripts/retrieval-benchmark-runner.ts:309-323`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/2fe96a88968fb393dd57cf3771d08efbcfa251fa/scripts/retrieval-benchmark-runner.ts#L309-L323). The report then claims a `runtimeCommit` from `git rev-parse HEAD` and holdout repository revisions. [`scripts/retrieval-benchmark-runner.ts:409-450`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/2fe96a88968fb393dd57cf3771d08efbcfa251fa/scripts/retrieval-benchmark-runner.ts#L409-L450).
 
 **Consequence:** a checkout with dirty code or stale `dist` can yield real-looking scored observations attributed to the wrong effective source/runtime. This violates exact-commit/frozen-source evidence semantics even if provider identities and trace receipts are otherwise valid.
 
-**RED cases:** create a temporary Git repo with identical HEAD but changed tracked/untracked relevant source, and a valid `dist` with a deliberately mismatched build fingerprint. Both must fail before the first scored MCP call. Clean matching builds should pass.
+**RED cases:** create a temporary Git repo with identical HEAD but changed tracked/untracked relevant source, and a valid `dist` with a deliberately mismatched build fingerprint. Both must fail before the first scored retired optional tool-call protocol call. Clean matching builds should pass.
 
 **Fix:** explicitly verify clean source/manifest identity for each mapped repository and runtime root; require an attributable build digest/commit or compile from the selected pinned code in an isolated runner directory. Retain source-manifest SHA, effective executable digest, Node/SDK/model identities in the run manifest; reject unauthorized changes and stale runtime. Avoid altering immutable v3 holdout labels.
 
@@ -44,7 +46,7 @@ ACE remains an agent-neutral, MCP-exposed multi-layer hybrid context engine for 
 
 **RED cases:** wrong declared task SHA, changed task file after binding, changed dense/hybrid/delta TOML bytes, non-existent or nonmatching config path and mismatched task-manifest revisions must all reject. Sidecar hashes alone are not source-truth validation.
 
-**Fix:** verify **actual** task definition/environment bytes against their declared digests, hash and pin all three effective Codex MCP configs, model/provider/runtime image identities and task repository revisions in a canonical signed/bound run manifest, and verify them again at run/report gate. Explicitly validate sources of quality and usage counters, including per-trial success; unverified evidence is `BLOCKED`, not a release pass.
+**Fix:** verify **actual** task definition/environment bytes against their declared digests, hash and pin all three effective Codex retired optional tool-call protocol configs, model/provider/runtime image identities and task repository revisions in a canonical signed/bound run manifest, and verify them again at run/report gate. Explicitly validate sources of quality and usage counters, including per-trial success; unverified evidence is `BLOCKED`, not a release pass.
 
 ### H6-CR-04 — P2 — native file-read duplication metric is reported as observed zero without instrumentation
 

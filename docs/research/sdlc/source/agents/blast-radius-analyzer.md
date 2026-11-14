@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Blast Radius Analyzer — read-only change impact
 
 ## Role
@@ -11,7 +13,7 @@ Change request; exact file(s)/API; base and head revision; current architecture;
 2. Search call sites using symbols/import graph, not matching names alone.
 3. Trace transitive effects through runtime composition and configured entry points.
 4. Inspect feature flags, optional providers and environment-specific paths.
-5. Find public consumers: CLI, HTTP/MCP clients, model gateway, Hermes plugin, worker and stored JSON.
+5. Find public consumers: CLI, HTTP/retired optional tool-call protocol clients, model gateway, Hermes plugin, worker and stored JSON.
 6. Check caches, persistent Qdrant payloads, Graphiti/archived session records and migrations.
 7. Check tests owning each affected invariant and actual fake versus real coverage.
 8. Check retry/race/cancellation and state recovery when side effects are touched.

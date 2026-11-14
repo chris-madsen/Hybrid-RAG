@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Roo Code adoption: one-pass execution slices
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use Superpowers `subagent-driven-development` (recommended) or `executing-plans` task-by-task.
@@ -276,7 +278,7 @@
 
 **Files:**
 - Extend `ace_workspace_status` domain/application data or a CLI report.
-- Modify `src/transport/mcp-sdk-stdio.ts` only if contract requires.
+- Modify `src/transport/retired-tool-protocol-sdk-stdio.ts` only if contract requires.
 - Add transport/status tests.
 
 - [ ] Expose indexing stage/progress/provider readiness without source contents.

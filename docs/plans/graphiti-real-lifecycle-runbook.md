@@ -1,10 +1,12 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Real Graphiti lifecycle E2E
 
 This is the runnable W06/W07 acceptance handoff. It uses only the committed synthetic fixture and does **not** authorize importing private Codex history.
 
 ## Preconditions
 
-Start the supported local Graphiti MCP server, FalkorDB and the chosen local inference stack. Set the Graphiti command/arguments exactly as used by the real environment.
+Start the supported local Graphiti retired optional tool-call protocol server, FalkorDB and the chosen local inference stack. Set the Graphiti command/arguments exactly as used by the real environment.
 
 Required:
 

@@ -1,3 +1,13 @@
+> **Archived design evidence (2026-11-14):** This W04 runner predates the Gateway-only architecture. The executable index-scale harness and its package command were retired with the optional agent-tool path. The measurements and rationale below are retained for historical provenance only; the commands are **not current implementation instructions**. New scale acceptance must exercise the Bifröst → ACE Gateway Projection path and produce new request-bound evidence.
+
+> **RETIRED / historical evidence (2026-11-14).** The former index-scale
+> process runner and its command have been removed with the old agent-facing
+> tool transport. The steps and results below are preserved solely as historical
+> research. **Do not execute this runbook as current Gateway acceptance.**
+> Replacement Gateway-native 2000-line/restart/crash/index-scale E2E remains
+> **NOT-RUN** until verified separately. See
+> [Gateway-only G02](../plans/2026-11-14-gateway-only-retirement-g02.md).
+
 # W04 real-provider index scale runbook
 
 This runner prepares the W04 **measurement**, not the acceptance verdict. It uses the real configured ACE Qdrant + embedding + ast-grep + generic TypeScript-LS path with lexical fallback disabled.
@@ -20,7 +30,7 @@ limit. A timeout is a failed measurement and must be retained as such.
 ## 1k run
 
 ```bash
-npm run test:real-index-scale -- \
+[retired command: no active replacement until Gateway scale E2E is implemented] -- \
   --files 1000 \
   --changed 1 \
   --output artifacts/index-scale/1000-files.json
@@ -29,7 +39,7 @@ npm run test:real-index-scale -- \
 ## 10k run
 
 ```bash
-npm run test:real-index-scale -- \
+[retired command: no active replacement until Gateway scale E2E is implemented] -- \
   --files 10000 \
   --changed 1 \
   --output artifacts/index-scale/10000-files.json

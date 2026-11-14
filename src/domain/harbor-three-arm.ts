@@ -182,7 +182,7 @@ export const validateThreeArmDesign = (
     return err(domainError('INVALID_BENCHMARK', 'harbor_job.forced_prompt', 'forced diagnostic arm must explicitly require an ACE call'));
   }
   if (natural.value.codexConfig === undefined || forced.value.codexConfig !== natural.value.codexConfig) {
-    return err(domainError('INVALID_BENCHMARK', 'harbor_job.ace_config', 'natural and forced ACE arms must use the same Codex MCP config'));
+    return err(domainError('INVALID_BENCHMARK', 'harbor_job.ace_config', 'natural and forced ACE arms must use the same Codex Gateway config'));
   }
   const distinctTaskCount = new Set(native.value.tasks).size;
   if (distinctTaskCount < 3) {

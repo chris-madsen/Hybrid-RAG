@@ -3,10 +3,13 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/chris-madsen/Mult-agent-AI-Orchestration/integrations/bifrost/ace-connector"
@@ -19,14 +22,12 @@ const (
 	attemptGroupKey schemas.BifrostContextKey = "ace.attempt_group_id"
 	providerKey    schemas.BifrostContextKey = "ace.provider"
 	attestationKey schemas.BifrostContextKey = "ace.host_attestation"
+	projectedModelKey schemas.BifrostContextKey = "ace.projection.original_model"
+	contextDigestKey schemas.BifrostContextKey = "ace.projection.context_sha256"
 )
 
 var projectionClient connector.Client
 var defaultWorkspaceID string
-var defaultSessionID string
-var defaultAttemptGroupID string
-var defaultProvider string
-var defaultAttestation json.RawMessage
 
 func Init(config any) error {
 	endpoint := os.Getenv("ACE_GATEWAY_PROJECTION_URL")
@@ -38,14 +39,12 @@ func Init(config any) error {
 	if endpoint == "" {
 		return errors.New("ACE_GATEWAY_PROJECTION_URL is required")
 	}
-	projectionClient = connector.Client{Endpoint: endpoint, MaxBodyBytes: connector.DefaultMaxBodyBytes}
-	defaultWorkspaceID = os.Getenv("ACE_BIFROST_WORKSPACE_ID")
-	defaultSessionID = os.Getenv("ACE_BIFROST_SESSION_ID")
-	defaultAttemptGroupID = os.Getenv("ACE_BIFROST_ATTEMPT_GROUP_ID")
-	defaultProvider = os.Getenv("ACE_BIFROST_PROVIDER")
-	if configured := os.Getenv("ACE_BIFROST_HOST_ATTESTATION_JSON"); configured != "" {
-		defaultAttestation = json.RawMessage(configured)
+	token := os.Getenv("ACE_GATEWAY_PROJECTION_TOKEN")
+	if token == "" {
+		return errors.New("ACE_GATEWAY_PROJECTION_TOKEN is required")
 	}
+	projectionClient = connector.Client{Endpoint: endpoint, AuthToken: token, MaxBodyBytes: connector.DefaultMaxBodyBytes}
+	defaultWorkspaceID = os.Getenv("ACE_BIFROST_WORKSPACE_ID")
 	return nil
 }
 
@@ -57,12 +56,6 @@ func stringValue(ctx *schemas.BifrostContext, key schemas.BifrostContextKey) (st
 		switch key {
 		case workspaceKey:
 			value = defaultWorkspaceID
-		case sessionKey:
-			value = defaultSessionID
-		case attemptGroupKey:
-			value = defaultAttemptGroupID
-		case providerKey:
-			value = defaultProvider
 		}
 	}
 	ok = value != ""
@@ -100,27 +93,61 @@ func requestQuery(body []byte) (string, string, error) {
 	return "", "", errors.New("OpenAI Chat request has no user query")
 }
 
+// Pin the exact projected evidence message across the HTTP-to-LLM parser
+// boundary. A receipt alone is not proof that Bifröst retained the context.
+func projectedContextDigest(body []byte) (string, error) {
+	var value struct {
+		Messages []struct {
+			Role string `json:"role"`
+			Content any `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(body, &value); err != nil {
+		return "", err
+	}
+	var digest string
+	for _, message := range value.Messages {
+		content, ok := message.Content.(string)
+		if !ok || !strings.Contains(content, "[ACE verified context]") {
+			continue
+		}
+		if message.Role != "system" || digest != "" {
+			return "", errors.New("ACE context message is duplicated or has the wrong role")
+		}
+		sum := sha256.Sum256([]byte(content))
+		digest = hex.EncodeToString(sum[:])
+	}
+	if digest == "" {
+		return "", errors.New("ACE projected body lacks context evidence")
+	}
+	return digest, nil
+}
+
 func errorResponse(status int, message string) *schemas.HTTPResponse {
 	body, _ := json.Marshal(map[string]string{"error": message})
 	return &schemas.HTTPResponse{StatusCode: status, Headers: map[string]string{"Content-Type": "application/json"}, Body: body}
 }
 
 func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
+	if req == nil {
+		return errorResponse(400, "ACE gateway request is missing"), nil
+	}
 	if req.Path != "/v1/chat/completions" {
-		if os.Getenv("ACE_GATEWAY_STRICT") == "true" {
-			return errorResponse(415, "ACE gateway route is unsupported"), nil
+		// Administrative endpoints do not invoke a model. Every unsupported
+		// generation route is rejected, not forwarded under a disabled flag.
+		if strings.HasPrefix(req.Path, "/v1/") && req.Path != "/v1/models" {
+			return errorResponse(415, "ACE gateway model route is unsupported"), nil
 		}
 		return nil, nil
+	}
+	if req.Method != "POST" || !strings.HasPrefix(strings.ToLower(req.CaseInsensitiveHeaderLookup("Content-Type")), "application/json") {
+		return errorResponse(415, "ACE requires a JSON POST Chat Completions request"), nil
 	}
 	workspaceID, okWorkspace := stringValue(ctx, workspaceKey)
 	sessionID, okSession := stringValue(ctx, sessionKey)
 	attemptGroupID, okAttempt := stringValue(ctx, attemptGroupKey)
 	provider, okProvider := stringValue(ctx, providerKey)
 	attestation, okAttestation := ctx.Value(attestationKey).(json.RawMessage)
-	if !okAttestation || len(attestation) == 0 {
-		attestation = defaultAttestation
-		okAttestation = len(attestation) > 0
-	}
 	if !okWorkspace || !okSession || !okAttempt || !okProvider || !okAttestation || len(attestation) == 0 {
 		return errorResponse(503, "ACE host identity attestation is unavailable"), nil
 	}
@@ -143,9 +170,15 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	if err != nil {
 		return errorResponse(409, "ACE projection blocked"), nil
 	}
+	contextDigest, err := projectedContextDigest(projected)
+	if err != nil {
+		return errorResponse(409, "ACE projected context is invalid"), nil
+	}
 	req.Body = projected
+	ctx.SetValue(contextDigestKey, contextDigest)
 	ctx.SetValue(schemas.BifrostContextKey("ace.projection.receipt"), projection.Receipt)
 	ctx.SetValue(schemas.BifrostContextKey("ace.projection.base_digest"), projection.Receipt.BaseBodySHA256)
+	ctx.SetValue(projectedModelKey, model)
 	return nil, nil
 }
 
@@ -168,9 +201,6 @@ func blockProviderAttempt(req *schemas.BifrostRequest, reason string) (*schemas.
 
 func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
 	receipt, hasReceipt := ctx.Value(schemas.BifrostContextKey("ace.projection.receipt")).(connector.Receipt)
-	if !hasReceipt && os.Getenv("ACE_GATEWAY_STRICT") != "true" {
-		return req, nil, nil
-	}
 	if !hasReceipt || receipt.SchemaVersion != connector.SchemaVersion || receipt.Decision != "APPLY" {
 		return blockProviderAttempt(req, "ACE projection receipt is missing or not applicable")
 	}
@@ -180,6 +210,31 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	provider, model, fallbacks := req.GetRequestFields()
 	if provider == "" || model == "" || len(fallbacks) != 0 {
 		return blockProviderAttempt(req, "ACE provider route or fallback is not certified")
+	}
+	ingressModel, bound := ctx.Value(projectedModelKey).(string)
+	if !bound || ingressModel != model {
+		return blockProviderAttempt(req, "ACE provider model differs from authorized ingress payload")
+	}
+	authorizedProvider, hasProvider := stringValue(ctx, providerKey)
+	if !hasProvider || string(provider) != authorizedProvider {
+		return blockProviderAttempt(req, "ACE provider differs from the authenticated ingress identity")
+	}
+	expectedContextDigest, hasContextDigest := ctx.Value(contextDigestKey).(string)
+	foundContext := false
+	if hasContextDigest {
+		for _, message := range req.ChatRequest.Input {
+			if message.Role != schemas.ChatMessageRoleSystem || message.Content == nil || message.Content.ContentStr == nil {
+				continue
+			}
+			sum := sha256.Sum256([]byte(*message.Content.ContentStr))
+			if hex.EncodeToString(sum[:]) == expectedContextDigest {
+				foundContext = true
+				break
+			}
+		}
+	}
+	if !foundContext {
+		return blockProviderAttempt(req, "ACE context was lost or modified before the provider attempt")
 	}
 	// Only the initial projected attempt was authorized by HTTPTransportPreHook.
 	// Until per-attempt ACE reauthorization is implemented, a second hook call

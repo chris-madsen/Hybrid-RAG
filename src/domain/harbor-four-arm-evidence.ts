@@ -24,7 +24,7 @@ export interface HarborFourArmTrialObservation {
   readonly reusedContextBytes: number | null;
   readonly duplicateContextAvoided: number | null;
   readonly latencyMs: number | null;
-  /** Request IDs from independently parsed successful ACE MCP responses. */
+  /** Request IDs from independently parsed successful ACE Gateway responses. */
   readonly successfulRequestIds: readonly string[];
   /** Evidence receipt IDs returned by the successful ACE responses. */
   readonly evidenceReceiptIds: readonly string[];
@@ -274,13 +274,13 @@ export const reconcileHarborFourArmTrials = (
     if (arm === undefined) return invalid('harbor_trial_evidence.arm', 'unknown Harbor arm in raw observations');
     arm.push(observation);
   }
-  // Request IDs identify individual MCP calls. Replaying the same successful
+  // Request IDs identify individual Gateway calls. Replaying the same successful
   // transcript in another trial/arm must never count as independent evidence.
   const globalRequestIds = new Set<string>();
   for (const observation of observations) {
     for (const requestId of observation.successfulRequestIds) {
       if (globalRequestIds.has(requestId)) {
-        return invalid('harbor_trial_evidence.successfulRequestIds', 'a successful MCP request ID is repeated across trials/arms');
+        return invalid('harbor_trial_evidence.successfulRequestIds', 'a successful Gateway request ID is repeated across trials/arms');
       }
       globalRequestIds.add(requestId);
     }

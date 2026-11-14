@@ -69,7 +69,7 @@ test('transforms a request into bounded source-attributed context without mutati
 
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Err') return;
-  assert.equal(result.value.status, 'partial');
+  assert.equal(result.value.status, 'ready');
   assert.equal(result.value.tokenCountMode, 'character_estimate');
   assert.match(result.value.limitations.join(' '), /model-exact fit is unverified/u);
   assert.match(result.value.contextText, /context transform service/u);
@@ -123,7 +123,7 @@ test('does not report a successful transform when the provider returns no eviden
   assert.equal(result.error.code, 'NOT_READY');
 });
 
-test('returns ready only with a host-provided model token counter', async () => {
+test('host-provided model token counter improves measurement but is not a readiness gate', async () => {
   const service = makeContextTransformService({
     ...makePorts(),
     countTokens: (text: string): number => Array.from(text).length,

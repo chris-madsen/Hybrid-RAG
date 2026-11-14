@@ -1,25 +1,27 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ЖЁСТКОЕ АРХИТЕКТУРНОЕ РЕВЬЮ: контракты есть, полезный ACE не собран
 
 **Статус:** Blocking architectural review · **Дата:** 2026-10-18 · **Код:** [`ef2c7967ec6876a978800de01523146a8d077709`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/commit/ef2c7967ec6876a978800de01523146a8d077709)
 
-**Вердикт:** Это не полноценная реализация нашей согласованной гипотезы RAG+AST+LSP. Это типизированный архитектурный каркас с отдельными адаптерами, но работающий MCP bootstrap направлен в слабый lexical/whole-file path. Нельзя подменять факт наличия интерфейсов фактом работоспособности продукта. У архитектурной документации и моей прежней SDD-декомпозиции тоже есть доля ответственности: формулировки не поставили достаточно жёсткий end-to-end gate. **Ниже проверяемые замечания, не приписывание мотивов автору.** Это статическое ревью; код/интеграции в этой проверке локально не запускались.
+**Вердикт:** Это не полноценная реализация нашей согласованной гипотезы RAG+AST+LSP. Это типизированный архитектурный каркас с отдельными адаптерами, но работающий retired optional tool-call protocol bootstrap направлен в слабый lexical/whole-file path. Нельзя подменять факт наличия интерфейсов фактом работоспособности продукта. У архитектурной документации и моей прежней SDD-декомпозиции тоже есть доля ответственности: формулировки не поставили достаточно жёсткий end-to-end gate. **Ниже проверяемые замечания, не приписывание мотивов автору.** Это статическое ревью; код/интеграции в этой проверке локально не запускались.
 
 ## Blocking findings
 
 ### P0 — Проектный смысл потерян в главном executable пути
 
-- [`src/bin/ace-mcp.ts#L35-L68`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/ef2c7967ec6876a978800de01523146a8d077709/src/bin/ace-mcp.ts#L35-L68) запускает `buildLocalCodeIndex` и `makeLocalContextProvider`; Qdrant, Tree-sitter, approved LSP, Graphiti и Vertex там не связаны в одну production композицию.
+- [`src/bin/ace-retired-tool-protocol.ts#L35-L68`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/ef2c7967ec6876a978800de01523146a8d077709/src/bin/ace-retired-tool-protocol.ts#L35-L68) запускает `buildLocalCodeIndex` и `makeLocalContextProvider`; Qdrant, Tree-sitter, approved LSP, Graphiti и Vertex там не связаны в одну production композицию.
 - [`src/adapters/local-code-index.ts#L28-L91`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/ef2c7967ec6876a978800de01523146a8d077709/src/adapters/local-code-index.ts#L28-L91) извлекает имена регуляркой `symbolPattern`, задаёт для каждого `range: 1..endLine` и `text` целиком. Слово `symbol-aware` не делает полнофайловый сниппет символом.
 - [`src/domain/retrieval.ts#L127-L158`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/ef2c7967ec6876a978800de01523146a8d077709/src/domain/retrieval.ts#L127-L158) ранжирует лексическим `includes`, не исполняет semantic retrieval.
-- **Почему это серьёзно:** цель — точная экономная доставка контекста, а не найденное имя + весь исходник. **Blocking acceptance:** DBC-01/02/03, настоящая цепочка Codex→MCP→Qdrant→AST→LSP→current source→bundle.
+- **Почему это серьёзно:** цель — точная экономная доставка контекста, а не найденное имя + весь исходник. **Blocking acceptance:** DBC-01/02/03, настоящая цепочка Codex→retired optional tool-call protocol→Qdrant→AST→LSP→current source→bundle.
 
 ### P0 — SHA-256 выдаёт deterministic projection, но не semantic embedding
 
 [`src/adapters/local-hash-embedding.ts#L17-L40`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/ef2c7967ec6876a978800de01523146a8d077709/src/adapters/local-hash-embedding.ts#L17-L40) генерирует псевдовекторы из криптографического хэша. Семантическая близость текстов из этого **не следует**. В `SPIKE-RETRIEVAL-PROVIDERS.md` реализация названа `local_sha256_projection_v1`, то есть это не скрывается — и это смягчающее обстоятельство. Но измеренные `2/3` на трёх кейсах ничего не доказывают о качественных embeddings. **Blocking acceptance:** использовать измеренную настоящую embedding-модель, локальную по умолчанию; hash допускается только как fixture double.
 
-### P1 — Собственный MCP transport без оправданного ADR
+### P1 — Собственный retired optional tool-call protocol transport без оправданного ADR
 
-[`src/transport/mcp-stdio.ts#L112-L165`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/ef2c7967ec6876a978800de01523146a8d077709/src/transport/mcp-stdio.ts#L112-L165) самостоятельно обслуживает JSON-RPC и lifecycle MCP. Почему мы оплачиваем поддержку протокола, когда есть официальный TypeScript SDK? Контрактное тестирование текущего кода не эквивалентно conformance актуального клиента. **Blocking acceptance:** SDK или отдельный ADR с доказанной необходимостью кастомной реализации.
+[`src/transport/retired-tool-protocol-stdio.ts#L112-L165`](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/ef2c7967ec6876a978800de01523146a8d077709/src/transport/retired-tool-protocol-stdio.ts#L112-L165) самостоятельно обслуживает JSON-RPC и lifecycle retired optional tool-call protocol. Почему мы оплачиваем поддержку протокола, когда есть официальный TypeScript SDK? Контрактное тестирование текущего кода не эквивалентно conformance актуального клиента. **Blocking acceptance:** SDK или отдельный ADR с доказанной необходимостью кастомной реализации.
 
 ### P1 — Неверная семантика references
 
@@ -53,7 +55,7 @@
 ## Требование на исправление — без новой многомесячной схемы
 
 - Сохранить DDD boundaries, строгие типы, тесты, правильные security-инварианты и Harbor-отчёты.
-- Не создавать 8 микросервисов или новый parsing/embedding/MCP framework.
+- Не создавать 8 микросервисов или новый parsing/embedding/retired optional tool-call protocol framework.
 - Прописать каждый обязательный Meyer контракт в `docs/docs/architecture/07-architecture-fitness-contracts.md`; исправить OpenSpec 001/002/003/004; в `006-production-retrieval-vertical-slice` принять **только реальную end-to-end композицию** с provider- and agent-proof.
 - Блокировать `Production Ready` до owner review, реальных E2E/provider tests, quality-gated Harbor и утверждения pending ADR.
 - Сначала конкретно починить точный AST span, approved embeddings, LSP refs, memory content sharing и semantics `complete`.

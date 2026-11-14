@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Architecture Layers — ownership, direction, composition
 
 ## Objective
@@ -31,9 +33,9 @@ Make architectural boundaries observable in code. The name of a folder does not 
 18. Do not introduce Rust/Python/native code without a documented boundary/need.
 
 ## ACE examples
-Allowed: HTTP/MCP adapter calls application service through typed Effect dependencies. Qdrant adapter returns indexed candidates with revision/provenance to application. Application verifies source freshness before reporting complete.
+Allowed: HTTP/retired optional tool-call protocol adapter calls application service through typed Effect dependencies. Qdrant adapter returns indexed candidates with revision/provenance to application. Application verifies source freshness before reporting complete.
 
-Rejected: domain entity constructs Qdrant client; adapter overwrites verified source status to COMPLETE on timeout; MCP transport becomes a new general-purpose LLM gateway.
+Rejected: domain entity constructs Qdrant client; adapter overwrites verified source status to COMPLETE on timeout; retired optional tool-call protocol transport becomes a new general-purpose LLM gateway.
 
 ## Verification
 - Source import and call graph.

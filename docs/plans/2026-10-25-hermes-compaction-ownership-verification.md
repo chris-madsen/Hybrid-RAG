@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Hermes compaction ownership gate for ACE × Bifrost
 
 **Date:** 2026-10-25  
@@ -14,7 +16,7 @@ Distinguish three authorities:
 - **Projection authority:** ACE owns retrieval, selection, deduplication, relevance, budgets and provider-request-local shrinking; ACE does not write Hermes history.
 - **Delivery authority:** Bifrost receives the agent's provider-native request and transmits an ACE-approved projection to each allowed provider attempt. Bifrost controls routing/TLS/retries, not historical truth.
 
-**One-owner invariant:** For any strict ACE provider request, exactly one authoritative context projector is active: native Hermes ACE **or** Bifrost ACE. Compaction of the agent transcript must be demonstrably disabled or explicitly attributed and authorized. Never run both native and gateway ACE blindly; MCP is a tool plane, not a second hidden context projector.
+**One-owner invariant:** For any strict ACE provider request, exactly one authoritative context projector is active: native Hermes ACE **or** Bifrost ACE. Compaction of the agent transcript must be demonstrably disabled or explicitly attributed and authorized. Never run both native and gateway ACE blindly; retired optional tool-call protocol is a tool plane, not a second hidden context projector.
 
 **Non-obvious limit:** Bifrost can prove the inbound request and final upstream bytes, but cannot know whether Hermes already compacted its local session. Strict claims therefore need an authenticated host-side effective configuration and transcript-state attestor, not just a gateway plugin log or claimed HTTP header.
 

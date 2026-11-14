@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import { Effect } from 'effect';
 import type { DomainError } from '../domain/errors.js';
@@ -26,6 +27,8 @@ export interface GatewayProjectionHttpOptions {
   readonly host?: string;
   readonly port?: number;
   readonly maxBodyBytes?: number;
+  /** Shared token supplied out of band to the local Bifrost connector. */
+  readonly authToken?: string;
 }
 
 export interface GatewayProjectionHttpResponse {
@@ -36,7 +39,9 @@ export interface GatewayProjectionHttpResponse {
 const schemaVersion = 'ace.gateway.v1';
 const defaultMaxBodyBytes = 4 * 1024 * 1024;
 // The HTTP request is a JSON envelope containing Base64, not raw provider bytes.
-export const maxEnvelopeBytesFor = (bodyBytes: number): number => 4 * Math.ceil(bodyBytes / 3) + 64 * 1024;
+// The query is repeated outside bodyBase64 and can occupy nearly all of the
+// original Chat body. Bound both representations, not just the encoded bytes.
+export const maxEnvelopeBytesFor = (bodyBytes: number): number => 4 * Math.ceil(bodyBytes / 3) + bodyBytes + 64 * 1024;
 export const isLoopbackGatewayHttpHost = (host: string): boolean => {
   const normalizedHost = host.toLowerCase();
   if (normalizedHost === 'localhost') return true;
@@ -121,6 +126,13 @@ const readRequestBody = async (request: IncomingMessage, maxBodyBytes: number): 
   return Buffer.concat(chunks).toString('utf8');
 };
 
+const authorizedProjectionRequest = (value: string | undefined, token: string): boolean => {
+  if (!value || !token) return false;
+  const actual = Buffer.from(value, 'utf8');
+  const expected = Buffer.from(`Bearer ${token}`, 'utf8');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+};
+
 export const createGatewayProjectionServer = (
   service: GatewayProjectionHttpService,
   options: GatewayProjectionHttpOptions = {},
@@ -129,6 +141,17 @@ export const createGatewayProjectionServer = (
   const maxEnvelopeBytes = maxEnvelopeBytesFor(maxBodyBytes);
   return createServer(async (request, response) => {
     try {
+      if (request.method === 'POST' && request.url === '/internal/ace-gateway/v1/project') {
+        const token = options.authToken ?? process.env.ACE_GATEWAY_HTTP_SHARED_SECRET;
+        if (!token?.trim()) {
+          writeResponse(response, error(503, 'NOT_READY', 'Gateway projection authentication is not configured'));
+          return;
+        }
+        if (!authorizedProjectionRequest(request.headers.authorization, token)) {
+          writeResponse(response, error(401, 'UNAUTHORIZED', 'Gateway projection authentication failed'));
+          return;
+        }
+      }
       const body = await readRequestBody(request, maxEnvelopeBytes);
       writeResponse(response, await handleGatewayProjectionHttp(service, request.method ?? 'GET', request.url ?? '/', body));
     } catch (cause) {

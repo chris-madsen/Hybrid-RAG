@@ -71,27 +71,12 @@ const taskRuntimeProbe = (
   bundlePath: string | undefined,
   taskImages: readonly { readonly reference: string; readonly digest: string }[] | undefined,
 ): PreflightCheck => {
-  if (bundlePath === undefined || taskImages === undefined || taskImages.length === 0) {
-    return { status: 'not_ready', reason: 'task runtime probe requires the ACE bundle and task image manifest' };
-  }
-  const identities: string[] = [];
-  for (const image of taskImages) {
-    const result = spawnSync('node', ['scripts/harbor-ace-runtime-probe.mjs', '--image', `${image.reference}@${image.digest}`, '--bundle', resolve(bundlePath)], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    if (result.error !== undefined || result.status !== 0) return { status: 'not_ready', reason: `task runtime probe failed for ${image.reference}` };
-    try {
-      const output = JSON.parse(result.stdout.trim().split(/\r?\n/u).at(-1) ?? '{}') as Record<string, unknown>;
-      if (output.status !== 'READY' || output.pluginImport !== true || output.bridgeImport !== true || output.effectImport !== true) {
-        return { status: 'not_ready', reason: `task runtime probe returned a non-ready result for ${image.reference}` };
-      }
-      identities.push(`${image.reference}@${image.digest}:${String(output.node)}:${String(output.python)}:${String(output.hermesVersion)}`);
-    } catch {
-      return { status: 'not_ready', reason: `task runtime probe returned malformed JSON for ${image.reference}` };
-    }
-  }
-  return { status: 'ready', reason: 'the real Hermes plugin and ContextEngine loaded inside every task image', identity: identities.join(',') };
+  void bundlePath;
+  void taskImages;
+  return {
+    status: 'not_ready',
+    reason: 'Gateway provider-wire and Harbor trial integration is not certified; retired direct Hermes plugin cannot satisfy this gate',
+  };
 };
 
 const sha256 = (value: string | Uint8Array): string => {
@@ -104,21 +89,6 @@ const sha256 = (value: string | Uint8Array): string => {
 const gitBytes = (root: string, args: readonly string[]): Buffer => execFileSync('git', ['-C', root, ...args]);
 const gitText = (root: string, args: readonly string[]): string => gitBytes(root, args).toString('utf8').trim();
 
-const contextPluginDigest = (root: string, revision: string): string => {
-  const paths = gitText(root, [
-    'ls-tree', '-r', '-z', '--name-only', revision, 'integrations/hermes/ace_context_engine/',
-  ]).split('\0').filter((path) => path.length > 0).sort((left, right) => left.localeCompare(right));
-  const entries = paths.map((path) => {
-    const bytes = gitBytes(root, ['show', `${revision}:${path}`]);
-    return { path, sizeBytes: bytes.byteLength, sha256: sha256(bytes) };
-  });
-  return sha256(Buffer.from(JSON.stringify({
-    schemaVersion: 1,
-    identity: 'hermes-ace-context-plugin',
-    revision,
-    entries,
-  }, null, 2) + '\n', 'utf8'));
-};
 
 const command = (name: string, args: readonly string[], environment?: Readonly<Record<string, string>>): PreflightCheck => {
   const result = spawnSync(name, args, {
@@ -271,7 +241,7 @@ const sourceCheckout = (): { readonly check: PreflightCheck; readonly commit: st
 
 const compiledRuntime = async (): Promise<PreflightCheck> => {
   const runtimeRoot = resolve('.');
-  const executable = resolve(runtimeRoot, 'dist/bin/ace-mcp.js');
+  const executable = resolve(runtimeRoot, 'dist/bin/ace-gateway-http.js');
   if (!existsSync(executable)) return { status: 'not_ready', reason: 'compiled ACE runtime is missing' };
   const verified = await verifyCompiledRuntimeProvenance(runtimeRoot, executable);
   return verified._tag === 'Err'
@@ -286,23 +256,13 @@ const compiledRuntime = async (): Promise<PreflightCheck> => {
 const agentRuntimeDigestCheck = async (
   experiment: FeedbackExperimentManifest | undefined,
 ): Promise<PreflightCheck> => {
-  if (experiment === undefined) return { status: 'not_ready', reason: 'Hermes adapter/bridge/plugin digests require an experiment manifest' };
-  try {
-    const adapter = createHash('sha256').update(await readFile('scripts/harbor_hermes_codex_oauth.py')).digest('hex');
-    // The Harbor command is a source-bound shell wrapper, but the executable
-    // provider path is dist/bin/ace-context-bridge.js. Verify those exact bytes.
-    const bridge = createHash('sha256').update(await readFile('dist/bin/ace-context-bridge.js')).digest('hex');
-    const plugin = contextPluginDigest(resolve('.'), experiment.sourceCommit);
-    if (adapter !== experiment.agentAdapterSha256
-      || bridge !== experiment.aceContextBridgeSha256
-      || plugin !== experiment.contextPluginSha256) {
-      return { status: 'not_ready', reason: 'Hermes adapter, ContextEngine bridge or plugin digest does not match experiment manifest' };
-    }
-    return { status: 'ready', reason: 'Hermes adapter, ContextEngine bridge and plugin match experiment digests', identity: `${adapter}:${bridge}:${plugin}` };
-  } catch {
-    return { status: 'not_ready', reason: 'Hermes adapter, ContextEngine bridge or plugin could not be read' };
-  }
+  void experiment;
+  return {
+    status: 'not_ready',
+    reason: 'Legacy Hermes native ACE injection is retired; Gateway final-send evidence must be collected independently',
+  };
 };
+
 const qdrant = async (url: string): Promise<PreflightCheck> => {
   try {
     const response = await fetch(`${url.replace(/\/$/u, '')}/collections`, { signal: AbortSignal.timeout(3000) });

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W04 stale snapshot count refresh
 
 **Date:** 2026-10-20  
@@ -12,7 +14,7 @@ ACE_QDRANT_URL=http://127.0.0.1:6333 npm run test:real-qdrant-stale-count -- \
 ```
 
 Source commit: `b1a6d62bec1162002067c9235303a8286d87885d`. The run used two
-real ACE MCP starts, one shared state root, Qdrant `1.19.2`, the real
+real ACE retired optional tool-call protocol starts, one shared state root, Qdrant `1.19.2`, the real
 FastEmbed worker, Tree-sitter helper and TypeScript language service.
 
 ## Observed result

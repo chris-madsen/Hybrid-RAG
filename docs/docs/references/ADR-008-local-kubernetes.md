@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-008 — Локальный Kubernetes и модульный монолит вместо зоопарка микросервисов
 
 **Статус:** **Accepted (deployment constraints)**  
@@ -16,7 +18,7 @@
 ## Решение
 
 1. Развёртывать харнесс **в существующем локальном Kubernetes** (не требовать нового кластера).
-2. Собственный Unified MCP Harness реализовать как **модульный монолит**: внутренние модули routing, code retrieval, AST/LSP, docs adapter, memory adapter, Context Builder, usage collector — **не отдельные микросервисы по умолчанию**.
+2. Собственный Unified retired optional tool-call protocol Harness реализовать как **модульный монолит**: внутренние модули routing, code retrieval, AST/LSP, docs adapter, memory adapter, Context Builder, usage collector — **не отдельные микросервисы по умолчанию**.
 3. Qdrant и необходимый для Graphiti графовый backend допускаются как **отдельные stateful зависимости**, только если их нельзя разумно встроить в процесс. Vertex AI — внешний managed service.
 4. Исследовать практический доступ индексатора к рабочей директории Codex, незакоммиченным изменениям и локальным файловым событиям. **Не утверждать** преждевременно PVC/PV mount topology, CSI, hostPath или sidecar-паттерн.
 5. Не выносить сервис в облачный Kubernetes и не включать autoscaling/distributed queues на первой стадии без нагрузки, оправдывающей это.
@@ -37,7 +39,7 @@
 
 ## Примечание о Harbor
 
-**Harbor — инструмент запуска изолированных бенчмарков**, а не обязательный production-сервис Kubernetes. Его локальный путь обычно использует Docker-based environments. Не обещать работу Harbor «внутри K8s из коробки» без отдельной проверки совместимого environment provider. Evaluation deployment будет проектироваться отдельно от рабочего MCP Harness (ADR-009).
+**Harbor — инструмент запуска изолированных бенчмарков**, а не обязательный production-сервис Kubernetes. Его локальный путь обычно использует Docker-based environments. Не обещать работу Harbor «внутри K8s из коробки» без отдельной проверки совместимого environment provider. Evaluation deployment будет проектироваться отдельно от рабочего retired optional tool-call protocol Harness (ADR-009).
 
 ## Пересмотр
 

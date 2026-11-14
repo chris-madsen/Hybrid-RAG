@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE architecture policy — Event Storming + functional DDD/ADT + TypeSpec
 
 **Decision source:** ADR-019, recording the explicit project-owner preference of 2026-11-05.
@@ -9,7 +11,7 @@
 1. **Event Storming is the first-class discovery/design method** for T2 domain behavior and a focused method for T1 when useful. Event Storming informs commands, events, policy, invariants, ownership and eventual consistency; it is not necessarily Event Sourcing.
 2. **DDD remains strategic**: subdomains, bounded contexts, context map, ubiquitous language, anti-corruption layers, consistency boundaries and responsibilities.
 3. **Domain implementation defaults to functional style**: immutable data/ADT, algebraic operations as pure functions, total pattern matching, explicit errors and state transitions. Do **not** mandate mutable OO entities, inheritance, aggregate methods, DI in domain objects or class-oriented Domain Service patterns.
-4. **TypeSpec is the selected contract-first language for public machine interfaces**, where it can express the contract. Start with the ACE Gateway Projection HTTP interface and explicitly versioned JSON protocol shapes. Evaluate mapping to MCP tool input/output JSON Schema and non-HTTP native bridge without assuming TypeSpec has a first-party MCP emitter.
+4. **TypeSpec is the selected contract-first language for public machine interfaces**, where it can express the contract. Start with the ACE Gateway Projection HTTP interface and explicitly versioned JSON protocol shapes. Evaluate mapping to retired optional tool-call protocol tool input/output JSON Schema and non-HTTP native bridge without assuming TypeSpec has a first-party retired optional tool-call protocol emitter.
 5. **OpenSpec is the source of behavior/requirements and acceptance tests; TypeSpec is the source of protocol shapes, operations and wire constraints; accepted ADRs give architectural rationale.** They must remain mutually consistent without duplicating an entire schema in prose.
 6. **Effect owns application composition, capabilities, cancellation and I/O**, while domain policy/state transitions remain pure and testable. Use the existing Effect version/API; don't invent an upgrade or force every computation into an Effect.
 7. **One bounded context ≠ one service**. Keep the existing TS+Effect modular monolith and explicit in-process module APIs; remote boundaries are justified operationally, not generated from a sticky note.
@@ -21,7 +23,7 @@ The OO anti-pattern is a passive DTO with all business rules scattered across co
 
 **Prefer:** \`Workspace\` / \`IndexGeneration\` as readonly data, \`observeWorkspace\` / \`publishIndexGeneration\` as pure rules/transition functions. A consistency boundary still exists even if there is no JavaScript \`class Workspace\`.
 
-**Reject:** giant \`RepositoryService\` with dozens of unrelated methods; god-object \`DomainService\`; handlers manipulating domain flags and writing directly to Qdrant; cross-context code reaching inside another context's persistence; duplicated validation logic in HTTP, MCP and native bridge.
+**Reject:** giant \`RepositoryService\` with dozens of unrelated methods; god-object \`DomainService\`; handlers manipulating domain flags and writing directly to Qdrant; cross-context code reaching inside another context's persistence; duplicated validation logic in HTTP, retired optional tool-call protocol and native bridge.
 
 **Identity, aggregate and ADT are different concerns:**
 - Entity identity: \`workspaceId\`/revision can identify data through time, even if data is immutable.
@@ -67,8 +69,8 @@ OpenSpec scenarios/acceptance & owner ADR
              ├─ @typespec/openapi3 → generated OpenAPI (HTTP)
              ├─ @typespec/json-schema → generated JSON Schema (JSON messages)
              ├─ appropriate TS client/server types (generation method pinned)
-             └─ explicit MCP tool schema conversion where needed
-                   └─ official MCP SDK (no handwritten competing transport)
+             └─ explicit retired optional tool-call protocol tool schema conversion where needed
+                   └─ official retired optional tool-call protocol SDK (no handwritten competing transport)
 
 Adapter decodes generated validated wire schema
   → maps to domain ADT (no raw DTO leakage)
@@ -81,7 +83,7 @@ Adapter decodes generated validated wire schema
 ### 4. Implementation in TS/Effect
 - Domain: \`types.ts\` (readonly ADTs), \`decide.ts\`/\`transition.ts\`, \`invariants.ts\`, \`events.ts\` if needed; no provider network calls or \`Effect.runPromise\` here.
 - Application: \`useCases/*.ts\` built from Effect services/typed ports; orchestrates providers, transactions, cancellation, policy at I/O time.
-- Adapters: TypeSpec-generated contract DTOs, runtime validation and exact mapping at MCP/HTTP/JSONL boundary; Qdrant/LSP/Graphiti/Vertex providers.
+- Adapters: TypeSpec-generated contract DTOs, runtime validation and exact mapping at retired optional tool-call protocol/HTTP/JSONL boundary; Qdrant/LSP/Graphiti/Vertex providers.
 - Composition: layers/config/entrypoints; decides actual selected providers.
 - Tests: property and example-based pure domain tests, protocol roundtrip and compatibility, real provider/agent E2E for claimed wiring.
 Keep actual existing ACE directories where possible; this is a logical ownership map, not a prescribed mass file move.
@@ -139,7 +141,7 @@ For exhaustive matching prefer established TypeScript \`never\` checks, a mainta
 ## TypeSpec adoption in ACE: actual implementation plan, not an implicit tool installation
 
 **Slice TS-0 — inventory and decision**
-- Survey existing MCP input/output schema authors, gateway projection schema, Hermes JSONL and public error/enum names.
+- Survey existing retired optional tool-call protocol input/output schema authors, gateway projection schema, Hermes JSONL and public error/enum names.
 - Identify which fields are actual **public/versioned** contracts and which are private domain types or test-only.
 - Record existing clients/compat obligations and the baseline wire JSON for roundtrip.
 - Confirm generated toolchain licenses and pinned versions; select a single owner per public schema.
@@ -153,10 +155,10 @@ For exhaustive matching prefer established TypeScript \`never\` checks, a mainta
 - Test accepted input, invalid input, all error variants and request↔response serialization; compare against existing wire baseline.
 - Ensure old and new paths cannot diverge; do not enable new endpoint unless owner approved.
 
-**Slice TS-2 — MCP/native bridge**
-- Define the relevant MCP tool schema shapes in TypeSpec where representable.
-- Derive MCP SDK-compatible input schemas through tested JSON Schema conversion/validation; assess unsupported keywords, tagged unions, optional/null and errors.
-- Keep MCP SDK transport; do not claim a direct TypeSpec MCP emitter exists without verifying it.
+**Slice TS-2 — retired optional tool-call protocol/native bridge**
+- Define the relevant retired optional tool-call protocol tool schema shapes in TypeSpec where representable.
+- Derive retired optional tool-call protocol SDK-compatible input schemas through tested JSON Schema conversion/validation; assess unsupported keywords, tagged unions, optional/null and errors.
+- Keep retired optional tool-call protocol SDK transport; do not claim a direct TypeSpec retired optional tool-call protocol emitter exists without verifying it.
 - For Hermes native JSONL establish exact versioned message schema and preserve bridge-specific semantics.
 - Test TypeSpec→schema→SDK↔wire roundtrip, invalid payloads, tagged/error variants and mixed client versions.
 
@@ -189,7 +191,7 @@ For exhaustive matching prefer established TypeScript \`never\` checks, a mainta
 | TSP-03 | Wire+domain mapping roundtrips tested for every supported variant |
 | TSP-04 | New contract compatible or explicitly versioned/breaking with owner approval |
 | TSP-05 | CI generated output clean, invalid schema fails, changed source triggers required check |
-| E2E | Actual MCP/Hermes/Bifrost and providers selected and observed as changed capability requires |
+| E2E | Actual retired optional tool-call protocol/Hermes/Bifrost and providers selected and observed as changed capability requires |
 
 All gates in this section are **policy targets** until real scripts/tests exist and are executed.
 

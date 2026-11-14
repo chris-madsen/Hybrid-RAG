@@ -60,9 +60,5 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check exhaustive generated DTO to existing domain type mapping
         run: npm run check:public-contract-types
-      - name: Check versioned MCP and Hermes schema inventory and negative fixtures
-        run: npm --prefix typespec run check:mcp-hermes
-      - name: Exercise official MCP and native bridge adapters with existing contract tests
-        run: ./node_modules/.bin/tsx --test test/mcp-sdk-runtime.conformance.test.ts test/context-bridge.contracts.test.ts
       - name: Exercise real Gateway HTTP and domain v1 compatibility tests
         run: ./node_modules/.bin/tsx --test test/gateway-projection-http.contracts.test.ts test/gateway-projection.contracts.test.ts test/gateway-schema.contracts.test.ts test/data-class-policy.contracts.test.ts test/bifrost-plugin.contracts.test.ts

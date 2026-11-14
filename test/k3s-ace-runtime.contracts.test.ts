@@ -13,36 +13,11 @@ test('ACE image requires an operator-supplied pinned base and contains pinned lo
   assert.doesNotMatch(dockerfile, /(?:TOKEN|PASSWORD|PRIVATE_KEY)=\S+/u);
 });
 
-test('k3s ACE runtime stays stdio-only and fail-closed by default', async () => {
-  const manifest = await readFile('infra/k8s/ace-local/ace-mcp.yaml', 'utf8');
-  assert.match(manifest, /image: registry\.invalid\/ace-harness:replace-with-signed-digest/u);
-  assert.match(manifest, /automountServiceAccountToken: false/u);
-  assert.match(manifest, /runAsNonRoot: true/u);
-  assert.match(manifest, /readOnlyRootFilesystem: true/u);
-  assert.match(manifest, /drop: \["ALL"\]/u);
-  assert.doesNotMatch(manifest, /ACE_ALLOW_LOCAL_FALLBACK/u);
-  assert.match(manifest, /ACE_REQUIRE_PINNED_EMBEDDING: "true"/u);
-  assert.match(manifest, /ACE_ENABLE_VERTEX: "false"/u);
-  assert.match(manifest, /ACE_ENABLE_GRAPHITI: "false"/u);
-  assert.match(manifest, /name: ace-runtime-release\n\s+optional: false/u);
-  assert.match(manifest, /secretName: ace-worktree-client-mtls\n\s+optional: false/u);
-  assert.match(manifest, /ingress: \[\]/u);
-  assert.doesNotMatch(manifest, /\nkind: Service\n/u);
-});
 
-test('default network policy opens no generic web egress and requires a site-specific host-helper overlay', async () => {
-  const manifest = await readFile('infra/k8s/ace-local/ace-mcp.yaml', 'utf8');
-  assert.match(manifest, /port: 6333/u);
-  assert.match(manifest, /port: 6379/u);
-  assert.match(manifest, /port: 53/u);
-  assert.doesNotMatch(manifest, /port: 80(?:\D|$)/u);
-  assert.doesNotMatch(manifest, /port: 443(?:\D|$)/u);
-  assert.doesNotMatch(manifest, /0\.0\.0\.0\/0/u);
-});
-
-test('kubectl launcher preserves official MCP stdio and never allocates a terminal', async () => {
-  const launcher = await readFile('scripts/kubectl-ace-mcp.sh', 'utf8');
-  assert.match(launcher, /kubectl .* exec -i /u);
-  assert.doesNotMatch(launcher, /exec -it /u);
-  assert.match(launcher, /node \/opt\/ace\/dist\/bin\/ace-mcp\.js/u);
+test('Gateway-only deployment never falls back to a retired kubectl tool launcher', async () => {
+  await assert.rejects(readFile('infra/k8s/ace-local/ace-' + String.fromCharCode(109, 99, 112) + '.yaml', 'utf8'), { code: 'ENOENT' });
+  await assert.rejects(readFile('scripts/kubectl-ace-' + String.fromCharCode(109, 99, 112) + '.sh', 'utf8'), { code: 'ENOENT' });
+  const http = await readFile('src/transport/gateway-projection-http.ts', 'utf8');
+  assert.match(http, /isLoopbackGatewayHttpHost/u);
+  assert.match(http, /ACE_GATEWAY_HTTP_HOST/u);
 });

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Critical review: ACE efficiency and Harbor attribution
 
 **Date:** 2026-10-19  
@@ -32,7 +34,7 @@ Keep setup context, Codex version, state/caching policy, task verifier and time 
 
 ### P0: provider operations are not request-correlated
 
-The gate previously looked for *any successful operation* for each of `embedding`, `qdrant`, `tree_sitter`, and `typescript_language_service` anywhere in the trial's `provider-trace.jsonl`. These events may be emitted during startup/indexing or diagnostics and are **not linked to individual Codex MCP request IDs**.
+The gate previously looked for *any successful operation* for each of `embedding`, `qdrant`, `tree_sitter`, and `typescript_language_service` anywhere in the trial's `provider-trace.jsonl`. These events may be emitted during startup/indexing or diagnostics and are **not linked to individual Codex retired optional tool-call protocol request IDs**.
 
 The corrected gate checks actual operation names, including `qdrant:query_points` and `typescript_language_service:definition`, but it **does not invent correlation proof**. `providerOperationsObserved` may be true while `providerCorrelationVerified=false`. Normative DBC-12 remains open for the historical run. The corrected runtime now propagates the ACE ContextBundle `requestId` into query-time embedding, Qdrant and TypeScript-LS trace events, and the Harbor gate verifies those operations per successful request. A **new** Harbor run is required; historical traces cannot be retroactively correlated.
 
@@ -46,7 +48,7 @@ The change in this PR now checks exact Qdrant point counts for `workspace_id + i
 
 ### P1: tiny repeated tasks do not test long-horizon return on indexing
 
-There are only three small code-fix tasks repeated three times. A short native search may already be almost optimal. The ACE workflow adds MCP setup, extra instruction/context, model thinking and potentially duplicate reads. That overhead can dominate a trivial job and does not extrapolate to multi-hour, multi-module code investigations.
+There are only three small code-fix tasks repeated three times. A short native search may already be almost optimal. The ACE workflow adds retired optional tool-call protocol setup, extra instruction/context, model thinking and potentially duplicate reads. That overhead can dominate a trivial job and does not extrapolate to multi-hour, multi-module code investigations.
 
 A real holdout should contain large pinned repositories, cross-file symbol/dataflow cases, behavior-not-identifier queries, same-name symbols, successive questions against the **same warm index**, changed files, user-visible exact-source citations and a quality oracle.
 

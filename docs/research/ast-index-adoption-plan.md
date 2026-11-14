@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Что ACE может позаимствовать из ast-index: подробный research/adoption plan
 
 > **Статус:** research + план контролируемых экспериментов; **не утверждение, что перечисленные механизмы уже улучшают ACE**.
@@ -150,9 +152,9 @@ ast-index имеет `rebuild`, incremental `update`, `watch`, debounce coordina
 
 Важно: documented change detection опирается на path/mtime/size, а не content hash. Это слабее strict ACE source identity и не должно копироваться как trust boundary.
 
-### 1.8 MCP ergonomics
+### 1.8 retired optional tool-call protocol ergonomics
 
-Отдельный `ast-index-mcp` превращает CLI commands в MCP tools. Tool descriptions рекомендуют:
+Отдельный `ast-index-retired-tool-protocol` превращает CLI commands в retired optional tool-call protocol tools. Tool descriptions рекомендуют:
 - `explore` для "how does X work";
 - `search` для broad discovery;
 - graph dependents перед изменением symbol;
@@ -160,7 +162,7 @@ ast-index имеет `rebuild`, incremental `update`, `watch`, debounce coordina
 - JSON только когда он реально нужен.
 
 Источник:
-- [`crates/ast-index-mcp/src/main.rs`](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/crates/ast-index-mcp/src/main.rs)
+- [`crates/ast-index-retired-tool-protocol/src/main.rs`](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/crates/ast-index-retired-tool-protocol/src/main.rs)
 
 ---
 
@@ -183,7 +185,7 @@ ast-index имеет `rebuild`, incremental `update`, `watch`, debounce coordina
 | Branch changed-files signal | Да | Worktree status есть, но другая semantics | Изучить как separate signal |
 | LSP definition proof | Не основной trust boundary | Да | **Сохранить** |
 | Snapshot provenance | Проще | Строгий digest/snapshot/provenance | **Не ослаблять** |
-| Context delivery/expand | Compact CLI/MCP slices | ContextBundle + exact expand + receipts | Сохранить |
+| Context delivery/expand | Compact CLI/retired optional tool-call protocol slices | ContextBundle + exact expand + receipts | Сохранить |
 | Token savings | README заявляет ~40–50% | Мы строим measured loop | Не принимать claim без paired run |
 
 ACE sources:
@@ -206,7 +208,7 @@ ACE sources:
 ```text
 Arm A: Codex native
 Arm B: Codex + ACE
-Arm C: Codex + ast-index MCP
+Arm C: Codex + ast-index retired optional tool-call protocol
 Arm D: Codex + ACE + ast-index graph tools
 ```
 
@@ -372,7 +374,7 @@ Weights должны учитывать confidence.
 - `symbol_impact(symbol, depth)`;
 - `symbol_paths(from, to, maxPaths)`.
 
-Потом решить MCP surface:
+Потом решить retired optional tool-call protocol surface:
 - отдельные tools;
 - единый `ace_graph`;
 - или `ace_context(intent="impact")`.
@@ -543,7 +545,7 @@ Agent не должен интерпретировать "5 результато
 
 ## A12 — Compact text rendering как token feature [P0/P1]
 
-ast-index MCP специально делает compact text default.
+ast-index retired optional tool-call protocol специально делает compact text default.
 
 ACE structuredContent нужен для machine parsing, но human/agent text можно оптимизировать:
 
@@ -555,7 +557,7 @@ ACE structuredContent нужен для machine parsing, но human/agent text �
    edge: CALLS RetryPolicy.apply
 ```
 
-Перед оптимизацией проверить, как конкретный MCP client биллит text + structuredContent, чтобы случайно не считать одно содержимое дважды.
+Перед оптимизацией проверить, как конкретный retired optional tool-call protocol client биллит text + structuredContent, чтобы случайно не считать одно содержимое дважды.
 
 ---
 
@@ -625,7 +627,7 @@ ACE может хранить:
 3. **Не считать text callers authoritative.** Same-name/comments/string matches полезны только как fallback.
 4. **Не ослаблять source freshness.** Exact reread/source digest/snapshot binding остаются.
 5. **Не принимать заявленные ~40–50% token savings как наш результат.** Нужен свой paired benchmark.
-6. **Не плодить 20+ MCP tools без необходимости.** Сначала domain API, затем минимальный tool surface.
+6. **Не плодить 20+ retired optional tool-call protocol tools без необходимости.** Сначала domain API, затем минимальный tool surface.
 7. **Не делать manual graph build обязательным production workflow.** Исследовать derived/incremental/lazy graph с fail-closed freshness.
 8. **Не переносить Android/iOS/Rails-specific logic пакетом.** Это примеры relation providers, а не обязательный ACE core.
 9. **Не делать PageRank универсальным relevance score.** Centrality и query relevance — разные признаки.
@@ -916,7 +918,7 @@ Failure taxonomy:
 | PR | Deliverable | Не делать | Gate |
 |---|---|---|---|
 | **AI0 — этот docs PR** | pinned research + plan | runtime changes | docs only |
-| **AI1 — external baseline** | ast-index MCP/CLI comparison harness | не встраивать graph | ≥1 honest paired comparison |
+| **AI1 — external baseline** | ast-index retired optional tool-call protocol/CLI comparison harness | не встраивать graph | ≥1 honest paired comparison |
 | **AI2 — graph domain model** | node/edge/snapshot + in-memory builder | default retrieval unchanged | provenance/stale tests |
 | **AI3 — AST/LSP resolver** | confidence-aware edges | без PageRank | false-resolution suite |
 | **AI4 — one-hop ablation** | opt-in `hybrid_graph` | default off, без PPR | frozen retrieval comparison |
@@ -1075,7 +1077,7 @@ High-degree guardrails:
 - [Explore + RWR](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/src/commands/explore.rs)
 - [Symbol graph](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/src/commands/graph/mod.rs)
 - [Rank/PageRank/history](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/src/commands/rank.rs)
-- [MCP server](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/crates/ast-index-mcp/src/main.rs)
+- [retired optional tool-call protocol server](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/crates/ast-index-retired-tool-protocol/src/main.rs)
 - [MIT License](https://github.com/defendend/Claude-ast-index-search/blob/6ca99bde97627224f9217c7962e3dff9944c7a87/LICENSE)
 
 ### ACE

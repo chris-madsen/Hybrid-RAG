@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Xiaomi memory adoption: one-pass execution slices
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use Superpowers `subagent-driven-development` (recommended) or `executing-plans` task-by-task.
@@ -8,7 +10,7 @@
 
 **Architecture:** original session episodes remain source truth. Checkpoints, resume envelopes, lexical indexes and Dream/Distill outputs are versioned derived projections with source pointers and explicit status.
 
-**Tech stack:** TypeScript/Node.js, Effect, existing file archive/outbox/Graphiti adapters, MCP, Harbor/feedback tooling.
+**Tech stack:** TypeScript/Node.js, Effect, existing file archive/outbox/Graphiti adapters, retired optional tool-call protocol, Harbor/feedback tooling.
 
 ## Global constraints
 
@@ -46,7 +48,7 @@
 
 **Depends on:** none; can run independently from XM-01.
 
-- [ ] Pick one actually available non-Codex MCP client.
+- [ ] Pick one actually available non-Codex retired optional tool-call protocol client.
 - [ ] Record the same lifecycle matrix as XM-01.
 - [ ] Identify the smallest agent-neutral event schema common to both.
 - [ ] Do not change ACE runtime.
@@ -207,7 +209,7 @@
 
 **Files:**
 - Add application port/handler first.
-- Modify MCP/OpenSpec/transport only if the feasibility decision says public tools are needed.
+- Modify retired optional tool-call protocol/OpenSpec/transport only if the feasibility decision says public tools are needed.
 - Test: application contract + transport contract if exposed.
 
 - [ ] Define `saveCheckpoint`/ `prepareResume` semantics or equivalent.

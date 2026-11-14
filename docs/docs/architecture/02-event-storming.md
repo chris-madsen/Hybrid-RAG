@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — Event Storming: события, команды, политики и hot spots
 
 **Статус:** архитектурная гипотеза; события и термины не следует считать существующими реализациями. Это текстовый Big Picture → Process Level → Design Level Event Storming, требующий последующей совместной сессии с владельцем. События домена ниже не равны событиям Codex SDK/Harbor.
@@ -63,7 +65,7 @@ flowchart LR
 | Adapters | `CollectEvidence` | ContextRequest | `EvidenceCollected` / `SourceUnavailable` | Dedup, mark partial | CandidateSet |
 | Resolver | `VerifyEvidence` | ContextRequest | `EvidenceVerified` / `FreshnessUnknown` | Live AST/LSP + file hash, uncertainty | EvidenceView |
 | Builder | `ComposeBundle` | ContextRequest | `ContextBundleComposed` | Relevance-first, lossless expansion links | ContextBundle |
-| MCP adapter | `DeliverBundle` | ContextRequest | `ContextBundleDelivered` / `ContextRequestFailed` | Persist only minimal request metadata if allowed | RequestSummary |
+| retired optional tool-call protocol adapter | `DeliverBundle` | ContextRequest | `ContextBundleDelivered` / `ContextRequestFailed` | Persist only minimal request metadata if allowed | RequestSummary |
 
 **Invariant B:** `CandidateFound` ≠ `VerifiedCurrent` ≠ `RuntimeProven`. Классы свидетельств сохраняются до ответа агенту.
 

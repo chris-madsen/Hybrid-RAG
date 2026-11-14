@@ -3,11 +3,7 @@ import { join, resolve } from 'node:path';
 import { Effect } from 'effect';
 import { exportCodexHistory } from '../adapters/codex-session-history.js';
 import { makeAsyncFileMemoryArchive } from '../adapters/file-memory-archive.js';
-import { makeFileDecisionHistory } from '../adapters/file-decision-history.js';
 import { makeFileProjectionOutbox } from '../adapters/file-projection-outbox.js';
-import { makeGraphitiMcpPort } from '../adapters/graphiti-mcp.js';
-import { makeFileProviderTrace } from '../adapters/provider-trace.js';
-import { defaultLocalPolicy } from '../domain/policy.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
 import { deleteEpisodeWithProjection } from '../application/retained-memory.js';
 import {
@@ -21,6 +17,7 @@ import {
   type ProjectionRetryPolicy,
 } from '../domain/memory.js';
 import { importMemoryEpisodes } from '../application/memory-import.js';
+import type { GraphProjectionPort, GraphProjectionStatePort } from '../application/ports.js';
 import { reconcileProjectionIntents } from '../application/memory-reconcile.js';
 import { defaultMemoryAdmissionPolicy } from '../domain/memory-admission.js';
 
@@ -39,22 +36,17 @@ const run = async (): Promise<void> => {
   if (workspace._tag === 'Err') throw new Error(workspace.error.message);
   const archiveRoot = resolve(required('ACE_MEMORY_ARCHIVE_ROOT'));
   const archive = await makeAsyncFileMemoryArchive(archiveRoot);
-  const decisionHistory = makeFileDecisionHistory(
-    resolve(process.env.ACE_MEMORY_DECISIONS_PATH?.trim() || join(archiveRoot, 'decisions.json')),
-  );
   const outbox = await makeFileProjectionOutbox(join(archiveRoot, 'projection-outbox'));
-  const providerTrace = makeFileProviderTrace(process.env.ACE_PROVIDER_TRACE_FILE);
-  const createGraphiti = async () => makeGraphitiMcpPort({
-    command: required('ACE_GRAPHITI_COMMAND'),
-    args: JSON.parse(required('ACE_GRAPHITI_ARGS_JSON')) as string[],
-    groupId: required('ACE_GRAPHITI_GROUP_ID'),
-    workspaceId: workspace.value,
-    policy: defaultLocalPolicy(workspace.value),
-    archive,
-    decisionHistory,
-    trace: providerTrace,
-    providerVersion: process.env.ACE_GRAPHITI_VERSION?.trim() || 'graphiti-mcp/unknown',
-  });
+  // Source-true archival operations remain available, but derived graph
+  // projection must not silently use the retired optional tool transport.
+  // An approved provider-native Graphiti port is required before replay.
+  const createGraphiti = async (): Promise<{
+    readonly projection: GraphProjectionPort;
+    readonly projectionState: GraphProjectionStatePort;
+    readonly close: () => Promise<void>;
+  }> => {
+    throw new Error('Graphiti native projection provider is not configured (NOT_READY); archival originals remain intact');
+  };
 
   const integerEnv = (name: string, fallback: number): number => {
     const raw = process.env[name]?.trim();

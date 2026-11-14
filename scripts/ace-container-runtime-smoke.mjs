@@ -35,32 +35,49 @@ if (!existsSync(manifestPath)) {
 }
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 const mount = `${bundleRoot}:/ace:ro`;
-const run = (command, commandArgs) => execFileSync(command, commandArgs, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+const run = (command, args) => execFileSync(command, args, {
+  encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+});
+const quote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
 try {
-  const effectProbe = run('docker', ['run', '--rm', '--entrypoint', 'node', '-v', mount, image, '-e', 'import("file:///ace/dist/transport/context-bridge-stdio.js").then(() => process.stdout.write("effect=READY\\n"))']);
-  if (!effectProbe.includes('effect=READY')) throw new Error('Effect runtime import did not confirm READY');
-  const qdrantProbe = run('docker', ['run', '--rm', '--network', 'host', '--entrypoint', 'node', '-v', mount, image, '-e',
-    `fetch(${JSON.stringify(`${qdrantUrl.replace(/\/$/u, '')}/collections`)}).then((response) => { if (!response.ok) process.exit(2); })`]);
-  const bridgeProbe = run('docker', [
-    'run', '--rm', '--network', 'host', '-i', '-v', mount,
-    '-e', 'ACE_WORKSPACE_ROOT=/tmp/ace-smoke-workspace',
-    '-e', 'ACE_ALLOWED_ROOTS=/tmp/ace-smoke-workspace',
-    '-e', 'ACE_RUNTIME_ROOT=/ace',
-    '-e', 'ACE_RUNTIME_ID=ace-harbor-runtime-v1',
-    '-e', `ACE_QDRANT_URL=${qdrantUrl}`,
-    '--entrypoint', 'sh',
-    image,
-    '-lc', 'mkdir -p /tmp/ace-smoke-workspace && printf "export const aceSmoke = 1;\\n" > /tmp/ace-smoke-workspace/smoke.ts && printf "{\\"type\\":\\"invalid\\"}\\n" | /ace/scripts/harbor-ace-context-bridge.sh 2>/dev/null',
+  // Import the compiled HTTP owner instead of the retired stdin bridge.
+  const loaded = run('docker', ['run', '--rm', '--entrypoint', 'node', '-v', mount, image,
+    '-e', 'import("file:///ace/dist/transport/gateway-projection-http.js").then(() => process.stdout.write("gateway_import=READY\\n"))',
   ]);
-  const ready = bridgeProbe.split(/\r?\n/u).find((line) => line.includes('bridge_ready'));
-  if (ready === undefined) throw new Error('bridge_ready was not observed');
-  const readyRecord = JSON.parse(ready);
-  if (readyRecord.type !== 'bridge_ready' || readyRecord.schemaVersion !== 1 || readyRecord.runtimeId !== manifest.runtimeId) {
-    throw new Error('bridge_ready identity does not match runtime manifest');
-  }
-  process.stdout.write(`${JSON.stringify({ status: 'READY', effectImport: effectProbe.includes('effect=READY'), bridgeReady: true, qdrantReachable: true, runtimeId: manifest.runtimeId, bundleSha256: manifest.bundleSha256 })}\n`);
+  if (!loaded.includes('gateway_import=READY')) throw new Error('compiled Gateway transport could not be imported');
+  const qdrantProbe = run('docker', ['run', '--rm', '--network', 'host', '--entrypoint', 'node', '-v', mount, image,
+    '-e', `fetch(${JSON.stringify(`${qdrantUrl.replace(/\/$/u, '')}/collections`)}).then((response) => { if (!response.ok) process.exit(2); })`,
+  ]);
+  const healthCheck = `fetch("http://127.0.0.1:8765/internal/ace-gateway/v1/health").then(async (r) => {
+    const body = await r.json();
+    if (r.status !== 200 || body.providerWire !== "not_certified") process.exit(1);
+    process.stdout.write("gateway_health=READY\\n");
+  }).catch(() => process.exit(1))`;
+  const shell = [
+    'set -eu',
+    'mkdir -p /tmp/ace-gateway-smoke',
+    'printf "export const aceSmoke = 1;\\n" > /tmp/ace-gateway-smoke/smoke.ts',
+    'node /ace/dist/bin/ace-gateway-http.js >/tmp/ace-gateway-smoke.log 2>&1 & child=$!',
+    'trap "kill $child 2>/dev/null || :" EXIT',
+    `i=0; until node -e ${quote(healthCheck)}; do i=$((i+1)); if [ "$i" -ge 40 ]; then cat /tmp/ace-gateway-smoke.log >&2; exit 1; fi; sleep 0.2; done`,
+  ].join('; ');
+  const observed = run('docker', ['run', '--rm', '--network', 'none', '-v', mount,
+    '-e', 'ACE_WORKSPACE_ROOT=/tmp/ace-gateway-smoke',
+    '-e', 'ACE_ALLOWED_ROOTS=/tmp/ace-gateway-smoke',
+    '-e', 'ACE_STATE_DIR=/tmp/ace-gateway-state',
+    '-e', 'ACE_RUNTIME_ROOT=/ace',
+    '-e', 'ACE_ENABLE_EXPERIMENTAL_QDRANT=false',
+    '--entrypoint', 'sh', image, '-lc', shell,
+  ]);
+  if (!observed.includes('gateway_health=READY')) throw new Error('Gateway liveness was not observed in the container');
+  process.stdout.write(`${JSON.stringify({
+    status: 'READY', gatewayImport: true, gatewayHttpLiveness: true,
+    qdrantReachable: true, providerWireCertified: false,
+    runtimeId: manifest.runtimeId, bundleSha256: manifest.bundleSha256,
+  })}\\n`);
+  void qdrantProbe;
 } catch (error) {
-  const detail = error instanceof Error ? error.message.split('\n')[0] : 'container runtime smoke failed';
-  process.stdout.write(`${JSON.stringify({ status: 'BLOCKED', reason: detail })}\n`);
+  const reason = error instanceof Error ? error.message.split('\n')[0] : 'Gateway container smoke failed';
+  process.stdout.write(`${JSON.stringify({ status: 'BLOCKED', reason })}\\n`);
   process.exitCode = 2;
 }

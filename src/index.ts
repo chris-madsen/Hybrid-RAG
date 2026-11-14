@@ -49,5 +49,3 @@ export * from './adapters/lsp-semantic.js';
 export * from './adapters/typescript-language-service.js';
 export * from './adapters/process-embedding.js';
 export * from './adapters/codex-session-history.js';
-export * from './gateway/mcp-gateway.js';
-export * from './transport/context-bridge-stdio.js';

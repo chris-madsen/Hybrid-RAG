@@ -23,7 +23,7 @@ COPY integrations ./integrations
 # docker build; neither .git nor git itself is required in the image.
 COPY dist ./dist
 RUN npm prune --omit=dev --ignore-scripts \
-  && node --input-type=module -e 'import { verifyCompiledRuntimeProvenance } from "./dist/application/runtime-provenance.js"; const root = process.cwd(); const verified = await verifyCompiledRuntimeProvenance(root, `${root}/dist/bin/ace-mcp.js`); if (verified._tag !== "Ok") throw new Error(verified.error.message);' \
+  && node --input-type=module -e 'import { verifyCompiledRuntimeProvenance } from "./dist/application/runtime-provenance.js"; const root = process.cwd(); const verified = await verifyCompiledRuntimeProvenance(root, `${root}/dist/bin/ace-runtime.js`); if (verified._tag !== "Ok") throw new Error(verified.error.message);' \
   && python3 -m venv /opt/ace/.venv-embedding-fast \
   && /opt/ace/.venv-embedding-fast/bin/pip install --no-cache-dir \
        pillow==13.0.0 fastembed==0.9.1 onnxruntime==1.23.2 numpy==2.2.6 huggingface-hub==1.33.0 \
@@ -40,6 +40,7 @@ ENV ACE_STATE_DIR=/var/lib/ace/state \
 
 USER node
 
-# ACE remains an official stdio MCP process. The pod stays idle until Codex or
-# an operator starts dist/bin/ace-mcp.js through kubectl exec -i.
-CMD ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+# Gateway is the sole agent-facing context path. The listener stays loopback-
+# only, so a production deployment needs an accepted Bifröst sidecar/network
+# namespace and explicit signed image approval; this image alone does not certify it.
+CMD ["node", "/opt/ace/dist/bin/ace-runtime.js"]

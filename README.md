@@ -1,6 +1,6 @@
 # Adaptive Context Engine (ACE) Harness
 
-ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler. LangGraph or another external orchestrator owns multi-agent workflows. ACE supplies verified context to model requests. For configurable-endpoint agents, **Bifrost is the selected, not-yet-implemented LLM context gateway** (ADR-017). **MCP is an explicit tool interface, not the primary route for model-bound context injection.** Hermes already has a native ContextEngine/JSONL bridge (ADR-016).
+ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler. LangGraph or another external orchestrator owns multi-agent workflows. ACE supplies verified context to model requests. For configurable-endpoint agents, **Bifröst is the sole LLM Gateway integration** (ADR-017 and explicit 2026-11-14 owner decision). Its local connector/contract tests exist; actual final-provider delivery and production approval remain unverified. The model does not select or invoke ACE tools.
 
 
 ## Architecture at a glance
@@ -22,9 +22,6 @@ LangGraph / other external orchestrator -> existing agents
            |-- memory: Graphiti/archive
            +-- verified context / receipts
 
-Existing separate integrations:
-  agent -- MCP explicit tool call --> ACE tools (search/expand/status)
-  Hermes -- native ContextEngine --> ACE direct JSONL bridge
 ```
 
 Private source and conversations remain local by default; Vertex is a
@@ -38,22 +35,13 @@ and the [2026-10-21 targeted code review](docs/reviews/2026-10-21-hybrid-context
 
 ## Source-verified Docker image
 
-Build the ACE runtime in a Git checkout with local Node dependencies installed,
-then package and verify the exact compiled source. The Docker context excludes
-`.git`: no Git metadata is copied to the image and no commit ID is fabricated
-inside the container.
+Build ACE in a clean Git checkout, then package and verify those exact compiled bytes. The Docker context excludes `.git`; the image never fabricates a commit identity.
 
 ```bash
-# Replace the placeholder with an actual pinned and verified Node image digest.
 make ace-image ACE_NODE_IMAGE='node:22-bookworm-slim@sha256:<verified-64-hex>' ACE_IMAGE_TAG=ace:local
 ```
 
-The Make target runs `npm run build` first (using the source checkout's Git
-identity). The Docker build checks `dist/runtime-provenance.json` against the
-copied source files and compiled executable and **fails** when the archive is
-missing, stale, or was built from modified runtime source. A bare `docker build`
-requires an already generated source-verified `dist/` directory. This build
-does not claim that provider/agent integration tests have run.
+The Make target runs `npm run build` before `docker build`. The image copies `dist/` and verifies `dist/runtime-provenance.json` against the copied source and `dist/bin/ace-runtime.js`. Packaging fails when provenance is missing or stale. This proves source/build identity only; it does not certify Bifröst final-provider delivery or agent E2E behavior.
 
 ## Current implementation
 
@@ -67,13 +55,13 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
 - exact artifact storage with lossless pagination;
 - provider-independent evaluation core with frozen suites, BenchmarkRun FSM,
   cumulative/delta usage normalization and quality-gated reports;
-- Hermes request-time `ContextEngine` integration through the direct ACE JSONL bridge; transformation receipts, source/runtime identity and quality-gated evidence remain required;
-- Codex JSONL usage boundary adapter retained for explicitly labeled comparison/historical runs, not the Hermes primary path;
+- The former Hermes-native `ContextEngine` bridge is **retired** by the 2026-11-14 Gateway-only decision. Agent-side configuration must point at Bifröst, never a direct ACE context plugin.
+- Codex/Hermes historical usage artifacts can still support read-only baseline comparisons; they do not certify Gateway delivery or activate an alternative integration.
 - explicit unknown usage and unsupported external-provider cost records until
   Harbor/third-party contracts are verified;
 - local lexical candidate retrieval retained for controlled experiments, not
   a substitute for production hybrid context;
-- an experimental real-provider `ace_context` path using local FastEmbed/ONNX
+- an experimental real-provider Gateway projection path using local FastEmbed/ONNX
   dense + sparse/BM25, Qdrant native RRF fusion, maintained ast-grep structural
   spans, optional reranking, and generic LSP (TypeScript Language Server is the
   default); exact source rechecks and receipt/delta delivery are implemented;
@@ -83,9 +71,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
   temporal memory search and confirmation-gated decision FSM;
 - deterministic multi-source routing with an explicit, opt-in Jev boundary and
   required-source quality comparison;
-- one existing **MCP tool facade** (not the LLM context gateway) using the maintained official MCP TypeScript SDK over stdio,
-  with `ace_context`, `ace_expand`, `ace_workspace_status` and
-  `ace_memory_search` tool contracts;
+- **Gateway-only automatic context injection** through the versioned HTTP projection endpoint; retrieval and exact expansion happen inside ACE, not via a model-invoked tool interface;
 - typed local context/memory provider wiring; `not_ready` is returned only when
   no provider is injected, while unverified external providers remain blocked.
 - deterministic comparison report artifacts in Markdown, JSONL and CSV with
@@ -93,11 +79,13 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
 - typed Qdrant/Vertex/Graphiti/Jev HTTP boundaries and a Harbor CLI runner with
   policy-gated requests, response validation and retained failed-run evidence.
 - versioned `ace.gateway.v1` projection/ownership contracts, deterministic
-  request-local projection tests, a Hermes compaction ownership guard, an
+  request-local projection tests, a host-compaction ownership guard, an
   isolated Go connector and a pinned Bifrost mock-provider wire proof; real
   external-provider, agent-E2E and production gates remain separate.
 
-For explicit MCP tool access, run the MCP stdio process with `ACE_WORKSPACE_ROOT=/path/to/repo npm run mcp:stdio`.
+Before enabling Gateway projection, configure a shared high-entropy secret in the ACE process (`ACE_GATEWAY_HTTP_SHARED_SECRET`) and the Bifröst plugin (`ACE_GATEWAY_PROJECTION_TOKEN`). Without it the projection POST endpoint returns `NOT_READY` (503); callers without the correct Bearer token receive 401. Authentication is independent of request-specific host attestation; both are required.
+
+For Gateway projection, run `ACE_WORKSPACE_ROOT=/path/to/repo npm run gateway:http` and configure the coding agent's model endpoint through Bifröst.
 Without the real retrieval provider it exposes an honest `not_ready` status,
 not a simulated production search. For the **experimental** local retrieval
 path, forward the local k3s Qdrant port and configure:
@@ -126,24 +114,25 @@ Vertex documentation requires `ACE_ENABLE_VERTEX=true` **and**
 Permission covers the `project_document` class only; secret-like queries are
 denied before HTTP.
 
-With k3s Qdrant forwarded to localhost, the real gates are reproducible with
-`npm run test:real-provider` (2000-line precision, current digest, exact
-expansion and workspace readiness) and `npm run test:real-provider-race`
-(mid-request edit must become partial/stale, never current).
-`npm run test:real-provider-restart` verifies a dirty-worktree restart advances
-the observation generation and never serves the previous Qdrant generation.
-`npm run test:real-provider-outage` verifies an unavailable Qdrant is reported
-as partial with an explicit warning and does not masquerade as production
-semantic retrieval.
-`npm run test:real-semantic` runs the three-case behavior/RU↔EN exploratory
-holdout through real FastEmbed/Qdrant/AST/LSP and writes its metrics to
-`benchmarks/reports/real-semantic-retrieval-e2e.json`.
-`npm run test:memory-process` checks stable history IDs and cross-process
-archive reference safety without requiring an inference model.
-`npm run test:real-same-name` verifies same-name structural spans, definitions,
-references and write locations through real Tree-sitter and TypeScript LS.
-`npm run test:container-provider` verifies the same retrieval composition through
-the official MCP client and a Docker stdio container.
+With k3s Qdrant forwarded to localhost, `npm run test:real-provider`
+now exercises the actual **Gateway HTTP projection** against a 2000-line
+source fixture and real FastEmbed/Qdrant retrieval. The
+`test:real-provider-race` and `test:real-provider-outage` variants exercise
+concurrent source changes and honest provider failures. No model-invoked
+tool transport is used. These runs establish request-local projection
+semantics only, not actual Bifröst final-provider egress.
+
+`npm run test:memory-process` tests immutable archive identity and
+cross-process safety. `npm run test:real-same-name` checks structural
+spans and TypeScript language-service definitions/references.
+`npm run test:ace-container-runtime -- --image <pinned>@sha256:<digest>
+--bundle <dir>` probes compiled Gateway HTTP liveness inside a container;
+the separate Bifröst provider-wire and real-agent trials are **not certified**.
+
+Previously separate restart, two-writer, interrupted-publish, index-scale,
+semantic holdout and tool-based container runners were retired with their
+transport. Their equivalent **Gateway-native** E2E acceptance remains
+explicitly **NOT-RUN**, not silently passed or replaced by static checks.
 
 No production-approved embedding model/LSP, Graphiti extraction, Harbor quality
 gate or 5× improvement is claimed until the documented provider spikes and owner
@@ -152,7 +141,7 @@ claim.
 
 ## Configuration and readiness
 
-See [`docs/operations/ace-configuration-and-readiness-matrix.md`](docs/operations/ace-configuration-and-readiness-matrix.md) before enabling providers. In particular, `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` selects the real local Qdrant composition but does **not** constitute production approval. The current production MCP bootstrap does not silently replace unavailable Qdrant with a lexical provider; lexical fallback is a separate test/degraded capability, not a production readiness signal.
+See [`docs/operations/ace-configuration-and-readiness-matrix.md`](docs/operations/ace-configuration-and-readiness-matrix.md) before enabling providers. In particular, `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` selects the real local Qdrant composition but does **not** constitute production approval. The Gateway-only bootstrap does not silently replace unavailable Qdrant with a lexical provider; lexical fallback is a separate test/degraded capability, not a production readiness signal.
 
 Full code + documentation + memory release readiness is evaluated by `npm run release:preflight -- ...`; there is no environment flag that turns an unverified provider set into a production-approved system.
 

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — prompt entrypoints for any coding agent
 
 These are **entrypoints into full instruction files**, not five short substitutes for those files. Run with Codex, Claude Code, OpenCode, Gemini CLI, Cursor, Hermes or another agent that can read Markdown and edit a repository. No model-specific tool names are required.
@@ -64,7 +66,7 @@ verified research report or run the Research protocol above.
 
 Produce appropriate C4, DFD, sequence, decisions and testing mapping;
 explicitly consider events, persistence mapping, feature standards and
-API/MCP/projection contracts, marking genuinely irrelevant ones N/A.
+API/retired optional tool-call protocol/projection contracts, marking genuinely irrelevant ones N/A.
 Separate observed AS-IS from proposed TO-BE. Show side effects, cancellation,
 partial failures, egress authorization, versioning and negative tests.
 Use existing OpenSpec design/specs, not a second parallel document tree.

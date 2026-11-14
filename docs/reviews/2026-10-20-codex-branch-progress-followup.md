@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Codex branch progress follow-up — 2026-10-20
 
 **Reviewed branch:** `codex/fix-unified-plan-1227`
@@ -30,7 +32,7 @@ production release.
 - W03 has no frozen multi-repository retrieval-quality holdout.
 - W05 has only Vertex read-only capability evidence; authorized ingestion,
   citations/version provenance and conflict E2E remain open.
-- W06/W08 remain blocked by the absence of a supported local-only Graphiti MCP
+- W06/W08 remain blocked by the absence of a supported local-only Graphiti retired optional tool-call protocol
   command plus local inference stack in this environment. FalkorDB being up is
   not Graphiti inference evidence.
 - W11 has no retained authenticated host-helper/k3s live-worktree race and

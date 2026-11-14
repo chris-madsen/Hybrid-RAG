@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Codex Execution Plan — ACE real-provider closure
 
 **Owner approval:** 2026-10-19. **Current state:** implementation in `main` partially complete; **no production-readiness or 5× claim**. **This is the authoritative next-work entrypoint for Codex**; OpenSpec specifications and Accepted ADRs define the contracts. The former `docs/reviews/2026-10-19-codex-code-handoff.md` is historical PR #2 guidance and must not override this plan.
@@ -22,10 +24,10 @@
 ## Stage 1 — Actual Qdrant + embeddings + AST/LSP vertical slice (P0)
 
 1. Investigate and benchmark at least two genuine model/runtime combinations for local embeddings; **FastEmbed/ONNX is a candidate, not chosen by fiat**. Include a competitive lexical/hybrid baseline, behavior-not-name query, duplicate/similar symbol names and RU↔EN technical requests. Record model ID/version/digest, vector dimensions, query/document preprocessing, latency, indexing time, recall@k, runtime memory and retrieval quality. Preserve failed candidates.
-2. Implement selected-for-experiment `VectorEmbeddingPort` using maintained library and invoke **real** Qdrant. The current `src/bin/ace-mcp.ts` composition already wires the actual experimental provider path for `ace_context` when `ACE_ENABLE_EXPERIMENTAL_QDRANT=true`; verify that path through real provider and agent-facing evidence rather than restoring it as if it were absent. Keep the path explicitly experimental until model/provider selection and owner approval; do not silently enable the lexical fallback or count SHA-256 hash vectors as semantic retrieval.
+2. Implement selected-for-experiment `VectorEmbeddingPort` using maintained library and invoke **real** Qdrant. The current `src/bin/ace-retired-tool-protocol.ts` composition already wires the actual experimental provider path for `ace_context` when `ACE_ENABLE_EXPERIMENTAL_QDRANT=true`; verify that path through real provider and agent-facing evidence rather than restoring it as if it were absent. Keep the path explicitly experimental until model/provider selection and owner approval; do not silently enable the lexical fallback or count SHA-256 hash vectors as semantic retrieval.
 3. Parse actual TS/JS AST with Tree-sitter/ast-grep. Verify exact UTF-8 source slice and SHA-256 working-tree digest after Qdrant lookup, and re-check before bundle delivery; retain authorized exact full-file expansion. Version Qdrant collections by model/generation so stale/deleted symbols do not appear.
 4. Run **both** Serena and direct TS Language Service on identical fixtures. Check definitions/references, same-name methods, writes vs definitions, types, diagnostics, latency, license and real Codex usage. Submit measured comparison and owner recommendation; do not declare one production-approved yet.
-5. E2E over actual Codex MCP client and real providers, not just direct adapter tests. Capture safe invocation receipts and DBC-01/02/03/04/05/06/07/08/09/13/14 results from `docs/docs/architecture/07-architecture-fitness-contracts.md`.
+5. E2E over actual Codex retired optional tool-call protocol client and real providers, not just direct adapter tests. Capture safe invocation receipts and DBC-01/02/03/04/05/06/07/08/09/13/14 results from `docs/docs/architecture/07-architecture-fitness-contracts.md`.
 
 **Exit:** `real-provider-tested` + `agent-E2E-tested` only when actual calls and outputs prove it; owner selects production embedder and LSP after report. A failing experiment remains useful, not `done`.
 
@@ -48,7 +50,7 @@
 
 ## Stage 4 — Harbor evaluation (P1; start exploratory runs in parallel)
 
-1. Use Accepted ADR-009: same Codex model/reasoning/configuration, matched task repository commits and timeouts, both native tools enabled, ACE success verified via actual MCP invocations. Include 3+ genuine cross-file retrieval/impact tasks, not only the single `ace-retrieval-impact` development task.
+1. Use Accepted ADR-009: same Codex model/reasoning/configuration, matched task repository commits and timeouts, both native tools enabled, ACE success verified via actual retired optional tool-call protocol invocations. Include 3+ genuine cross-file retrieval/impact tasks, not only the single `ace-retrieval-impact` development task.
 2. Run native Codex, Codex+Serena and Codex+ACE comparisons, paired repeated trials and ablations (lexical, vector, AST/LSP, docs, memory when applicable). Use `npm run gate:harbor -- <native-dir> <ace-dir> <report.json>` only when its actual trace/usage parser is verified against installed Harbor/Codex event schema; repair parser if schema differs.
 3. Preserve raw usage, input/output cached breakdowns without double counting, failures, verifier rewards, token cost *plus* external inference/embedding/Vertex/Graphiti/indexing cost, latency and run fingerprints. Freeze a previously unseen holdout after exploratory tuning.
 4. Report measured quality and speedup, including results below 1× or below 5×. The 5× target is **not** a test runner gate: it is a product efficacy goal. Never attribute a zero-call run's token delta to ACE.

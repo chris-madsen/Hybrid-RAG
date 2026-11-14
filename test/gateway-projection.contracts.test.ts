@@ -26,7 +26,8 @@ const request = (overrides: Partial<GatewayProjectionRequest> = {}): GatewayProj
 const transformed: AceTransformResult = {
   schemaVersion: 1, requestId: 'request-1', sessionId: 'session-1', turnId: 'attempt-group-1', workspaceId: 'workspace-1' as never,
   status: 'ready', contextText: 'verified handler context', evidence: [], selectedEvidenceIds: ['ev-1'], omittedEvidenceIds: [],
-  estimatedTokens: 4, providerIdentities: {}, receiptId: 'receipt-1', providerRequestId: 'provider-1', limitations: [],
+  estimatedTokens: 4, tokenCountMode: 'character_estimate', providerIdentities: {}, receiptId: 'receipt-1', providerRequestId: 'provider-1',
+  limitations: ['token budget is a character-based estimate; model-exact fit is unverified'],
 };
 const context: ContextTransformService = { transform: () => Effect.succeed(ok(transformed)) };
 
@@ -63,7 +64,7 @@ test('gateway rejects malformed UTF-8 rather than silently replacing original by
   assert.equal(response._tag, 'Err');
 });
 
-test('gateway applies request-local context and preserves unknown provider fields', async () => {
+test('gateway applies estimated-token context without a model-counter admission gate', async () => {
   const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request()));
   assert.equal(decision._tag, 'Ok');
   if (decision._tag === 'Err' || decision.value.kind !== 'APPLY') return;
@@ -98,10 +99,15 @@ test('gateway never treats context failure as unchanged success', async () => {
   }
 });
 
-test('non-gateway modes are explicit and do not claim ACE projection', async () => {
-  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ projectionMode: 'assist-only' })));
-  assert.equal(decision._tag, 'Ok');
-  if (decision._tag === 'Ok') assert.equal(decision.value.kind, 'UNCHANGED_AUTHORIZED');
+test('legacy projection modes are decodable but never bypass the Gateway', async () => {
+  for (const mode of ['native', 'assist-only', 'observe-only', 'off'] as const) {
+    const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ projectionMode: mode })));
+    assert.equal(decision._tag, 'Ok');
+    if (decision._tag === 'Ok') {
+      assert.equal(decision.value.kind, 'BLOCK');
+      assert.equal(decision.value.receipt.reasonCode, 'GATEWAY_MODE_REQUIRED');
+    }
+  }
 });
 
 test('gateway blocks simultaneous native projection ownership', async () => {
@@ -137,3 +143,44 @@ test('gateway rejects mismatched host session and unverified transform results',
     }
   }
 });
+
+test('gateway blocks a forged model or retrieval query before asking ACE for context', async () => {
+  let transformations = 0;
+  const observing: ContextTransformService = {
+    transform: () => {
+      transformations += 1;
+      return Effect.succeed(ok(transformed));
+    },
+  };
+  const service = makeGatewayProjectionService(observing);
+  for (const override of [
+    { model: 'different-model' },
+    { query: 'find something unrelated' },
+  ]) {
+    const result = await Effect.runPromise(service.project(request(override)));
+    assert.equal(result._tag, 'Ok');
+    if (result._tag === 'Ok') {
+      assert.equal(result.value.kind, 'BLOCK');
+      assert.equal(result.value.receipt.reasonCode, 'BODY_IDENTITY_MISMATCH');
+    }
+  }
+  assert.equal(transformations, 0, 'unbound requests must not trigger retrieval');
+});
+
+test('gateway binds multimodal user content semantically, without JSON property-order dependence', async () => {
+  const multimodal = {
+    model: 'test-model',
+    messages: [
+      { role: 'user', content: [{ type: 'text', text: 'find handler' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } }] },
+    ],
+  };
+  const base64 = Buffer.from(JSON.stringify(multimodal), 'utf8').toString('base64');
+  const result = await Effect.runPromise(makeGatewayProjectionService(context).project(request({
+    bodyBase64: base64,
+    bodySha256: sha256Base64(base64),
+    query: JSON.stringify([{ text: 'find handler', type: 'text' }, { image_url: { url: 'data:image/png;base64,YQ==' }, type: 'image_url' }]),
+  })));
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Ok') assert.equal(result.value.kind, 'APPLY');
+});
+

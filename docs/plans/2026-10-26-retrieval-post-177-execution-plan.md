@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Execution plan: finish the Aider + Claw retrieval composition after PR #177
 
 > **2026-10-30 owner clarification:** For named upstream components, *reuse the actual working, appropriately licensed functions and their tested behavior*. “Port/adapt” means a narrow, traceable translation or wrapper of real source code, not re-deriving algorithms from a summary and calling the result Aider/Claw-compatible. For Rust Claw → TypeScript, reuse only source whose license/provenance permits it; preserve `vscode-jsonrpc` instead of copying Claw framing. No unapproved Python/Rust sidecar or model-tokenizer rewrite. This clarification does not change current implementation or acceptance status.
@@ -31,8 +33,8 @@ This document is written for the implementation agent. Follow the PR order below
 | R4 / stable publication | Source generation fences and cross-process workspace registration convergence. Real Qdrant concurrency/crash/restart acceptance automated in CI with retained traces. | Proves the exercised real-provider failure/recovery scenarios, not arbitrarily many writers or every partial write interleaving. |
 | R5 / Claw LSP | Licensed pinned Claw server catalog/discovery, maintained `vscode-jsonrpc`, existing registry leases and per-language routing; lazy refresh and diagnostic waiter cleanup. | Real `rust-analyzer` and TypeScript server combined routing/definition/reference/hover/diagnostics passed; full provider crash/restart/cancellation matrix remains independent work. |
 | R6 / ContextAssembler | Sections and budgets, host token-count callback, whole-rendered-string accounting when injected, mode `host_counter` vs `character_estimate`; estimated counting is explicitly `partial`. | Avoids falsely claiming guaranteed token fit. The actual Hermes/model-compatible counter is **not** connected to production. |
-| Gateway / Bifröst | Separate `ACE_GATEWAY_HTTP_MODE` HTTP projection, Go ACE connector/plug-in for pinned Bifröst, `ace.gateway.v1` receipts, one selected OpenAI Chat Completions route. | Mock upstream wire proof exists; no certified real-provider gateway projection, streaming/retry/fallback or provider usage/economics results. MCP SDK is only the **explicit tool** plane; not a substitute for model-bound delivery. |
-| Dead-code cleanup (this PR) | Remove non-production handwritten `src/transport/mcp-stdio.ts`, its self-only test and public barrel export. Construct the official MCP tool façade **only** in explicit MCP mode; ensure Bifröst request context is passed to the existing Go HTTP client. | No duplicate JSON-RPC framing in production or package exports. Existing official MCP tool integration, native Hermes bridge and Bifröst projection remain separate. Pending CI on this PR before marking accepted. |
+| Gateway / Bifröst | Separate `ACE_GATEWAY_HTTP_MODE` HTTP projection, Go ACE connector/plug-in for pinned Bifröst, `ace.gateway.v1` receipts, one selected OpenAI Chat Completions route. | Mock upstream wire proof exists; no certified real-provider gateway projection, streaming/retry/fallback or provider usage/economics results. retired optional tool-call protocol SDK is only the **explicit tool** plane; not a substitute for model-bound delivery. |
+| Dead-code cleanup (this PR) | Remove non-production handwritten `src/transport/retired-tool-protocol-stdio.ts`, its self-only test and public barrel export. Construct the official retired optional tool-call protocol tool façade **only** in explicit retired optional tool-call protocol mode; ensure Bifröst request context is passed to the existing Go HTTP client. | No duplicate JSON-RPC framing in production or package exports. Existing official retired optional tool-call protocol tool integration, native Hermes bridge and Bifröst projection remain separate. Pending CI on this PR before marking accepted. |
 
 ### Still used bespoke owners — do NOT silently delete
 
@@ -42,8 +44,8 @@ This document is written for the implementation agent. Follow the PR order below
 4. `src/adapters/lsp-semantic.ts` and `src/application/lsp/server-registry.ts`: active LSP document/process lifecycle built over **official** `vscode-jsonrpc` with reused Claw catalog. Still needs exact shutdown/crash/startup/concurrent refresh conformance (R5); do not call every ACE-specific freshness check a reinvention.
 5. `src/domain/aider-tree-context.ts`, `src/domain/context-assembly.ts`, `src/application/context-transform-service.ts`: active context assembly and source rendering. Full upstream TreeContext parity and an actual model tokenizer remain open (R3/R6).
 6. `src/application/gateway-projection-service.ts`, `src/transport/gateway-projection-http.ts`, `integrations/bifrost/ace-connector`: active, intentionally thin ACE↔Bifröst contract; Go/TS/JSON Schema strict validator drift, context cancellation, per-attempt authorization and real provider wire certification remain open (X3/F11/F12).
-7. `src/adapters/graphiti-mcp.ts`: active **official Graphiti MCP** integration with large episode enumeration fallback because exact-ID provider capability is not proved (X5/F16).
-8. `src/bin/ace-mcp.ts`: actively composes all three runtime entry modes and remains oversized; R7 should extract existing bootstrap ownership without introducing a second runtime or model proxy.
+7. `src/adapters/graphiti-retired-tool-protocol.ts`: active **official Graphiti retired optional tool-call protocol** integration with large episode enumeration fallback because exact-ID provider capability is not proved (X5/F16).
+8. `src/bin/ace-retired-tool-protocol.ts`: actively composes all three runtime entry modes and remains oversized; R7 should extract existing bootstrap ownership without introducing a second runtime or model proxy.
 
 ### Non-production / historical parts retained intentionally
 
@@ -51,8 +53,8 @@ This document is written for the implementation agent. Follow the PR order below
 - `src/adapters/local-context-provider.ts`: consumed by architecture and retrieval-memory tests only; intentionally incomplete degraded fixture.
 - `src/adapters/jev-route-provider.ts`: no import from ACE runtime found; used by routing and outbound-secret tests and exported publicly. Do not silently break an external evaluation/API consumer.
 - `src/adapters/typescript-language-service.ts`: compatibility/comparison adapter used by tests and real semantic comparison scripts, not an independent production language-server engine.
-- `scripts/harbor-ace-mcp.sh`: historical MCP launcher with install-at-start behavior; archived/explicit benchmark configurations or external callers must be checked before deletion. Replace startup installation with the verified prebuilt runtime if still needed (X6/F19).
-- **Deleted this milestone:** handwritten `src/transport/mcp-stdio.ts` + its own tests and export. Official `src/transport/mcp-sdk-stdio.ts` stays for tool calls; `src/transport/context-bridge-stdio.ts` is a native **Hermes JSONL bridge**, not MCP.
+- `scripts/harbor-ace-retired-tool-protocol.sh`: historical retired optional tool-call protocol launcher with install-at-start behavior; archived/explicit benchmark configurations or external callers must be checked before deletion. Replace startup installation with the verified prebuilt runtime if still needed (X6/F19).
+- **Deleted this milestone:** handwritten `src/transport/retired-tool-protocol-stdio.ts` + its own tests and export. Official `src/transport/retired-tool-protocol-sdk-stdio.ts` stays for tool calls; `src/transport/context-bridge-stdio.ts` is a native **Hermes JSONL bridge**, not retired optional tool-call protocol.
 
 ### Remaining acceptance / next actions (priority order)
 
@@ -65,7 +67,7 @@ This document is written for the implementation agent. Follow the PR order below
 - [ ] **R8 (P0 for any 5× claim):** matched Hermes native-vs-ACE A/B with same model, provider, task, context budget, cache, quality oracle and recorded provider input/cached/output tokens, cost and latency. No result is currently certified.
 - [ ] Re-run `npm run verify:pr`, Bifröst connector tests and the affected gateway/architecture contracts at the cleanup PR HEAD; record the exact CI SHA before merging. Do not reuse run 41129709680 as proof for this new change.
 
-**Architectural boundary:** Bifröst replaces **MCP-first model-bound context delivery**, **not** the optional official MCP tool protocol. Hermes native ContextEngine remains a separate explicitly owned entry path. Do not remove the official SDK or confuse a standalone ACE projection HTTP service with another general-purpose LLM reverse proxy.
+**Architectural boundary:** Bifröst replaces **retired optional tool-call protocol-first model-bound context delivery**, **not** the optional official retired optional tool-call protocol tool protocol. Hermes native ContextEngine remains a separate explicitly owned entry path. Do not remove the official SDK or confuse a standalone ACE projection HTTP service with another general-purpose LLM reverse proxy.
 
 ---
 
@@ -231,7 +233,7 @@ Expected owners:
 - `src/adapters/node-workspace-port.ts`
 - `src/adapters/local-code-index.ts`
 - `src/adapters/qdrant-context-provider.ts`
-- `src/bin/ace-mcp.ts`
+- `src/bin/ace-retired-tool-protocol.ts`
 - Qdrant/index contracts already covering freshness and restart behavior.
 
 Do **not** create a second independent workspace/index stack alongside these. Move ownership and delete superseded logic.
@@ -633,7 +635,7 @@ context-assembler
 
 Delete moved logic. Do not leave a facade that simply duplicates every old method indefinitely.
 
-## `ace-mcp.ts`
+## `ace-retired-tool-protocol.ts`
 
 Shrink it to composition/configuration:
 
@@ -833,7 +835,7 @@ Use these labels:
 | LSP transport | vscode-jsonrpc, locked 9.0.3; src/adapters/lsp-semantic.ts:6,283 | ADOPT maintained framing/dispatch | createMessageConnection + StreamMessageReader/Writer are used | **CONFORMING**. Do not replace with Claw handwritten framing or describe this layer as a custom wire implementation |
 | Qdrant | @qdrant/js-client-rest, locked 1.20.0; sdk branches in http-provider-boundaries.ts and qdrant-context-provider.ts | ADOPT SDK; thin ACE payload/freshness adapter | Production composes QdrantClient. Raw REST branches remain alongside SDK branches and retain a second wire contract | Runtime SDK **CONFORMING**; duplicate compatibility ownership to sunset in R1 |
 | Context delivery | Parent plan ContextAssembler and thin Claw retrieve boundary | ACE-specific composition using existing provider results | Assembly is priority packing. Rendered RepoMap is used as a score prior rather than a delivered map section; no independent map/snippet/LSP budgets | **DEVIATION / incomplete delivery**, not evidence that all custom assembly is forbidden. R6 |
-| MCP | Official maintained TypeScript SDK, locked client/server 2.3.1 | ADOPT | ace-mcp.ts runs SDK transport; old handwritten transport remains publicly exported | Production **CONFORMING**, superseded owner remains. X2 |
+| retired optional tool-call protocol | Official maintained TypeScript SDK, locked client/server 2.3.1 | ADOPT | ace-retired-tool-protocol.ts runs SDK transport; old handwritten transport remains publicly exported | Production **CONFORMING**, superseded owner remains. X2 |
 | Hermes/Bifrost | Accepted ADR-016 and accepted-direction ADR-017; Hermes v0.22.3 and Bifrost source pin in §5 | WRAP selected host/gateway seams | Native compressor inheritance and thin Go connector exist; narrow dedupe/schema/cancellation overlaps remain | Keep architecture; X3/X7 address boundaries without changing delivery ownership |
 | Graphiti / Vertex / Harbor | Selected roles in accepted ADRs; exact additional sources in §5 | WRAP engines, not reinvent extraction/search/evaluation orchestration | Real upstream boundaries exist; auth, presence checks and legacy experiment variants retain avoidable ownership candidates | X4–X6; do not call the whole subsystems shadow implementations |
 
@@ -855,7 +857,7 @@ Aider constructs a weighted file/identifier multigraph from definition/reference
 
 ### F02 — RepoMap requires LSP and builds it across the indexed candidate set
 
-**Classification:** DEVIATION; high confidence. Evidence: src/bin/ace-mcp.ts:765–799 guards map construction with lspReady and supplies build.index.candidates. src/adapters/repo-map-structural.ts:99 onward calls semantics.references for candidates.
+**Classification:** DEVIATION; high confidence. Evidence: src/bin/ace-retired-tool-protocol.ts:765–799 guards map construction with lspReady and supplies build.index.candidates. src/adapters/repo-map-structural.ts:99 onward calls semantics.references for candidates.
 
 This reverses the plan's independence boundary: AST def/ref → RepoMap, followed by optional LSP on a bounded shortlist. It couples map availability and update cost to server readiness.
 
@@ -863,7 +865,7 @@ This reverses the plan's independence boundary: AST def/ref → RepoMap, followe
 
 ### F03 — Claw lifecycle is only partially adapted; generation sessions replace reuse
 
-**Classification:** DEVIATION / incomplete lifecycle; high confidence. Evidence: src/application/lsp/server-registry.ts:29–76; src/bin/ace-mcp.ts:739–761 includes snapshotIdentity in the registry key; src/adapters/lsp-semantic.ts:416–420 caches the start promise.
+**Classification:** DEVIATION / incomplete lifecycle; high confidence. Evidence: src/application/lsp/server-registry.ts:29–76; src/bin/ace-retired-tool-protocol.ts:739–761 includes snapshotIdentity in the registry key; src/adapters/lsp-semantic.ts:416–420 caches the start promise.
 
 The adapter has real document notifications and transport reuse within a session. However, a source generation gets a separate session; descriptor discovery/status is incomplete; a cached failed/dead process is not automatically replaced by a clear restart owner. Startup initialize is not covered by the ordinary request timeout, and close disposes/kills instead of completing shutdown-request then exit-notification.
 
@@ -871,13 +873,13 @@ The adapter has real document notifications and transport reuse within a session
 
 ### F04 — two Qdrant protocol implementations survive the SDK migration
 
-**Classification:** DUPLICATE; high confidence. Evidence: src/adapters/http-provider-boundaries.ts:237–505 has SDK and manual REST query/upsert/delete paths. src/adapters/qdrant-context-provider.ts:266–310,524–744,800–963 repeats SDK/REST alias, collection, count and scroll branches. ace-mcp.ts:386,693,870 supplies the SDK.
+**Classification:** DUPLICATE; high confidence. Evidence: src/adapters/http-provider-boundaries.ts:237–505 has SDK and manual REST query/upsert/delete paths. src/adapters/qdrant-context-provider.ts:266–310,524–744,800–963 repeats SDK/REST alias, collection, count and scroll branches. ace-retired-tool-protocol.ts:386,693,870 supplies the SDK.
 
 **Remedy:** retain payload validation, policy checks, exact membership verification and ACE provenance, but make the SDK the single Qdrant wire owner. Convert tests to a typed SDK test boundary and retain one real-provider test. Inventory scripts such as scripts/qdrant-hybrid-rank-probe.ts before removing compatibility. Do not falsely describe current production as raw-HTTP only. R1.
 
 ### F05 — publication/recovery coordination is custom and concurrency remains unproven
 
-**Classification:** CANDIDATE plus acceptance gap, not proof that an SDK can replace transactions; high confidence. Owners: mutateQdrantChangedPaths, verifyQdrantSnapshotMembership, reuseOrPopulateQdrantSnapshot in qdrant-context-provider.ts; publication closure in ace-mcp.ts.
+**Classification:** CANDIDATE plus acceptance gap, not proof that an SDK can replace transactions; high confidence. Owners: mutateQdrantChangedPaths, verifyQdrantSnapshotMembership, reuseOrPopulateQdrantSnapshot in qdrant-context-provider.ts; publication closure in ace-retired-tool-protocol.ts.
 
 Upsert → physical membership verification → prune → verify → active-state handover is custom coordination with real ACE invariants. WorkspaceSync's promise queue serializes one process, not all writers of a stable collection. A stale writer can conflict with another writer's prune/publication. PR #184 observation convergence is not a Qdrant writer fence.
 
@@ -887,7 +889,7 @@ Upsert → physical membership verification → prune → verify → active-stat
 
 ### F06 — changed-file parsing coexists with repository-wide in-memory rebuilding
 
-**Classification:** confirmed ownership/scaling candidate; high confidence, no measured latency claim. Evidence: local-code-index.ts:215–281 groups/copies previous candidates and scans the manifest; mutateQdrantChangedPaths repeatedly filters all index candidates per changed path; ace-mcp.ts reconstructs a fresh RepoMap service over all candidates. semantic-snapshot.ts reuses unchanged source text, but still materializes the source set.
+**Classification:** confirmed ownership/scaling candidate; high confidence, no measured latency claim. Evidence: local-code-index.ts:215–281 groups/copies previous candidates and scans the manifest; mutateQdrantChangedPaths repeatedly filters all index candidates per changed path; ace-retired-tool-protocol.ts reconstructs a fresh RepoMap service over all candidates. semantic-snapshot.ts reuses unchanged source text, but still materializes the source set.
 
 Normal synchronized queries no longer unconditionally hash all repository bytes: preserve that actual improvement. Dirty Git files are still exact-read to establish digest equality; removing those reads based only on unchanged status is unsafe.
 
@@ -903,7 +905,7 @@ Character-count/4 estimates are separately maintained. They are not an exact mod
 
 ### F08 — large owners have not been replaced
 
-**Classification:** DEVIATION in ownership direction; high confidence. qdrant-context-provider.ts is 1,833 lines versus the plan's approximately 1,528-line baseline; ace-mcp.ts is 1,135 lines. These are symptoms backed by actual ownership: protocol adapters, publication, vector reuse, freshness, query ranking, semantic enrichment and runtime setup remain mixed.
+**Classification:** DEVIATION in ownership direction; high confidence. qdrant-context-provider.ts is 1,833 lines versus the plan's approximately 1,528-line baseline; ace-retired-tool-protocol.ts is 1,135 lines. These are symptoms backed by actual ownership: protocol adapters, publication, vector reuse, freshness, query ranking, semantic enrichment and runtime setup remain mixed.
 
 **Remedy:** move the existing responsibilities as R1–R6 establish their final owners; delete moved bodies in the same PR. R7 removes leftover composition/reconciliation algorithms. Do not make six wrappers around the same large provider and call it decomposition. LOC is a directional review signal, not a numeric pass/fail target independent of behavior.
 
@@ -913,13 +915,13 @@ These are independent follow-ups. They must preserve accepted architecture, curr
 
 ### F09 — three independent JSONL worker lifecycle implementations
 
-**Classification:** DUPLICATE; high confidence. Dense process-embedding.ts:208–365, sparse process-sparse-embedding.ts:160–376, reranker process-reranker.ts:107–290 each own spawn, stdout framing, ready/pending maps, request IDs, timers, errors and termination. Effect.async registrations do not return interruption cleanup. ace-mcp.ts:1107–1125 omits dense-worker finalization and one cleanup exception can skip later cleanup.
+**Classification:** DUPLICATE; high confidence. Dense process-embedding.ts:208–365, sparse process-sparse-embedding.ts:160–376, reranker process-reranker.ts:107–290 each own spawn, stdout framing, ready/pending maps, request IDs, timers, errors and termination. Effect.async registrations do not return interruption cleanup. ace-retired-tool-protocol.ts:1107–1125 omits dense-worker finalization and one cleanup exception can skip later cleanup.
 
 **Remedy:** keep maintained FastEmbed/SentenceTransformers inference; consolidate only proven common process mechanics using already installed Effect.async cleanup, acquireRelease/scopes and Node streams/process lifecycle. Preserve model-specific identities, vector/cardinality checks, preprocessing, environment allowlists and error mapping. No new worker service, pool framework or mandatory Ollama. X1.
 
-### F10 — public legacy MCP parser remains beside the official SDK
+### F10 — public legacy retired optional tool-call protocol parser remains beside the official SDK
 
-**Classification:** DUPLICATE superseded owner; high confidence. src/transport/mcp-stdio.ts:26–172 maintains JSON-RPC validation, initialize, schemas, dispatch and framing; src/index.ts:53 exports it. Production ace-mcp.ts:1105 uses the SDK. Internal caller inspection found the old implementation used by its own test, not a live executable; external barrel consumers are unknown.
+**Classification:** DUPLICATE superseded owner; high confidence. src/transport/retired-tool-protocol-stdio.ts:26–172 maintains JSON-RPC validation, initialize, schemas, dispatch and framing; src/index.ts:53 exports it. Production ace-retired-tool-protocol.ts:1105 uses the SDK. Internal caller inspection found the old implementation used by its own test, not a live executable; external barrel consumers are unknown.
 
 **Remedy:** migrate unique contract assertions to the official SDK conformance suite, check public compatibility, remove the barrel export and old parser/test. If a real compatibility consumer exists, offer a temporary SDK-backed entry point with a sunset, not another protocol implementation. X2.
 
@@ -943,17 +945,17 @@ These are independent follow-ups. They must preserve accepted architecture, curr
 
 ### F14 — Vertex auth and REST retry lifecycle overlap official Google clients
 
-**Classification:** CANDIDATE; high confidence in ownership. ace-mcp.ts:157–167 synchronously shells out for gcloud tokens; vertex-rag.ts:41–79 owns request URL/body/auth/timeout and 401 refresh/replay.
+**Classification:** CANDIDATE; high confidence in ownership. ace-retired-tool-protocol.ts:157–167 synchronously shells out for gcloud tokens; vertex-rag.ts:41–79 owns request URL/body/auth/timeout and 401 refresh/replay.
 
 **Remedy:** compare google-auth-library around the existing adapter with generated VertexRagServiceClient behind DocumentationPort. Preserve explicitly selected host-gcloud compatibility: ADC and gcloud active identities are not interchangeable. Verify SDK retry/logging defaults; existing ACE contracts do not refresh on 403, whereas OAuth defaults can. Keep destination/secret/policy checks before credentials and transmission. X5.
 
 ### F15 — Graphiti exact presence is emulated through large group enumeration
 
-**Classification:** CANDIDATE / upstream capability gap; high confidence. graphiti-mcp.ts:382–409 lists up to 100,000 episodes for one UUID; reconciliation/deletion repeats this per receipt. The current full-page NOT_READY result is honest, not a false absence.
+**Classification:** CANDIDATE / upstream capability gap; high confidence. graphiti-retired-tool-protocol.ts:382–409 lists up to 100,000 episodes for one UUID; reconciliation/deletion repeats this per receipt. The current full-page NOT_READY result is honest, not a false absence.
 
-Inspected upstream MCP get_episodes has no exact-ID/cursor facility, but Graphiti core EpisodicNode.get_by_uuid does. **An empty get_episode_entities result does not prove absence of the episode.**
+Inspected upstream retired optional tool-call protocol get_episodes has no exact-ID/cursor facility, but Graphiti core EpisodicNode.get_by_uuid does. **An empty get_episode_entities result does not prove absence of the episode.**
 
-**Remedy:** prefer upstreaming a small group-scoped exact presence tool, or a tightly versioned provider extension delegating to the native lookup. Keep the official MCP transport; do not add a parallel permanent direct-DB client. Delete group enumeration only once capability/version and real absence/outage parity are established. Otherwise keep the explicit bound. X5.
+**Remedy:** prefer upstreaming a small group-scoped exact presence tool, or a tightly versioned provider extension delegating to the native lookup. Keep the official retired optional tool-call protocol transport; do not add a parallel permanent direct-DB client. Delete group enumeration only once capability/version and real absence/outage parity are established. Otherwise keep the explicit bound. X5.
 
 ### F16 — benchmark generation has multiple readers and obsolete policy graphs
 
@@ -974,11 +976,11 @@ Inspected upstream MCP get_episodes has no exact-ID/cursor facility, but Graphit
 
 **Remedy:** check external/documented consumers, move any unique fixture-verifier assertions, then delete both adapters, their exports and implementation-only tests. Keep actual task fixture bytes and current collection/byte-binding evidence. X6 includes this bounded deletion; no new Harbor wrapper replaces it.
 
-### F19 — historical MCP benchmark launcher repeats runtime installation
+### F19 — historical retired optional tool-call protocol benchmark launcher repeats runtime installation
 
-**Classification:** CANDIDATE / superseded bootstrap ownership; medium confidence. scripts/harbor-ace-mcp.sh:35–60 installs Python packages at startup and maintains a marker/generated launcher. scripts/build-harbor-ace-runtime.mjs prepares dependencies/model cache before runs, and harbor-ace-context-bridge.sh uses the verified bundle. Only historical instruction references were found in the inspected source set; external explicit-MCP consumers are not disproved.
+**Classification:** CANDIDATE / superseded bootstrap ownership; medium confidence. scripts/harbor-ace-retired-tool-protocol.sh:35–60 installs Python packages at startup and maintains a marker/generated launcher. scripts/build-harbor-ace-runtime.mjs prepares dependencies/model cache before runs, and harbor-ace-context-bridge.sh uses the verified bundle. Only historical instruction references were found in the inspected source set; external explicit-retired optional tool-call protocol consumers are not disproved.
 
-**Remedy:** if explicit MCP consumers remain, use a thin entry point into the same verified runtime bundle and dist/bin/ace-mcp.js; delete startup installation/marker logic after container/MCP smoke. Otherwise sunset this historical launcher, preserving archived configs/evidence. Do not remove the actual production MCP SDK transport. X6.
+**Remedy:** if explicit retired optional tool-call protocol consumers remain, use a thin entry point into the same verified runtime bundle and dist/bin/ace-retired-tool-protocol.js; delete startup installation/marker logic after container/retired optional tool-call protocol smoke. Otherwise sunset this historical launcher, preserving archived configs/evidence. Do not remove the actual production retired optional tool-call protocol SDK transport. X6.
 
 ## 4. What must remain ACE-owned
 
@@ -986,8 +988,8 @@ Inspected upstream MCP get_episodes has no exact-ID/cursor facility, but Graphit
 - Coverage/completeness, typed unavailable/stale/not_ready/policy_denied/not_required/empty distinctions and source provenance.
 - Source/policy/receipt-aware ContextAssembler and lossless expansion; upstream retrieval engines do not own ACE's authorized delivery contract.
 - Immutable original session archive, admission/approval decisions, tombstones, shared-original protection and durable projection intent. Graphiti's process-local asyncio.Queue is not a durable outbox replacement.
-- Thin Graphiti MCP and Qdrant SDK adapters; genuine FastEmbed/SentenceTransformers model workers; no new parser, vector DB or graph engine.
-- Native Hermes compressor inheritance and the local typed/versioned JSONL projection bridge. This bridge is not a handwritten MCP implementation.
+- Thin Graphiti retired optional tool-call protocol and Qdrant SDK adapters; genuine FastEmbed/SentenceTransformers model workers; no new parser, vector DB or graph engine.
+- Native Hermes compressor inheritance and the local typed/versioned JSONL projection bridge. This bridge is not a handwritten retired optional tool-call protocol implementation.
 - Thin Go Bifrost connector, body/digest/ownership enforcement and strict unsupported-route rejection. No TypeScript reverse proxy or arbitrary Bifrost fork.
 - Small artifact storage and explicit offline backup. The existing backup requires quiesced writers; do not claim it promises an online snapshot.
 - Standard Docker/k3s/Helm deployment and disabled Rust extension stub. They are not duplicate engines. Infrastructure readiness discrepancies are operational follow-ups, not evidence of reinvention.
@@ -1005,10 +1007,10 @@ Inspected upstream MCP get_episodes has no exact-ID/cursor facility, but Graphit
 | Qdrant | Existing SDK batch/filter/scroll/ordering/alias facilities versus raw REST twin or new coordination service | **ADOPT SDK**; publication fence choice remains evidence-gated. No unsupported transaction claim |
 | Worker lifecycle | Existing Effect 3.22.3 + Node versus adding @effect/platform solely for extraction or a worker service/pool | **ADOPT existing primitives**, consolidate only real common behavior; no dependency/topology expansion by default |
 | Token counting | Existing host/provider counter; gpt-tokenizer; host tiktoken | Prefer the already available matching counter; otherwise pin a maintained matching encoding. gpt-tokenizer is MIT, TypeScript; host tiktoken avoids a new TS runtime only if already present. Model mapping, startup/memory/security and parity must be checked before selection |
-| Gateway schemas | Existing Zod 4.6.7 + native JSON Schema generation; Effect Schema; hand-maintained schemas/validators | Prefer **Zod already used by MCP**, strict objects and shared cross-language fixtures. No experimental fromJSONSchema or new generator by default |
+| Gateway schemas | Existing Zod 4.6.7 + native JSON Schema generation; Effect Schema; hand-maintained schemas/validators | Prefer **Zod already used by retired optional tool-call protocol**, strict objects and shared cross-language fixtures. No experimental fromJSONSchema or new generator by default |
 | Metadata storage | Local SQLite transactions; one maintained filesystem lock/atomic-write adapter; current duplicated locks | **CANDIDATE comparison**, not an approved storage migration. SQLite core is public-domain; binding/runtime/package selection, maintenance/advisories and filesystem support remain open |
 | Vertex | Official auth library plus current thin REST adapter; generated official RAG client | **CANDIDATE comparison**, choose the option deleting meaningful ownership with proven auth/retry/privacy parity. Both official clients are Apache-2.0; do not silently change credential identity |
-| Graphiti presence | Upstream exact-ID MCP capability; tiny versioned extension using core lookup; existing bounded group listing | Prefer upstream **ADOPT/WRAP** after capability evidence; existing listing remains honest fallback, not a second DB owner |
+| Graphiti presence | Upstream exact-ID retired optional tool-call protocol capability; tiny versioned extension using core lookup; existing bounded group listing | Prefer upstream **ADOPT/WRAP** after capability evidence; existing listing remains honest fallback, not a second DB owner |
 | Harbor | Native Job/JobPlan/TrialResult; small ACE observation adapter; old per-arm local generators/readers | Use pinned Harbor primitives where equivalent; preserve experiment ordering and ACE evidence semantics |
 | Hermes dedupe | Supported upstream request-local seam; minimal exact-equality adaptation; private native helper | Upstream first, but **do not blindly adopt different behavior**. Justified local adaptation is permissible with parity evidence |
 
@@ -1023,10 +1025,10 @@ Inspected source references (pins are evidence references, not instructions to u
 7. [Zod JSON Schema](https://zod.dev/json-schema), [Go strict decoder](https://pkg.go.dev/encoding/json#Decoder.DisallowUnknownFields).
 8. [SQLite transactions](https://sqlite.org/lang_transaction.html), [atomic commit](https://sqlite.org/atomiccommit.html), [backup](https://sqlite.org/backup.html).
 9. [Official Vertex retrieveContexts client](https://github.com/googleapis/google-cloud-node/blob/f52b7155ce4c6be0774928fc985cfcdd95944728/packages/google-cloud-aiplatform/src/v1beta1/vertex_rag_service_client.ts), [Google auth](https://github.com/googleapis/google-cloud-node-core/blob/76ba85a7f55c6e82943008b4eceb07a0f58b39e1/packages/google-auth-library-nodejs/src/auth/googleauth.ts), [OAuth retry behavior](https://github.com/googleapis/google-cloud-node-core/blob/76ba85a7f55c6e82943008b4eceb07a0f58b39e1/packages/google-auth-library-nodejs/src/auth/oauth2client.ts). Inspected auth package 10.6.2 is a candidate, not selected.
-10. [Graphiti core exact lookup](https://github.com/getzep/graphiti/blob/2b5db9e139b2627c3ba18ff55f9181569b0d8224/graphiti_core/nodes.py#L362), [MCP capabilities](https://github.com/getzep/graphiti/blob/2b5db9e139b2627c3ba18ff55f9181569b0d8224/mcp_server/src/graphiti_mcp_server.py#L795). Verify against deployed provider before enabling a new tool.
+10. [Graphiti core exact lookup](https://github.com/getzep/graphiti/blob/2b5db9e139b2627c3ba18ff55f9181569b0d8224/graphiti_core/nodes.py#L362), [retired optional tool-call protocol capabilities](https://github.com/getzep/graphiti/blob/2b5db9e139b2627c3ba18ff55f9181569b0d8224/retired-tool-protocol_server/src/graphiti_retired-tool-protocol_server.py#L795). Verify against deployed provider before enabling a new tool.
 11. [Harbor v0.24.0](https://github.com/harbor-framework/harbor/tree/b53b8134e1241686dca7759af188f987ecc48e8b). Inspect src/harbor/models/job/config.py, src/harbor/job_plan.py, src/harbor/models/trial/result.py and the installed runtime before migration.
 12. [Hermes v0.22.3 compressor](https://github.com/NousResearch/hermes-agent/blob/5b147ab036d6d19131bff8d20701b5001eab844a/agent/context_compressor.py#L3166), [Bifrost context](https://github.com/maximhq/bifrost/blob/fe7634a6c828927d05ffdd57c62be0aaab04193f/core/schemas/context.go). These demonstrate available seams; they are not current ACE provider-wire certification.
-13. [Official MCP SDK v2](https://ts.sdk.modelcontextprotocol.io/v2/). Implementation must inspect/use locked 2.3.1, not assume latest-main equivalence.
+13. [Official retired optional tool-call protocol SDK v2](https://ts.sdk.modelcontextprotocol.io/v2/). Implementation must inspect/use locked 2.3.1, not assume latest-main equivalence.
 
 ## 6. Detailed remediation sequence
 
@@ -1044,7 +1046,7 @@ Inspected source references (pins are evidence references, not instructions to u
 
 ### R1 — one Qdrant SDK boundary (F04)
 
-**Modify:** src/adapters/http-provider-boundaries.ts; src/adapters/qdrant-context-provider.ts; src/bin/ace-mcp.ts; actual script callers. **Tests:** test/qdrant-client.contracts.test.ts, test/qdrant-alias.contracts.test.ts, test/qdrant-real-pipeline.contracts.test.ts, test/provider-and-multiprocess-contracts.test.ts.
+**Modify:** src/adapters/http-provider-boundaries.ts; src/adapters/qdrant-context-provider.ts; src/bin/ace-retired-tool-protocol.ts; actual script callers. **Tests:** test/qdrant-client.contracts.test.ts, test/qdrant-alias.contracts.test.ts, test/qdrant-real-pipeline.contracts.test.ts, test/provider-and-multiprocess-contracts.test.ts.
 
 - [x] Inventory every SDK/raw branch and authenticated caller. Define the existing CodeCandidatePort and collection/membership operations as the preserved boundary; keep ACE DTO validation. Evidence: `docs/reviews/2026-10-31-qdrant-r1-sdk-owner-inventory.md`, source baseline `main@13a64a8fe4240d68ff7ef2d453a857354585b51d`.
 - [ ] Add matching SDK fixtures for query/upsert/delete/count/scroll/alias/collection failure and malformed responses. Preserve wrong-workspace rejection, empty-versus-outage distinction and credential handling.
@@ -1100,7 +1102,7 @@ Inspected source references (pins are evidence references, not instructions to u
 ### R5 — Claw lifecycle over the existing transport (F03)
 
 **Depends on:** R2/R3 remove index-time LSP dependency.
-**Modify:** src/application/lsp/server-registry.ts, src/adapters/lsp-semantic.ts, src/application/semantic-snapshot.ts and ace-mcp.ts. **Tests:** existing LSP registry/semantic/snapshot contracts and real LSP scripts.
+**Modify:** src/application/lsp/server-registry.ts, src/adapters/lsp-semantic.ts, src/application/semantic-snapshot.ts and ace-retired-tool-protocol.ts. **Tests:** existing LSP registry/semantic/snapshot contracts and real LSP scripts.
 
 - [ ] Inspect pinned Claw #3016 actual discovery, registry and process code, tests and per-file licensing; compare existing standalone Node lifecycle libraries before writing new management logic. Record function-level direct reuse/faithful translation (or a proven compatibility reason for wrapping another ready library), not a new lifecycle inspired by Claw.
 - [ ] Add descriptor/discovery and explicit server status based on the permitted working Claw source; retain configured overrides and library URI semantics.
@@ -1131,11 +1133,11 @@ Inspected source references (pins are evidence references, not instructions to u
 ### R7 — delete superseded retrieval ownership (F06/F08)
 
 **Depends on:** R1–R6; moves should already have deleted their old bodies.
-**Modify:** qdrant-context-provider.ts, ace-mcp.ts, local-code-index.ts and public exports. **Tests:** owning contracts and actual caller inventory.
+**Modify:** qdrant-context-provider.ts, ace-retired-tool-protocol.ts, local-code-index.ts and public exports. **Tests:** owning contracts and actual caller inventory.
 
 - [ ] Produce before/after responsibility and LOC tables for the giant owners. Count active responsibilities, not only files.
 - [ ] Remove obsolete snapshot-only publication, duplicate Qdrant wire helpers, LSP graph construction and moved context packing. Preserve explicit cold-start and unsupported-language behavior still required.
-- [ ] Reduce ace-mcp.ts to config/port setup and start/close composition. Remove reconstruction algorithms from its closures.
+- [ ] Reduce ace-retired-tool-protocol.ts to config/port setup and start/close composition. Remove reconstruction algorithms from its closures.
 - [ ] Merge/delete redundant tests only after mapping every unique freshness, security, recovery and protocol assertion to its remaining owner.
 - [ ] Run import/export/script reachability checks, verify:pr and the changed real-provider gates.
 
@@ -1160,7 +1162,7 @@ These are deliberately separate from R1–R8. Implement a lane only as a focused
 
 ### X1 — shared scoped worker mechanics (F09)
 
-**Files:** process-embedding.ts, process-sparse-embedding.ts, process-reranker.ts, ace-mcp.ts; existing process worker contracts.
+**Files:** process-embedding.ts, process-sparse-embedding.ts, process-reranker.ts, ace-retired-tool-protocol.ts; existing process worker contracts.
 
 - [ ] Reproduce interrupted startup/request using deterministic child-ready/request-started barriers.
 - [ ] Use Effect 3.22.3 interruption cleanup/acquireRelease with Node streams; consolidate ready/pending/framing/deadline mechanics, keeping task-specific validation.
@@ -1171,16 +1173,16 @@ These are deliberately separate from R1–R8. Implement a lane only as a focused
 
 **Exit/rollback:** three transport owners become one; revert adapters independently behind unchanged ports. No inference algorithm/model switch.
 
-### X2 — sunset legacy MCP transport (F10)
+### X2 — sunset legacy retired optional tool-call protocol transport (F10)
 
-**Files:** src/transport/mcp-stdio.ts, src/index.ts, test/mcp-stdio.contracts.test.ts; SDK adapter/conformance tests.
+**Files:** src/transport/retired-tool-protocol-stdio.ts, src/index.ts, test/retired-tool-protocol-stdio.contracts.test.ts; SDK adapter/conformance tests.
 
 - [ ] Verify internal and public compatibility consumers; preserve any required API via a temporary SDK-backed adapter only.
 - [ ] Move unique tool-schema/error assertions to official SDK Client/InMemoryTransport tests; verify format, working context and known evidence arguments.
 - [ ] Delete old parser/framing/schema definitions and barrel export; remove redundant tests.
 - [ ] Run SDK initialize/list/call/errors/concurrency/cancellation and executable interoperability cases with locked 2.3.1.
 
-**Exit/rollback:** one MCP protocol owner; revert deletion if a real public compatibility consumer was missed, without restoring the old production path.
+**Exit/rollback:** one retired optional tool-call protocol protocol owner; revert deletion if a real public compatibility consumer was missed, without restoring the old production path.
 
 ### X3 — gateway structural schema, then cancellation (F11/F12)
 
@@ -1212,13 +1214,13 @@ These are deliberately separate from R1–R8. Implement a lane only as a focused
 
 ### X5 — provider-native Vertex auth and Graphiti exact presence, separate PRs (F14/F15)
 
-**Vertex files:** src/adapters/vertex-rag.ts and ace-mcp.ts credential composition; existing auth-refresh/data-policy/outbound-secret suites.
+**Vertex files:** src/adapters/vertex-rag.ts and ace-retired-tool-protocol.ts credential composition; existing auth-refresh/data-policy/outbound-secret suites.
 
 - [ ] Compare official auth-only wrapping against generated retrieveContexts client; verify region, runtime, credentials, automatic retry, timeout/cancellation and logging behavior.
 - [ ] Preserve explicit gcloud identity compatibility; authorize before credentials and at every actual SDK transmission attempt, including automatic retries. Prove one allowed 401 refresh, no 403 refresh and no retry after policy denial; preserve bounded cancellation and disable/redact request/response logging. SDK defaults do not establish these guarantees.
 - [ ] Remove only superseded token/subprocess/retry/wire code after parity. Run an already-authorized synthetic read-only real gate; no new cloud resources are implied.
 
-**Graphiti files:** src/adapters/graphiti-mcp.ts, current projectionState port and lifecycle/delete suites.
+**Graphiti files:** src/adapters/graphiti-retired-tool-protocol.ts, current projectionState port and lifecycle/delete suites.
 
 - [ ] Verify deployed provider capability and group isolation; upstream or version a minimal exact episode-presence tool delegating to native UUID lookup.
 - [ ] Prove existing-with-no-facts, true missing, cross-group UUID, outage and malformed replies. Empty derived entities are never an absence oracle. Exact lookup proves current existence/absence only, not that a previously accepted asynchronous add_memory cannot materialize later.
@@ -1237,8 +1239,8 @@ These are deliberately separate from R1–R8. Implement a lane only as a focused
 - [ ] Reuse Harbor Job/JobPlan for attempts and TrialResult usage totals only after equivalence fixtures. Harbor n_attempts expansion order differs from local grouped repeats; freeze experiment ordering or record/revalidate the intentional change.
 - [ ] Retire superseded executable three/four-arm generators and duplicate readers with tests/package commands. Keep immutable raw evidence/holdouts and the justified Hermes OAuth adapter until native supported auth parity exists.
 - [ ] Remove unreachable harbor-task-adapter.ts and harbor-runner.ts plus exports/implementation-only tests only after the compatibility inventory. Preserve the unique fixture-verifier assertions.
-- [ ] Check historical harbor-ace-mcp.sh consumers. Replace startup pip/marker installation with the already verified runtime bundle if explicit MCP still needs a launcher; otherwise sunset only the obsolete launcher.
-- [ ] Keep ACE-specific source/authorization/quality/receipt gates and unknown-not-zero telemetry. Verify one matched Hermes pair and compare old/new parsing on frozen historical artifacts; run container-runtime plus explicit MCP smoke for any launcher change.
+- [ ] Check historical harbor-ace-retired-tool-protocol.sh consumers. Replace startup pip/marker installation with the already verified runtime bundle if explicit retired optional tool-call protocol still needs a launcher; otherwise sunset only the obsolete launcher.
+- [ ] Keep ACE-specific source/authorization/quality/receipt gates and unknown-not-zero telemetry. Verify one matched Hermes pair and compare old/new parsing on frozen historical artifacts; run container-runtime plus explicit retired optional tool-call protocol smoke for any launcher change.
 
 **Exit/rollback:** Harbor owns orchestration, one ACE reader owns adaptation, release callers have a deliberate migration. Historical data remains untouched; a focused reader/CLI change can be reverted.
 

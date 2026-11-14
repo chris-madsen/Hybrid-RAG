@@ -112,7 +112,7 @@ export interface QdrantContextConfig {
   readonly scopeFingerprint?: string;
   readonly semanticSnapshotIdentity?: string;
   readonly trace?: ProviderTraceSink;
-  /** Internal benchmark boundary; never exposed as an MCP tool or payload field. */
+  /** Internal benchmark boundary; never exposed as an Gateway tool or payload field. */
   readonly benchmarkTrace?: RetrievalBenchmarkTraceSink;
   readonly benchmarkRepositoryId?: string;
   readonly benchmarkProviderIdentities?: Readonly<Record<string, string>>;

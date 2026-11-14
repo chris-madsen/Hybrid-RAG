@@ -8,11 +8,9 @@ import test from 'node:test';
 import { Effect } from 'effect';
 import { applyWorkingContextPriors } from '../src/adapters/qdrant-context-provider.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeMcpGateway } from '../src/gateway/mcp-gateway.js';
-import { makeCandidateId, makeCodeCandidate, type ContextBundle, type RankedCandidate } from '../src/domain/retrieval.js';
+import { makeCandidateId, makeCodeCandidate, type RankedCandidate } from '../src/domain/retrieval.js';
 import { makeWorkspaceId, type RepoPath, type WorkingContext } from '../src/domain/workspace.js';
-import { ok, type Result } from '../src/domain/result.js';
-import type { ArtifactStore, WorkspaceStore } from '../src/application/ports.js';
+import type { Result } from '../src/domain/result.js';
 
 const exec = promisify(execFile);
 
@@ -121,74 +119,3 @@ test('working-context priors reorder close candidates but do not overwhelm a mat
   assert.equal(strong[0]?.candidate.repoPath, 'src/strong.ts');
 });
 
-test('ace_context validates and forwards portable focus/open-path hints', async () => {
-  const store: WorkspaceStore = {
-    get: () => Effect.succeed(ok({
-      workspaceId,
-      rootPath: '/repo',
-      observationEpoch: 1,
-      createdAtMs: 1,
-    })),
-    findByRoot: () => Effect.succeed(ok(undefined)),
-    save: () => Effect.succeed(ok(undefined)),
-  };
-  const artifacts: ArtifactStore = {
-    storeExact: () => { throw new Error('not used'); },
-    readRange: () => { throw new Error('not used'); },
-  };
-  let observed: unknown;
-  const gateway = makeMcpGateway({
-    clock: { nowMs: () => 1 },
-    ids: { newWorkspaceId: () => 'workspace', newRequestId: () => 'request' },
-    files: {
-      canonicalizeRoot: () => Effect.succeed(ok('/repo')),
-      snapshot: () => Effect.succeed(ok({ headRevision: 'head', files: [], removedPaths: [] })),
-      readExact: () => { throw new Error('not used'); },
-    },
-    store,
-    artifacts,
-    context: {
-      search: (input) => {
-        observed = input.workingContextHints;
-        const bundle: ContextBundle = {
-          requestId: 'working-context-request' as never,
-          query: input.query,
-          evidence: [],
-          warnings: [],
-          partialSources: [],
-          complete: true,
-        };
-        return Effect.succeed(ok(bundle));
-      },
-    },
-  });
-
-  const response = await Effect.runPromise(gateway.handle({
-    name: 'ace_context',
-    arguments: {
-      workspace_id: workspaceId,
-      query: 'where is the current edit?',
-      working_context: {
-        focused_path: 'src/focus.ts',
-        open_paths: ['src/focus.ts', 'src/other.ts'],
-        focused_range: { start_line: 10, end_line: 20 },
-      },
-    },
-  }));
-  assert.equal(response.status, 'ok');
-  assert.deepEqual(observed, {
-    focusedPath: 'src/focus.ts',
-    openPaths: ['src/focus.ts', 'src/other.ts'],
-    focusedRange: { startLine: 10, endLine: 20 },
-  });
-
-  const invalid = await Effect.runPromise(gateway.handle({
-    name: 'ace_context',
-    arguments: {
-      workspace_id: workspaceId,
-      query: 'bad hint',
-      working_context: { focused_path: '../outside.ts' },
-    },
-  }));
-  assert.equal(invalid.status, 'error');
-});

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Retrieval Remaining Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -35,7 +37,7 @@
 ### Task 1: Reuse the stable Qdrant safety implementation
 
 **Files:**
-- Reuse reviewed commits from `origin/codex/aider-claw-retrieval-composition` touching `src/adapters/qdrant-context-provider.ts`, `src/bin/ace-mcp.ts`, `src/application/workspace-sync.ts`, and existing Qdrant runners/tests.
+- Reuse reviewed commits from `origin/codex/aider-claw-retrieval-composition` touching `src/adapters/qdrant-context-provider.ts`, `src/bin/ace-retired-tool-protocol.ts`, `src/application/workspace-sync.ts`, and existing Qdrant runners/tests.
 - Test: `test/qdrant-real-pipeline.contracts.test.ts`, `test/workspace-sync.contracts.test.ts`, `test/qdrant-crash-runner.contracts.test.ts`.
 
 **Interfaces:**
@@ -62,7 +64,7 @@
 ### Task 3: Compose Aider RepoMap, Claw-shaped LSP lifecycle and ContextAssembler
 
 **Files:**
-- Reuse `origin/codex/retrieval-next-phases` changes in `src/adapters/repo-map-structural.ts`, `src/application/lsp/server-registry.ts`, `src/application/context-assembler.ts`, `src/domain/context-assembly.ts`, `src/adapters/lsp-semantic.ts`, `src/application/context-transform-service.ts`, `src/bin/ace-mcp.ts`, and their contract tests.
+- Reuse `origin/codex/retrieval-next-phases` changes in `src/adapters/repo-map-structural.ts`, `src/application/lsp/server-registry.ts`, `src/application/context-assembler.ts`, `src/domain/context-assembly.ts`, `src/adapters/lsp-semantic.ts`, `src/application/context-transform-service.ts`, `src/bin/ace-retired-tool-protocol.ts`, and their contract tests.
 
 **Interfaces:**
 - Consumes shared structural records, official `vscode-jsonrpc`, existing RepoMap domain ranking, and the existing transform service.

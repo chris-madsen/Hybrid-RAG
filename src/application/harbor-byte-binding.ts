@@ -191,10 +191,10 @@ export const verifyHarborJobByteBinding = async (
         return err(domainError('DIGEST_MISMATCH', 'binding.codex_config', 'effective Codex config path or digest is not bound'));
       }
       configBytesSha256 = await hashPathBytes(resolveBoundPath(options.workspaceRoot, evidence.codexConfig.path));
-      if (configBytesSha256 !== evidence.codexConfig.bytesSha256) return err(domainError('DIGEST_MISMATCH', 'binding.codex_config.bytes_sha256', 'actual Codex/MCP config bytes do not match the frozen SHA-256'));
+      if (configBytesSha256 !== evidence.codexConfig.bytesSha256) return err(domainError('DIGEST_MISMATCH', 'binding.codex_config.bytes_sha256', 'actual Codex/Gateway config bytes do not match the frozen SHA-256'));
     }
     const effectiveConfigSha256 = sha256Text(effectiveHarborConfigurationPayload(value, configBytesSha256));
-    if (effectiveConfigSha256 !== evidence.codexConfig.effectiveSha256) return err(domainError('DIGEST_MISMATCH', 'binding.codex_config.effective_sha256', 'effective Codex/MCP configuration does not match the frozen digest'));
+    if (effectiveConfigSha256 !== evidence.codexConfig.effectiveSha256) return err(domainError('DIGEST_MISMATCH', 'binding.codex_config.effective_sha256', 'effective Codex/Gateway configuration does not match the frozen digest'));
     return ok({
       taskManifestSha256: manifestSha256,
       taskBytesSha256: taskResult.taskBytesSha256,

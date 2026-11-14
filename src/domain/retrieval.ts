@@ -154,7 +154,7 @@ export interface RetrievalConflict {
 
 export interface ContextBundle {
   readonly requestId: RequestId;
-  /** Stable identity of query + evidence receipts; portable across MCP clients. */
+  /** Stable identity of query + evidence receipts; portable across Gateway clients. */
   readonly bundleId?: BundleId;
   /** Caller-supplied prior bundle this response logically supersedes. */
   readonly supersedesBundleId?: BundleId;

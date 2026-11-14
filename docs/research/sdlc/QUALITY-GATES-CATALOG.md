@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE Quality Gates — executable contract for a single-agent SDLC
 
 **Status:** proposed quality gate specification for future implementation. The gates named as *existing* refer to commands already in ACE. All other automation remains *not installed* until scripts, pinned dependencies, fixtures and passing CI are committed. This document governs **developer verification**, not ACE runtime API behavior.
@@ -50,7 +52,7 @@ Required graph for T2:
 **Check:**
 1. Each criterion has a unique owner and an observable success/failure oracle.
 2. Every changed public contract/version maps to affected clients.
-3. No source-of-truth duplication (OpenSpec vs new parallel spec; gateway vs MCP; local code vs remote index).
+3. No source-of-truth duplication (OpenSpec vs new parallel spec; gateway vs retired optional tool-call protocol; local code vs remote index).
 4. Error, authorization, cancellation, partial/degraded and data-policy paths have design treatment.
 5. Every phase dependency is explicit and no planned file becomes an unowned placeholder.
 6. No materially new architecture decision is treated as approved.
@@ -85,7 +87,7 @@ Use **exact project scripts at the checked-out revision**:
 
 **Suggested first pilot rules (all need validation; do not consider installed):**
 - **ACE-ARCH-01**: domain/application code must not import infrastructure provider clients directly. Use architecture graph; a naive filename regex may misfire.
-- **ACE-ARCH-02**: explicit MCP route must not call provider-bound Bifrost code as hidden shortcut; target *actual imports/calls*, avoid text regex pretending semantic identity.
+- **ACE-ARCH-02**: explicit retired optional tool-call protocol route must not call provider-bound Bifrost code as hidden shortcut; target *actual imports/calls*, avoid text regex pretending semantic identity.
 - **ACE-ARCH-03**: forbid catch that maps a recognized provider failure to \`{kind:"complete", ...}\` or empty-success **in the relevant error boundary**; avoid blanket bans on legitimate empty results.
 - **ACE-ARCH-04**: disallow new handwritten duplicate transport/protocol/parser implementations where a single accepted owner exists. This mostly needs human review or typed dependency graph, not naive ast-grep.
 - **ACE-ARCH-05**: actual status constructors for complete/current must have source verification proof; prefer executable invariant tests because AST cannot prove runtime freshness.
@@ -106,7 +108,7 @@ Candidate typed dependency tooling: **dependency-cruiser** (TS imports) as cheap
 - GitHub Actions: \`zizmor\`, \`actionlint\` / \`jactionlint\`, pinned Actions and least privileged \`permissions\`. Apply to workflow changes.
 - Npm lock risk: use existing \`npm audit --omit=dev --audit-level=high\` release policy; optional scheduled OSV for additional lockfiles, scoped expirations/exceptions.
 - CodeQL: periodic/PR critical code paths as budget allows.
-- Script/JSON/agent config validation: syntax, file references and permissions; do not let an external MCP config grant new authority silently.
+- Script/JSON/agent config validation: syntax, file references and permissions; do not let an external retired optional tool-call protocol config grant new authority silently.
 
 **Blocking:** detected secret/unauthorized egress; high-confidence workflow injection or CI credentials exposure; known disallowed production dependency advisory under accepted policy. Advisory databases may change independent of commit — retain timestamp and scanner version. Suppressions have owner, reason, expiry and affected scope.
 
@@ -114,7 +116,7 @@ Candidate typed dependency tooling: **dependency-cruiser** (TS imports) as cheap
 Keep \`git diff --check\`. New proposed gate: \`lychee --offline\` with pinned version, validating **local Markdown links and anchors** for changed documents or whole doc tree in CI. Remote links are scheduled/report-only to avoid random website failures blocking a PR. Optional typos scanner must allow identifiers, code terms and Cyrillic/English content; do not auto-rewrite citations.
 
 ### G09 — Contract compatibility / codegen ownership
-ACE currently has OpenSpec, MCP, projection and typed boundaries. TypeSpec is the **owner-selected target** for new and migrated public machine contracts, including Gateway Projection and representable MCP/native JSON shapes. Implementation is staged, not automatic:
+ACE currently has OpenSpec, retired optional tool-call protocol, projection and typed boundaries. TypeSpec is the **owner-selected target** for new and migrated public machine contracts, including Gateway Projection and representable retired optional tool-call protocol/native JSON shapes. Implementation is staged, not automatic:
 - source contract owns endpoints and schemas once;
 - generated output never edited by hand;
 - generate then check clean diff;
@@ -122,7 +124,7 @@ ACE currently has OpenSpec, MCP, projection and typed boundaries. TypeSpec is th
 - client and server contract tests;
 - schema fuzz nightly, isolated disposable data.
 
-**Immediate ACE-specific check:** versioned schema/field compatibility across MCP tool input/output, context bundle/projection, typed errors and provider capability flags, under accepted specs. Expanded codegen targets SDK, typed server interfaces/routes, validators, DTO mappers, scope/permission tables, fixtures/docs where maintained tooling supports them. New field/enum without a valid mapping MUST fail. See [codegen coverage](TYPESPEC-CODEGEN-COVERAGE.md). A TypeSpec file by itself is not a gate.
+**Immediate ACE-specific check:** versioned schema/field compatibility across retired optional tool-call protocol tool input/output, context bundle/projection, typed errors and provider capability flags, under accepted specs. Expanded codegen targets SDK, typed server interfaces/routes, validators, DTO mappers, scope/permission tables, fixtures/docs where maintained tooling supports them. New field/enum without a valid mapping MUST fail. See [codegen coverage](TYPESPEC-CODEGEN-COVERAGE.md). A TypeSpec file by itself is not a gate.
 
 ### G10 — Evidence chain & plan compliance
 Gate D from original SDLC remains, but enforce a **machine-readable or markdown traceability matrix**:
@@ -158,7 +160,7 @@ Full merged-in-scope diff, not merely last phase:
 | TS core/domain | affected tests, typecheck; scoped ast rules when installed | type/lint/test/build + arch/security/plan | mutation/property targeted |
 | Package/lockfile | affected check | full verify + dependency/license scan | OSV/advisory refresh |
 | CI workflow | workflow syntax + zizmor when installed | security, pinned actions, permissions, docs | Scorecard/CodeQL |
-| MCP/schema/API | relevant contract tests | compatibility and negative schema tests, design gate | fuzz/live contract |
+| retired optional tool-call protocol/schema/API | relevant contract tests | compatibility and negative schema tests, design gate | fuzz/live contract |
 | Qdrant/embeddings | focused unit/contract | actual provider e2e as capability requires | scale/crash periodic |
 | LSP/ast-grep retrieval | structural/semantic tests | selected real LSP and AST proof | multi-language corpus periodic |
 | Graphiti/archive | small memory test | real lifecycle/crash/reconcile when changed | backup/restore and long replay |

@@ -5,18 +5,18 @@
   "configurations": [
     {
       "id": "native-codex",
-      "description": "Native Codex tools with caching and compaction enabled; no ACE MCP server.",
-      "mcp_servers": []
+      "description": "Native Codex tools with caching and compaction enabled; no ACE retired optional tool-call protocol server.",
+      "retired-tool-protocol_servers": []
     },
     {
       "id": "codex-plus-ace",
-      "description": "The same Codex configuration with the ACE stdio MCP server injected.",
-      "mcp_servers": [
+      "description": "The same Codex configuration with the ACE stdio retired optional tool-call protocol server injected.",
+      "retired-tool-protocol_servers": [
         {
           "name": "ace",
           "transport": "stdio",
           "command": "node",
-          "args": ["dist/bin/ace-mcp.js"],
+          "args": ["dist/bin/ace-retired-tool-protocol.js"],
           "required_environment": ["ACE_WORKSPACE_ROOT"]
         }
       ]
@@ -30,6 +30,6 @@
     "failed_runs_retained": true,
     "five_x_claim_allowed": false,
     "verified_report": "benchmarks/reports/ace-local-smoke-natural-paired-repeat5.{md,json,csv}",
-    "forced_mcp_integration_report": "benchmarks/reports/ace-local-smoke-paired-repeat5.{md,json,csv}"
+    "forced_retired-tool-protocol_integration_report": "benchmarks/reports/ace-local-smoke-paired-repeat5.{md,json,csv}"
   }
 }

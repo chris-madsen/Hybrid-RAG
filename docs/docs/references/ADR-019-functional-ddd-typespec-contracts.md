@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-019 — Functional DDD and TypeSpec-first public contracts
 
 **Статус:** Accepted  
@@ -31,7 +33,7 @@ An aggregate is a consistency boundary, not a mandatory mutable OO class or micr
 
 ### TypeSpec
 
-TypeSpec is the selected source language for new and migrated public/versioned ACE wire contracts, including the Gateway Projection API and applicable MCP/native JSON messages.
+TypeSpec is the selected source language for new and migrated public/versioned ACE wire contracts, including the Gateway Projection API and applicable retired optional tool-call protocol/native JSON messages.
 
 OpenSpec remains behavioral requirements/acceptance authority. ADRs record architectural rationale. The TypeSpec toolchain and generated artifacts are not made installed or active by this document.
 

@@ -32,7 +32,7 @@ export interface LspSemanticOptions {
   readonly languageIds?: Readonly<Record<string, string>>;
   /** Human-readable server identity; defaults to the production TS server. */
   readonly serverName?: string;
-  /** Keep stdio referenced for a long-lived host such as the MCP server. */
+  /** Keep stdio referenced for a long-lived host such as the Gateway server. */
   readonly keepProcessAlive?: boolean;
   readonly providerVersion?: string;
   readonly snapshotIdentity?: string;

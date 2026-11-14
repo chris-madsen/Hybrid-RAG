@@ -179,9 +179,10 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
         : ['token budget is a character-based estimate; model-exact fit is unverified']),
     ];
     // A complete provider bundle can still become partial after budget packing.
-    const status = projected.complete
-      && !assembled.value.truncated
-      && assembled.value.tokenCountMode === 'host_counter'
+    // Source completeness is independent of whether the provider exposes a
+    // model-exact counter. Keep estimates labeled, never block the Gateway
+    // merely because the only available token measurement is approximate.
+    const status = projected.complete && !assembled.value.truncated
       ? 'ready' as const : 'partial' as const;
     const receiptId = `ace-transform-${projected.bundleId ?? requestId.value}`;
     return ok({

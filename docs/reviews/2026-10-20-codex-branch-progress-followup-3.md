@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Codex branch progress follow-up 3 — current provider evidence
 
 **Date:** 2026-10-20  
@@ -19,7 +21,7 @@ readiness or 5x token savings.
 | W04 scale, 10k | `index-scale-real-provider-current-10000-2026-10-20.json` (`0337278f…`) | Cold `938615.9 ms`, warm `22310.0 ms`, change-only `31709.7 ms`; all phases complete, coverage failures `0`, warm reuse `10000`, delta `1/1/1/1` | One local host/provider run; no repeated selected-host budget/concurrency/k3s evidence |
 | C-A bounded crash lifecycle | `qdrant-snapshot-crash-current-2026-10-20.json` (`b63bbdfe…`) plus three safe provider traces | 8/8 checks pass: interrupted S2 stays unpublished, reader S1 survives writer SIGKILL and S2 publication, state owners are distinct, shared explicit-collection GC is skipped | Same-snapshot writers, cancellation/timeouts, stale-count/membership fault injection, target storage and k3s semantics remain open |
 | W05 Vertex prerequisite | `vertex-synthetic-conflict-prerequisite-2026-10-20.json` (`61852585…`) | Read-only metadata found `ace-europe-stage2`; its `ragFiles` list is empty | No upload/import was attempted; synthetic conflict retrieval, citation and server revision evidence remain blocked pending explicitly authorized synthetic import scope |
-| Graphiti/k3s/provider availability | `provider-capability-current-2026-10-20.json` (`f297b511…`) | Local Qdrant health and k3s node are available; Graphiti/Falkor driver health is not; no Graphiti MCP executable/local LLM endpoint is installed | FalkorDB locality alone is not extraction evidence; W06/W07/W08 remain blocked |
+| Graphiti/k3s/provider availability | `provider-capability-current-2026-10-20.json` (`f297b511…`) | Local Qdrant health and k3s node are available; Graphiti/Falkor driver health is not; no Graphiti retired optional tool-call protocol executable/local LLM endpoint is installed | FalkorDB locality alone is not extraction evidence; W06/W07/W08 remain blocked |
 | Code-only runtime | `runtime-config-code-only-host-current-2026-10-20.json` (`558e0bb0…`) | `runtime-config-accepted`: pinned FastEmbed, direct TS-LS, Qdrant enabled, fallback/docs/memory/cloud/worktree helper disabled | Configuration receipt only; no code-only release approval without selection, holdout, Harbor, resource, supply-chain and owner gates |
 | Supply chain inputs | `supply-chain-availability-current-2026-10-20.json` (`af7b553c…`) plus current SBOM/audit | Production npm audit reports `high=0`, `critical=0`, `total=0` | Image provenance/signature and independent license review are still absent; this is not release evidence |
 | W13 Harbor | `harbor-current-run-blocked-2026-10-20.json` (`973044af…`) | Natural 3-arm run stopped before task completion because the pinned Codex route had invalid authentication; loopback gateway did not support the pinned model route | No quality/cost result; do not count this as ACE benefit or baseline evidence |
@@ -47,7 +49,7 @@ readiness or 5x token savings.
 3. Provide explicit authorization and GCS scope for the committed synthetic
    Vertex fixture, then run import, retrieval, citation/version and code-doc
    conflict evidence.
-4. Supply a supported Graphiti MCP server plus local-only LLM/embedder/reranker
+4. Supply a supported Graphiti retired optional tool-call protocol server plus local-only LLM/embedder/reranker
    endpoint; run W06 lifecycle and W07 crash/reconcile/purge/backup/restore
    against the actual FalkorDB.
 5. Run unified code+docs+memory Codex E2E and admission/routing/cost evidence.

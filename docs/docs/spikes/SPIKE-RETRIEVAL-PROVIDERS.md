@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # SPIKE — Retrieval provider readiness
 
 **Status:** Local provider spike completed; production provider approvals remain open
@@ -7,7 +9,7 @@
 ACE now has a neutral code-candidate index with symbol, workspace, range, generation
 and SHA-256 source digest; lexical search ranks exact identifiers and marks digest
 mismatches stale. ContextBundle preserves evidence citation, proof class, freshness,
-deduplication and partial-source warnings. The MCP gateway accepts typed local context
+deduplication and partial-source warnings. The retired optional tool-call protocol gateway accepts typed local context
 and memory providers without leaking provider DTOs. The filesystem adapter builds that
 local index from an observed workspace snapshot and revision-checked exact reads; the
 local context provider returns stale/partial evidence rather than claiming freshness.

@@ -1,6 +1,8 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Implementation Tasks — Immutable original Codex session archive and Graphiti temporal memory
 
-**State: IMPLEMENTATION SUBSTANTIALLY COMPLETE; REAL GRAPHITI ACCEPTANCE OPEN.** Immutable archive, durable projection outbox/reconciliation, decision transition history, temporal search, safe purge/tombstones, Graphiti MCP adapter and runtime memory injection are implemented. Real local Graphiti extraction/recall/purge/recovery with the selected inference stack remains the production gate.
+**State: IMPLEMENTATION SUBSTANTIALLY COMPLETE; REAL GRAPHITI ACCEPTANCE OPEN.** Immutable archive, durable projection outbox/reconciliation, decision transition history, temporal search, safe purge/tombstones, Graphiti retired optional tool-call protocol adapter and runtime memory injection are implemented. Real local Graphiti extraction/recall/purge/recovery with the selected inference stack remains the production gate.
 
 ## Feasibility and security
 - [x] SPIKE a supported local Codex history export interface and exact source/cursor identity; the adapter preserves JSONL bytes and SHA-256 cursors, while an official cross-version exporter remains unclaimed.
@@ -19,7 +21,7 @@
 - [x] Define `as_of` as **valid-time** semantics: episode visibility is based on `occurredAtMs`, and decision state is reconstructed from `validFromMs` plus immutable transition timestamps. `importedAtMs` is archive/system provenance and is intentionally not a transaction-time filter. Supporting bitemporal import/system-time queries would require a separate specification/ADR.
 - [x] Preserve every decision supported by a matching episode. The legacy scalar `decisionState` is emitted only for the unambiguous single-linked-decision case; multi-decision hits expose deterministic `decisionViews` with decision ID, subject, proposal and state instead of silently choosing the first record.
 - [x] Implement authorized local archive deletion with tombstone and derived-projection purge boundary.
-- [x] Expose typed MCP memory provider port and inject the archive-backed Graphiti memory provider into `ace-mcp` when explicitly configured; gateway remains truthful `disabled/not_ready/degraded` when the provider is absent or fails startup.
+- [x] Expose typed retired optional tool-call protocol memory provider port and inject the archive-backed Graphiti memory provider into `ace-retired-tool-protocol` when explicitly configured; gateway remains truthful `disabled/not_ready/degraded` when the provider is absent or fails startup.
 
 ## Validation
 - [x] Test conflicting extracted claims, unsupported source importer and duplicate projection replay.
