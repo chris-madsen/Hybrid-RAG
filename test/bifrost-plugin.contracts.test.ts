@@ -9,7 +9,12 @@ test('Bifrost plugin build is pinned and fail-closed before plugin compilation',
   assert.match(script, /rev-parse HEAD/u);
   assert.match(script, /-buildmode=plugin/u);
   assert.match(plugin, /HTTPTransportPreHook/u);
-  assert.match(plugin, /ACE host identity attestation is unavailable/u);
+  assert.match(plugin, /BifrostContextKeyRequestID/u);
+  assert.match(plugin, /BifrostContextKeySessionID/u);
+  assert.match(plugin, /durableActiveTranscriptDigest/u);
+  assert.match(plugin, /sha256Hex\(body\)/u);
+  assert.match(plugin, /schemas\.ParseModelString\(rawModel, ""\)/u);
+  assert.match(plugin, /ACE request-bound host identity is unavailable/u);
   assert.match(plugin, /ACE projection blocked/u);
   assert.match(plugin, /PreLLMHook/u);
   assert.match(plugin, /LLMPluginShortCircuit/u);
@@ -25,6 +30,9 @@ test('Bifrost plugin build is pinned and fail-closed before plugin compilation',
   assert.doesNotMatch(plugin, /ACE_GATEWAY_STRICT/u, 'missing ACE receipts must never be a configurable bypass');
   assert.doesNotMatch(plugin, /ACE_BIFROST_SESSION_ID|ACE_BIFROST_ATTEMPT_GROUP_ID|ACE_BIFROST_HOST_ATTESTATION_JSON/u);
   assert.match(plugin, /ACE provider differs from the authenticated ingress identity/u);
+  assert.match(plugin, /bifrost:auto/u);
+  assert.doesNotMatch(plugin, /ace\.session_id|ace\.attempt_group_id|ace\.provider|ace\.host_attestation/u,
+    'host identity must come from trusted Bifrost request context, not a second bridge');
   // Reuse Bifrost's own request cancellation/deadline context. An orphan
   // context.Background() would keep the provider projection running after
   // a host request was cancelled.
