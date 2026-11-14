@@ -39,7 +39,8 @@ test('Bifrost plugin build is pinned and fail-closed before plugin compilation',
   assert.doesNotMatch(plugin, /ACE_GATEWAY_STRICT/u, 'missing ACE receipts must never be a configurable bypass');
   assert.doesNotMatch(plugin, /ACE_BIFROST_SESSION_ID|ACE_BIFROST_ATTEMPT_GROUP_ID|ACE_BIFROST_HOST_ATTESTATION_JSON/u);
   assert.match(plugin, /ACE provider differs from the authenticated ingress identity/u);
-  assert.match(plugin, /bifrost:auto/u);
+  assert.match(plugin, /ACE Gateway requires an explicit Bifrost provider\/model route/u);
+  assert.doesNotMatch(plugin, /bifrost:auto/u, 'automatic provider routing cannot satisfy destination authorization');
   assert.doesNotMatch(plugin, /ace\.session_id|ace\.attempt_group_id|ace\.provider|ace\.host_attestation/u,
     'host identity must come from trusted Bifrost request context, not a second bridge');
   // Reuse Bifrost's own request cancellation/deadline context. An orphan
