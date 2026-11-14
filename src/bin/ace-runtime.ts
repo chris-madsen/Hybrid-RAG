@@ -10,6 +10,7 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import { makeFileArtifactStore } from '../adapters/file-artifact-store.js';
+import { makeFileAuditSink } from '../adapters/file-audit-sink.js';
 import { makeGitHistoryPort } from '../adapters/git-history.js';
 import { makeHostWorkspacePort, makeMtlsHostHelperTransport } from '../adapters/host-worktree-helper.js';
 import { makeFetchHttpPort, makeQdrantCodeCandidatePort } from '../adapters/http-provider-boundaries.js';
@@ -1131,6 +1132,8 @@ const main = async (): Promise<void> => {
     await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge ?? unavailableContext, {
       policy: gatewayPolicy,
       allowedProviders: gatewayAllowedLlmProviders,
+      clock: ports.clock,
+      audit: makeFileAuditSink(resolve(stateDirectory, 'gateway-policy-audit.jsonl')),
     }));
   } finally {
     let cleanupError: unknown;
