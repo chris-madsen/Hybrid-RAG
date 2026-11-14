@@ -1,8 +1,11 @@
-# ADR-017 — ACE LLM Gateway Protocol v1 over Bifrost
+# ADR-017 historical protocol draft — ACE LLM Gateway Protocol v1 over Bifrost
 
-**Status:** Proposed / implementation plan (NOT implemented).  
-**Scope:** General-purpose ACE integration for coding agents via LLM provider API gateway.  
+**Status:** **SUPERSEDED historical design evidence.** Do not implement this file as current architecture.  
+**Superseded by:** `ADR-017-bifrost-unified-llm-gateway.md`, owner Gateway-only decision (2026-11-14), and active OpenSpec change `010-gateway-only-ownership`.  
+**Scope at the time:** General-purpose ACE integration for coding agents via LLM provider API gateway.  
 **Boundary:** ACE remains an independent process; Bifrost runs separately (Go). Linux first; macOS optional. No Windows requirement.
+
+> Historical note: the text below intentionally preserves the earlier protocol exploration, including native-agent, passthrough and replacement concepts that are **not current delivery authority**. Current ACE delivery is Bifröst Gateway-only and fail-closed; consult the superseding sources above.
 
 ## 0. Decision
 
