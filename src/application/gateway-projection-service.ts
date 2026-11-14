@@ -106,8 +106,15 @@ export const makeGatewayProjectionService = (context: ContextTransformService): 
     if (request.nativeProjectionActive === true) return block(request, 'DUAL_PROJECTION_OWNER');
     if (request.attestation.sessionId !== request.agentSessionId) return block(request, 'HOST_SESSION_MISMATCH');
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
-    if (!request.attestation.hostTranscriptAttested) return block(request, 'HOST_CONTEXT_UNATTESTED');
-    if (request.attestation.compactionEnabled || request.attestation.hostCompactionEpoch === 'unknown') return block(request, 'HOST_COMPACTION_ACTIVE');
+    // Gateway delivery may safely augment the exact request bytes Bifröst can
+    // observe even when the coding host's durable transcript/compaction state
+    // is not attested. That mode must remain explicitly non-exclusive in the
+    // receipt. If a host *does* claim transcript attestation, enforce the
+    // stricter no-compaction invariant before accepting that stronger claim.
+    if (request.attestation.hostTranscriptAttested
+      && (request.attestation.compactionEnabled || request.attestation.hostCompactionEpoch === 'unknown')) {
+      return block(request, 'HOST_COMPACTION_ACTIVE');
+    }
     if (request.attestation.providerManagedHistoryCapability !== 'visible') return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
     const body = parseBody(request);
     if (body._tag === 'Err') return body;
