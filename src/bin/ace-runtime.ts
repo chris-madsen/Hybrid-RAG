@@ -1086,6 +1086,17 @@ const main = async (): Promise<void> => {
     readiness.unified_context = { state: 'not_ready', reason: 'real_provider_disabled' };
     process.stderr.write('ace-runtime context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+ast-grep+TypeScript-LS composition; provider outage remains not_ready\n');
   }
+  const gatewayAllowedLlmProviders = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', []);
+  const gatewayExternalLlmOptIn = process.env.ACE_GATEWAY_EXTERNAL_LLM_OPT_IN === 'true';
+  const gatewayPolicy = {
+    ...defaultLocalPolicy(registered.value.workspaceId),
+    cloudOptIn: gatewayExternalLlmOptIn,
+    allowedCloudProviders: gatewayExternalLlmOptIn ? ['other_external'] as const : [],
+    allowedCloudDataClassesByProvider: gatewayExternalLlmOptIn
+      ? { other_external: ['private_source', 'project_document', 'public'] as const }
+      : {},
+  };
+
   const contextBridge = context === undefined
     ? undefined
     : makeContextTransformService({
@@ -1115,7 +1126,10 @@ const main = async (): Promise<void> => {
     ))),
   };
   try {
-    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge ?? unavailableContext));
+    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge ?? unavailableContext, {
+      policy: gatewayPolicy,
+      allowedProviders: gatewayAllowedLlmProviders,
+    }));
   } finally {
     let cleanupError: unknown;
     try {
