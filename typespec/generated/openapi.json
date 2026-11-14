@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "ACE Gateway Projection v1",
-    "version": "0.0.0"
+    "version": "1.0.0"
   },
   "tags": [],
   "paths": {
@@ -51,7 +51,9 @@
               }
             }
           }
-        }
+        },
+        "x-ace-final-provider-wire": "not_certified",
+        "x-ace-runtime-policy-owner": "domain-policy"
       }
     }
   },
