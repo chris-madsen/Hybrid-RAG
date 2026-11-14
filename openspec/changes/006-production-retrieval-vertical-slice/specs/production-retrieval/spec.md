@@ -86,4 +86,4 @@ The system SHALL preserve persisted-index freshness across restarts and SHALL su
 #### Scenario: DBC-14 conflicting documentation
 
 - **WHEN** approved documentation asserts X but current verified source implements Y
-- **THEN** `ace_context` exposes both with source classification, timestamp/revision and explicit conflict rather than silently preferring documentation as current code truth
+- **THEN** the Gateway-projected ACE evidence exposes both with source classification, timestamp/revision and explicit conflict rather than silently preferring documentation as current code truth
