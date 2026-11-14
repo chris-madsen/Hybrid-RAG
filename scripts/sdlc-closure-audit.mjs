@@ -64,7 +64,14 @@ const requirements = [
   {
     id: 'GATEWAY_EGRESS_POLICY',
     file: 'src/application/gateway-projection-service.ts',
-    contains: ['authorizeAndAudit', 'allowedProviders', "destination: 'other_external'", 'security.audit.append', 'containsLikelySecret'],
+    contains: [
+      'authorizeAndAudit',
+      'allowedProviders',
+      "destination: 'other_external'",
+      'security.audit.append',
+      'containsLikelySecret(JSON.stringify(body.value))',
+      'providerManagedContinuationPresent',
+    ],
   },
   {
     id: 'GATEWAY_EGRESS_CONFIG',
