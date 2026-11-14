@@ -6,7 +6,7 @@
 
 ## Context
 
-The central PRD hypothesis requires all three knowledge classes in one accurate, freshness-aware context path, rather than independent unrelated retired optional tool-call protocol servers.
+The central PRD hypothesis requires all three knowledge classes in one accurate, freshness-aware ACE context path behind the single Gateway delivery adapter.
 
 Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deployment.md` plus PRD/ADRs before implementation.
 
