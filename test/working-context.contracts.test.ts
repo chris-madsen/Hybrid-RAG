@@ -8,9 +8,9 @@ import test from 'node:test';
 import { Effect } from 'effect';
 import { applyWorkingContextPriors } from '../src/adapters/qdrant-context-provider.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeCandidateId, makeCodeCandidate, type ContextBundle, type RankedCandidate } from '../src/domain/retrieval.js';
+import { makeCandidateId, makeCodeCandidate, type RankedCandidate } from '../src/domain/retrieval.js';
 import { makeWorkspaceId, type RepoPath, type WorkingContext } from '../src/domain/workspace.js';
-import { ok, type Result } from '../src/domain/result.js';
+import type { Result } from '../src/domain/result.js';
 
 const exec = promisify(execFile);
 
