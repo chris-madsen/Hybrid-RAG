@@ -15,6 +15,7 @@ This change is the current OpenSpec owner for that integration boundary. Superse
 - A thin pinned Go plugin binds Bifröst-visible request/session identity to `ace.gateway.v1`, authenticates to the local projection endpoint, and fails closed.
 - Only the currently certified OpenAI Chat Completions ingress route is projected. Unsupported generation routes are blocked rather than bypassing ACE.
 - Projection may add one verified evidence system message while preserving all other provider-body semantics.
+- The Gateway route requires an explicit Bifröst `provider/model` identity. ACE authorizes that exact provider against an explicit runtime allowlist and project data policy **before retrieval/injection**; PreLLM rejects any later provider/model drift. Automatic provider selection is not accepted for private source projection.
 - The first provider attempt is bound to the projection receipt, normalized model/provider and exact inserted context. Retry/fallback reuse is blocked until per-attempt reauthorization is implemented.
 - The plugin does **not** claim visibility into the coding host's durable transcript or compaction state. Basic Gateway delivery may add verified ACE evidence to the exact visible request while preserving that uncertainty; exclusive-context/compaction ownership remains a separate host-attested G11/benchmark claim.
 - Provider/agent production acceptance remains a distinct G11 evidence stage.
