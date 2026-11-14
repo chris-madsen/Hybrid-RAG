@@ -7,6 +7,7 @@ const rootIndex = args.indexOf('--root');
 const root = resolve(rootIndex >= 0 && args[rootIndex + 1] ? args[rootIndex + 1] : process.cwd());
 const openspecOnly = args.includes('--openspec-only');
 const architectureOnly = args.includes('--architecture-only');
+const contractsOnly = args.includes('--contracts-only');
 
 const requirements = [
   {
@@ -130,7 +131,7 @@ const activeOpenSpecGuard = async () => {
   };
 };
 
-if (!openspecOnly && !architectureOnly) for (const requirement of requirements) {
+if (!openspecOnly && !architectureOnly && !contractsOnly) for (const requirement of requirements) {
   let text;
   try {
     text = await readFile(resolve(root, requirement.file), 'utf8');
@@ -148,6 +149,47 @@ if (!openspecOnly && !architectureOnly) for (const requirement of requirements) 
     ...(forbidden.length ? { forbidden } : {}),
   });
 }
+
+const publicContractAuthorityGuard = async () => {
+  const contractsRoot = resolve(root, 'contracts');
+  const files = [];
+  const walk = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const full = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full);
+      } else if (entry.isFile()) {
+        files.push(full.slice(root.length + 1).replaceAll('\\', '/'));
+      }
+    }
+  };
+  try {
+    await walk(contractsRoot);
+  } catch {
+    return { id: 'PUBLIC_CONTRACT_TYPESPEC_AUTHORITY', status: 'FAIL', reason: 'missing_contracts_tree' };
+  }
+  const unexpected = files.filter((file) => !file.startsWith('contracts/ace-gateway/v1/'));
+  const required = [
+    'contracts/ace-gateway/v1/projection-request.schema.json',
+    'contracts/ace-gateway/v1/projection-decision.schema.json',
+  ].filter((file) => !files.includes(file));
+  let typeSpecMissing = [];
+  try {
+    const source = await readFile(resolve(root, 'typespec/main.tsp'), 'utf8');
+    for (const needle of ['namespace AceGatewayV1', 'model ProjectionRequest', 'model ProjectionDecision', '@route("/internal/ace-gateway/v1/project")']) {
+      if (!source.includes(needle)) typeSpecMissing.push(needle);
+    }
+  } catch {
+    typeSpecMissing = ['typespec/main.tsp'];
+  }
+  return {
+    id: 'PUBLIC_CONTRACT_TYPESPEC_AUTHORITY',
+    status: unexpected.length === 0 && required.length === 0 && typeSpecMissing.length === 0 ? 'PASS' : 'FAIL',
+    ...(unexpected.length ? { unexpected } : {}),
+    ...(required.length ? { missing: required } : {}),
+    ...(typeSpecMissing.length ? { typeSpecMissing } : {}),
+  };
+};
 
 const architectureAuthorityGuard = async () => {
   const files = [
@@ -201,8 +243,9 @@ const architectureAuthorityGuard = async () => {
   };
 };
 
-if (!architectureOnly) results.push(await activeOpenSpecGuard());
-if (!openspecOnly) results.push(await architectureAuthorityGuard());
+if (!architectureOnly && !contractsOnly) results.push(await activeOpenSpecGuard());
+if (!openspecOnly && !contractsOnly) results.push(await architectureAuthorityGuard());
+if (!openspecOnly && !architectureOnly) results.push(await publicContractAuthorityGuard());
 
 const summary = {
   schemaVersion: 'ace.sdlc-closure.v1',
