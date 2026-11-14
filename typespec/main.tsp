@@ -108,12 +108,58 @@ namespace AceGatewayV1 {
     receipt: ProjectionReceipt;
   }
 
+  /** Real informational routes; statuses are local adapter facts, not provider-wire approval. */
+  model GatewayHealth {
+    schemaVersion: "ace.gateway.v1";
+    liveness: "ready";
+    readiness: "adapter_implemented";
+    providerWire: "not_certified";
+  }
+
+  model GatewayRouteCapability {
+    protocol: "openai.chat.completions";
+    mode: "structured";
+    capability: "G2_GATEWAY_VISIBLE_ONLY";
+  }
+
+  model GatewayCapabilities {
+    schemaVersion: "ace.gateway.v1";
+    routes: GatewayRouteCapability[];
+    @minValue(0)
+    maxBodyBytes: int64;
+    projectionModes: ("native" | "gateway" | "assist-only" | "observe-only" | "off")[];
+    providerWireCertification: "not_certified";
+  }
+
+  /** This public endpoint deliberately has no successful delivery response. */
+  model DeliveryNotCertified {
+    @statusCode
+    status: 501;
+    error: {
+      code: "PROVIDER_WIRE_NOT_CERTIFIED";
+      message: string;
+    };
+  }
+
   /** Existing HTTP failure envelope; errors are not fabricated success results. */
   model GatewayError {
     @statusCode
     status: 400 | 503;
     error: { code: string; message: string };
   }
+
+  @get
+  @route("/internal/ace-gateway/v1/health")
+  op health(): GatewayHealth;
+
+  @get
+  @route("/internal/ace-gateway/v1/capabilities")
+  op capabilities(): GatewayCapabilities;
+
+  @TypeSpec.OpenAPI.extension("x-ace-final-provider-wire", "not_certified")
+  @post
+  @route("/internal/ace-gateway/v1/record-delivery")
+  op recordDelivery(): DeliveryNotCertified;
 
   // Supported OpenAPI metadata only; these attributes are not access control.
   // Runtime authorization and final-send safety remain independent domain duties.
