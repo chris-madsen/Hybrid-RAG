@@ -1,0 +1,89 @@
+name: ACE OpenSpec structural validation
+
+on:
+  pull_request:
+    paths:
+      - 'openspec/**'
+      - '.github/workflows/ace-openspec.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  openspec-strict:
+    name: OpenSpec 1.17 strict active validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      OPENSPEC_TELEMETRY: "0"
+      OPENSPEC_NO_UPDATE_CHECK: "1"
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22.12.0"
+      - name: Pin OpenSpec CLI version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(npm exec --yes --package='@fission-ai/openspec@1.17.0' -- openspec --version)"
+          printf '%s\n' "$version"
+          grep -Eq '1\.17\.0' <<< "$version"
+      - name: Strictly validate all active changes/specs
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm exec --yes --package='@fission-ai/openspec@1.17.0' -- \
+            openspec validate --all --strict --no-interactive --report full
+      - name: Prove strict validation rejects an invalid scenario
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="${RUNNER_TEMP}/openspec-negative"
+          cp -a openspec "$fixture"
+          mkdir -p "$fixture/changes/999-invalid-fixture/specs/invalid"
+          cat > "$fixture/changes/999-invalid-fixture/.openspec.yaml" <<'YAML'
+          schema: spec-driven
+          YAML
+          cat > "$fixture/changes/999-invalid-fixture/proposal.md" <<'MD'
+          # Proposal — invalid fixture
+          ## Why
+          Controlled negative validation fixture.
+          ## What Changes
+          Add one deliberately malformed scenario.
+          MD
+          cat > "$fixture/changes/999-invalid-fixture/design.md" <<'MD'
+          # Design — invalid fixture
+          This file exists only in the disposable CI fixture.
+          MD
+          cat > "$fixture/changes/999-invalid-fixture/tasks.md" <<'MD'
+          # Tasks
+          - [ ] 1.1 Deliberately invalid scenario should be rejected.
+          MD
+          cat > "$fixture/changes/999-invalid-fixture/specs/invalid/spec.md" <<'MD'
+          # invalid spec
+          ## ADDED Requirements
+          ### Requirement: Invalid scenario
+          The fixture SHALL fail strict validation.
+          #### Scenario: Missing THEN
+          - **WHEN** validation runs
+          MD
+          set +e
+          output="$(
+            cd "$fixture"
+            npm exec --yes --package='@fission-ai/openspec@1.17.0' -- \
+              openspec validate 999-invalid-fixture --strict --no-interactive 2>&1
+          )"
+          code="$?"
+          set -e
+          printf '%s\n' "$output"
+          if [[ "$code" -eq 0 ]]; then
+            echo "Expected strict OpenSpec validator to reject malformed scenario." >&2
+            exit 1
+          fi
+          grep -Eqi 'scenario|THEN|strict|validation' <<< "$output"
