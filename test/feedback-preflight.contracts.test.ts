@@ -114,7 +114,8 @@ test('retired Stage0 tool runner is not a Gateway delivery path', async () => {
   const pkg = JSON.parse(await readFile('package.json', 'utf8')) as { scripts: Record<string, string> };
   assert.match(runtime, /Direct agent context bridge mode is retired/u);
   assert.equal(pkg.scripts['test:feedback-stage0'], undefined);
-  assert.equal(pkg.scripts['test:real-provider'], undefined);\n  assert.equal(pkg.scripts['test:real-projection'], 'npm run build && node scripts/real-projection-e2e.mjs');
+  assert.equal(pkg.scripts['test:real-provider'], undefined);
+  assert.equal(pkg.scripts['test:real-projection'], 'npm run build && node scripts/real-projection-e2e.mjs');
 });
 
 test('exact-current preflight binds experiment identity to checkout, jobs, Harbor and auth route', () => {
