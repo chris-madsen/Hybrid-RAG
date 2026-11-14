@@ -112,7 +112,7 @@ func validHostAttestation(t *testing.T, epoch int) json.RawMessage {
 func TestProjectAndApplyBindOriginalAndProjectedDigests(t *testing.T) {
 	baseline := readPublicContractBaseline(t)
 	original := []byte(`{"model":"test","messages":[{"role":"user","content":"question"}]}`)
-	projected := []byte(`{"model":"test","messages":[{"role":"system","content":"ACE"},{"role":"user","content":"question"}]}`)
+	projected := []byte(`{"model":"test","messages":[{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var payload map[string]json.RawMessage
 		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
@@ -138,7 +138,7 @@ func TestProjectAndApplyBindOriginalAndProjectedDigests(t *testing.T) {
 				SchemaVersion: SchemaVersion, RequestID: "req-1", AttemptGroupID: "group-1", AttemptIndex: 0,
 				ReceiptID: "receipt-1", Decision: "APPLY", BaseBodySHA256: digest(original),
 				ProjectedBodySHA256: digest(projected), HostCompactionEpoch: 3, ActiveEngineID: "ace_context_engine",
-				PermittedWireRewrites: []string{},
+				PermittedWireRewrites: []string{"append_verified_context_system_message"},
 			},
 		}
 		encoded, err := json.Marshal(decision)
@@ -265,7 +265,7 @@ func TestOversizedRequestIsRejectedBeforeHTTP(t *testing.T) {
 
 func TestRejectForgedProjectionReceipts(t *testing.T) {
  original := []byte(`{"model":"test","messages":[{"role":"user","content":"question"}]}`)
- projected := []byte(`{"model":"test","messages":[{"role":"user","content":"question"},{"role":"system","content":"ACE"}]}`)
+ projected := []byte(`{"model":"test","messages":[{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
  scenarios := []struct {
   name string
   change func(*Decision)
@@ -287,7 +287,7 @@ func TestRejectForgedProjectionReceipts(t *testing.T) {
      SchemaVersion: SchemaVersion, RequestID: "req-1", AttemptGroupID: "group-1",
      AttemptIndex: 0, ReceiptID: "receipt-1", Decision: "APPLY",
      BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(projected),
-     HostCompactionEpoch: 1, ActiveEngineID: "ace_context_engine", PermittedWireRewrites: []string{},
+     HostCompactionEpoch: 1, ActiveEngineID: "ace_context_engine", PermittedWireRewrites: []string{"append_verified_context_system_message"},
     },
    }
    scenario.change(&decision)
@@ -332,7 +332,7 @@ func TestProjectedResponseHonorsCustomBodyBound(t *testing.T) {
     SchemaVersion: SchemaVersion, RequestID: "req-1", AttemptGroupID: "group-1",
     AttemptIndex: 0, ReceiptID: "receipt-1", Decision: "APPLY",
     BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(projected),
-    HostCompactionEpoch: 1, ActiveEngineID: "ace_context_engine", PermittedWireRewrites: []string{},
+    HostCompactionEpoch: 1, ActiveEngineID: "ace_context_engine", PermittedWireRewrites: []string{"append_verified_context_system_message"},
    },
   })
  }))
@@ -350,7 +350,7 @@ func TestProjectedResponseHonorsCustomBodyBound(t *testing.T) {
 
 func TestProjectRejectsSchemaInvalidDecisionEnvelope(t *testing.T) {
 	original := []byte(`{"model":"test","messages":[{"role":"user","content":"question"}]}`)
-	projected := []byte(`{"model":"test","messages":[{"role":"user","content":"question"},{"role":"system","content":"ACE"}]}`)
+	projected := []byte(`{"model":"test","messages":[{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
 	validPayload := func() map[string]any {
 		return map[string]any{
 			"kind":       "APPLY",
@@ -366,7 +366,7 @@ func TestProjectRejectsSchemaInvalidDecisionEnvelope(t *testing.T) {
 				"projectedBodySha256":   digest(projected),
 				"hostCompactionEpoch":   1,
 				"activeEngineId":        "ace_context_engine",
-				"permittedWireRewrites": []string{},
+				"permittedWireRewrites": []string{"append_verified_context_system_message"},
 			},
 		}
 	}
@@ -404,5 +404,50 @@ func TestProjectRejectsSchemaInvalidDecisionEnvelope(t *testing.T) {
 				t.Fatal("schema-invalid projection decision must fail closed")
 			}
 		})
+	}
+}
+
+func TestGatewayApplyRejectsSemanticMutationsEvenWithMatchingDigests(t *testing.T) {
+	original := []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"user","content":"question"}]}`)
+	valid := []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
+	mutations := []struct {
+		name string
+		body []byte
+		rewrites []string
+	}{
+		{"model substitution", []byte(`{"model":"other","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
+		{"tool removal", []byte(`{"model":"test","stream":true,"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
+		{"user tampering", []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"different"}]}`), []string{"append_verified_context_system_message"}},
+		{"false rewrite claim", valid, []string{}},
+		{"unsupported pass-through", original, []string{"append_verified_context_system_message"}},
+	}
+	for _, fixture := range mutations {
+		t.Run(fixture.name, func(t *testing.T) {
+			receipt := Receipt{
+				BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(fixture.body),
+				Decision: "APPLY", PermittedWireRewrites: fixture.rewrites,
+			}
+			_, err := Apply(original, Decision{Kind: "APPLY", BodyBase64: base64.StdEncoding.EncodeToString(fixture.body), Receipt: receipt})
+			if err == nil {
+				t.Fatal("semantically unauthorized projection must fail closed")
+			}
+		})
+	}
+	receipt := Receipt{
+		BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(valid),
+		Decision: "APPLY", PermittedWireRewrites: []string{"append_verified_context_system_message"},
+	}
+	if _, err := Apply(original, Decision{Kind: "APPLY", BodyBase64: base64.StdEncoding.EncodeToString(valid), Receipt: receipt}); err != nil {
+		t.Fatalf("valid single system-message insertion must pass: %v", err)
+	}
+}
+
+func TestGatewayApplyRejectsRetiredPassThroughKinds(t *testing.T) {
+	body := []byte(`{"model":"test","messages":[]}`)
+	for _, kind := range []string{"UNCHANGED_AUTHORIZED", "DEGRADED_AUTHORIZED"} {
+		_, err := Apply(body, Decision{Kind: kind, Receipt: Receipt{BaseBodySHA256: digest(body), Decision: kind}})
+		if err == nil {
+			t.Fatalf("%s must not allow a model call without ACE application", kind)
+		}
 	}
 }
