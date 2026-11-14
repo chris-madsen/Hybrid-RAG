@@ -121,6 +121,15 @@ test('Docker runtime uses the pinned embedding versions from the Harbor bundle c
   assert.ok(!dockerfile.includes('fastembed==0.7.4'));
   assert.ok(!dockerfile.includes('numpy==2.5.4'));
 
+  // Host Git owns source identity; Docker verifies exactly those source bytes
+  // and the compiled binary instead of inventing a HEAD inside a .git-free image.
+  const dockerignore = await readFile('.dockerignore', 'utf8');
+  assert.ok(dockerfile.includes('COPY dist ./dist'));
+  assert.ok(dockerfile.includes('verifyCompiledRuntimeProvenance'));
+  assert.ok(!dockerfile.includes('RUN npm run build'));
+  assert.ok(dockerignore.split('\n').includes('.git'));
+  assert.ok(!dockerignore.split('\n').includes('dist'));
+
   const taskDockerfiles = [
     'benchmarks/harbor/ace-shared-archive-impact/environment/Dockerfile',
     'benchmarks/harbor/ace-retrieval-impact/environment/Dockerfile',
