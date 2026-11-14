@@ -32,7 +32,7 @@ query + source obligations + working context
                                         |
                                inline minimum + handles
                                         |
-                                ace_expand exact bytes
+                         exact verified source retention
 ```
 
 ## Provider ownership
