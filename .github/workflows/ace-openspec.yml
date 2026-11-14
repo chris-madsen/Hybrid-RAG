@@ -45,27 +45,28 @@ jobs:
         run: |
           set -euo pipefail
           fixture="${RUNNER_TEMP}/openspec-negative"
-          cp -a openspec "$fixture"
-          mkdir -p "$fixture/changes/999-invalid-fixture/specs/invalid"
-          cat > "$fixture/changes/999-invalid-fixture/.openspec.yaml" <<'YAML'
+          mkdir -p "$fixture"
+          cp -a openspec "$fixture/openspec"
+          mkdir -p "$fixture/openspec/changes/999-invalid-fixture/specs/invalid"
+          cat > "$fixture/openspec/changes/999-invalid-fixture/.openspec.yaml" <<'YAML'
           schema: spec-driven
           YAML
-          cat > "$fixture/changes/999-invalid-fixture/proposal.md" <<'MD'
+          cat > "$fixture/openspec/changes/999-invalid-fixture/proposal.md" <<'MD'
           # Proposal — invalid fixture
           ## Why
           Controlled negative validation fixture.
           ## What Changes
           Add one deliberately malformed scenario.
           MD
-          cat > "$fixture/changes/999-invalid-fixture/design.md" <<'MD'
+          cat > "$fixture/openspec/changes/999-invalid-fixture/design.md" <<'MD'
           # Design — invalid fixture
           This file exists only in the disposable CI fixture.
           MD
-          cat > "$fixture/changes/999-invalid-fixture/tasks.md" <<'MD'
+          cat > "$fixture/openspec/changes/999-invalid-fixture/tasks.md" <<'MD'
           # Tasks
           - [ ] 1.1 Deliberately invalid scenario should be rejected.
           MD
-          cat > "$fixture/changes/999-invalid-fixture/specs/invalid/spec.md" <<'MD'
+          cat > "$fixture/openspec/changes/999-invalid-fixture/specs/invalid/spec.md" <<'MD'
           # invalid spec
           ## ADDED Requirements
           ### Requirement: Invalid scenario
