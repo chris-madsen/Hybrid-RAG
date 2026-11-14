@@ -47,7 +47,7 @@ Tasks 006 имеют семь отмеченных DBC (02,05,06,07,08,09,10) и
 
 ### Реальные измерения
 
-[Scale report](../../benchmarks/reports/2026-10-20-index-scale-real-provider.md): 1k cold/warm/change-only = 102625/8402/10183 мс; 10k = 983239/24814/33162 мс. Raw 10k подтверждает reuse 9997 vectors при edit/add/delete/rename и нулевые coverage failures. Это измерения одного хоста на `c79afd8`, не production performance approval.
+[Scale report] (historical report retired): 1k cold/warm/change-only = 102625/8402/10183 мс; 10k = 983239/24814/33162 мс. Raw 10k подтверждает reuse 9997 vectors при edit/add/delete/rename и нулевые coverage failures. Это измерения одного хоста на `c79afd8`, не production performance approval.
 
 [Crash JSON](../../benchmarks/reports/qdrant-snapshot-crash-2026-10-20.json): восемь PASS на `07b143b`, distinct state roots, kill после verification до publish, S1 продолжает отдавать неизменённый символ. Explicit shared-collection GC выключен. Поэтому тест не доказывает корректность включённого GC и не покрывает kill mid-upsert. Partial S1 после изменения другого файла ожидаем и корректен.
 

@@ -127,32 +127,13 @@ test('RepoMap def/ref graph must not regain the old full-candidate LSP dependenc
     'RepoMap must consume shared ast-grep def/ref records, never an LSP scan over candidates');
 });
 
-test('legacy handwritten MCP framing is removed; official SDK remains sole explicit-tool transport', async () => {
-  await assert.rejects(
-    readFile(join(process.cwd(), 'src/transport/mcp-stdio.ts'), 'utf8'),
-    { code: 'ENOENT' },
-  );
-  const barrel = await readFile(join(process.cwd(), 'src/index.ts'), 'utf8');
-  const runtime = await readFile(join(process.cwd(), 'src/bin/ace-mcp.ts'), 'utf8');
-  assert.doesNotMatch(barrel, /transport\/mcp-stdio\.js/u);
-  assert.match(runtime, /runMcpSdkStdio\(mcpGateway/u);
-  assert.doesNotMatch(runtime, /runMcpStdio\(/u);
-});
 
-test('context application owns its retrieval port rather than importing MCP transport', async () => {
-  const application = await readFile(join(process.cwd(), 'src/application/context-transform-service.ts'), 'utf8');
+test('Gateway-only composition cannot start an optional model tool transport', async () => {
+  const runtime = await readFile(join(process.cwd(), 'src/bin/ace-runtime.ts'), 'utf8');
+  const gateway = await readFile(join(process.cwd(), 'src/transport/gateway-projection-http.ts'), 'utf8');
+  assert.match(runtime, /runGatewayProjectionHttp\(makeGatewayProjectionService/u);
+  assert.match(gateway, /\/internal\/ace-gateway\/v1\/project/u);
+  assert.doesNotMatch(runtime, /createAceServer|runMcpSdkStdio|makeMcpGateway/u);
   const ports = await readFile(join(process.cwd(), 'src/application/ports.ts'), 'utf8');
-  assert.doesNotMatch(application, /gateway\/mcp-gateway/u);
   assert.match(ports, /export interface ContextProvider/u);
-});
-
-test('Bifrost model projection and native context bridge never construct an MCP gateway', async () => {
-  const runtime = await readFile(join(process.cwd(), 'src/bin/ace-mcp.ts'), 'utf8');
-  const httpStart = runtime.indexOf("if (process.env.ACE_GATEWAY_HTTP_MODE === 'true') {");
-  const nativeStart = runtime.indexOf("} else if (process.env.ACE_CONTEXT_BRIDGE_MODE === 'true')", httpStart);
-  const toolStart = runtime.indexOf('const mcpGateway = makeMcpGateway(', nativeStart);
-  assert.ok(httpStart >= 0 && nativeStart > httpStart && toolStart > nativeStart);
-  assert.match(runtime.slice(httpStart, nativeStart), /runGatewayProjectionHttp\(makeGatewayProjectionService/u);
-  assert.doesNotMatch(runtime.slice(httpStart, nativeStart), /runMcpSdkStdio/u);
-  assert.match(runtime, /mutually exclusive context-delivery owners/u);
 });

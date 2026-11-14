@@ -1,17 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Effect } from 'effect';
-import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
-import { createAceServer } from '../src/transport/mcp-sdk-stdio.js';
-import { makeFileArtifactStore } from '../src/adapters/file-artifact-store.js';
-import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeFileWorkspaceStore } from '../src/application/file-workspace-store.js';
-import { makeMcpGateway } from '../src/gateway/mcp-gateway.js';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { projectContextForDelivery, contextTransportText, resolveDeliveryIntent } from '../src/domain/context-delivery.js';
+import { projectContextForDelivery, resolveDeliveryIntent } from '../src/domain/context-delivery.js';
 import type { ContextBundle, RetrievalEvidence } from '../src/domain/retrieval.js';
 
 const bodies = [
@@ -104,16 +94,6 @@ test('delivery metrics count only exact repeated bodies as in-bundle duplicates'
   assert.equal(delivered.deliveryMetrics?.projectionBytesAvoided, 0);
 });
 
-test('MCP navigation text is not another full JSON copy and gives actionable exact-expansion references', () => {
-  const projected = projectContextForDelivery(bundle, 'locate');
-  const text = contextTransportText(projected as unknown as Readonly<Record<string, unknown>>);
-  assert.match(text, /src\/module-3\.ts:1-104/);
-  assert.match(text, /ace_expand/);
-  assert.doesNotMatch(text, /Uint8Array\(100\)/);
-  assert.doesNotMatch(text, /correctHandler/);
-  assert.ok(Buffer.byteLength(text) < Buffer.byteLength(JSON.stringify(projected)));
-});
-
 test('long first-ranked functions use explicit on-demand delivery, never silent truncation', () => {
   const longFirst: ContextBundle = {
     ...bundle,
@@ -125,113 +105,6 @@ test('long first-ranked functions use explicit on-demand delivery, never silent 
   assert.equal(projected.evidence[0]?.originalSpanLines, bodies[2]?.split('\n').length);
   assert.equal(projected.evidence[0]?.expansionCursor, '123');
   assert.equal(projected.evidence[0]?.expansionMaxBytes, 2048);
-  assert.match(contextTransportText(projected as unknown as Readonly<Record<string, unknown>>), /cursor=123, max_bytes=2048/);
-});
-
-test('actual official MCP transport does not mirror the entire structured ContextBundle as text', async () => {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const projected = projectContextForDelivery(bundle, 'locate');
-  const server = createAceServer({
-    handle: () => Effect.succeed({ status: 'ok' as const, result: { ...projected } }),
-  });
-  const client = new Client({ name: 'progressive-context-client', version: '1.0.0' });
-  await server.connect(serverTransport);
-  try {
-    await client.connect(clientTransport);
-    const response = await client.callTool({
-      name: 'ace_context', arguments: { workspace_id: 'fixture', query: 'find handler' },
-    });
-    assert.equal(response.isError, undefined);
-    const structured = response.structuredContent as unknown as ContextBundle;
-    assert.equal(structured.evidence.length, 6);
-    assert.equal(structured.evidence[0]?.content, bodies[0]);
-    assert.equal(structured.evidence[4]?.contentDelivery, 'expand');
-    assert.equal(structured.evidence[4]?.expansionHandle, 'exact-original-handle-4');
-    const textual = response.content[0];
-    assert.equal(textual?.type, 'text');
-    if (textual?.type !== 'text') return;
-    assert.match(textual.text, /ACE source map/);
-    assert.doesNotMatch(textual.text, /Uint8Array\(100\)/);
-    assert.ok(Buffer.byteLength(textual.text) < Buffer.byteLength(JSON.stringify(structured)));
-  } finally {
-    await client.close();
-    await server.close();
-  }
-});
-
-test('ace_expand format=utf8 returns exact readable source instead of expensive duplicate base64', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'ace-readable-expand-'));
-  const artifacts = makeFileArtifactStore(directory);
-  const source = Buffer.from('export const greeting = "Привет, 世界 🙂";\n', 'utf8');
-  const stored = await Effect.runPromise(artifacts.storeExact(source));
-  assert.equal(stored._tag, 'Ok');
-  if (stored._tag === 'Err') return;
-  const gateway = makeMcpGateway({
-    clock: { nowMs: () => Date.now() },
-    ids: { newRequestId: () => 'expand-test', newWorkspaceId: () => 'expand-workspace' },
-    files: makeNodeWorkspacePort({ allowedRoots: [directory] }),
-    store: makeFileWorkspaceStore(join(directory, 'workspaces.json')),
-    artifacts,
-  });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createAceServer(gateway);
-  const client = new Client({ name: 'ace-readable-source-client', version: '1.0.0' });
-  await server.connect(serverTransport);
-  try {
-    await client.connect(clientTransport);
-    const result = await client.callTool({
-      name: 'ace_expand',
-      arguments: { handle: stored.value.handle, format: 'utf8' },
-    });
-    assert.equal(result.isError, undefined);
-    const output = result.structuredContent as unknown as Record<string, unknown>;
-    assert.equal(output.encoding, 'utf8');
-    assert.equal(output.content_utf8, source.toString('utf8'));
-    assert.equal(output.digest, stored.value.digest);
-    assert.equal(output.total_bytes, source.length);
-    assert.equal('content_base64' in output, false);
-    assert.equal(result.content[0]?.type, 'text');
-    if (result.content[0]?.type === 'text') {
-      assert.match(result.content[0].text, /structuredContent\.content_utf8/u);
-      assert.doesNotMatch(result.content[0].text, /Привет|世界/u);
-      assert.ok(Buffer.byteLength(result.content[0].text) < source.length * 2);
-    }
-
-    const pages: string[] = [];
-    let cursor: string | undefined;
-    let pageCount = 0;
-    do {
-      const page = await client.callTool({
-        name: 'ace_expand',
-        arguments: {
-          handle: stored.value.handle,
-          format: 'utf8',
-          max_bytes: 11,
-          ...(cursor === undefined ? {} : { cursor }),
-        },
-      });
-      assert.equal(page.isError, undefined);
-      const resultPage = page.structuredContent as unknown as Record<string, unknown>;
-      assert.equal(resultPage.encoding, 'utf8');
-      pages.push(String(resultPage.content_utf8));
-      cursor = typeof resultPage.next_cursor === 'string' ? resultPage.next_cursor : undefined;
-      pageCount += 1;
-      assert.ok(pageCount < 100);
-    } while (cursor !== undefined);
-    assert.ok(pageCount > 2);
-    assert.equal(pages.join(''), source.toString('utf8'), 'UTF-8 pagination must preserve every original character');
-
-    const raw = await client.callTool({
-      name: 'ace_expand',
-      arguments: { handle: stored.value.handle, format: 'base64' },
-    });
-    const bytes = raw.structuredContent as unknown as Record<string, unknown>;
-    assert.deepEqual(Buffer.from(String(bytes.content_base64), 'base64'), source);
-  } finally {
-    await client.close();
-    await server.close();
-    await rm(directory, { recursive: true, force: true });
-  }
 });
 
 test('stable evidence receipts suppress unchanged bodies without hidden server state', () => {
@@ -260,10 +133,6 @@ test('stable evidence receipts suppress unchanged bodies without hidden server s
   assert.equal(repeated.deliveryMetrics?.uniqueEvidenceCount, evidence.length);
   assert.equal(repeated.deliveryMetrics?.initialEvidenceBytes,
     bodies.reduce((total, body) => total + Buffer.byteLength(body), 0));
-  assert.match(
-    contextTransportText(repeated as unknown as Readonly<Record<string, unknown>>),
-    /caller supplied stable evidence receipt/u,
-  );
 });
 
 test('unknown evidence receipts do not suppress any verified body', () => {

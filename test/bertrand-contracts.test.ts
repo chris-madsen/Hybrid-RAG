@@ -11,7 +11,6 @@ import { authorizeOutbound, defaultLocalPolicy } from '../src/domain/policy.js';
 import type { AuditSink, ExactRead, WorkspaceFilePort, WorkspaceStore } from '../src/application/ports.js';
 import { observeWorkspace, readVerified, registerWorkspace } from '../src/application/workspace-service.js';
 import { makeFileWorkspaceStore } from '../src/application/file-workspace-store.js';
-import { makeMcpGateway } from '../src/gateway/mcp-gateway.js';
 import { domainError } from '../src/domain/errors.js';
 import { err, isOk, ok, type Result } from '../src/domain/result.js';
 import {
@@ -267,37 +266,6 @@ test('DBC-08 exact expansion preserves >2000-line Unicode and mixed newline byte
   } while (cursor !== undefined);
   assert.deepEqual(Buffer.concat(pages), source);
 });
-test('BTC-08 gateway rejects invalid input and never simulates provider success', async () => {
-  const parent = await mkdtemp(join(tmpdir(), 'ace-bertrand-gateway-'));
-  const root = join(parent, 'repo');
-  await mkdir(root, { recursive: true });
-  const service = {
-    clock,
-    ids: ids(),
-    files: makeNodeWorkspacePort({ allowedRoots: [parent] }),
-    store: makeFileWorkspaceStore(join(root, '.ace', 'state.json')),
-  };
-  const registered = mustOk(await run(registerWorkspace(service, { rootPath: root })));
-  const gateway = makeMcpGateway({
-    ...service,
-    artifacts: makeFileArtifactStore(join(root, '.ace', 'artifacts')),
-  });
-
-  const invalid = await run(gateway.handle({ name: 'ace_context', arguments: { workspace_id: 42 } }));
-  assert.equal(invalid.status, 'error');
-  if (invalid.status === 'error') assert.equal(invalid.error.code, 'INVALID_INPUT');
-
-  const unavailable = await run(gateway.handle({
-    name: 'ace_memory_search',
-    arguments: { workspace_id: registered.workspaceId, query: 'find context' },
-  }));
-  assert.equal(unavailable.status, 'not_ready');
-  if (unavailable.status === 'not_ready') {
-    assert.equal(unavailable.code, 'NOT_READY');
-    assert.match(unavailable.detail, /no provider success is simulated/u);
-  }
-});
-
 test('BTC-09 domain layer does not import adapters or perform platform I/O', async () => {
   const root = join(process.cwd(), 'src', 'domain');
   const files: string[] = [];

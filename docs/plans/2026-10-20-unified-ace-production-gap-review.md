@@ -47,7 +47,7 @@
 
 **C-A…C-E:** реализация для всех пяти correctness-треков существенно продвинулась, но нормативная приёмка всё ещё требует их собственных negative/provider oracles; не переносить старое описание «ещё не реализовано» на современный код.
 
-**Реальные границы показаний:** 1k/10k индексный отчёт даёт cold/warm/change-only 102625/8402/10183 мс и 983239/24814/33162 мс соответственно; реальные Qdrant crash sub-tests дают 8 PASS в конкретном сценарии. Не переносить эти результаты на произвольные host/storage, workload, selected provider или concurrent GC. [Scale report](../../benchmarks/reports/2026-10-20-index-scale-real-provider.md), [crash report](../../benchmarks/reports/2026-10-20-qdrant-snapshot-crash-real-provider.md).
+**Реальные границы показаний:** 1k/10k индексный отчёт даёт cold/warm/change-only 102625/8402/10183 мс и 983239/24814/33162 мс соответственно; реальные Qdrant crash sub-tests дают 8 PASS в конкретном сценарии. Не переносить эти результаты на произвольные host/storage, workload, selected provider или concurrent GC. [Scale report] (historical report retired), [crash report] (historical report retired).
 
 ## 3. Нормативный DBC статус, не проценты готовности
 
@@ -71,7 +71,7 @@
 
 ### F-01 — P1 / Graphiti: error в typed read интерпретируется как успешная пустота
 
-**Статически подтверждено.** В [`src/adapters/graphiti-retired-tool-protocol.ts`](../../src/adapters/graphiti-retired-tool-protocol.ts) `replyJsonObject()` принимает `structuredContent` либо JSON text **раньше** проверки `isError`. Для `{isError:true, structuredContent:{episodes:[]}}` возможен `Ok([])`, далее `projectionState.isPresent=false`. На пути delete это может стать ложным доказательством purge. Аналогично `facts:[]` скрывает retrieval failure.
+**Статически подтверждено.** В [`src/adapters/graphiti-retired-tool-protocol.ts`] (retired adapter) `replyJsonObject()` принимает `structuredContent` либо JSON text **раньше** проверки `isError`. Для `{isError:true, structuredContent:{episodes:[]}}` возможен `Ok([])`, далее `projectionState.isPresent=false`. На пути delete это может стать ложным доказательством purge. Аналогично `facts:[]` скрывает retrieval failure.
 
 **Fix:** проверять `isError` первым независимо от формы content; typed `Result.Err` на все retired optional tool-call protocol error responses. **RED:** structured/text `isError` + `episodes:[]`/`facts:[]`, и oracle «при ошибке проверки `archive.deleteEpisode` не вызван». Real provider negative run перед W07/DBC-11.
 
@@ -113,7 +113,7 @@
 
 ### F-08 — P1 / W06-W08: temporal decision truth не доведена до реального retired optional tool-call protocol memory answer
 
-**Функциональный contract gap, не утечка данных.** В [`src/adapters/graphiti-retired-tool-protocol.ts`](../../src/adapters/graphiti-retired-tool-protocol.ts) memory search возвращает для hits `decisionStates: []`, глобально `conflicts: []` и вызывает Graphiti `search_memory_facts` с `max_facts: 50` **без серверного `as_of`**, затем фильтрует времена локально. Доменная [`decisionStateAt`](../../src/domain/memory.ts) уже умеет valid-time history, но она не инжектирована в этот result. Поэтому `ace_memory_search` пока нельзя считать доказанным answers-with-decision-timeline; исторически релевантные факты за пределами первых 50 могут быть пропущены.
+**Функциональный contract gap, не утечка данных.** В [`src/adapters/graphiti-retired-tool-protocol.ts`] (retired adapter) memory search возвращает для hits `decisionStates: []`, глобально `conflicts: []` и вызывает Graphiti `search_memory_facts` с `max_facts: 50` **без серверного `as_of`**, затем фильтрует времена локально. Доменная [`decisionStateAt`](../../src/domain/memory.ts) уже умеет valid-time history, но она не инжектирована в этот result. Поэтому `ace_memory_search` пока нельзя считать доказанным answers-with-decision-timeline; исторически релевантные факты за пределами первых 50 могут быть пропущены.
 
 **Fix:** подкреплённая immutable source decision repository/timeline в runtime search; связать fact и verified archived episode/decision ID, вычислять applicable accepted/rejected/superseded `as_of`; time-aware provider query или корректная exhaustive pagination+filter, с явным `partial` если провайдер не гарантирует полноту. **RED:** accepted→superseded, two conflicting decisions, late invalidated facts и >50 свежих distractors; true old fact обязан появиться либо возвращаться honest incomplete, не ложная пустота.
 
@@ -125,7 +125,7 @@
 
 ### F-10 — P1 / readiness policy: противоречие fatal vs not_ready при embedding startup failure
 
-[Operational matrix](../operations/ace-configuration-and-readiness-matrix.md) утверждает, что **embedding provider preflight failure или pinned identity mismatch → fatal process exit**. В текущем [`src/bin/ace-retired-tool-protocol.ts`](../../src/bin/ace-retired-tool-protocol.ts) `embeddings.probe()` с `Err` приводит к `readiness.code_retrieval/unified_context = not_ready`, закрывает worker и оставляет retired optional tool-call protocol process работать. Не все mismatch пути идентичны, но заявленное правило preflight в целом несовместимо с реально наблюдаемым control flow.
+[Operational matrix](../operations/ace-configuration-and-readiness-matrix.md) утверждает, что **embedding provider preflight failure или pinned identity mismatch → fatal process exit**. В текущем [`src/bin/ace-retired-tool-protocol.ts`] (retired entrypoint) `embeddings.probe()` с `Err` приводит к `readiness.code_retrieval/unified_context = not_ready`, закрывает worker и оставляет retired optional tool-call protocol process работать. Не все mismatch пути идентичны, но заявленное правило preflight в целом несовместимо с реально наблюдаемым control flow.
 
 **Fix:** утвердить одну таблицу для **bad pinned identity**, **provider temporarily unavailable**, **missing runtime** и **Qdrant outage**, реализовать и задокументировать одинаково; negative executable startup tests для exit code, `ace_workspace_status` и no false current.
 
@@ -149,7 +149,7 @@
 | **5× goal vs release gate** | По обоим документам 5× — research North Star, **не критерий PASS**; требовать измерение, quality non-inferiority и attribution. Не превращать отрицательный forced-use результат в blocking 5× threshold или в экономию. |
 | **Full `READY` vs `READY_CODE_ONLY`** | Осмысленные **разные scopes**, не противоречие: host допустим code-only, full profile требует k3s и все три capabilities; разные DBC subsets и внешние gates. |
 | **W09 admission optional vs full memory** | План условно блокирует release только если admission-filter включён по умолчанию, но full preflight **не содержит отдельного admission-quality evidence** и runtime config не фиксирует выбранную admission policy. Либо отключить filter в release, либо включить критерий non-regression/critical recall в DBC/release manifest. |
-| **Semantic provider choice vs hardcoded direct TS-LS** | Текущий [runtime bootstrap](../../src/bin/ace-retired-tool-protocol.ts) использует TS-LS, а [runtime evidence script](../../scripts/runtime-config-evidence.ts) явно пишет `typescript-language-service`. Это честное текущее ограничение. Если W02 выберет Serena, **нужен реальный кодовый switch + новое evidence**, не просто `ownerApproval=Serena`. |
+| **Semantic provider choice vs hardcoded direct TS-LS** | Текущий [runtime bootstrap] (retired entrypoint) использует TS-LS, а [runtime evidence script](../../scripts/runtime-config-evidence.ts) явно пишет `typescript-language-service`. Это честное текущее ограничение. Если W02 выберет Serena, **нужен реальный кодовый switch + новое evidence**, не просто `ownerApproval=Serena`. |
 | **Full preflight `always writes BLOCKED`** | Документ ограничивает обещание structurally usable files, но в [CLI](../../scripts/release-preflight.ts) malformed-but-readable source/external evidence и неверный hash могут вызвать `throw` до JSON verdict. Уточнить типы `INVALID_INPUT`, `EVIDENCE_INVALID`, `BLOCKED` или гарантировать machine-readable fail output даже при validator failure. |
 | **Exact-commit validation** | Нормативный release действительно требует evidence и approval для одного exact commit. В то же время повтор всех внешних сравнений после docs-only commit дорог и не всегда необходим. Зафиксировать versioned lineage/compatibility rule для переносимых измерений, но DBC/release receipt и фактическая runtime-конфигурация должны ссылаться на **точный** release commit. F-06 закрыть прежде, чем опираться на переносимость. |
 

@@ -2,9 +2,6 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
-import { Effect } from 'effect';
-import { createAceServer } from '../src/transport/mcp-sdk-stdio.js';
 import type { ContextBundle, CandidateFreshness } from '../src/domain/retrieval.js';
 import type { ContextSource, SourceCoverageStatus } from '../src/domain/source-coverage.js';
 import type { DomainErrorCode } from '../src/domain/errors.js';
@@ -17,8 +14,6 @@ import type {
 import type { HermesContextEvidence, HermesContextTransformStatus } from '../src/domain/hermes-context-evidence.js';
 import type { AceTransformRequest, AceTransformResult } from '../src/application/context-transform-service.js';
 import type { ContextBridgeResponse } from '../src/transport/context-bridge-stdio.js';
-import { domainError } from '../src/domain/errors.js';
-import type { GatewayResponse } from '../src/gateway/mcp-gateway.js';
 
 interface ToolBaseline {
   readonly required: readonly string[];
@@ -37,14 +32,6 @@ interface GatewayObjectBaseline {
 }
 
 interface PublicContractBaseline {
-  readonly mcp: {
-    readonly tools: Readonly<Record<string, ToolBaseline>>;
-    readonly successEnvelopeRequired: readonly string[];
-    readonly failureEnvelopeRequired: readonly string[];
-    readonly contentItemRequired: readonly string[];
-    readonly successStructuredContentRequired: readonly string[];
-    readonly failureStructuredContentRequired: readonly string[];
-  };
   readonly context: {
     readonly completeType: 'boolean';
     readonly candidateFreshness: readonly CandidateFreshness[];
@@ -147,11 +134,6 @@ const assertRequired = (schema: unknown, expected: readonly string[], label: str
   assert.deepEqual(sorted(Array.isArray(actual) ? actual as string[] : []), sorted(expected), `${label} required fields changed`);
 };
 
-const assertKeysPresent = (value: unknown, expected: readonly string[], label: string): void => {
-  const object = asRecord(value, label);
-  for (const key of expected) assert.ok(key in object, `${label} is missing ${key}`);
-};
-
 const assertPropertiesPresent = (schema: unknown, expected: readonly string[], label: string): void => {
   for (const path of expected) {
     assert.doesNotThrow(() => schemaAtPath(schema, path), `${label} is missing ${path}`);
@@ -226,55 +208,6 @@ test('compatibility checks allow optional additions and detect removals, new req
     properties: { id: { type: 'string' }, optional: { type: 'string' } },
     additionalProperties: false,
   }, strictGateway, 'strict Gateway v1'));
-});
-
-test('official MCP SDK schemas and result envelopes remain compatible with the shared baseline', async () => {
-  assert.deepEqual(contractTypeAssertions, [true, true, true, true, true, true]);
-  const contract = await baseline();
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createAceServer({
-    handle: (call) => {
-      const workspaceId = (call.arguments as { workspace_id?: string }).workspace_id;
-      const response: GatewayResponse = workspaceId === 'not-ready'
-        ? { status: 'error', error: domainError('NOT_READY', 'workspace_id', 'workspace is not ready') }
-        : { status: 'ok', result: { status: 'ready' } };
-      return Effect.succeed(response);
-    },
-  });
-  const client = new Client({ name: 'ace-public-contract-test', version: '1.0.0' });
-  await server.connect(serverTransport);
-  try {
-    await client.connect(clientTransport);
-    const listed = await client.listTools();
-    const tools = new Map(listed.tools.map((tool) => [tool.name, tool]));
-    for (const [name, expected] of Object.entries(contract.mcp.tools)) {
-      const tool = tools.get(name);
-      assert.ok(tool, `MCP tool ${name} was removed`);
-      const input = asRecord(tool.inputSchema, `${name}.inputSchema`);
-      assertRequired(input, expected.required, `${name}.inputSchema`);
-      assertPropertiesPresent(input, expected.properties, `${name}.inputSchema`);
-      assertTypes(input, expected.types, `${name}.inputSchema`);
-      for (const [path, fields] of Object.entries(expected.requiredByPath ?? {})) {
-        assertRequired(schemaAtPath(input, path), fields, `${name}.inputSchema.${path}`);
-      }
-      assertEnums(input, expected.enums, `${name}.inputSchema`);
-    }
-
-    const success = await client.callTool({ name: 'ace_workspace_status', arguments: { workspace_id: 'ready' } });
-    const failure = await client.callTool({ name: 'ace_workspace_status', arguments: { workspace_id: 'not-ready' } });
-    for (const key of contract.mcp.successEnvelopeRequired) assert.ok(key in success, `MCP success is missing ${key}`);
-    for (const key of contract.mcp.failureEnvelopeRequired) assert.ok(key in failure, `MCP failure is missing ${key}`);
-    assert.equal(failure.isError, true);
-    assertKeysPresent(success.content[0], contract.mcp.contentItemRequired, 'MCP success content');
-    assertKeysPresent(failure.content[0], contract.mcp.contentItemRequired, 'MCP failure content');
-    assertKeysPresent(success.structuredContent, contract.mcp.successStructuredContentRequired, 'MCP success structuredContent');
-    assertKeysPresent(failure.structuredContent, contract.mcp.failureStructuredContentRequired, 'MCP failure structuredContent');
-    assert.equal(asRecord(failure.structuredContent, 'MCP failure structuredContent').status, 'error');
-    assert.equal(asRecord(asRecord(failure.structuredContent, 'MCP failure structuredContent').error, 'MCP failure error').code, 'NOT_READY');
-  } finally {
-    await client.close();
-    await server.close();
-  }
 });
 
 test('versioned Gateway JSON Schemas remain compatible for TypeScript and Bifrost owners', async () => {

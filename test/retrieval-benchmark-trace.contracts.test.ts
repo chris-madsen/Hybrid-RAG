@@ -3,16 +3,12 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { Effect } from 'effect';
 import { makeFileRetrievalBenchmarkTrace } from '../src/adapters/retrieval-benchmark-trace.js';
 import {
   retrievalBenchmarkStages,
   validateRetrievalBenchmarkTraceArtifact,
   type RetrievalBenchmarkTraceEvent,
-  type RetrievalBenchmarkTraceSink,
 } from '../src/domain/retrieval-benchmark.js';
-import { createAceServer } from '../src/transport/mcp-sdk-stdio.js';
-import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 
 const candidate = {
   runtimeCandidateId: 'workspace-candidate',
@@ -110,34 +106,3 @@ test('trace evaluator rejects missing terminal receipt, incomplete stages, and c
   });
 });
 
-test('trace persistence failure turns an MCP request into a safe error', async () => {
-  const status = { state: 'failed' as const, recordedEvents: 1, persistedEvents: 0, failureCode: 'trace_persistence_failed' as const };
-  const trace: RetrievalBenchmarkTraceSink = {
-    record: () => undefined,
-    flush: async () => { throw new Error('must not be exposed'); },
-    close: async () => undefined,
-    status,
-  };
-  const server = createAceServer({
-    handle: () => Effect.succeed({
-      status: 'ok' as const,
-      result: { status: 'ok', query: 'private query' },
-    }),
-  }, { benchmarkTrace: trace });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: 'trace-test-client', version: '1.0.0' });
-  await server.connect(serverTransport);
-  try {
-    await client.connect(clientTransport);
-    const response = await client.callTool({
-      name: 'ace_workspace_status',
-      arguments: { workspace_id: 'workspace-1' },
-    });
-    assert.equal(response.isError, true);
-    assert.equal((response.structuredContent as { code?: string }).code, 'BENCHMARK_TRACE_FAILURE');
-    assert.doesNotMatch(JSON.stringify(response), /private query|must not be exposed/u);
-  } finally {
-    await client.close();
-    await server.close();
-  }
-});

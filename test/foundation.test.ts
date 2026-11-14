@@ -13,7 +13,6 @@ import { makeFileWorkspaceStore } from '../src/application/file-workspace-store.
 import { authorizeAndAudit } from '../src/application/policy-service.js';
 import { type IdPort, type WorkspaceFilePort } from '../src/application/ports.js';
 import { registerWorkspace, observeWorkspace, readVerified } from '../src/application/workspace-service.js';
-import { makeMcpGateway } from '../src/gateway/mcp-gateway.js';
 import { defaultLocalPolicy } from '../src/domain/policy.js';
 import { makeContentDigest, makeWorkspaceId, type RepoPath } from '../src/domain/workspace.js';
 import { isErr, isOk, ok } from '../src/domain/result.js';
@@ -324,46 +323,6 @@ test('policy denies cloud and secret routes and writes a safe audit record', asy
   assert.match(journal, /correlation-1/);
   assert.match(journal, /AUTH_REQUIRED/);
   assert.doesNotMatch(journal, /private-source-secret-value/);
-});
-
-test('gateway validates arguments, exposes exact expansion and refuses fake retrieval success', async () => {
-  const parent = await mkdtemp(join(tmpdir(), 'ace-gateway-'));
-  const root = join(parent, 'repo');
-  await mkdir(root, { recursive: true });
-  const service = {
-    clock,
-    ids: ids(),
-    files: makeNodeWorkspacePort({ allowedRoots: [parent] }),
-    store: makeFileWorkspaceStore(join(root, '.ace', 'state.json')),
-  };
-  const registered = await run(registerWorkspace(service, { rootPath: root }));
-  assert.equal(registered._tag, 'Ok');
-  if (isErr(registered)) return;
-  const artifacts = makeFileArtifactStore(join(root, '.ace', 'artifacts'));
-  const stored = await run(artifacts.storeExact(Buffer.from('exact-content', 'utf8')));
-  assert.equal(stored._tag, 'Ok');
-  if (isErr(stored)) return;
-  const gateway = makeMcpGateway({ ...service, artifacts });
-
-  const invalid = await run(gateway.handle({ name: 'ace_context', arguments: { workspace_id: 42 } }));
-  assert.equal(invalid.status, 'error');
-  if (invalid.status !== 'error') return;
-  assert.equal(invalid.error.code, 'INVALID_INPUT');
-
-  const notReady = await run(
-    gateway.handle({
-      name: 'ace_context',
-      arguments: { workspace_id: registered.value.workspaceId, query: 'find retry' },
-    }),
-  );
-  assert.equal(notReady.status, 'not_ready');
-
-  const expanded = await run(
-    gateway.handle({ name: 'ace_expand', arguments: { handle: stored.value.handle } }),
-  );
-  assert.equal(expanded.status, 'ok');
-  if (expanded.status !== 'ok') return;
-  assert.equal(Buffer.from(String(expanded.result.content_base64), 'base64').toString('utf8'), 'exact-content');
 });
 
 test('workspace persistence round-trips observation metadata used by race convergence', async () => {
