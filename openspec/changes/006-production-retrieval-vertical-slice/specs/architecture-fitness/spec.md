@@ -6,7 +6,7 @@
 
 ### Requirement: Meyer design-by-contract gates at observable boundaries
 
-The system SHALL validate production capabilities with explicit **preconditions**, **postconditions**, **class/aggregate invariants**, **frame conditions**, and **exceptional postconditions** at real provider integration or Codex retired optional tool-call protocol E2E level; isolated mocks SHALL be insufficient as sole evidence of production acceptance.
+The system SHALL validate production capabilities with explicit **preconditions**, **postconditions**, **class/aggregate invariants**, **frame conditions**, and **exceptional postconditions** at real provider integration or Gateway real-agent E2E level; isolated mocks SHALL be insufficient as sole evidence of production acceptance.
 
 #### Scenario: Valid external query precondition
 
