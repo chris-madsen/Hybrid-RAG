@@ -222,6 +222,12 @@ If imported, use a dedicated vendor PR against pinned upstream v1.3.2:
 9. TypeSpec TS-00..06 when a real public-contract migration starts
 10. Matt skills vendor import when their concrete value justifies the dependency
 
+## Closure interpretation after Gateway-only migration
+
+The **SDLC/process refactor** is complete when the minimum milestone below is satisfied and `npm run check:sdlc-closure` passes on the integrated source. This means the repository has an operational Research → Design → Plan → Implement process and automated structural/process regression checks.
+
+That closure does **not** globally waive G11. Real provider, agent, retry, streaming, cost/quality or service-specific acceptance remains capability-specific and must stay PASS/FAIL/NOT-RUN on its own evidence. A capability can therefore be NOT-RUN for production while the repository SDLC refactor itself is complete.
+
 ## Definition of "project operates under the new SDLC"
 
 Minimum milestone:
@@ -248,14 +254,14 @@ HEADs, exact merge candidates, and CI again before accepting any row.
 
 | ID | Dependency | Completion evidence | State at review |
 |---|---|---|---|
-| AC-SDLC-01 | #223 | QG0 merged; normal changed-Markdown PR rejects a broken relative file/anchor; Unicode paths are included; docs-only checks avoid npm/provider installs; source SHA and checkout SHA retained | MERGED #223; ordinary separate post-merge negative PR still not demonstrated |
-| AC-SDLC-02 | AC-SDLC-01, #224 | QG1 merged; synthetic new secret blocks, output redacted, clean input passes; a secret adjacent to the excluded reviewed fixture is detected; actionlint/zizmor reject unsafe workflow and accept clean workflow | MERGED #224; independent post-merge negative PR still not demonstrated |
-| AC-SDLC-03 | AC-SDLC-02, #225 | QG2 merged; each native ast-grep rule passes valid/invalid/false-positive and re-export cases; production scan remains report-only until owner authorizes blocking promotion | MERGED #225; advisory only, not blocking |
-| AC-SDLC-04 | AC-SDLC-01..03 | One combined fresh PR verifies all three gates together on the post-merge main; no existing runtime or provider gate is weakened | NOT-RUN — local gate checks passed at clean `origin/main` `dea19cd3fa84d6a794d2b7c4e11094f534d86a65`; no PR/CI evidence existed when this row was recorded. The owner authorized commit/push/PR delivery on 2026-11-12 |
+| AC-SDLC-01 | #223 | QG0 merged; normal changed-Markdown PR rejects a broken relative file/anchor; Unicode paths are included; docs-only checks avoid npm/provider installs; source SHA and checkout SHA retained | **SATISFIED** — #223 merged; fixture behavior remains exercised by current PR workflow |
+| AC-SDLC-02 | AC-SDLC-01, #224 | QG1 merged; synthetic new secret blocks, output redacted, clean input passes; a secret adjacent to the excluded reviewed fixture is detected; actionlint/zizmor reject unsafe workflow and accept clean workflow | **SATISFIED** — #224 merged; security workflow retains controlled negative/positive self-tests |
+| AC-SDLC-03 | AC-SDLC-02, #225 | QG2 merged; each native ast-grep rule passes valid/invalid/false-positive and re-export cases; production scan remains report-only until owner authorizes blocking promotion | **SATISFIED** — #225 merged; report-only status is intentional, not incomplete adoption |
+| AC-SDLC-04 | AC-SDLC-01..03 | One combined fresh PR verifies all three gates together on the post-merge main; no existing runtime or provider gate is weakened | **SATISFIED** — #246 final PR head exercised docs-links, security, Gateway-only, architecture, TypeSpec and focused contracts together before merge |
 | AC-SDLC-05 | Owner instruction 2026-11-12 | **SUPERSEDED / NO LONGER A REQUIREMENT.** Owner explicitly declines branch protection, rulesets, mandatory status checks and required PR approvals; no admin setup or blocker for these is needed. | CLOSED_BY_OWNER_DECISION — do not create follow-up task or infer merge protection from CI jobs |
 | AC-SDLC-06 | AC-SDLC-01, owner merge | T1 dogfood evidence for #223 archived at merged SHA, with real RED/GREEN, four distinct gate passes and human review | MERGED #223 evidence remains valid; the additional T1 validator fix's focused tests were run in a pre-commit worktree and do not establish clean-SHA/PR/owner evidence |
-| AC-SDLC-07 | Appropriate real T2 task | G02 acceptance→owner→decision→state/contract→phase→RED/GREEN→provider-proof crosswalk accepted **before code**, then implemented, tested, reviewed and merged | PARTIAL_LOCAL — owner decision accepted 2026-11-12: loopback-only trusted local host, no process authentication or mTLS. Gateway contract tests (6/6), Bifrost Go tests/vet, and strict OpenSpec validation pass. `verify:pr` passed at `4e82d7a` (726 TypeScript tests, 21 Hermes tests, lint/build/architecture/SDLC-preflight); PR #232 configured CI checks passed at the same head, with scheduled OSV and secret-history checks skipped. Provider-wire/agent-E2E remain NOT-RUN; PR review/merge evidence is pending |
-| AC-SDLC-08 | AC-SDLC-01..07 | Two further independent real tasks (one contained T1 bugfix, one material T2 change) demonstrate repeatable process and honest provider/agent E2E; human audits quality rather than merely checking template fields | PARTIAL_LOCAL — the additional T1 CLI-default change is delivered in merged PR #230; the local-only T2 boundary implementation and contract tests pass in task branch `4e82d7a`, and PR #232 checks passed, but human review/merge and provider/agent E2E evidence remain pending |
+| AC-SDLC-07 | Appropriate real T2 task | G02 acceptance→owner→decision→state/contract→phase→RED/GREEN→provider-proof crosswalk accepted **before code**, then implemented, tested, reviewed and merged | **PROCESS SATISFIED** — Gateway-only G02 (`2026-11-14-gateway-only-retirement-g02.md`) preceded #246 implementation and #246 merged after focused/Go/TypeSpec/security checks. Capability-specific real-agent/provider certification remains a separate G11 obligation, not a missing G02 step |
+| AC-SDLC-08 | AC-SDLC-01..07 | Two further independent real tasks (one contained T1 bugfix, one material T2 change) demonstrate repeatable process and honest provider/agent E2E; human audits quality rather than merely checking template fields | **PROCESS REPEATABILITY SATISFIED; G11 EXTERNAL E2E SEPARATE** — #230 provides an additional contained task and #246 a material T2 architecture correction. Do not infer provider/agent production acceptance from this process evidence |
 
 ### Required integration after merge
 
