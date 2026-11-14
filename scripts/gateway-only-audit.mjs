@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+// Repo-wide inventory and regression gate for rejected agent-invoked tool protocol.
+// Construct the obsolete token rather than embedding it in the guard source itself.
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+const removed = String.fromCharCode(109, 99, 112);
+const paths = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+const results = [];
+const matcher = new RegExp(removed, 'gi');
+for (const path of paths) {
+  const pathMatch = matcher.test(path);
+  matcher.lastIndex = 0;
+  const bytes = readFileSync(path);
+  const binary = bytes.includes(0);
+  const lines = binary ? [] : bytes.toString('utf8').split('\n');
+  const hits = [];
+  for (let i = 0; i < lines.length; i++) {
+    matcher.lastIndex = 0;
+    if (matcher.test(lines[i])) hits.push(i + 1);
+  }
+  if (pathMatch || hits.length) results.push({
+    path, fileNameMatch: pathMatch, count: hits.length, lines: hits.slice(0, 20),
+  });
+}
+const byArea = {};
+for (const record of results) {
+  const area = record.path.split('/')[0];
+  byArea[area] = (byArea[area] ?? 0) + 1;
+}
+console.log(JSON.stringify({ scanned: paths.length, matchingFiles: results.length, byArea, matches: results }));
+if (!process.argv.includes('--inventory') && results.length) process.exitCode = 1;

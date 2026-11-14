@@ -1,0 +1,39 @@
+name: ACE Gateway-only architecture audit
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'test/**'
+      - 'docs/**'
+      - 'openspec/**'
+      - 'architecture/**'
+      - 'infra/**'
+      - 'integrations/**'
+      - 'benchmarks/**'
+      - 'typespec/**'
+      - 'package*.json'
+      - 'AGENTS.md'
+      - 'README.md'
+      - 'Dockerfile.ace'
+      - 'Makefile'
+      - '.github/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  no-optional-agent-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Inventory retired optional tool protocol in every tracked source and document
+        run: node scripts/gateway-only-audit.mjs --inventory
