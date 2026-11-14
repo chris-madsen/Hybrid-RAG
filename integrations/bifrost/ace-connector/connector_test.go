@@ -451,3 +451,20 @@ func TestGatewayApplyRejectsRetiredPassThroughKinds(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvelopeBudgetCountsDuplicatedUserQuery(t *testing.T) {
+	query := strings.Repeat("x", 90*1024)
+	body := []byte(`{"model":"test","messages":[{"role":"user","content":"` + query + `"}]}`)
+	request := map[string]any{
+		"bodyBase64": base64.StdEncoding.EncodeToString(body),
+		"query": query,
+		"model": "test",
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(len(encoded)) > maxEnvelopeBytes(int64(len(body))) {
+		t.Fatal("legitimate duplicated Chat user text must fit the request envelope")
+	}
+}
