@@ -1,57 +1,23 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+# Design — Harbor paired agent evaluation
 
-# Design — Harbor evaluation and provider-reported token ledger
+## Comparison identity
 
-**Status:** Proposed technical design. Decisions already accepted are listed in ADR; names, DTOs and interfaces in DDD documents are recommendations to be reviewed.
+Harbor owns isolated task execution and retained run evidence. A comparison MUST pin the same coding agent/version where applicable, model/provider/reasoning, task, repository revision, permissions and environment across matched arms.
 
-## Context
+The baseline runs without ACE model-bound projection. The ACE arm routes the same supported model request through Bifröst with Gateway projection enabled. A Bifröst-passive arm may be added to measure gateway overhead, but it is not ACE-used evidence.
 
-Token improvement must be established against a strong current Hermes baseline before large retrieval engineering investments. The underlying GPT model is routed through Hermes `openai-codex` with the same ChatGPT/Codex OAuth identity in both paired arms.
+## Causal attribution
 
-Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deployment.md` plus PRD/ADRs before implementation.
+An ACE arm counts as ACE-applied only when retained evidence binds the run to a valid Gateway APPLY receipt and the applicable provider attempt. Fewer tokens with no valid ACE projection may be reported as an observed difference but not attributed to ACE.
 
-## Goals / Non-Goals
+## Usage and cost
 
-**Goals:** Real end-to-end measurements, quality protection, frozen tasks, reproducible reports.
+Provider/agent/Harbor exported usage is authoritative when available. Input/output/cached/reasoning subsets are reconciled without double counting. Missing counters remain UNKNOWN. External embedding, documentation, memory-extraction and indexing costs are reported separately where attributable.
 
-**Non-goals:** Observability dashboards, artificial token estimation, 5x claims before controlled holdout.
+## Quality
 
-## Decisions / Design Approach
+Task correctness/regression gates are independent of token counts. A cheaper incorrect result is not an accepted task and cannot support the 5× hypothesis.
 
-1. Harbor is external evaluation infrastructure, not a required Kubernetes workload.
-2. Hermes is the primary agent runtime for the current feedback loop. Pin Hermes version, `openai-codex` model/reasoning, Harbor version, source/task/image identity and the custom OAuth adapter digest.
-3. ACE is registered through Hermes native retired optional tool-call protocol only on the ACE-optional arm; baseline and ACE-optional otherwise remain matched.
-4. Usage exported by Hermes/Harbor/provider is authoritative when present; unavailable token/cache/cost fields remain explicit `unknown` rather than estimated.
-5. Distinguish cumulative usage from per-turn delta and dedupe by source-event identity.
-6. Retain aborted/failed attempts in population; report matched-success separately from all-run pass rate.
+## Evidence
 
-## DDD ownership and boundaries
-
-- Respect aggregate boundaries and commands/events in `docs/architecture/02-event-storming.md` and `03-tactical-ddd.md`.
-- Keep provider clients out of domain packages; integration uses ports/adapters; domain events are past-tense facts, not implicit background jobs.
-- Use typed `unavailable/stale/unknown/denied` results; do not manufacture successful data.
-- Use one modular-monolith logical retired optional tool-call protocol facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
-
-## Security, Consistency and Failure Modes
-
-- Re-evaluate cloud data policies at transmission time. No secret material in logs or prompts.
-- Maintain workspace/source digest provenance and clear missing-source status.
-- Long created code and originals remain byte-identical; support exact retrieval without arbitrary fixed token caps.
-- Technical outage: truthful degraded behavior; policy deny: fail-closed with safe log.
-- Crash/retry paths must be idempotent where events or external IO can repeat.
-
-## Verification / Rollout
-
-- Implement the scenarios in `specs/*/spec.md` as automated tests and observe the additional gates in `tasks.md`.
-- Every adapter integration must pin/version-check its provider's API and license; unsupported feature => explicit `unsupported`, not stubbed success.
-- For retrieval/memory changes, run comparable Harbor tests and preserve unsuccessful runs.
-- Review output evidence and complete tasks before applying/archiving this change.
-
-## Open Questions / Blocking Spikes
-
-Refer to `docs/architecture/05-contracts-and-deployment.md` §11. Do not silently settle undecided providers, transports or mount patterns. Escalate material choices to the owner through a new ADR.
-
-
-## Owner decision update — 2026-10-23
-
-ADR-015 supersedes the Codex-specific primary-agent choice for this change. Harbor remains the orchestrator, but the current feedback loop uses Hermes with native retired optional tool-call protocol and the `openai-codex` ChatGPT OAuth route. Historical Codex evidence remains historical and does not close Hermes E2E gates.
+Retain exact source/task/runtime identities, raw trial artifacts, failures/timeouts, projection/request IDs, provider usage, quality result and limitations. Real-agent/provider evidence is capability-specific G11 and is not inferred from unit tests.
