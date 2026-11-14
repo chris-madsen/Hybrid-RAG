@@ -11,7 +11,7 @@ The system SHALL invoke selected, configured real retrieval providers from the p
 #### Scenario: DBC-01 actual provider wiring
 
 - **WHEN** an authorized code-intelligence query requires semantic discovery, AST spans and LSP semantics in a pinned environment with approved providers
-- **THEN** an observable Codex retired optional tool-call protocol call reaches actual Qdrant with a genuine approved embedding, Tree-sitter/ast-grep, approved LSP and current source verification, and the resulting evidence carries provider and source provenance
+- **THEN** an observable request-bound Bifröst → ACE Gateway projection reaches actual Qdrant with a genuine approved embedding, Tree-sitter/ast-grep, approved LSP and current source verification, and the resulting evidence carries provider/source/request provenance
 - **AND** an implementation where only a regex/full-file local provider is invoked SHALL fail this scenario
 
 #### Scenario: Unapproved production dependency
