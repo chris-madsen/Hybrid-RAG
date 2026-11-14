@@ -20,12 +20,21 @@ The ACE projection HTTP endpoint SHALL bind only to loopback and SHALL authentic
 - **THEN** projection is unavailable or unauthorized
 - **AND** private request/source context is not returned.
 
-### Requirement: Request-bound host identity
+### Requirement: Request-bound physical identity and session correlation
 
-For a supported request the plugin SHALL bind ACE projection to Bifröst's actual request ID, resolved coding-harness session ID, configured workspace, exact inbound body digest and provider/model identity.
+For a supported request the plugin SHALL bind ACE projection to a fresh server-minted physical
+request ID, normalized coding-harness session correlation, configured workspace, exact inbound
+body digest and provider/model identity. Caller-supplied request/session headers SHALL NOT be
+treated as authenticated identity.
 
-#### Scenario: missing Bifröst session or request ID
-- **WHEN** Bifröst cannot establish request or session identity
+#### Scenario: transport hook precedes Bifröst Core context population
+- **WHEN** the post-auth HTTP transport hook runs before `ConvertToBifrostContext`
+- **THEN** the plugin SHALL mint its physical request ID without depending on `BifrostContextKeyRequestID`
+- **AND** SHALL resolve session correlation from the supported request headers
+- **AND** PreLLM SHALL later cross-check that correlation against Bifröst Core's resolved session.
+
+#### Scenario: missing session correlation or physical-ID entropy
+- **WHEN** no valid supported coding-harness session correlation exists or the plugin cannot mint its physical request ID
 - **THEN** projection returns a fail-closed error
 - **AND** no provider attempt is authorized by ACE.
 
@@ -59,6 +68,11 @@ Gateway SHALL know and authorize the exact LLM provider before retrieving or inj
 - **WHEN** the explicit provider is absent from the configured Gateway provider allowlist, cloud opt-in is false, or `private_source` is denied by project policy
 - **THEN** Gateway returns a BLOCK decision before retrieval
 - **AND** no private ACE context is appended.
+
+#### Scenario: caller declares a lower data class
+- **WHEN** the request declares `public` or another class that is less restrictive than the repository code ACE will retrieve
+- **THEN** Gateway still authorizes `private_source` for the retrieved evidence
+- **AND** the caller declaration cannot downgrade repository evidence classification.
 
 #### Scenario: selected context contains likely secret material
 - **WHEN** retrieved context matches the repository secret-content guard
