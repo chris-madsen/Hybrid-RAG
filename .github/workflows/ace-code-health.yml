@@ -6,9 +6,11 @@ on:
       - "src/**"
       - "test/**"
       - "scripts/nightly-targeted-mutation.mjs"
+      - "scripts/check-codeql-sarif.mjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/ace-code-health.yml"
+      - ".github/codeql/codeql-config.yml"
       - "docs/research/sdlc/**"
       - "docs/plans/**"
   schedule:
@@ -29,7 +31,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -39,9 +41,10 @@ jobs:
         with:
           languages: javascript-typescript
           queries: security-extended
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Node 22
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -49,10 +52,20 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
 
+      - name: Verify CodeQL SARIF gate fixtures
+        run: node --test test/codeql-sarif-gate.test.mjs
+
       - name: Analyze source
+        id: analyze
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4 tag, 2026-11-04
         with:
           category: "/language:javascript-typescript"
+          output: ${{ runner.temp }}/codeql-results
+
+      - name: Block extraction errors and high/critical CodeQL findings
+        env:
+          CODEQL_SARIF_DIR: ${{ runner.temp }}/codeql-results
+        run: node scripts/check-codeql-sarif.mjs --dir "$CODEQL_SARIF_DIR"
 
   targeted-mutation:
     name: Targeted critical mutation
@@ -60,12 +73,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Node 22
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -84,7 +97,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
