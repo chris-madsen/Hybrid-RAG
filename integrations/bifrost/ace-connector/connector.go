@@ -25,7 +25,9 @@ const DefaultMaxBodyBytes int64 = 4 * 1024 * 1024
 const maxEnvelopeOverhead int64 = 64 * 1024
 
 func maxEnvelopeBytes(bodyBytes int64) int64 {
-	return 4*((bodyBytes+2)/3) + maxEnvelopeOverhead
+	// The envelope duplicates the user query outside the Base64 body. Its
+	// UTF-8 bytes can be as large as the original request body.
+	return 4*((bodyBytes+2)/3) + bodyBytes + maxEnvelopeOverhead
 }
 
 
