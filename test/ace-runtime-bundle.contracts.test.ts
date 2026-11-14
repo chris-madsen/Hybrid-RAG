@@ -60,7 +60,6 @@ test('reports missing runtime bundle paths instead of treating an incomplete mou
   const missing = missingAceRuntimeBundlePaths(root);
   assert.deepEqual(missing, requiredAceRuntimeBundlePaths);
   await mkdir(join(root, 'dist/bin'), { recursive: true });
-  await writeFile(join(root, 'dist/bin/ace-context-bridge.js'), '');
   assert.ok(missingAceRuntimeBundlePaths(root).includes('node_modules/effect/package.json'));
 });
 
@@ -102,7 +101,7 @@ test('verifies bundle bytes rather than accepting an unverified manifest digest'
   assert.equal(missingPillow.status, 'not_ready');
   assert.match(missingPillow.reason, /missing Python packages/u);
   await writeFile(missingPillowFile, 'original');
-  await writeFile(join(root, 'dist/bin/ace-mcp.js'), 'modified');
+  await writeFile(join(root, 'dist/bin/ace-runtime.js'), 'modified');
   const tampered = await verifyAceRuntimeBundle(root, bundleSha256);
   assert.equal(tampered.status, 'not_ready');
   assert.match(tampered.reason, /bytes do not match/u);
@@ -200,10 +199,3 @@ test('Harbor runtime builder validates exact embedding pins and native Python im
   assert.match(builder, /from PIL import Image; import PIL, fastembed, onnxruntime/u);
 });
 
-test('Harbor MCP launcher requires Python 3.11 and installs the reviewed embedding pins', async () => {
-  const launcher = await readFile('scripts/harbor-ace-mcp.sh', 'utf8');
-  assert.match(launcher, /sys\.version_info < \(3, 11\)/u);
-  assert.match(launcher, /fastembed==0\.9\.1/u);
-  assert.match(launcher, /pillow==13\.0\.0/u);
-  assert.doesNotMatch(launcher, /fastembed==0\.7\.4/u);
-});

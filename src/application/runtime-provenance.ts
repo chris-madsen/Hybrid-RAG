@@ -34,8 +34,6 @@ const readRuntimeIdentity = async (runtimeRoot: string): Promise<RuntimeIdentity
     acePackage: `${String(packageJson.name ?? 'unknown')}@${String(packageJson.version ?? 'unknown')}`,
     node: process.version,
     typescript: String(dependencies.typescript ?? 'unknown'),
-    mcpClientSdk: String(dependencies['@modelcontextprotocol/client'] ?? 'unknown'),
-    mcpServerSdk: String(dependencies['@modelcontextprotocol/server'] ?? 'unknown'),
   };
 };
 
@@ -44,7 +42,7 @@ const currentObservation = async (
   manifest: RuntimeProvenanceManifest,
 ): Promise<RuntimeProvenanceObservation> => {
   const sourceFiles = await readSourceFiles(runtimeRoot, manifest.sourceFiles.map((entry) => entry.path));
-  const executable = await readFile(join(runtimeRoot, 'dist/bin/ace-mcp.js'));
+  const executable = await readFile(join(runtimeRoot, 'dist/bin/ace-runtime.js'));
   return {
     runtimeRoot,
     runtimeId: process.env.ACE_RUNTIME_ID?.trim() || 'ace-harbor-runtime-v1',
@@ -63,7 +61,7 @@ export const verifyCompiledRuntimeProvenance = async (
   const runtimeRoot = resolve(runtimeRootInput);
   // Check the module Node is *actually executing*, not a clean checkout
   // that ACE_RUNTIME_ROOT points to while another executable runs.
-  if (resolve(runningExecutablePath) !== resolve(runtimeRoot, 'dist/bin/ace-mcp.js')) {
+  if (resolve(runningExecutablePath) !== resolve(runtimeRoot, 'dist/bin/ace-runtime.js')) {
     return err(domainError('NOT_READY', 'runtime_provenance', 'compiled executable path does not match the verified runtime root'));
   }
   try {

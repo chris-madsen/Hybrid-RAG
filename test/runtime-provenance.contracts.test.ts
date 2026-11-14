@@ -19,18 +19,16 @@ const runtime: RuntimeIdentity = {
   acePackage: 'ace-harness@0.1.0',
   node: 'v24.15.0',
   typescript: '5.9.3',
-  mcpClientSdk: '2.3.1',
-  mcpServerSdk: '2.3.1',
 };
 const sourceFiles: readonly RuntimeSourceManifestEntry[] = [{
-  path: 'src/bin/ace-mcp.ts',
+  path: 'src/bin/ace-runtime.ts',
   sha256: 'a'.repeat(64),
   sizeBytes: 10,
 }];
 const base: RuntimeProvenanceManifest = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   runtimeId: 'ace-harbor-runtime-v1',
-  executablePath: 'dist/bin/ace-mcp.js',
+  executablePath: 'dist/bin/ace-runtime.js',
   executableSha256: 'b'.repeat(64),
   sourceCommit: 'c'.repeat(40),
   sourceCleanAtBuild: true,
@@ -117,7 +115,7 @@ test('runtime identity mismatch is reported without requiring the build Node to 
 test('executing a binary from another checkout cannot reuse a clean manifest', async () => {
   const result = await verifyCompiledRuntimeProvenance(
     '/frozen-clean-checkout',
-    '/different-runtime/dist/bin/ace-mcp.js',
+    '/different-runtime/dist/bin/ace-runtime.js',
   );
   assert.equal(result._tag, 'Err');
   if (result._tag === 'Err') {

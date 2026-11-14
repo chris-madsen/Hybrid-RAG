@@ -27,10 +27,10 @@ const dirtyRelevantPaths = git(['status', '--porcelain=v1', '--untracked-files=a
   .filter((path) => runtimeRelevantPath(path));
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const dependencies = packageJson.dependencies ?? {};
-const executablePath = 'dist/bin/ace-mcp.js';
+const executablePath = 'dist/bin/ace-runtime.js';
 const executableBytes = await readFile(join(root, executablePath));
 const manifest = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   runtimeId: 'ace-harbor-runtime-v1',
   executablePath,
   executableSha256: digest(executableBytes),
@@ -43,8 +43,6 @@ const manifest = {
     acePackage: `${packageJson.name ?? 'unknown'}@${packageJson.version ?? 'unknown'}`,
     node: process.version,
     typescript: dependencies.typescript ?? 'unknown',
-    mcpClientSdk: dependencies['@modelcontextprotocol/client'] ?? 'unknown',
-    mcpServerSdk: dependencies['@modelcontextprotocol/server'] ?? 'unknown',
   },
   supportedNodeVersions: ['v18.19.0', 'v22.9.0', 'v22.23.4', 'v24.15.0'],
 };
