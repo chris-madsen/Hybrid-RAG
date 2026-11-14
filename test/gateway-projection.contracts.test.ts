@@ -99,10 +99,15 @@ test('gateway never treats context failure as unchanged success', async () => {
   }
 });
 
-test('non-gateway modes are explicit and do not claim ACE projection', async () => {
-  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ projectionMode: 'assist-only' })));
-  assert.equal(decision._tag, 'Ok');
-  if (decision._tag === 'Ok') assert.equal(decision.value.kind, 'UNCHANGED_AUTHORIZED');
+test('legacy projection modes are decodable but never bypass the Gateway', async () => {
+  for (const mode of ['native', 'assist-only', 'observe-only', 'off'] as const) {
+    const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ projectionMode: mode })));
+    assert.equal(decision._tag, 'Ok');
+    if (decision._tag === 'Ok') {
+      assert.equal(decision.value.kind, 'BLOCK');
+      assert.equal(decision.value.receipt.reasonCode, 'GATEWAY_MODE_REQUIRED');
+    }
+  }
 });
 
 test('gateway blocks simultaneous native projection ownership', async () => {

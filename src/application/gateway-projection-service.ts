@@ -74,9 +74,9 @@ export const makeGatewayProjectionService = (context: ContextTransformService): 
     const decoded = validateGatewayProjectionRequest(value);
     if (decoded._tag === 'Err') return decoded;
     const request = decoded.value;
-    if (request.projectionMode !== 'gateway') {
-      return ok({ kind: 'UNCHANGED_AUTHORIZED', receipt: receiptFor(request, 'UNCHANGED_AUTHORIZED') });
-    }
+    // The Gateway is the sole agent-facing context owner. Old mode labels
+    // remain wire-decodable for v1 compatibility, but none may bypass ACE.
+    if (request.projectionMode !== 'gateway') return block(request, 'GATEWAY_MODE_REQUIRED');
     if (request.nativeProjectionActive === true) return block(request, 'DUAL_PROJECTION_OWNER');
     if (request.attestation.sessionId !== request.agentSessionId) return block(request, 'HOST_SESSION_MISMATCH');
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');

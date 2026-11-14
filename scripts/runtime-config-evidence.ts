@@ -34,6 +34,9 @@ if (workspaceId === undefined || workspaceId.length === 0) {
 }
 
 const enabled = (name: string): boolean => process.env[name] === 'true';
+if (enabled('ACE_ENABLE_GRAPHITI')) {
+  throw new Error('NOT_READY: native Gateway Graphiti provider is not configured; release evidence cannot claim graph memory');
+}
 const nonEmpty = (name: string): boolean => (process.env[name]?.trim().length ?? 0) > 0;
 
 const vertexEnabled = enabled('ACE_ENABLE_VERTEX');
