@@ -39,7 +39,11 @@ func Init(config any) error {
 	if endpoint == "" {
 		return errors.New("ACE_GATEWAY_PROJECTION_URL is required")
 	}
-	projectionClient = connector.Client{Endpoint: endpoint, MaxBodyBytes: connector.DefaultMaxBodyBytes}
+	token := os.Getenv("ACE_GATEWAY_PROJECTION_TOKEN")
+	if token == "" {
+		return errors.New("ACE_GATEWAY_PROJECTION_TOKEN is required")
+	}
+	projectionClient = connector.Client{Endpoint: endpoint, AuthToken: token, MaxBodyBytes: connector.DefaultMaxBodyBytes}
 	defaultWorkspaceID = os.Getenv("ACE_BIFROST_WORKSPACE_ID")
 	return nil
 }
