@@ -6,6 +6,7 @@ const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
 const root = resolve(rootIndex >= 0 && args[rootIndex + 1] ? args[rootIndex + 1] : process.cwd());
 const openspecOnly = args.includes('--openspec-only');
+const architectureOnly = args.includes('--architecture-only');
 
 const requirements = [
   {
@@ -113,7 +114,7 @@ const activeOpenSpecGuard = async () => {
   };
 };
 
-if (!openspecOnly) for (const requirement of requirements) {
+if (!openspecOnly && !architectureOnly) for (const requirement of requirements) {
   let text;
   try {
     text = await readFile(resolve(root, requirement.file), 'utf8');
@@ -132,7 +133,60 @@ if (!openspecOnly) for (const requirement of requirements) {
   });
 }
 
-results.push(await activeOpenSpecGuard());
+const architectureAuthorityGuard = async () => {
+  const files = [
+    'docs/docs/architecture/01-strategic-ddd.md',
+    'docs/docs/architecture/02-event-storming.md',
+    'docs/docs/architecture/03-tactical-ddd.md',
+    'docs/docs/architecture/04-fsm-workflows.md',
+    'docs/docs/architecture/05-contracts-and-deployment.md',
+    'docs/docs/architecture/06-traceability-and-review.md',
+    'docs/docs/architecture/07-architecture-fitness-contracts.md',
+  ];
+  const forbiddenText = [
+    'retired optional tool-call protocol',
+    '`ace_context`',
+    '`ace_expand`',
+    'Hermes ContextEngine',
+    'Hermes native ContextEngine',
+    'planned Bifrost',
+  ];
+  const violations = [];
+  const missing = [];
+  for (const file of files) {
+    try {
+      const value = await readFile(resolve(root, file), 'utf8');
+      const found = forbiddenText.filter((needle) => value.includes(needle));
+      if (found.length) violations.push({ file, forbidden: found });
+    } catch {
+      missing.push(file);
+    }
+  }
+  const required = [
+    ['docs/docs/architecture/01-strategic-ddd.md', 'Bifröst Gateway projection adapter'],
+    ['docs/docs/architecture/05-contracts-and-deployment.md', 'Gateway Projection Surface — sole agent-facing delivery'],
+    ['docs/docs/architecture/07-architecture-fitness-contracts.md', 'DBC-09 Gateway/connector conformance'],
+  ];
+  const missingAuthority = [];
+  for (const [file, needle] of required) {
+    try {
+      const value = await readFile(resolve(root, file), 'utf8');
+      if (!value.includes(needle)) missingAuthority.push({ file, needle });
+    } catch {
+      // already reported as missing
+    }
+  }
+  return {
+    id: 'ARCHITECTURE_GATEWAY_AUTHORITY',
+    status: missing.length === 0 && violations.length === 0 && missingAuthority.length === 0 ? 'PASS' : 'FAIL',
+    ...(missing.length ? { missing } : {}),
+    ...(violations.length ? { violations } : {}),
+    ...(missingAuthority.length ? { missingAuthority } : {}),
+  };
+};
+
+if (!architectureOnly) results.push(await activeOpenSpecGuard());
+if (!openspecOnly) results.push(await architectureAuthorityGuard());
 
 const summary = {
   schemaVersion: 'ace.sdlc-closure.v1',
