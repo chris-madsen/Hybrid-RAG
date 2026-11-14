@@ -271,7 +271,7 @@ const sourceCheckout = (): { readonly check: PreflightCheck; readonly commit: st
 
 const compiledRuntime = async (): Promise<PreflightCheck> => {
   const runtimeRoot = resolve('.');
-  const executable = resolve(runtimeRoot, 'dist/bin/ace-mcp.js');
+  const executable = resolve(runtimeRoot, 'dist/bin/ace-gateway-http.js');
   if (!existsSync(executable)) return { status: 'not_ready', reason: 'compiled ACE runtime is missing' };
   const verified = await verifyCompiledRuntimeProvenance(runtimeRoot, executable);
   return verified._tag === 'Err'
