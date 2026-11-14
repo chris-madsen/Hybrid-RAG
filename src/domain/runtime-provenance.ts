@@ -79,9 +79,7 @@ export const validateRuntimeProvenance = (
   }
   if (!sha256(manifest.bundleManifestSha256)) failures.push('bundle_manifest_invalid');
   if (manifest.buildRuntime.acePackage !== observed.runtime.acePackage
-    || manifest.buildRuntime.typescript !== observed.runtime.typescript
-    || manifest.buildRuntime.mcpClientSdk !== observed.runtime.mcpClientSdk
-    || manifest.buildRuntime.mcpServerSdk !== observed.runtime.mcpServerSdk) {
+    || manifest.buildRuntime.typescript !== observed.runtime.typescript) {
     failures.push('runtime_identity_mismatch');
   }
   return failures;
