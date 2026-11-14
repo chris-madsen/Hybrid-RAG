@@ -11,7 +11,7 @@ A running agent/Gateway path can appear healthy while real Qdrant/AST/LSP adapte
 ## What changes
 
 1. Implement one **real** model-bound retrieval path through Bifröst Gateway Projection with actual provider invocations: Qdrant + approved real embeddings for candidate discovery, Tree-sitter/ast-grep for exact symbol spans, approved language-service semantics for references/types when needed, current source verification and a cited concise projection with authorized lossless source preservation.
-2. Enforce Design by Contract (Meyer) at actual retired optional tool-call protocol/provider boundary: preconditions, postconditions, invariants, frame conditions and exceptional postconditions; see `docs/docs/architecture/07-architecture-fitness-contracts.md`.
+2. Enforce Design by Contract (Meyer) at the actual Gateway/provider boundary: preconditions, postconditions, invariants, frame conditions and exceptional postconditions; see `docs/docs/architecture/07-architecture-fitness-contracts.md`.
 3. Quarantine hash vectors, regex full-file indexing and home-grown protocol as benchmark/fallback experiments, never as silent default production implementation.
 4. Make `complete` based on **required route coverage**, not merely evidence freshness; report capability statuses honestly.
 5. Use Harbor paired realistic retrieval-demanding tests with counted successful ACE calls, source/provider trace, correctness and full token/cost attribution; zero-call natural smoke cannot claim gains.
