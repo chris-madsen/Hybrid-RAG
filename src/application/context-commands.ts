@@ -59,14 +59,14 @@ type ExpandInputValue = Schema.Schema.Type<typeof ExpandInput>;
 type WorkspaceStatusInputValue = Schema.Schema.Type<typeof WorkspaceStatusInput>;
 type MemoryInputValue = Schema.Schema.Type<typeof MemoryInput>;
 
-export type ToolName = 'ace_context' | 'ace_expand' | 'ace_workspace_status' | 'ace_memory_search';
+export type ContextCommandName = 'context_query' | 'context_expand' | 'workspace_status' | 'memory_search';
 
-export interface ToolCall {
+export interface ContextCommandCall {
   readonly name: string;
   readonly arguments: unknown;
 }
 
-export type GatewayResponse =
+export type ContextCommandResult =
   | { readonly status: 'ok'; readonly result: Readonly<Record<string, unknown>> }
   | { readonly status: 'not_ready'; readonly capability: string; readonly code: 'NOT_READY'; readonly detail: string }
   | { readonly status: 'error'; readonly error: DomainError };
@@ -78,7 +78,7 @@ export interface CapabilityReadiness {
   readonly reason: string;
 }
 
-export interface McpGatewayPorts extends WorkspaceServicePorts {
+export interface ContextCommandPorts extends WorkspaceServicePorts {
   readonly artifacts: ArtifactStore;
   readonly context?: ContextProvider;
   readonly memory?: MemoryProvider;
@@ -91,29 +91,29 @@ const decode = <Value>(schema: Schema.Schema<Value, Value, never>, input: unknow
   try {
     return ok(Schema.decodeUnknownSync(schema)(input));
   } catch {
-    return err(domainError('INVALID_INPUT', 'arguments', 'tool arguments do not match the versioned schema'));
+    return err(domainError('INVALID_INPUT', 'arguments', 'context command arguments do not match the versioned schema'));
   }
 };
 
-const responseError = (result: Result<unknown, DomainError>): GatewayResponse => {
+const responseError = (result: Result<unknown, DomainError>): ContextCommandResult => {
   if (result._tag === 'Ok') return { status: 'ok', result: {} };
   return result.error.code === 'NOT_READY'
     ? { status: 'not_ready', capability: result.error.path, code: 'NOT_READY', detail: result.error.message }
     : { status: 'error', error: result.error };
 };
 
-const notReady = (capability: string): GatewayResponse => ({
+const notReady = (capability: string): ContextCommandResult => ({
   status: 'not_ready',
   capability,
   code: 'NOT_READY',
   detail: `${capability} is not implemented in foundation; no provider success is simulated`,
 });
 
-export const makeMcpGateway = (ports: McpGatewayPorts) => ({
-  handle: (call: ToolCall): Effect.Effect<GatewayResponse> =>
+export const makeContextCommands = (ports: ContextCommandPorts) => ({
+  handle: (call: ContextCommandCall): Effect.Effect<ContextCommandResult> =>
     Effect.gen(function* () {
       switch (call.name) {
-        case 'ace_context': {
+        case 'context_query': {
           const input = decode(ContextInput, call.arguments);
           if (isErr(input)) return responseError(input);
           if (input.value.known_bundle_id !== undefined && input.value.known_bundle_id.trim().length === 0) {
@@ -231,7 +231,7 @@ export const makeMcpGateway = (ports: McpGatewayPorts) => ({
           }
           return notReady('unified_context');
         }
-        case 'ace_expand': {
+        case 'context_expand': {
           const input = decode(ExpandInput, call.arguments);
           if (isErr(input)) return responseError(input);
           const range = yield* ports.artifacts.readRange(input.value.handle, input.value.cursor, input.value.max_bytes);
@@ -281,7 +281,7 @@ export const makeMcpGateway = (ports: McpGatewayPorts) => ({
             },
           };
         }
-        case 'ace_workspace_status': {
+        case 'workspace_status': {
           const input = decode(WorkspaceStatusInput, call.arguments);
           if (isErr(input)) return responseError(input);
           const workspaceId = workspaceIdFrom(input.value.workspace_id);
@@ -311,7 +311,7 @@ export const makeMcpGateway = (ports: McpGatewayPorts) => ({
             },
           };
         }
-        case 'ace_memory_search': {
+        case 'memory_search': {
           const input = decode(MemoryInput, call.arguments);
           if (isErr(input)) return responseError(input);
           const workspaceId = workspaceIdFrom(input.value.workspace_id);
