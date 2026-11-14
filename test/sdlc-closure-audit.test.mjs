@@ -77,3 +77,35 @@ test('architecture authority guard rejects a revived Hermes/tool delivery path',
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('public contract authority guard rejects a new handwritten live schema outside TypeSpec-owned Gateway v1', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-public-contract-closure-negative-'));
+  try {
+    const gateway = join(root, 'contracts', 'ace-gateway', 'v1');
+    const rogue = join(root, 'contracts', 'manual-v1');
+    const typespec = join(root, 'typespec');
+    mkdirSync(gateway, { recursive: true });
+    mkdirSync(rogue, { recursive: true });
+    mkdirSync(typespec, { recursive: true });
+    writeFileSync(join(gateway, 'projection-request.schema.json'), '{}\n');
+    writeFileSync(join(gateway, 'projection-decision.schema.json'), '{}\n');
+    writeFileSync(join(rogue, 'schema.json'), '{}\n');
+    writeFileSync(join(typespec, 'main.tsp'), [
+      'namespace AceGatewayV1 {',
+      'model ProjectionRequest {}',
+      'model ProjectionDecision {}',
+      '@route("/internal/ace-gateway/v1/project")',
+      'op project(): ProjectionDecision;',
+      '}',
+      '',
+    ].join('\n'));
+    const run = spawnSync(process.execPath, [audit, '--root', root, '--contracts-only'], { encoding: 'utf8' });
+    assert.equal(run.status, 1, run.stderr || run.stdout);
+    const result = JSON.parse(run.stdout);
+    const guard = result.results.find((entry) => entry.id === 'PUBLIC_CONTRACT_TYPESPEC_AUTHORITY');
+    assert.equal(guard?.status, 'FAIL');
+    assert.ok(guard?.unexpected?.includes('contracts/manual-v1/schema.json'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
