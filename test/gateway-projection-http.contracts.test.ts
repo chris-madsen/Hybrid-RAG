@@ -76,5 +76,5 @@ test('gateway allows Base64 and JSON framing beyond the raw four MiB body limit'
   const rawBytes = 4 * 1024 * 1024;
   const encodedBytes = Buffer.alloc(rawBytes).toString('base64').length;
   assert.ok(encodedBytes > rawBytes);
-  assert.ok(maxEnvelopeBytesFor(rawBytes) >= encodedBytes + 1024);
+  assert.ok(maxEnvelopeBytesFor(rawBytes) >= encodedBytes + rawBytes + 1024, 'query duplicates the user message outside Base64');
 });
