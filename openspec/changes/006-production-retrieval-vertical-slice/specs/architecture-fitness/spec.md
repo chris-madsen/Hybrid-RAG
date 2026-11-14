@@ -47,8 +47,8 @@ The system SHALL separate port-designed, adapter-implemented, real-provider-test
 
 #### Scenario: Adapter passes but runtime composition fails
 
-- **WHEN** isolated Qdrant and LSP adapter tests pass but the retired optional tool-call protocol executable does not invoke them
-- **THEN** capability remains `not_ready`, and all mandatory relevant runtime gate tasks remain unchecked
+- **WHEN** isolated Qdrant and LSP adapter tests pass but the actual Gateway runtime path does not invoke them for a required request
+- **THEN** capability remains `not_ready`, and all mandatory relevant runtime/provider gate tasks remain unchecked
 
 #### Scenario: Zero ACE calls despite lower tokens
 
