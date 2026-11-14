@@ -46,6 +46,8 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       ACE_GATEWAY_HTTP_HOST: '127.0.0.1',
       ACE_GATEWAY_HTTP_PORT: String(port),
       ACE_GATEWAY_HTTP_SHARED_SECRET: 'readiness-fixture-secret',
+      ACE_GATEWAY_EXTERNAL_LLM_OPT_IN: 'true',
+      ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
     },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
