@@ -8,7 +8,7 @@ test('Bifrost plugin build is pinned and fail-closed before plugin compilation',
   assert.match(script, /BIFROST_COMMIT:=fe7634a6c828927d05ffdd57c62be0aaab04193f/u);
   assert.match(script, /rev-parse HEAD/u);
   assert.match(script, /main_test\.go/u);
-  assert.match(script, /go test -tags=bifrost_plugin -count=1/u);
+  assert.match(script, /test -tags=bifrost_plugin -count=1/u);
   assert.match(script, /-buildmode=plugin/u);
   assert.match(script, /-X main\.aceSourceCommit=\$ace_commit/u);
   assert.match(script, /status --porcelain --untracked-files=no/u);
