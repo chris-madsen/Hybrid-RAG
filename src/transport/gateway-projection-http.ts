@@ -4,7 +4,12 @@ import { Effect } from 'effect';
 import type { DomainError } from '../domain/errors.js';
 import type { Result } from '../domain/result.js';
 import type { GatewayProjectionDecision } from '../domain/gateway-projection.js';
-import type { ProjectionDecision as GeneratedProjectionDecision } from '../generated/ace-gateway/v1/types.gen.js';
+import type {
+  ProjectionDecision as GeneratedProjectionDecision,
+  GatewayHealth as GeneratedGatewayHealth,
+  GatewayCapabilities as GeneratedGatewayCapabilities,
+  DeliveryNotCertified as GeneratedDeliveryNotCertified,
+} from '../generated/ace-gateway/v1/types.gen.js';
 
 // The functional domain deliberately exposes readonly arrays and ADTs.
 // Generated OpenAPI DTO shapes are checked at this boundary without cloning
@@ -58,20 +63,27 @@ export const handleGatewayProjectionHttp = async (
   body: string,
 ): Promise<GatewayProjectionHttpResponse> => {
   if (method === 'GET' && path === '/internal/ace-gateway/v1/health') {
-    return json({ schemaVersion, liveness: 'ready', readiness: 'adapter_implemented', providerWire: 'not_certified' });
+    const wire: GeneratedGatewayHealth = {
+      schemaVersion, liveness: 'ready', readiness: 'adapter_implemented', providerWire: 'not_certified',
+    };
+    return json(wire as unknown as Readonly<Record<string, unknown>>);
   }
   if (method === 'GET' && path === '/internal/ace-gateway/v1/capabilities') {
-    return json({
+    const wire: GeneratedGatewayCapabilities = {
       schemaVersion,
       routes: [{ protocol: 'openai.chat.completions', mode: 'structured', capability: 'G2_GATEWAY_VISIBLE_ONLY' }],
       maxBodyBytes: defaultMaxBodyBytes,
       projectionModes: ['native', 'gateway', 'assist-only', 'observe-only', 'off'],
       providerWireCertification: 'not_certified',
-    });
+    };
+    return json(wire as unknown as Readonly<Record<string, unknown>>);
   }
   if (method !== 'POST') return error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method');
   if (path === '/internal/ace-gateway/v1/record-delivery') {
-    return error(501, 'PROVIDER_WIRE_NOT_CERTIFIED', 'delivery recording requires a verified final-send integration');
+    const unavailable: GeneratedDeliveryNotCertified = {
+      error: { code: 'PROVIDER_WIRE_NOT_CERTIFIED', message: 'delivery recording requires a verified final-send integration' },
+    };
+    return error(501, unavailable.error.code, unavailable.error.message);
   }
   if (path !== '/internal/ace-gateway/v1/project') return error(404, 'NOT_FOUND', 'unknown gateway endpoint');
   let input: unknown;

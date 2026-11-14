@@ -6,6 +6,42 @@
   },
   "tags": [],
   "paths": {
+    "/internal/ace-gateway/v1/capabilities": {
+      "get": {
+        "operationId": "capabilities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayCapabilities"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/ace-gateway/v1/health": {
+      "get": {
+        "operationId": "health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayHealth"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/ace-gateway/v1/project": {
       "post": {
         "operationId": "project",
@@ -55,13 +91,107 @@
         "x-ace-final-provider-wire": "not_certified",
         "x-ace-runtime-policy-owner": "domain-policy"
       }
+    },
+    "/internal/ace-gateway/v1/record-delivery": {
+      "post": {
+        "operationId": "recordDelivery",
+        "parameters": [],
+        "responses": {
+          "501": {
+            "description": "This public endpoint deliberately has no successful delivery response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryNotCertified"
+                }
+              }
+            }
+          }
+        },
+        "x-ace-final-provider-wire": "not_certified"
+      }
     }
   },
   "components": {
     "schemas": {
+      "DeliveryNotCertified": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "PROVIDER_WIRE_NOT_CERTIFIED"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "description": "This public endpoint deliberately has no successful delivery response."
+      },
       "EvidenceId": {
         "type": "string",
         "minLength": 1
+      },
+      "GatewayCapabilities": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "routes",
+          "maxBodyBytes",
+          "projectionModes",
+          "providerWireCertification"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "ace.gateway.v1"
+            ]
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GatewayRouteCapability"
+            }
+          },
+          "maxBodyBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "projectionModes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "native",
+                "gateway",
+                "assist-only",
+                "observe-only",
+                "off"
+              ]
+            }
+          },
+          "providerWireCertification": {
+            "type": "string",
+            "enum": [
+              "not_certified"
+            ]
+          }
+        }
       },
       "GatewayError": {
         "type": "object",
@@ -86,6 +216,70 @@
           }
         },
         "description": "Existing HTTP failure envelope; errors are not fabricated success results."
+      },
+      "GatewayHealth": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "liveness",
+          "readiness",
+          "providerWire"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "ace.gateway.v1"
+            ]
+          },
+          "liveness": {
+            "type": "string",
+            "enum": [
+              "ready"
+            ]
+          },
+          "readiness": {
+            "type": "string",
+            "enum": [
+              "adapter_implemented"
+            ]
+          },
+          "providerWire": {
+            "type": "string",
+            "enum": [
+              "not_certified"
+            ]
+          }
+        },
+        "description": "Real informational routes; statuses are local adapter facts, not provider-wire approval."
+      },
+      "GatewayRouteCapability": {
+        "type": "object",
+        "required": [
+          "protocol",
+          "mode",
+          "capability"
+        ],
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "openai.chat.completions"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "structured"
+            ]
+          },
+          "capability": {
+            "type": "string",
+            "enum": [
+              "G2_GATEWAY_VISIBLE_ONLY"
+            ]
+          }
+        }
       },
       "HostCompactionAttestation": {
         "type": "object",

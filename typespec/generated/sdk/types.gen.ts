@@ -4,7 +4,25 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+/**
+ * This public endpoint deliberately has no successful delivery response.
+ */
+export type DeliveryNotCertified = {
+    error: {
+        code: 'PROVIDER_WIRE_NOT_CERTIFIED';
+        message: string;
+    };
+};
+
 export type EvidenceId = string;
+
+export type GatewayCapabilities = {
+    schemaVersion: 'ace.gateway.v1';
+    routes: Array<GatewayRouteCapability>;
+    maxBodyBytes: number;
+    projectionModes: Array<'native' | 'gateway' | 'assist-only' | 'observe-only' | 'off'>;
+    providerWireCertification: 'not_certified';
+};
 
 /**
  * Existing HTTP failure envelope; errors are not fabricated success results.
@@ -14,6 +32,22 @@ export type GatewayError = {
         code: string;
         message: string;
     };
+};
+
+/**
+ * Real informational routes; statuses are local adapter facts, not provider-wire approval.
+ */
+export type GatewayHealth = {
+    schemaVersion: 'ace.gateway.v1';
+    liveness: 'ready';
+    readiness: 'adapter_implemented';
+    providerWire: 'not_certified';
+};
+
+export type GatewayRouteCapability = {
+    protocol: 'openai.chat.completions';
+    mode: 'structured';
+    capability: 'G2_GATEWAY_VISIBLE_ONLY';
 };
 
 /**
@@ -76,6 +110,38 @@ export type ProjectionRequest = {
     requestedEvidenceIds?: Array<EvidenceId>;
 };
 
+export type CapabilitiesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/internal/ace-gateway/v1/capabilities';
+};
+
+export type CapabilitiesResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: GatewayCapabilities;
+};
+
+export type CapabilitiesResponse = CapabilitiesResponses[keyof CapabilitiesResponses];
+
+export type HealthData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/internal/ace-gateway/v1/health';
+};
+
+export type HealthResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: GatewayHealth;
+};
+
+export type HealthResponse = HealthResponses[keyof HealthResponses];
+
 export type ProjectData = {
     body: ProjectionRequest;
     path?: never;
@@ -104,3 +170,19 @@ export type ProjectResponses = {
 };
 
 export type ProjectResponse = ProjectResponses[keyof ProjectResponses];
+
+export type RecordDeliveryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/internal/ace-gateway/v1/record-delivery';
+};
+
+export type RecordDeliveryErrors = {
+    /**
+     * This public endpoint deliberately has no successful delivery response.
+     */
+    501: DeliveryNotCertified;
+};
+
+export type RecordDeliveryError = RecordDeliveryErrors[keyof RecordDeliveryErrors];

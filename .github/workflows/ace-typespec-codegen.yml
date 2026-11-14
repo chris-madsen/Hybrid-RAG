@@ -66,21 +66,3 @@ jobs:
         run: ./node_modules/.bin/tsx --test test/mcp-sdk-runtime.conformance.test.ts test/context-bridge.contracts.test.ts
       - name: Exercise real Gateway HTTP and domain v1 compatibility tests
         run: ./node_modules/.bin/tsx --test test/gateway-projection-http.contracts.test.ts test/gateway-projection.contracts.test.ts test/gateway-schema.contracts.test.ts test/data-class-policy.contracts.test.ts test/bifrost-plugin.contracts.test.ts
-
-      - name: Export changed generated files before tracking the wider Gateway v1 surface
-        if: always()
-        run: |
-          node --input-type=module <<'NODE'
-          import { execFileSync } from 'node:child_process';
-          import { readFileSync, existsSync } from 'node:fs';
-          const status = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all', '--', 'typespec/generated', 'src/generated/ace-gateway'], { encoding: 'utf8' });
-          const paths = status.split('\n').filter(Boolean).map(line => line.slice(3));
-          for (const path of paths) {
-            if (!existsSync(path)) {
-              console.log('ACE_GW_V1_REMOVED ' + JSON.stringify({path}));
-              continue;
-            }
-            console.log('ACE_GW_V1_GENERATED ' + JSON.stringify({path, base64: readFileSync(path).toString('base64')}));
-          }
-          console.log('ACE_GW_V1_COUNT ' + paths.length);
-          NODE
