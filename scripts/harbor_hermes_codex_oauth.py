@@ -34,7 +34,7 @@ class HermesCodexOAuthOptions(HermesOptions):
     )
     ace_context_enabled: bool = Field(
         default=False,
-        description="Enable the direct ACE Hermes ContextEngine plugin.",
+        description="Retired ACE native context mode (always rejected); configure Bifrost Gateway instead.",
     )
     ace_workspace_root: str = Field(default="/workspace")
     ace_allowed_roots: str = Field(default="/workspace")
@@ -183,27 +183,8 @@ class HermesCodexOAuth(Hermes):
             "codex_app_server_auto": "off",
         }
         if ace_context_enabled:
-            config["context"] = {"engine": "ace_context_engine"}
-            plugins = config.get("plugins")
-            if not isinstance(plugins, dict):
-                plugins = {}
-            enabled = plugins.get("enabled")
-            if not isinstance(enabled, list):
-                enabled = []
-            plugins["enabled"] = sorted({*(str(item) for item in enabled), "ace_context_engine"})
-            config["plugins"] = plugins
+            raise ValueError("Retired direct ACE context injection is prohibited; configure the Bifrost LLM Gateway")
         return yaml.dump(config, default_flow_style=False)
-
-    async def _stage_context_engine(self, environment: BaseEnvironment) -> None:
-        await self.exec_as_agent(
-            environment,
-            command=(
-                "rm -rf /tmp/hermes/plugins/ace_context_engine && "
-                "mkdir -p /tmp/hermes/plugins/ace_context_engine && "
-                "cp -r /ace/integrations/hermes/ace_context_engine/. /tmp/hermes/plugins/ace_context_engine/"
-            ),
-            timeout_sec=10,
-        )
 
     @with_prompt_template
     @override
@@ -215,6 +196,8 @@ class HermesCodexOAuth(Hermes):
         if not model:
             raise ValueError("Hermes openai-codex model name is empty")
 
+        if self.options.ace_context_enabled:
+            raise ValueError("Native ACE ContextEngine injection is retired; route the agent through Bifrost")
         await self._stage_hermes_auth(environment)
         env = {"HERMES_HOME": "/tmp/hermes", "TERMINAL_ENV": "local", "HARBOR_INSTRUCTION": instruction}
         evidence_options = {
@@ -225,17 +208,6 @@ class HermesCodexOAuth(Hermes):
             value = option_value or self._extra_env.get(name) or os.environ.get(name)
             if value:
                 env[name] = value
-        if self.options.ace_context_enabled:
-            await self._stage_context_engine(environment)
-            env.update({
-                "ACE_WORKSPACE_ROOT": self.options.ace_workspace_root,
-                "ACE_ALLOWED_ROOTS": self.options.ace_allowed_roots,
-                "ACE_CONTEXT_WORKSPACE_ID": "00000000-0000-4000-8000-000000000001",
-                "ACE_CONTEXT_BRIDGE_COMMAND": "/ace/scripts/harbor-ace-context-bridge.sh",
-                "ACE_CONTEXT_RECEIPT_FILE": "/logs/artifacts/hermes-context-receipts.jsonl",
-                "ACE_CONTEXT_BRIDGE_SHA256": self.options.ace_context_bridge_sha256,
-                "ACE_CONTEXT_PLUGIN_SHA256": self.options.context_plugin_sha256,
-            })
         config_yaml = self._provider_config(
             self._build_config_yaml(model, self.options.max_turns),
             self.options.reasoning_effort,
