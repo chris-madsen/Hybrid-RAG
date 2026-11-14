@@ -6,7 +6,7 @@
 
 ## Vertical runtime contract
 
-`Codex → official retired optional tool-call protocol SDK → gateway → ProjectDataPolicy → Context Orchestration → [Qdrant + real embeddings] → [Tree-sitter + approved LSP as required] → Workspace Truth digest/span verification → rank/dedupe/contextualize → ContextBundle → exact expansion`.
+`Coding agent → Bifröst HTTP → ACE Gateway Projection → ProjectDataPolicy → Context Orchestration → [Qdrant + real embeddings] → [Tree-sitter + approved LSP as required] → Workspace Truth digest/span verification → rank/dedupe/contextualize → verified request-local projection`.
 
 Vertex docs / Graphiti memory join only if task and policy request them. Each required source has `status: succeeded | unavailable | stale | denied | skipped_not_required`; `complete` requires all required sources to have succeeded and evidence verification to hold. A policy denial must not degrade to a forbidden cloud request. Cold-start unavailable providers produce `not_ready` or explicit degraded results, not fabricated success.
 
