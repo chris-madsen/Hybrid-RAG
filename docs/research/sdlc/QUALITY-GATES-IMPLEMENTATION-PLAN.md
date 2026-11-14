@@ -2,7 +2,7 @@
 
 # Quality Gates adoption plan — scoped changes, no tool explosion
 
-**Status:** proposal for implementation PRs; none of the recommended new tools is considered installed until its own implementation/test PR passes. Existing ACE scripts/CI continue to run under current AGENTS.md, accepted ADR/OpenSpec and testing-strategy.md.
+**Status:** historical rollout plan with current-state annotations. QG0–QG2 are installed, QG4 is installed report-only by design, QG5/Gateway v1 compatibility is active, and QG6 has scheduled OSV + deterministic/property coverage while CodeQL/targeted mutation remain optional follow-up depth. Treat the per-section proposal wording below as rationale, not evidence that merged gates are absent. Existing ACE scripts/CI and the current quality-gate catalog are authoritative for installed status.
 
 ## Rules before beginning any gate PR
 
