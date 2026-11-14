@@ -4,6 +4,7 @@
 - [x] Require authenticated loopback projection HTTP and fail closed on missing/invalid credentials (#246).
 - [x] Bind model/query and permitted additive rewrite to the exact provider body (#246).
 - [x] Bind the normalized Bifröst provider attempt to receipt/model/provider/context and block fallback/retry reuse (#246).
+- [x] Require explicit provider/model routing, authorize exact provider + private-source egress before retrieval, and block likely secret context (#247).
 - [x] Derive request/session identity from trusted Bifröst HTTP context instead of an unimplemented external ACE host bridge (#247).
 - [x] Bind Bifröst-visible request identity to exact request bytes and exact ACE/Bifröst plugin provenance without fabricating coding-host transcript attestation (#247).
 - [x] Compile the native plugin against the exact pinned Bifröst revision in PR/nightly CI (#247).
