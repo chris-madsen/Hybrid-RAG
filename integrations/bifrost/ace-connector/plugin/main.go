@@ -65,13 +65,10 @@ func requestBoundIdentity(ctx *schemas.BifrostContext, body []byte, rawModel str
 		return "", "", "", "", nil, errors.New("Bifrost request/session identity is unavailable")
 	}
 	provider, normalizedModel := schemas.ParseModelString(rawModel, "")
-	if normalizedModel == "" {
-		normalizedModel = rawModel
+	if provider == "" || normalizedModel == "" {
+		return "", "", "", "", nil, errors.New("ACE Gateway requires an explicit Bifrost provider/model route")
 	}
 	providerIdentity := string(provider)
-	if providerIdentity == "" {
-		providerIdentity = "bifrost:auto"
-	}
 	// Bifröst can attest the exact HTTP request it observes, but it cannot
 	// truthfully attest whether the coding agent compacted its own durable
 	// transcript before sending those bytes. Keep Gateway delivery useful while
@@ -200,6 +197,9 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	}
 	requestID, sessionID, provider, normalizedModel, attestation, err := requestBoundIdentity(ctx, req.Body, model)
 	if err != nil {
+		if strings.Contains(err.Error(), "explicit Bifrost provider/model") {
+			return errorResponse(400, err.Error()), nil
+		}
 		return errorResponse(503, "ACE request-bound host identity is unavailable"), nil
 	}
 	deadline := time.Now().Add(30 * time.Second)
@@ -266,7 +266,7 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	if !hasProvider || authorizedProvider == "" {
 		return blockProviderAttempt(req, "ACE requested provider identity is unavailable")
 	}
-	if authorizedProvider != "bifrost:auto" && string(provider) != authorizedProvider {
+	if string(provider) != authorizedProvider {
 		return blockProviderAttempt(req, "ACE provider differs from the authenticated ingress identity")
 	}
 	expectedContextDigest, hasContextDigest := ctx.Value(contextDigestKey).(string)
