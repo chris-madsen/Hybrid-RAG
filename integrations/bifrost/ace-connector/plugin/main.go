@@ -26,8 +26,13 @@ const (
 
 var projectionClient connector.Client
 var defaultWorkspaceID string
+// Set only by scripts/build-bifrost-ace-plugin.sh from the exact clean ACE checkout.
+var aceSourceCommit = "unknown"
 
 func Init(config any) error {
+	if len(aceSourceCommit) != 40 || strings.Trim(aceSourceCommit, "0123456789abcdef") != "" {
+		return errors.New("ACE plugin source commit provenance is unavailable")
+	}
 	endpoint := os.Getenv("ACE_GATEWAY_PROJECTION_URL")
 	if values, ok := config.(map[string]any); ok {
 		if configured, ok := values["projection_url"].(string); ok && configured != "" {
@@ -68,14 +73,14 @@ func requestBoundIdentity(ctx *schemas.BifrostContext, body []byte, rawModel str
 		providerIdentity = "bifrost:auto"
 	}
 	attestationValue := map[string]any{
-		"hostBuildDigest": sha256Hex([]byte("ace-bifrost-plugin:" + pinnedBifrostCommit)),
+		"hostBuildDigest": sha256Hex([]byte("ace-bifrost-plugin:" + aceSourceCommit + ":" + pinnedBifrostCommit)),
 		"sessionId": sessionID,
 		"activeEngineId": "gateway",
 		"effectiveCompressionControlsDigest": sha256Hex([]byte("bifrost-http:no-host-compaction:v1")),
 		"durableActiveTranscriptRevision": requestID,
 		"durableActiveTranscriptDigest": sha256Hex(body),
 		"hostCompactionEpoch": 0,
-		"attestorId": "bifrost-http@" + pinnedBifrostCommit,
+		"attestorId": "ace-bifrost-plugin@" + aceSourceCommit,
 		"providerManagedHistoryCapability": "visible",
 		"hostTranscriptAttested": true,
 		"compactionEnabled": false,
