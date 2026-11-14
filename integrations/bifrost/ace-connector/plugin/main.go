@@ -28,10 +28,6 @@ const (
 
 var projectionClient connector.Client
 var defaultWorkspaceID string
-var defaultSessionID string
-var defaultAttemptGroupID string
-var defaultProvider string
-var defaultAttestation json.RawMessage
 
 func Init(config any) error {
 	endpoint := os.Getenv("ACE_GATEWAY_PROJECTION_URL")
@@ -45,12 +41,6 @@ func Init(config any) error {
 	}
 	projectionClient = connector.Client{Endpoint: endpoint, MaxBodyBytes: connector.DefaultMaxBodyBytes}
 	defaultWorkspaceID = os.Getenv("ACE_BIFROST_WORKSPACE_ID")
-	defaultSessionID = os.Getenv("ACE_BIFROST_SESSION_ID")
-	defaultAttemptGroupID = os.Getenv("ACE_BIFROST_ATTEMPT_GROUP_ID")
-	defaultProvider = os.Getenv("ACE_BIFROST_PROVIDER")
-	if configured := os.Getenv("ACE_BIFROST_HOST_ATTESTATION_JSON"); configured != "" {
-		defaultAttestation = json.RawMessage(configured)
-	}
 	return nil
 }
 
@@ -62,12 +52,6 @@ func stringValue(ctx *schemas.BifrostContext, key schemas.BifrostContextKey) (st
 		switch key {
 		case workspaceKey:
 			value = defaultWorkspaceID
-		case sessionKey:
-			value = defaultSessionID
-		case attemptGroupKey:
-			value = defaultAttemptGroupID
-		case providerKey:
-			value = defaultProvider
 		}
 	}
 	ok = value != ""
@@ -160,10 +144,6 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	attemptGroupID, okAttempt := stringValue(ctx, attemptGroupKey)
 	provider, okProvider := stringValue(ctx, providerKey)
 	attestation, okAttestation := ctx.Value(attestationKey).(json.RawMessage)
-	if !okAttestation || len(attestation) == 0 {
-		attestation = defaultAttestation
-		okAttestation = len(attestation) > 0
-	}
 	if !okWorkspace || !okSession || !okAttempt || !okProvider || !okAttestation || len(attestation) == 0 {
 		return errorResponse(503, "ACE host identity attestation is unavailable"), nil
 	}
@@ -230,6 +210,10 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	ingressModel, bound := ctx.Value(projectedModelKey).(string)
 	if !bound || ingressModel != model {
 		return blockProviderAttempt(req, "ACE provider model differs from authorized ingress payload")
+	}
+	authorizedProvider, hasProvider := stringValue(ctx, providerKey)
+	if !hasProvider || string(provider) != authorizedProvider {
+		return blockProviderAttempt(req, "ACE provider differs from the authenticated ingress identity")
 	}
 	expectedContextDigest, hasContextDigest := ctx.Value(contextDigestKey).(string)
 	foundContext := false
