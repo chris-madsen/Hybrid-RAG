@@ -93,7 +93,8 @@
     "check:gateway-only": "node scripts/gateway-only-audit.mjs",
     "test:gateway-only-audit": "node --test test/gateway-only-audit.test.mjs",
     "check:sdlc-closure": "node scripts/sdlc-closure-audit.mjs",
-    "test:sdlc-closure": "node --test test/sdlc-closure-audit.test.mjs"
+    "test:sdlc-closure": "node --test test/sdlc-closure-audit.test.mjs",
+    "test:mutation:critical": "node scripts/nightly-targeted-mutation.mjs"
   },
   "dependencies": {
     "@ast-grep/cli": "0.51.0",
