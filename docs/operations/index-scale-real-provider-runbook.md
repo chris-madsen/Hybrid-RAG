@@ -1,3 +1,11 @@
+> **RETIRED / historical evidence (2026-11-14).** The former index-scale
+> process runner and its command have been removed with the old agent-facing
+> tool transport. The steps and results below are preserved solely as historical
+> research. **Do not execute this runbook as current Gateway acceptance.**
+> Replacement Gateway-native 2000-line/restart/crash/index-scale E2E remains
+> **NOT-RUN** until verified separately. See
+> [Gateway-only G02](../plans/2026-11-14-gateway-only-retirement-g02.md).
+
 # W04 real-provider index scale runbook
 
 This runner prepares the W04 **measurement**, not the acceptance verdict. It uses the real configured ACE Qdrant + embedding + ast-grep + generic TypeScript-LS path with lexical fallback disabled.
