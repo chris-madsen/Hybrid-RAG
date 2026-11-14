@@ -18,7 +18,7 @@ Use the TypeSpec-owned Gateway v1 contract and the thin Bifröst connector compi
 
 - In unit tests: deterministic ports and SHA256-derived test vectors allowed, labelled fixtures.
 - In provider tests: real Qdrant and real embedding model, AST grammar, approved LSP. Required operations instrumented; assertion is on actual call and result.
-- In agent E2E: actual Codex retired optional tool-call protocol handshake/call; verify output, code state, and counters. No `TODO→DONE` toy-only gate.
+- In agent E2E: an actual coding-agent model request reaches Bifröst, obtains an ACE APPLY receipt, exercises required real retrieval providers and reaches the authorized provider; verify output, code state, receipts and usage. No `TODO→DONE` toy-only gate.
 - In benchmark: paired strong native Codex, pinned tasks/repos/model/permissions, quality; require ACE used for attribution.
 
 ## No accidental code rewrite
