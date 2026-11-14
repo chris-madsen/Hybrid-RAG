@@ -114,6 +114,9 @@ func TestProjectAndApplyBindOriginalAndProjectedDigests(t *testing.T) {
 	original := []byte(`{"model":"test","messages":[{"role":"user","content":"question"}]}`)
 	projected := []byte(`{"model":"test","messages":[{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") != "Bearer connector-test-token" {
+			t.Fatal("the private ACE request must carry the configured Gateway authorization token")
+		}
 		var payload map[string]json.RawMessage
 		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
 			t.Fatal(err)
@@ -159,7 +162,7 @@ func TestProjectAndApplyBindOriginalAndProjectedDigests(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := Client{Endpoint: server.URL}
+	client := Client{Endpoint: server.URL, AuthToken: "connector-test-token"}
 	decision, err := client.Project(context.Background(), Request{
 		RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1", WorkspaceID: "workspace-1",
 		DataClass: "private", Protocol: "openai.chat.completions", Provider: "mock", Model: "test", Query: "question",
