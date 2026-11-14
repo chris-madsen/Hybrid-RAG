@@ -94,6 +94,7 @@ const activeOpenSpecGuard = async () => {
     '`ace_expand`',
     'Hermes ContextEngine',
     'Hermes native ContextEngine',
+    'bifrost:auto',
   ];
   const violations = [];
   const forbiddenActiveDirs = [];
