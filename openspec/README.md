@@ -1,72 +1,58 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+# OpenSpec state for ACE
 
-# OpenSpec SDD implementation plan for ACE
+OpenSpec records capability requirements and accepted change deltas. It does **not** override explicit owner decisions or Accepted ADRs. Current project context is in `openspec/config.yaml`.
 
-This is the active OpenSpec implementation plan. The seven changes are partially
-implemented and remain unarchived; each active change contains `proposal.md`,
-`design.md`, `tasks.md`, and delta capability specs with
-`## ADDED Requirements / #### Scenario:`. `openspec/specs/` starts empty because
-no change has been fully implemented and archived. Treat each checked task as
-evidence-backed only; do not infer completion from the proposal text.
+## Current integration authority
 
-## Execution order and dependencies
+The repository owner selected **Bifröst Gateway-only ACE delivery** on 2026-11-14.
 
-1. `001-foundation` — workspace & policy, retired optional tool-call protocol gateway, safe error contracts.
-2. `002-harbor-evaluation` — strong Codex baseline and actual usage metrics (early enough to guide retrieval design).
-3. `003-unified-retrieval` — Qdrant code retrieval, Tree-sitter AST, selectable LSP, Vertex docs, unified evidence bundle.
-4. `004-temporal-memory` — Codex raw session archive + Graphiti extraction + temporal recall.
-5. `005-adaptive-routing-spike` — experiment: deterministic route policy vs Jev; **not** automatic inclusion in production.
-6. `006-production-retrieval-vertical-slice` — real-provider/DBC acceptance closure.
-7. `007-hybrid-context-engine` — accepted next architecture: dense+sparse fusion, evidence-gated reranking, working-state priors and delta context delivery.
+- Active integration contract: [010-gateway-only-ownership](changes/010-gateway-only-ownership/).
+- Bifröst is the sole agent-facing ACE context-delivery route.
+- Model-invoked ACE context tools and the Hermes-native ACE ContextEngine delivery experiment are retired.
+- Superseded integration changes 008 and 009 are preserved under [changes/archive/](changes/archive/) as historical evidence only.
+- Gateway v1 TypeSpec/codegen is installed; real provider/agent G11 evidence remains a distinct acceptance stage.
 
-After each change: tests, design/ADR review, benchmark where meaningful, archive/sync OpenSpec specs only after implementation passes. Upstream capabilities are specified by earlier changes; sequential application avoids ambiguity.
+## Capability changes still retained in the active tree
 
-## Live CLI verification (on user's machine)
+Changes 001–007 contain the historical staged capability work for foundation, evaluation, retrieval, memory, routing, production retrieval acceptance and hybrid context. They predate the Gateway-only owner decision. Their retrieval/domain requirements remain useful where not superseded, but **any agent-facing transport statement that conflicts with change 010, current Accepted ADRs or the owner decision is obsolete**.
+
+In particular, an old mention of a model-invoked tool transport or Hermes-native context delivery must never be interpreted as permission to restore a second agent-facing path.
+
+## Current change map
+
+1. `001-foundation` — workspace, policy and foundational error/contracts history.
+2. `002-harbor-evaluation` — Harbor evaluation and usage evidence.
+3. `003-unified-retrieval` — unified retrieval/evidence.
+4. `004-temporal-memory` — immutable session archive and derived temporal memory.
+5. `005-adaptive-routing-spike` — experimental routing comparison.
+6. `006-production-retrieval-vertical-slice` — real-provider/DBC acceptance history.
+7. `007-hybrid-context-engine` — active hybrid retrieval/context semantics, now transport-neutral and Gateway-delivered.
+8. `010-gateway-only-ownership` — current agent-facing Gateway ownership and fail-closed delivery contract.
+
+Archived:
+- `008-hermes-context-integration` — superseded Hermes-native delivery experiment.
+- `009-bifrost-hermes-ownership` — superseded dual-owner/old local-trust design.
+
+## Validation
+
+Use an exact OpenSpec CLI version selected for the environment; do not use an unpinned `@latest` invocation as retained evidence.
 
 ```bash
-# Use an exact CLI version selected for the environment; do not use @latest
-# for retained evidence or reproducible validation.
 OPENSPEC_VERSION=<PINNED_VERSION>
 openspec_pinned() {
   npm exec --yes --package="@fission-ai/openspec@${OPENSPEC_VERSION}" -- openspec "$@"
 }
 openspec_pinned --version
 openspec_pinned list
-openspec_pinned status --change 001-foundation
 openspec_pinned validate --all --strict --no-interactive --report full
-openspec_pinned instructions apply --change 001-foundation
 ```
 
-The exact CLI version and options must be checked against `openspec --help`/`openspec validate --help` in the target environment. Run these commands from the repository root, where `openspec/config.yaml` is now the sole canonical project root. Validate all seven active changes; do not reuse an old count as evidence after adding change 007.
+For repository SDLC/structural closure also run:
 
-## Architecture and source documents
+```bash
+npm run test:sdlc-closure
+npm run check:sdlc-closure
+npm run verify:pr
+```
 
-- `../docs/docs/architecture/01-strategic-ddd.md` — Bounded Contexts and Context Map
-- `../docs/docs/architecture/02-event-storming.md` — events, commands and policies
-- `../docs/docs/architecture/03-tactical-ddd.md` — entities, value objects, aggregates
-- `../docs/docs/architecture/04-fsm-workflows.md` — state machines and use cases
-- `../docs/docs/architecture/05-contracts-and-deployment.md` — retired optional tool-call protocol contracts, ports and local K8s boundary
-- `../docs/docs/references/` — copies of PRD & all signed-off ADRs
-
-## Exclusions
-
-No full observability stack, default code-to-cloud, multi-tenant enterprise IAM, agent-written patch manipulation, guaranteed dynamic callgraph, mandatory fixed output-token limits, or fresh microservices per BC.
-
----
-
-## Architecture correction and sixth proposed acceptance change (2026-10-18)
-
-**Critical:** Existing 001–005 changes contain provider-independent implementations, but an adapter and a green isolated contract test **do not** mean the production retired optional tool-call protocol composition uses the chosen provider. `006-production-retrieval-vertical-slice` is the proposed end-to-end closure change, with Meyer contracts DBC-01 through DBC-14 and owner review gate.
-
-New normative readiness levels: `contract-designed`, `adapter-implemented`, `real-provider-tested`, `agent-E2E-passed`, `benchmark-evaluated`, `owner-approved`. Do not check mandatory capabilities off through a "controlled exception": open external provider decisions mean `not_ready`. Real agent retrieval benefit needs a retrieval-demanding holdout with **actual ACE retired optional tool-call protocol calls**; zero-call natural smoke or forced trivial TODO test is never proof of causal benefit.
-
-Read `docs/docs/architecture/07-architecture-fitness-contracts.md`, the proposed ADR-012 and `docs/reviews/2026-10-18-architecture-failure-review.md` before executing the next implementation task. Keep original accepted ADR status unchanged until explicit owner approval.
-
-## Codex immediate work (owner approved 2026-10-19)
-
-Read [`changes/006-production-retrieval-vertical-slice/CODEX-EXECUTION-PLAN.md`](changes/006-production-retrieval-vertical-slice/CODEX-EXECUTION-PLAN.md) first. ADR-012 is **Accepted** as a six-rule acceptance policy and ADR-013 is **Accepted only as an experimental embedding-evaluation protocol**. This is not model selection, retrieval production readiness or 5× validation. Run candidate integration, Serena-vs-TS-LS comparison, local Graphiti and gcloud Vertex probes and real Harbor tests without further planning bureaucracy; retain production gates as unchecked until actual evidence exists.
-
-
-## Current architecture direction — 2026-10-21
-
-ADR-014 is Accepted. PR #94 already completed most provider de-bespoking. New retrieval work belongs to `007-hybrid-context-engine`; do not extend old custom Tree-sitter/Qdrant-lease/TS-LS-host machinery that has been replaced.
+A structural/process PASS is not provider or real-agent certification. Keep evidence states separate: `contract-designed → adapter-implemented → provider-wire-tested → agent-E2E-tested → benchmark-evaluated → owner-approved`.
