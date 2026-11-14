@@ -86,6 +86,8 @@ const requirements = [
       'security.audit.append',
       'containsLikelySecret(JSON.stringify(body.value))',
       'providerManagedContinuationPresent',
+      'gatewayDataClasses',
+      "'private_source'",
     ],
   },
   {
