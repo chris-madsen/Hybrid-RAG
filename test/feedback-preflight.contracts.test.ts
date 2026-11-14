@@ -109,78 +109,12 @@ test('task verifier HTTP probe rejects authentication without treating it as a s
   assert.equal(classifyFeedbackVerifierHttpStatus(503, identity).status, 'unavailable');
   assert.equal(classifyFeedbackVerifierHttpStatus(200, identity).status, 'ready');
 });
-test('real Stage0 requires source-root to be the actual Git checkout root', async () => {
-  const stage0 = await readFile('scripts/feedback-loop-stage0.ts', 'utf8');
-  assert.match(stage0, /rev-parse', '--show-toplevel/u);
-  assert.match(stage0, /--source-root must be the Git checkout root/u);
-});
-
-test('real Stage0 keeps evidence outside frozen source and revalidates source identity after providers run', async () => {
-  const stage0 = await readFile('scripts/feedback-loop-stage0.ts', 'utf8');
-  assert.match(stage0, /--output must remain outside --source-root/u);
-  assert.match(stage0, /const finalSource = realSourceIdentity\(sourceRoot\)/u);
-  assert.match(stage0, /finalSource\.manifestSha256 !== source\.manifestSha256/u);
-});
-
-test('feedback jobs use Hermes openai-codex OAuth and native ContextEngine registration', async () => {
-  const preflight = await readFile('scripts/feedback-loop-preflight.ts', 'utf8');
-  const jobs = await readFile('scripts/prepare-harbor-feedback-jobs.ts', 'utf8');
-  assert.match(jobs, /--task-image <reference>/u);
-  assert.match(jobs, /taskImageOverride/u);
-  const adapter = await readFile('scripts/harbor_hermes_codex_oauth.py', 'utf8');
-  const wrapper = await readFile('scripts/harbor-ace-context-bridge.sh', 'utf8');
-  const contextPlugin = await readFile('integrations/hermes/ace_context_engine/__init__.py', 'utf8');
-  assert.doesNotMatch(jobs, /OPENAI_API_KEY|OPENROUTER_API_KEY/u);
-  assert.match(jobs, /feedbackHermesAgentImportPath/u);
-  assert.match(jobs, /feedbackHermesVersion/u);
-  assert.match(jobs, /ace_context_enabled/u);
-  assert.match(jobs, /ACE_EVIDENCE_SOURCE_COMMIT/u);
-  assert.match(jobs, /source: sourceRoot, target: '\/evidence\/repo'/u);
-  assert.match(jobs, /shellQuote\('ACE_WORKSPACE_ROOT=\/workspace'\)/u);
-  assert.match(jobs, /shellQuote\('ACE_ALLOWED_ROOTS=\/workspace'\)/u);
-  assert.match(jobs, /feedbackAceContextBridgeCommand/u);
-  assert.match(adapter, /--provider openai-codex/u);
-  assert.match(adapter, /Literal\["low", "medium", "high", "xhigh"\]/u);
-  assert.match(adapter, /context.*ace_context_engine/u);
-  assert.match(adapter, /ace_workspace_root/u);
-  assert.match(adapter, /ace_allowed_roots/u);
-  assert.match(adapter, /config\["compression"\]/u);
-  assert.match(adapter, /micro_compact/u);
-  assert.match(adapter, /proactive_prune_tokens/u);
-  assert.match(adapter, /idle_compact_after_seconds/u);
-  assert.match(adapter, /codex_responses_native/u);
-  assert.match(adapter, /codex_app_server_auto/u);
-  assert.match(adapter, /get_version_command/u);
-  assert.match(adapter, /hermes --version/u);
-  assert.match(adapter, /hermes pm repair/u);
-  assert.doesNotMatch(adapter, /hermes version/u);
-  assert.doesNotMatch(adapter, /curl -fsSL.*install\.sh/u);
-  assert.doesNotMatch(adapter, /ensure_system_dependencies/u);
-  assert.match(adapter, /ACE_CONTEXT_BRIDGE_COMMAND/u);
-  assert.match(adapter, /ACE_EVIDENCE_SOURCE_COMMIT/u);
-  assert.match(adapter, /ACE_EVIDENCE_SOURCE_MANIFEST_SHA256/u);
-  assert.match(adapter, /ace_evidence_source_commit/u);
-  assert.match(jobs, /ace_evidence_source_commit: sourceRevision/u);
-  assert.match(adapter, /ace_workspace_root.*default="\/workspace"/u);
-  assert.match(adapter, /ace_allowed_roots.*default="\/workspace"/u);
-  assert.match(adapter, /config\["plugins"\]/u);
-  assert.doesNotMatch(adapter, /model_config\["context_length"\]\s*=/u);
-  assert.doesNotMatch(adapter, /context_length\s*:\s*128000/u);
-  assert.match(contextPlugin, /def register_context_engine\(context\)/u);
-  assert.match(adapter, /status=\$\?/u);
-  assert.match(adapter, /exit "\$status"/u);
-  assert.doesNotMatch(adapter, /hermes.*\|.*tee/u);
-  assert.match(adapter, /HERMES_HOME/u);
-  assert.match(adapter, /download_file\("\/tmp\/hermes\/auth\.json"/u);
-  assert.doesNotMatch(adapter, /Path\.home\(\)\s*\/\s*["']\.codex["']|HERMES_CODEX_AUTH_JSON_PATH|\$HOME\/\.codex/u);
-  assert.doesNotMatch(adapter, /OPENAI_API_KEY|OPENROUTER_API_KEY/u);
-  assert.match(wrapper, /ACE_CONTEXT_BRIDGE_MODE="true"/u);
-  assert.match(wrapper, /ACE_WORKSPACE_ROOT="\$\{ACE_WORKSPACE_ROOT:-\/app\}"/u);
-  assert.doesNotMatch(wrapper, /pip install/u);
-  assert.match(wrapper, /runtime\/python\/\$\{python_version\}\/site-packages/u);
-  assert.doesNotMatch(preflight, /command\('codex'/u);
-  assert.match(preflight, /hermesCodexAuth/u);
-  assert.match(preflight, /agentRuntimeDigest/u);
+test('retired Stage0 tool runner is not a Gateway delivery path', async () => {
+  const runtime = await readFile('src/bin/ace-runtime.ts', 'utf8');
+  const pkg = JSON.parse(await readFile('package.json', 'utf8')) as { scripts: Record<string, string> };
+  assert.match(runtime, /Direct agent context bridge mode is retired/u);
+  assert.equal(pkg.scripts['test:feedback-stage0'], undefined);
+  assert.equal(pkg.scripts['test:real-provider'], 'npm run build && node scripts/real-provider-e2e.mjs');
 });
 
 test('exact-current preflight binds experiment identity to checkout, jobs, Harbor and auth route', () => {

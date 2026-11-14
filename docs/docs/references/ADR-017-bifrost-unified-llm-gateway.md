@@ -9,7 +9,7 @@
 
 ## Context
 
-ACE must remain agent-neutral. Hermes v0.22.3 supplies a native request-local `ContextEngine.select_context` seam (ADR-016), whereas other coding agents may expose only a configurable LLM endpoint. Relying on retired optional tool-call protocol tool invocation alone cannot guarantee that ACE controls the actual model-bound request. A gateway can intercept requests where an agent is configured to use it, but cannot see hidden provider-held conversations or requests that bypass the configured endpoint.
+ACE must remain agent-neutral. Hermes historically supplied a native request-local `ContextEngine.select_context` seam (ADR-016), now retired for ACE delivery; agents instead configure the Bifröst endpoint. Relying on retired optional tool-call protocol tool invocation alone cannot guarantee that ACE controls the actual model-bound request. A gateway can intercept requests where an agent is configured to use it, but cannot see hidden provider-held conversations or requests that bypass the configured endpoint.
 
 The owner selected **Bifrost** as the candidate unified LLM gateway and confirmed Linux as the primary target; macOS is a possible secondary target. Go ↔ TypeScript is an explicit process boundary, not a reason for a TypeScript reverse-proxy tier.
 

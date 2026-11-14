@@ -45,8 +45,8 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
 - exact artifact storage with lossless pagination;
 - provider-independent evaluation core with frozen suites, BenchmarkRun FSM,
   cumulative/delta usage normalization and quality-gated reports;
-- Hermes request-time `ContextEngine` integration through the direct ACE JSONL bridge; transformation receipts, source/runtime identity and quality-gated evidence remain required;
-- Codex JSONL usage boundary adapter retained for explicitly labeled comparison/historical runs, not the Hermes primary path;
+- The former Hermes-native `ContextEngine` bridge is **retired** by the 2026-11-14 Gateway-only decision. Agent-side configuration must point at Bifröst, never a direct ACE context plugin.
+- Codex/Hermes historical usage artifacts can still support read-only baseline comparisons; they do not certify Gateway delivery or activate an alternative integration.
 - explicit unknown usage and unsupported external-provider cost records until
   Harbor/third-party contracts are verified;
 - local lexical candidate retrieval retained for controlled experiments, not
