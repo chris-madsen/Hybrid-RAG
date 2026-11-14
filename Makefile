@@ -3,7 +3,7 @@ SHELL := bash
 EMBEDDING_PYTHON ?= 3.13
 ACE_IMAGE_TAG ?= ace:local
 
-.PHONY: help install install-python-providers install-embedding-providers check lint lint-ts lint-rust probe-providers qdrant-up verify build test feedback-preflight acquire-repobench-r convert-repobench-r resolve-repobench-r harbor-task-identities freeze-feedback-tasks prepare-harbor-feedback adapt-repobench-r collect-feedback-loop report-feedback-summary report-harbor-retrieval ace-image clean
+.PHONY: help install install-python-providers install-embedding-providers check lint lint-ts lint-rust probe-providers qdrant-up verify build test feedback-preflight acquire-repobench-r convert-repobench-r resolve-repobench-r harbor-task-identities freeze-feedback-tasks adapt-repobench-r collect-feedback-loop report-feedback-summary report-harbor-retrieval ace-image clean
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -73,8 +73,6 @@ resolve-repobench-r: ## Resolve exact gold snippet paths against frozen source c
 harbor-task-identities: ## Hash exact pinned Harbor task/source bytes
 	npm run harbor:task-identities -- $(ARGS)
 
-prepare-harbor-feedback: ## Generate serial native and ACE optional Harbor jobs from a frozen manifest
-	npm run prepare:harbor-feedback -- $(ARGS)
 
 freeze-feedback-tasks: ## Freeze ten main and ten untouched Harbor task identities
 	npm run freeze:feedback-tasks -- $(ARGS)
