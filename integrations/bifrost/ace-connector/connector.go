@@ -196,6 +196,7 @@ type Decision struct {
 
 type Client struct {
 	Endpoint     string
+	AuthToken    string
 	HTTPClient   *http.Client
 	MaxBodyBytes int64
 }
@@ -293,6 +294,9 @@ func (c Client) Project(ctx context.Context, request Request) (Decision, error) 
 		return Decision{}, fmt.Errorf("create projection request: %w", err)
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
+	if c.AuthToken != "" {
+		httpRequest.Header.Set("Authorization", "Bearer "+c.AuthToken)
+	}
 	response, err := safeClient.Do(httpRequest)
 	if err != nil {
 		return Decision{}, fmt.Errorf("ACE projection request failed: %w", err)
