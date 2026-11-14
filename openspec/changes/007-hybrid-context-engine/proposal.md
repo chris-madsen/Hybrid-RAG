@@ -18,7 +18,7 @@ Current ACE already has maintained structural extraction, dense Qdrant retrieval
 
 1. Add Qdrant dense+sparse hybrid retrieval with RRF.
 2. Add an optional local maintained reranker behind a provider port.
-3. Add authoritative Git working-state signals plus optional retired optional tool-call protocol focus/open-file hints.
+3. Add authoritative Git working-state signals plus versioned working-context hints only where the Gateway contract explicitly supports them.
 4. Add stable bundle/evidence receipts and delta delivery.
 5. Make compact structural outlines available in locate-mode ContextBundles.
 6. Benchmark dense-only, sparse-only, hybrid, reranked and delta-delivery arms.
