@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -119,5 +119,6 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       const timer = setTimeout(() => { child.kill('SIGKILL'); resolve(); }, 2_000);
       child.once('exit', () => { clearTimeout(timer); resolve(); });
     });
+    await rm(root, { recursive: true, force: true });
   }
 });

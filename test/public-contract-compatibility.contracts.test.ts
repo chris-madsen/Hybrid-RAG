@@ -13,7 +13,8 @@ import type {
 } from '../src/domain/gateway-projection.js';
 import type { HermesContextEvidence, HermesContextTransformStatus } from '../src/domain/hermes-context-evidence.js';
 import type { AceTransformRequest, AceTransformResult } from '../src/application/context-transform-service.js';
-import type { ContextBridgeResponse } from '../src/transport/context-bridge-stdio.js';
+// Archived snapshot retained for protocol compatibility history only, not an executable transport.
+type HistoricalBridgeResponseType = 'bridge_ready' | 'transform_result' | 'transform_error';
 
 interface ToolBaseline {
   readonly required: readonly string[];
@@ -61,7 +62,7 @@ interface PublicContractBaseline {
     readonly transformRequestRequired: readonly string[];
     readonly transformRequestProperties: readonly string[];
     readonly sourceObligationsRequired: readonly ['code'];
-    readonly responseTypes: readonly ContextBridgeResponse['type'][];
+    readonly responseTypes: readonly HistoricalBridgeResponseType[];
     readonly transformResultStatuses: readonly AceTransformResult['status'][];
     readonly evidenceStatuses: readonly HermesContextTransformStatus[];
     readonly deliveryModes: readonly NonNullable<HermesContextEvidence['deliveryMode']>[];
@@ -261,7 +262,7 @@ test('typed context, errors, gateway, and Hermes status variants match the appro
   const transformStatuses = ['ready', 'partial', 'not_ready', 'blocked'] as const satisfies readonly AceTransformResult['status'][];
   const evidenceStatuses = ['ready', 'partial', 'not_ready', 'blocked', 'not_beneficial'] as const satisfies readonly HermesContextTransformStatus[];
   const deliveryModes = ['augmentation', 'replacement', 'no_op'] as const satisfies readonly NonNullable<HermesContextEvidence['deliveryMode']>[];
-  const responseTypes = ['bridge_ready', 'transform_result', 'transform_error'] as const satisfies readonly ContextBridgeResponse['type'][];
+  const responseTypes = ['bridge_ready', 'transform_result', 'transform_error'] as const satisfies readonly HistoricalBridgeResponseType[];
 
   // A `satisfies readonly Union[]` list can omit new Union members without
   // failing compilation. These reciprocal checks make it exhaustive and stop
@@ -277,7 +278,7 @@ test('typed context, errors, gateway, and Hermes status variants match the appro
     Expect<Equal<AceTransformResult['status'], typeof transformStatuses[number]>>,
     Expect<Equal<HermesContextTransformStatus, typeof evidenceStatuses[number]>>,
     Expect<Equal<NonNullable<HermesContextEvidence['deliveryMode']>, typeof deliveryModes[number]>>,
-    Expect<Equal<ContextBridgeResponse['type'], typeof responseTypes[number]>>,
+    Expect<Equal<HistoricalBridgeResponseType, typeof responseTypes[number]>>,
   ];
   const exhaustivePublicVariants: ExhaustivePublicVariants = [true, true, true, true, true, true, true, true, true, true, true];
   assert.equal(exhaustivePublicVariants.every(Boolean), true);

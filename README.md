@@ -102,24 +102,25 @@ Vertex documentation requires `ACE_ENABLE_VERTEX=true` **and**
 Permission covers the `project_document` class only; secret-like queries are
 denied before HTTP.
 
-With k3s Qdrant forwarded to localhost, the real gates are reproducible with
-`npm run test:real-provider` (2000-line precision, current digest, exact
-expansion and workspace readiness) and `npm run test:real-provider-race`
-(mid-request edit must become partial/stale, never current).
-`npm run test:real-provider-restart` verifies a dirty-worktree restart advances
-the observation generation and never serves the previous Qdrant generation.
-`npm run test:real-provider-outage` verifies an unavailable Qdrant is reported
-as partial with an explicit warning and does not masquerade as production
-semantic retrieval.
-`npm run test:real-semantic` runs the three-case behavior/RU↔EN exploratory
-holdout through real FastEmbed/Qdrant/AST/LSP and writes its metrics to
-`benchmarks/reports/real-semantic-retrieval-e2e.json`.
-`npm run test:memory-process` checks stable history IDs and cross-process
-archive reference safety without requiring an inference model.
-`npm run test:real-same-name` verifies same-name structural spans, definitions,
-references and write locations through real Tree-sitter and TypeScript LS.
-`npm run test:container-provider` verifies the same retrieval composition through
-the Bifröst Gateway connector and an isolated Docker provider runtime.
+With k3s Qdrant forwarded to localhost, `npm run test:real-provider`
+now exercises the actual **Gateway HTTP projection** against a 2000-line
+source fixture and real FastEmbed/Qdrant retrieval. The
+`test:real-provider-race` and `test:real-provider-outage` variants exercise
+concurrent source changes and honest provider failures. No model-invoked
+tool transport is used. These runs establish request-local projection
+semantics only, not actual Bifröst final-provider egress.
+
+`npm run test:memory-process` tests immutable archive identity and
+cross-process safety. `npm run test:real-same-name` checks structural
+spans and TypeScript language-service definitions/references.
+`npm run test:ace-container-runtime -- --image <pinned>@sha256:<digest>
+--bundle <dir>` probes compiled Gateway HTTP liveness inside a container;
+the separate Bifröst provider-wire and real-agent trials are **not certified**.
+
+Previously separate restart, two-writer, interrupted-publish, index-scale,
+semantic holdout and tool-based container runners were retired with their
+transport. Their equivalent **Gateway-native** E2E acceptance remains
+explicitly **NOT-RUN**, not silently passed or replaced by static checks.
 
 No production-approved embedding model/LSP, Graphiti extraction, Harbor quality
 gate or 5× improvement is claimed until the documented provider spikes and owner
