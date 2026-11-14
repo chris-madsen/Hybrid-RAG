@@ -91,6 +91,8 @@ Before the provider call, PreLLM verifies:
 
 A second attempt therefore fails closed until request-local reauthorization is implemented.
 
+Bifröst can execute another custom `PreLLMHook` after ACE if deployment ordering allows it. The repository therefore requires ACE to be the terminal **custom request-mutating** guard in production plugin order. The pinned model-catalog resolver may remain later only because the explicit provider/model requirement makes it non-routing for this path. Static compile/contract proof cannot establish a live plugin order or final upstream bytes; that is retained as G11 provider-wire evidence.
+
 ## Provenance
 
 Native plugin compilation is pinned to the exact Bifröst commit. The build requires a clean tracked ACE checkout and embeds the exact ACE source commit into the plugin; runtime initialization refuses missing source provenance. This proves connector/plugin build provenance only; it is not coding-host transcript attestation.
