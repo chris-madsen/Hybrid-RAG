@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # External retrieval holdouts
 
 Release-grade multi-repository holdouts are evidence artifacts, not ACE source
@@ -40,7 +42,7 @@ npm run freeze:reranker-holdout -- \
 
 For a real hybrid-without-reranker reference, convert that source-bound
 reranker holdout to a retrieval holdout, run `hybrid_rrf` through the generic
-MCP runner, and bind the resulting run with:
+retired optional tool-call protocol runner, and bind the resulting run with:
 
 ```bash
 npm run convert:reranker-holdout -- <reranker-holdout.json> <retrieval-holdout.json>

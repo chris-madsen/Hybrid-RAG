@@ -14,8 +14,8 @@ for line in Path('/logs/agent/codex.txt').read_text().splitlines():
         continue
     item = event.get('item', {})
     assert not (
-        item.get('type') == 'mcp_tool_call'
+        item.get('type') == 'retired-tool-protocol_tool_call'
         and item.get('server') == 'ace'
-    ), 'native baseline must not call ACE MCP'
+    ), 'native baseline must not call ACE retired optional tool-call protocol'
 PY
 printf '1.0\n' > /logs/verifier/reward.txt

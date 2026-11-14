@@ -1,6 +1,6 @@
-[mcp_servers.ace]
+[retired-tool-protocol_servers.ace]
 command = "node"
-args = ["/ace/dist/bin/ace-mcp.js"]
+args = ["/ace/dist/bin/ace-retired-tool-protocol.js"]
 cwd = "/workspace"
 required = true
 startup_timeout_sec = 180
@@ -8,7 +8,7 @@ tool_timeout_sec = 180
 default_tools_approval_mode = "auto"
 enabled_tools = ["ace_context", "ace_expand"]
 
-[mcp_servers.ace.env]
+[retired-tool-protocol_servers.ace.env]
 ACE_WORKSPACE_ROOT = "/workspace"
 ACE_ALLOWED_ROOTS = "/workspace"
 ACE_STATE_DIR = "/tmp/ace-state"

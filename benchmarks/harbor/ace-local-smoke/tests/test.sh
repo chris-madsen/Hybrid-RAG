@@ -38,7 +38,7 @@ for line in Path('/logs/agent/codex.txt').read_text().splitlines():
     item = event.get('item', {})
     seen_native_call = seen_native_call or (
         event.get('type') == 'item.completed'
-        and item.get('type') == 'mcp_tool_call'
+        and item.get('type') == 'retired-tool-protocol_tool_call'
         and item.get('server') == 'ace'
         and item.get('tool') == 'ace_context'
         and item.get('status') == 'completed'

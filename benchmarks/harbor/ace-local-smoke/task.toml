@@ -23,7 +23,7 @@ timeout_sec = 180.0
 network_mode = "public"
 build_timeout_sec = 300.0
 os = "linux"
-mcp_servers = []
+retired-tool-protocol_servers = []
 
 [environment.env]
 
