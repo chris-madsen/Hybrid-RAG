@@ -333,8 +333,9 @@ jobs:
           test -s "$OUTPUT"
 
   real-qdrant:
-    # Real Qdrant service + real FastEmbed model, not mocked provider wires.
-    # Keep a single shared cache for the composed Gateway/provider acceptance.
+    # Real Qdrant service + real FastEmbed model. This is projection/retrieval
+    # evidence only; it deliberately does not certify Bifröst or an LLM wire.
+    # Keep a single shared cache for the composed projection acceptance.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 65
@@ -384,17 +385,17 @@ jobs:
           exit 1
       - name: Build source-identified production runtime
         run: npm run build
-      - name: Run live Gateway projection through real Qdrant provider
+      - name: Run live ACE projection through real Qdrant retrieval provider
         run: |
           set -o pipefail
-          mkdir -p /tmp/ace-provider-evidence
-          npm run test:real-provider | tee /tmp/ace-provider-evidence/provider.log
-      - name: Retain source-linked real provider reports and traces
+          mkdir -p /tmp/ace-projection-evidence
+          npm run test:real-projection | tee /tmp/ace-projection-evidence/projection.log
+      - name: Retain source-linked real projection reports and traces
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ace-real-qdrant-${{ github.run_id }}
-          path: /tmp/ace-provider-evidence/
+          name: ace-real-qdrant-projection-${{ github.run_id }}
+          path: /tmp/ace-projection-evidence/
           if-no-files-found: warn
           retention-days: 14
 
