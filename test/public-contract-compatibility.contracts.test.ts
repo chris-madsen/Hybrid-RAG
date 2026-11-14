@@ -180,6 +180,7 @@ const baseline = async (): Promise<PublicContractBaseline> =>
   await readJson(baselinePath, 'public contract baseline') as PublicContractBaseline;
 
 test('compatibility checks allow optional additions and detect removals, new requirements, and enum changes', () => {
+  assert.deepEqual(contractTypeAssertions, [true, true, true, true, true, true]);
   const expected: ToolBaseline = {
     required: ['id'],
     properties: ['id'],
