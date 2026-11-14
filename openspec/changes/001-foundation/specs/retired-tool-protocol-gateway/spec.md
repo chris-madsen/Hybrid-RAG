@@ -1,14 +1,16 @@
-# mcp-gateway — Spec Delta
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
+# retired-tool-protocol-gateway — Spec Delta
 
 ## Purpose
 
-Single logical MCP surface and lossless artifact boundary.
+Single logical retired optional tool-call protocol surface and lossless artifact boundary.
 
 ## ADDED Requirements
 
 ### Requirement: Unified Codex gateway
 
-The system SHALL expose a single logical MCP facade with agent-neutral domain contracts and an initial Codex adapter.
+The system SHALL expose a single logical retired optional tool-call protocol facade with agent-neutral domain contracts and an initial Codex adapter.
 
 #### Scenario: Supported client
 
@@ -47,7 +49,7 @@ The system SHALL preserve exact source and generated artifacts and permit comple
 
 ### Requirement: Official SDK and boundary contract
 
-The production MCP transport SHALL use an official, maintained TypeScript MCP SDK and SHALL pass actual installed Codex/client protocol conformance. A custom JSON-RPC implementation SHALL NOT be the production default without a separately approved ADR and conformance proof.
+The production retired optional tool-call protocol transport SHALL use an official, maintained TypeScript retired optional tool-call protocol SDK and SHALL pass actual installed Codex/client protocol conformance. A custom JSON-RPC implementation SHALL NOT be the production default without a separately approved ADR and conformance proof.
 
 #### Scenario: DBC-09 SDK conformance
 

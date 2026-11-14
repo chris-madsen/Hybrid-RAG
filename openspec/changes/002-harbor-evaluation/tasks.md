@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Implementation Tasks — Harbor evaluation and provider-reported token ledger
 
 **State: PARTIALLY IMPLEMENTED.** The provider-independent evaluation core and
@@ -49,9 +51,9 @@ Historical completed Codex tasks above remain historical evidence and are not re
 
 - [x] Replace current feedback-loop job identity with pinned Hermes `v0.22.3` and `openai-codex/<model>`.
 - [x] Add a narrow Harbor 0.24.0 Hermes adapter that stages Hermes-owned ChatGPT/Codex OAuth from host `~/.hermes/auth.json` (or explicit Hermes auth path), never borrows `~/.codex/auth.json`, and synchronizes refreshed state back after each serial trial without requiring OpenAI/OpenRouter API keys.
-- [x] Expose ACE only on the optional arm through Hermes native stdio MCP; move the container-specific ACE environment into the pinned MCP wrapper.
-- [x] Update collector compatibility so Hermes `hermes-session.jsonl` MCP calls can be correlated while legacy Codex evidence remains readable.
-- [x] Pin adapter and MCP entrypoint digests in experiment/preflight provenance.
+- [x] Expose ACE only on the optional arm through Hermes native stdio retired optional tool-call protocol; move the container-specific ACE environment into the pinned retired optional tool-call protocol wrapper.
+- [x] Update collector compatibility so Hermes `hermes-session.jsonl` retired optional tool-call protocol calls can be correlated while legacy Codex evidence remains readable.
+- [x] Pin adapter and retired optional tool-call protocol entrypoint digests in experiment/preflight provenance.
 - [ ] Run a one-task real Hermes native vs Hermes+ACE smoke with the same GPT model/reasoning and retain raw Hermes session/provider evidence.
 - [ ] Require successful verifier outcomes and correlated ACE calls before starting the 10-task paired run.
 - [ ] Run repeats and untouched holdout only after the Hermes smoke gate passes.

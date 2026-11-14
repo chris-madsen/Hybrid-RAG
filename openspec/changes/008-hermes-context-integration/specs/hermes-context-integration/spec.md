@@ -1,10 +1,12 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # hermes-context-integration — Spec Delta
 
 ## ADDED Requirements
 
 ### Requirement: Request-time ACE transformation
 
-ACE SHALL be able to transform the context of the next Hermes provider request without requiring Hermes to call an ACE MCP tool.
+ACE SHALL be able to transform the context of the next Hermes provider request without requiring Hermes to call an ACE retired optional tool-call protocol tool.
 
 #### Scenario: ContextEngine projection
 

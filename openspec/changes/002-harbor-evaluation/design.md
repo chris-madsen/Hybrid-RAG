@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Design — Harbor evaluation and provider-reported token ledger
 
 **Status:** Proposed technical design. Decisions already accepted are listed in ADR; names, DTOs and interfaces in DDD documents are recommendations to be reviewed.
@@ -18,7 +20,7 @@ Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deploymen
 
 1. Harbor is external evaluation infrastructure, not a required Kubernetes workload.
 2. Hermes is the primary agent runtime for the current feedback loop. Pin Hermes version, `openai-codex` model/reasoning, Harbor version, source/task/image identity and the custom OAuth adapter digest.
-3. ACE is registered through Hermes native MCP only on the ACE-optional arm; baseline and ACE-optional otherwise remain matched.
+3. ACE is registered through Hermes native retired optional tool-call protocol only on the ACE-optional arm; baseline and ACE-optional otherwise remain matched.
 4. Usage exported by Hermes/Harbor/provider is authoritative when present; unavailable token/cache/cost fields remain explicit `unknown` rather than estimated.
 5. Distinguish cumulative usage from per-turn delta and dedupe by source-event identity.
 6. Retain aborted/failed attempts in population; report matched-success separately from all-run pass rate.
@@ -28,7 +30,7 @@ Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deploymen
 - Respect aggregate boundaries and commands/events in `docs/architecture/02-event-storming.md` and `03-tactical-ddd.md`.
 - Keep provider clients out of domain packages; integration uses ports/adapters; domain events are past-tense facts, not implicit background jobs.
 - Use typed `unavailable/stale/unknown/denied` results; do not manufacture successful data.
-- Use one modular-monolith logical MCP facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
+- Use one modular-monolith logical retired optional tool-call protocol facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
 
 ## Security, Consistency and Failure Modes
 
@@ -52,4 +54,4 @@ Refer to `docs/architecture/05-contracts-and-deployment.md` §11. Do not silentl
 
 ## Owner decision update — 2026-10-23
 
-ADR-015 supersedes the Codex-specific primary-agent choice for this change. Harbor remains the orchestrator, but the current feedback loop uses Hermes with native MCP and the `openai-codex` ChatGPT OAuth route. Historical Codex evidence remains historical and does not close Hermes E2E gates.
+ADR-015 supersedes the Codex-specific primary-agent choice for this change. Harbor remains the orchestrator, but the current feedback loop uses Hermes with native retired optional tool-call protocol and the `openai-codex` ChatGPT OAuth route. Historical Codex evidence remains historical and does not close Hermes E2E gates.

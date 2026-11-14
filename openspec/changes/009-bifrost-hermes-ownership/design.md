@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Design: gateway projection and host ownership
 
 ## Boundaries
@@ -5,7 +7,7 @@
 - **Hermes host:** owns the durable transcript, tool/session lifecycle and host compaction state. It may append new turns, but strict ACE evidence compares pre-existing active rows by ID and digest.
 - **ACE Core:** owns retrieval, source verification, policy, request-local context selection and projection receipts. It never mutates the durable transcript or worktree.
 - **Bifrost/connector:** owns northbound provider compatibility, credentials, route selection, retries and final-send evidence. It must re-authorize every effective attempt.
-- **MCP:** remains explicit tools only; it is not a hidden model-context projector.
+- **retired optional tool-call protocol:** remains explicit tools only; it is not a hidden model-context projector.
 
 ## Request identity
 

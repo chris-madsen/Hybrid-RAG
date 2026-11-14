@@ -1,8 +1,10 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Proposal — Unified context retrieval with Qdrant, AST/LSP and Vertex documentation
 
 ## Why
 
-The central PRD hypothesis requires all three knowledge classes in one accurate, freshness-aware context path, rather than independent unrelated MCP servers.
+The central PRD hypothesis requires all three knowledge classes in one accurate, freshness-aware context path, rather than independent unrelated retired optional tool-call protocol servers.
 
 ## What Changes
 

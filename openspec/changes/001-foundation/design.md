@@ -1,4 +1,6 @@
-# Design — Foundation: workspace truth, safety and MCP boundary
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
+# Design — Foundation: workspace truth, safety and retired optional tool-call protocol boundary
 
 **Status:** Proposed technical design. Decisions already accepted are listed in ADR; names, DTOs and interfaces in DDD documents are recommendations to be reviewed.
 
@@ -10,7 +12,7 @@ Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deploymen
 
 ## Goals / Non-Goals
 
-**Goals:** Safe local workspace identity, explicit policy gate, modular monolith skeleton, read-only MCP tool contracts.
+**Goals:** Safe local workspace identity, explicit policy gate, modular monolith skeleton, read-only retired optional tool-call protocol tool contracts.
 
 **Non-goals:** RAG/AST implementation, Jev, Graphiti extraction, complete observability, agent-written patch interception.
 
@@ -27,7 +29,7 @@ Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deploymen
 - Respect aggregate boundaries and commands/events in `docs/architecture/02-event-storming.md` and `03-tactical-ddd.md`.
 - Keep provider clients out of domain packages; integration uses ports/adapters; domain events are past-tense facts, not implicit background jobs.
 - Use typed `unavailable/stale/unknown/denied` results; do not manufacture successful data.
-- Use one modular-monolith logical MCP facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
+- Use one modular-monolith logical retired optional tool-call protocol facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
 
 ## Security, Consistency and Failure Modes
 

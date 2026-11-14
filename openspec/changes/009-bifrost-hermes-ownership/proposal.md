@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Proposal: Bifrost projection and Hermes compaction ownership
 
 ## Why
@@ -18,4 +20,4 @@ This change adds the missing normative contracts for the versioned ACE Gateway P
 - A Bifrost fork or second TypeScript reverse proxy.
 - Production provider selection, final provider-wire certification, real Hermes E2E and Harbor acceptance.
 - Rewriting Hermes durable history or selecting a universal compaction policy.
-- Marking existing native Hermes or MCP tool integrations obsolete.
+- Marking existing native Hermes or retired optional tool-call protocol tool integrations obsolete.

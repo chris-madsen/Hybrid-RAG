@@ -1,10 +1,12 @@
-# Implementation Tasks — Foundation: workspace truth, safety and MCP boundary
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
+# Implementation Tasks — Foundation: workspace truth, safety and retired optional tool-call protocol boundary
 
 **State: PARTIALLY IMPLEMENTED.** Foundation contracts and local adapters are implemented;
 production Kubernetes worktree access and owner review remain open.
 
 ## Architecture gate
-- [x] Inspect installed Codex MCP interface and document exact version / supported tools (`codex-cli 0.148.0-alpha.9`; `list/get/add/remove/login/logout`; `codex exec --json` is available) and register the ACE JSON-RPC stdio transport.
+- [x] Inspect installed Codex retired optional tool-call protocol interface and document exact version / supported tools (`codex-cli 0.148.0-alpha.9`; `list/get/add/remove/login/logout`; `codex exec --json` is available) and register the ACE JSON-RPC stdio transport.
 - [x] SPIKE: evaluate secure Kubernetes-to-host working-tree access and race/symlink threats; select an authenticated host-helper protocol as the design outcome before any production mount. Production deployment remains intentionally absent.
 - [x] Choose module runtime language and contract schemas through explicit design review (ADR-011; TypeScript + Effect Schema).
 - [x] Connect static-analysis gates: Airbnb TypeScript linting plus Rust `rustfmt` and Clippy with warnings denied.
@@ -16,7 +18,7 @@ production Kubernetes worktree access and owner review remain open.
 
 ## Policy and adapters
 - [x] Implement versioned ProjectDataPolicy and safe denial/audit records.
-- [x] Implement single MCP facade with `ace_context`, `ace_expand`, status/memory tools, JSON-RPC stdio transport and typed `not_ready` until subsequent providers are available.
+- [x] Implement single retired optional tool-call protocol facade with `ace_context`, `ace_expand`, status/memory tools, JSON-RPC stdio transport and typed `not_ready` until subsequent providers are available.
 - [x] Ensure no gateway tool can mutate user source tree.
 
 ## Verification
@@ -37,5 +39,5 @@ production Kubernetes worktree access and owner review remain open.
 
 ## Mandatory outstanding production gates (2026-10-18)
 
-**Architecture correction:** real MCP SDK conformance and runtime wiring are mandatory for production-readiness, regardless of foundation JSON-RPC test success. See DBC-09 and 006. Existing [x] entries mean isolated implementation only, not production gate.
-- [ ] Production Codex+official SDK MCP conformance and owner acceptance (DBC-09).
+**Architecture correction:** real retired optional tool-call protocol SDK conformance and runtime wiring are mandatory for production-readiness, regardless of foundation JSON-RPC test success. See DBC-09 and 006. Existing [x] entries mean isolated implementation only, not production gate.
+- [ ] Production Codex+official SDK retired optional tool-call protocol conformance and owner acceptance (DBC-09).

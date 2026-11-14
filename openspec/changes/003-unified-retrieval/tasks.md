@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Implementation Tasks — Unified context retrieval with Qdrant, AST/LSP and Vertex documentation
 
 **State: IMPLEMENTATION SUBSTANTIALLY COMPLETE; PRODUCTION APPROVAL/EVIDENCE OPEN.** The runtime now has real Qdrant, FastEmbed/ONNX, Tree-sitter and direct TypeScript-LS composition with exact source verification, snapshot identity and truthful coverage. Vertex is wired behind policy/opt-in. Production embedding/LSP selection, matched Serena comparison, large frozen retrieval quality, authorized Vertex citations and final DBC acceptance remain open.
@@ -25,7 +27,7 @@
 
 ## Documentation and orchestration
 - [x] Implement ContextBundle v1 with request ID, source digest, proof class, freshness, deduplication and partial warnings.
-- [x] Implement typed local context provider port and MCP `ace_context` wiring.
+- [x] Implement typed local context provider port and retired optional tool-call protocol `ace_context` wiring.
 - [x] Accept explicit `sourceObligations.required/optional` with overlap validation, legacy boolean compatibility, and explicit source-plan/coverage outcomes.
 - [x] Preserve exact expansion through existing `ace_expand` artifact pagination.
 - [x] Implement policy-controlled Vertex DocumentationPort boundary with auth, response validation and no-request denial; IAM/citation smoke remains open.
@@ -36,7 +38,7 @@
 - [x] Negative paths: stale candidate and provider unavailable never manufacture current snippets.
 - [x] Readiness policy distinguishes fatal identity/trust-boundary startup failures from live `not_ready` provider outages; fallback is never promoted to `ready`.
 - [x] Lossless >=2000 lines path is covered by foundation artifact tests.
-- [ ] Harbor ablation: repeated native-vs-ACE no-regression smoke is complete in `ace-local-smoke-natural-paired-repeat5`, but neither arm used retrieval; Codex+Serena, independent-MCP and a retrieval-demanding holdout remain open.
+- [ ] Harbor ablation: repeated native-vs-ACE no-regression smoke is complete in `ace-local-smoke-natural-paired-repeat5`, but neither arm used retrieval; Codex+Serena, independent-retired optional tool-call protocol and a retrieval-demanding holdout remain open.
 
 ## Exit criteria
 
@@ -58,4 +60,4 @@
 - [x] Codex integrated genuine local FastEmbed/ONNX with resolved worker identity and real Qdrant retrieval; SHA-256 projections are not semantic evidence. **Production model/runtime approval remains open** pending the larger frozen holdout, license and owner gate.
 - [ ] Codex installs and compares **Serena vs TypeScript Language Service** on matched TS/JS fixtures. Record correct refs/defs/types, negative cases, latency, agent task success and licensing, then recommend a provider to the owner (ADR-004).
 - [ ] Codex runs `npm run probe:vertex` using the already-authenticated *host* gcloud CLI, reads IAM/project/corpora status, tests actual citations on an **explicitly approved synthetic/public fixture corpus**, and reports when corpus absent. Do not export private material or create billable resources by default.
-- [x] Real-provider composition and request-safe provider tracing exist for Codex → MCP → Qdrant → actual embeddings → AST/TypeScript-LS → verified source, including stale/outage sub-gates. **Normative DBC-01/03/04/13 still require the approved provider identities and final retained evidence.**
+- [x] Real-provider composition and request-safe provider tracing exist for Codex → retired optional tool-call protocol → Qdrant → actual embeddings → AST/TypeScript-LS → verified source, including stale/outage sub-gates. **Normative DBC-01/03/04/13 still require the approved provider identities and final retained evidence.**
