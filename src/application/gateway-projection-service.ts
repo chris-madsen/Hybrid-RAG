@@ -83,6 +83,10 @@ const requestBodyIdentityValid = (
 const gatewayDataClass = (value: GatewayProjectionRequest['dataClass']): DataClass =>
   value === 'private' ? 'private_source' : value;
 
+const providerManagedContinuationPresent = (body: Record<string, unknown>): boolean =>
+  ['previous_response_id', 'conversation', 'conversation_id', 'thread_id']
+    .some((field) => body[field] !== undefined && body[field] !== null && body[field] !== '');
+
 const authorizeGatewayEgress = (
   request: GatewayProjectionRequest,
   security: GatewayProjectionSecurity,
@@ -175,12 +179,17 @@ export const makeGatewayProjectionService = (
       return block(request, 'HOST_COMPACTION_ACTIVE');
     }
     if (request.attestation.providerManagedHistoryCapability !== 'visible') return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
-    const authorized = yield* authorizeGatewayEgress(request, security);
-    if (authorized._tag === 'Err') return authorized;
-    if (!authorized.value.allowed) return block(request, authorized.value.reasonCode);
     const body = parseBody(request);
     if (body._tag === 'Err') return body;
     if (!requestBodyIdentityValid(body.value, request)) return block(request, 'BODY_IDENTITY_MISMATCH');
+    if (providerManagedContinuationPresent(body.value)) return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
+    // The original agent request is part of the external LLM egress too. Do
+    // not inspect only newly retrieved ACE context: a secret already present
+    // in the prompt/body must fail closed before retrieval or provider send.
+    const originalSecretDetected = containsLikelySecret(JSON.stringify(body.value));
+    const authorized = yield* authorizeGatewayEgress(request, security, originalSecretDetected);
+    if (authorized._tag === 'Err') return authorized;
+    if (!authorized.value.allowed) return block(request, authorized.value.reasonCode);
     const transformed = yield* context.transform(transformRequestFor(request));
     if (transformed._tag === 'Err') return block(request, transformed.error.code);
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
