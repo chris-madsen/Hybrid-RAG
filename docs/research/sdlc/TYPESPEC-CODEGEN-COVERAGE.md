@@ -2,7 +2,9 @@
 
 # Contract-first code generation — Sphericon lessons applied to ACE
 
-**Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document proposes actual generation coverage and gates; no TypeSpec generator is installed by writing it.
+**Current implementation status (2026-11-15):** PR #244 merged the pinned TypeSpec Gateway v1 vertical slice: OpenAPI/JSON Schema generation, maintained TypeScript SDK/types, regeneration drift checks, strict Gateway schema compatibility and exhaustive DTO mapping checks. A current tree inventory shows `contracts/ace-gateway/v1` is the only live public contract root. Therefore TypeSpec ownership is complete for the **current live public wire surface**; broader generator ideas below are optional future capabilities, not unfinished migration of retired transports.
+
+**Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document records both the installed Gateway v1 generation slice and broader generation coverage candidates; only committed generator/config/CI artifacts count as installed.
 
 ## Inspected concrete Sphericon pipeline
 
@@ -95,11 +97,11 @@ Given TypeSpec defines \`indexGenerationId\` on response:
 
 **TS-03: policy/schema metadata.** If TypeSpec decorators are appropriate, define types for access scope, data classification and trusted/untrusted transfer. Generate metadata table **only after** proving a supported compile/emitter path. Enforce at actual application send-time as an independent negative-test gate.
 
-**TS-04: retired optional tool-call protocol/native bridge.** TypeSpec JSON Schema → tested mapping to official retired optional tool-call protocol SDK schemas; Hermes versioned message mapper; no claim of native retired optional tool-call protocol emitter without proof. Test protocol-specific wire variants; keep gateway and explicit retired optional tool-call protocol planes distinct.
+**TS-04: retired delivery planes — N/A.** The 2026-11-14 Gateway-only owner decision removed the model-invoked tool and Hermes-native agent delivery planes. Do not generate or revive their schemas merely to satisfy an old migration checklist.
 
 **TS-05: generated artifact policy.** Generated output directory/header, \`.gitattributes\`, reproducible \`generate\` task, generated-diff check and schema compatibility gate. Include semantic tests for transport/permissions/mapping; ensure codegen changes are scope-aware in CI.
 
-**TS-06: wider migration.** Move public interfaces incrementally, remove old handwritten duplicate schema authority only after compatibility proof. No big-bang replacement of functional domain modules.
+**TS-06: wider migration.** Apply incrementally only when a **new live public interface** is owner-approved. At present there is no additional live public contract root beyond Gateway v1; do not manufacture work by migrating internal domain/provider protocols.
 
 ## Required gates
 

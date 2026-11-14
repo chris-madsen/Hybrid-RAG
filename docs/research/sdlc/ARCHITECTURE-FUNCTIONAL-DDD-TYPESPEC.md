@@ -3,7 +3,7 @@
 # ACE architecture policy — Event Storming + functional DDD/ADT + TypeSpec
 
 **Decision source:** ADR-019, recording the explicit project-owner preference of 2026-11-05.
-**Status:** chosen target architecture for future SDLC work; TypeSpec toolchain and generated artifacts are **not implemented** by this document. ADR-019 records the decision without changing this staged status. No accepted ADR/OpenSpec may be silently contradicted: reconcile any conflict in an owner-reviewed ADR/spec change.
+**Status:** chosen architecture policy. The TypeSpec toolchain is **implemented for the current live public Gateway v1 contract** (merged #244: pinned compiler/emitters, OpenAPI/JSON Schema, generated TypeScript SDK/types, drift and compatibility checks). This document still describes the rule for future approved public contracts; it does not make retired transports migration targets. No accepted ADR/OpenSpec may be silently contradicted.
 **Applies to:** ACE's TypeScript + Effect modular monolith, its public tool/gateway protocols and related development process.
 
 ## Non-negotiable choices
@@ -11,7 +11,7 @@
 1. **Event Storming is the first-class discovery/design method** for T2 domain behavior and a focused method for T1 when useful. Event Storming informs commands, events, policy, invariants, ownership and eventual consistency; it is not necessarily Event Sourcing.
 2. **DDD remains strategic**: subdomains, bounded contexts, context map, ubiquitous language, anti-corruption layers, consistency boundaries and responsibilities.
 3. **Domain implementation defaults to functional style**: immutable data/ADT, algebraic operations as pure functions, total pattern matching, explicit errors and state transitions. Do **not** mandate mutable OO entities, inheritance, aggregate methods, DI in domain objects or class-oriented Domain Service patterns.
-4. **TypeSpec is the selected contract-first language for public machine interfaces**, where it can express the contract. Start with the ACE Gateway Projection HTTP interface and explicitly versioned JSON protocol shapes. Evaluate mapping to retired optional tool-call protocol tool input/output JSON Schema and non-HTTP native bridge without assuming TypeSpec has a first-party retired optional tool-call protocol emitter.
+4. **TypeSpec is the selected contract-first language for public machine interfaces**, where it can express the contract. Gateway Projection HTTP v1 is the current live public contract and is already migrated. Retired model-invoked tool and Hermes-native delivery planes are historical evidence, not codegen targets.
 5. **OpenSpec is the source of behavior/requirements and acceptance tests; TypeSpec is the source of protocol shapes, operations and wire constraints; accepted ADRs give architectural rationale.** They must remain mutually consistent without duplicating an entire schema in prose.
 6. **Effect owns application composition, capabilities, cancellation and I/O**, while domain policy/state transitions remain pure and testable. Use the existing Effect version/API; don't invent an upgrade or force every computation into an Effect.
 7. **One bounded context ≠ one service**. Keep the existing TS+Effect modular monolith and explicit in-process module APIs; remote boundaries are justified operationally, not generated from a sticky note.
@@ -83,7 +83,7 @@ Adapter decodes generated validated wire schema
 ### 4. Implementation in TS/Effect
 - Domain: \`types.ts\` (readonly ADTs), \`decide.ts\`/\`transition.ts\`, \`invariants.ts\`, \`events.ts\` if needed; no provider network calls or \`Effect.runPromise\` here.
 - Application: \`useCases/*.ts\` built from Effect services/typed ports; orchestrates providers, transactions, cancellation, policy at I/O time.
-- Adapters: TypeSpec-generated contract DTOs, runtime validation and exact mapping at retired optional tool-call protocol/HTTP/JSONL boundary; Qdrant/LSP/Graphiti/Vertex providers.
+- Adapters: TypeSpec-generated contract DTOs, runtime validation and exact mapping at the Gateway HTTP boundary; Qdrant/LSP/Graphiti/Vertex providers.
 - Composition: layers/config/entrypoints; decides actual selected providers.
 - Tests: property and example-based pure domain tests, protocol roundtrip and compatibility, real provider/agent E2E for claimed wiring.
 Keep actual existing ACE directories where possible; this is a logical ownership map, not a prescribed mass file move.

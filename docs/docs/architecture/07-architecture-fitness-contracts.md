@@ -1,26 +1,21 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # ACE — Architecture Fitness and Bertrand Meyer Design-by-Contract Gates
 
-**Status:** Accepted as Design-by-Contract evaluation policy (owner approval 2026-10-19); mandatory executable gates remain unverified until run. **Scope:** architecture/spec acceptance, not evidence that runtime is ready. **Source:** PRD, ADR-001/003/004/005/006/007/009, review `docs/reviews/2026-10-18-architecture-failure-review.md`. Owner acceptance policy approved; implementation and production readiness still require evidence. Existing small unit tests remain valuable but **cannot replace these end-to-end contracts**.
+**Status:** Accepted Design-by-Contract evaluation policy, updated 2026-11-14. Deterministic structural/contract gates are installed; each real-provider/real-agent DBC still requires its own observed evidence before production claims. **Scope:** architecture/spec acceptance, not blanket runtime certification. **Source:** PRD, ADR-001/003/004/005/006/007/009, review `docs/reviews/2026-10-18-architecture-failure-review.md`. Owner acceptance policy approved; implementation and production readiness still require evidence. Existing small unit tests remain valuable but **cannot replace these end-to-end contracts**.
 
 ## 1. The architectural mistake we are preventing
 
-> **Integration correction (ADR-016/017, 2026-10-24):** retired optional tool-call protocol conformance remains required for **explicit tools**, not for automatic model-bound context injection. Hermes native ContextEngine is implemented; Bifrost provider-facing gateway + ACE projection connector are planned and not approved. LangGraph orchestrates agents outside ACE. Existing Codex/retired optional tool-call protocol test cases below are tool-plane-specific historical gates, not proof of request-local gateway transformation.
+> **Integration correction (owner decision 2026-11-14):** Bifröst provider-facing Gateway + ACE Projection connector is the sole agent-facing ACE context path. Hermes-native and model-invoked ACE context delivery are retired. LangGraph or another orchestrator may schedule agents outside ACE. DBC provider/agent evidence must therefore exercise the Gateway route actually under claim.
 
-We chose mature engines for *actual behavior*, but the implementation can satisfy isolated interface/adapter tests while the executable retired optional tool-call protocol composes a regex/whole-file lexical fallback. **Port implemented ≠ port injected ≠ provider working ≠ feature delivered ≠ 5× proved**. This document defines observable composition and user-result contracts.
+We chose mature engines for *actual behavior*, but the implementation can satisfy isolated interface/adapter tests while the executable Gateway composition still uses the wrong provider/fallback or never reaches the selected provider. **Port implemented ≠ port injected ≠ provider working ≠ feature delivered ≠ 5× proved**. This document defines observable composition and user-result contracts.
 
 ### Runtime component map (production target)
 
 ```mermaid
 flowchart LR
   LG["LangGraph or other external orchestrator"] --> A["Existing coding agents"]
-  A -->|"LLM endpoint - planned"| B["Bifrost gateway + ACE Go connector: planned"]
-  B -->|"projection API - planned"| Gate["ACE authorization / data policy"]
-  B -->|"model-bound requests"| P["LLM providers"]
-  A -.->|"explicit retired optional tool-call protocol tools - existing"| retired optional tool-call protocol["ACE retired optional tool-call protocol tool facade"]
-  retired optional tool-call protocol --> Gate
-  H["Hermes native ContextEngine: existing"] -->|"direct JSONL bridge"| Gate
+  A -->|"configured model endpoint"| B["Bifröst gateway + pinned ACE Go connector"]
+  B -->|"authenticated ace.gateway.v1"| Gate["ACE authorization / data policy"]
+  B -->|"authorized model-bound request"| P["LLM providers"]
   Gate --> O["Context Orchestration / Effect"]
   O --> Plan["Deterministic retrieval routing"]
   Plan --> Q["Qdrant dense + sparse"]
@@ -40,7 +35,7 @@ This **does not** require executing every provider for every query. Selection de
 
 ## 2. Meyer contract vocabulary
 
-For every contract specify `require` (preconditions), `ensure` (postconditions), `invariant` (always true, including after failure), `frame` (what does not change), and `rescue/exception` (typed degraded/denied results). Contracts apply at the **observable selected adapter boundary** (retired optional tool-call protocol for explicit tools, Hermes native for request-local projection, future Bifrost provider-wire for gateway delivery), not just constructors or mocked functions.
+For every contract specify `require` (preconditions), `ensure` (postconditions), `invariant` (always true, including after failure), `frame` (what does not change), and `rescue/exception` (typed degraded/denied results). Contracts apply at the **observable Bifröst Gateway/provider boundary** for agent-facing behavior, not just constructors or mocked functions. Internal provider ports remain independently testable but cannot substitute for the Gateway composition they support.
 
 - `require`: validated workspace ID/root, authorized read-only code, pinned source fixture, provider capabilities explicitly approved and reachable for integration tests.
 - `ensure`: data actually came from selected, instrumented real provider; correct symbol span and current digest; ranked precise excerpt with citation; full exact expansion available.
@@ -54,18 +49,18 @@ IDs are stable acceptance criteria. Each case must be implemented as **agent-fac
 
 | Contract | `require` / test fixture | `ensure` / oracle | `invariant` / negative oracle |
 |---|---|---|---|
-| **DBC-01 Prod composition** | Approved local Qdrant+embedding+Tree-sitter+LSP available; ACE retired optional tool-call protocol started | Trace identifies actual invocation of each needed provider for a query requiring them | A fallback/index stub alone is **not** a passing result; unavailable providers -> explicit not-ready/degraded |
+| **DBC-01 Prod composition** | Approved local Qdrant+embedding+Tree-sitter/ast-grep+LSP available; supported Gateway route active | Trace identifies Bifröst→ACE plus actual invocation of each needed provider for a query requiring them | A disconnected adapter/fallback alone is **not** a passing result; unavailable required providers -> explicit not-ready/partial/block |
 | **DBC-02 Symbol precision** | 2000-line TS file with 25-line target function and similar names elsewhere | Answer includes AST-bound target span, correct digest and exact citation; full file retrievable on explicit expansion | Initial excerpt must not copy the full file merely because a symbol name matched |
 | **DBC-03 Behavior-based RAG** | Query describes behavior without lexical names; labeled semantic/lexical distractors | Approved semantic retrieval surfaces relevant candidate; hits verified against source; report recall/precision | SHA-256 hash-vector baseline cannot be counted as semantic embedding quality |
 | **DBC-04 Same-name semantics** | Classes A/B each implement `save()`; distinct call sites | LSP references/definitions identify correct symbol; tests preserve compiler semantics | Write access is **not** equivalent to definition; name equality is not symbol identity |
 | **DBC-05 Freshness race** | Start retrieval on digest D1; mutate file to D2 before response | Deliver D2 after re-read, or `stale/changed_during_request` with evidence | D1 must never be labelled `current`; no TOCTOU falsely current |
 | **DBC-06 Failure truth** | Force Qdrant timeout; local AST available | Partial response lists Qdrant as failed; fallback explicitly labelled | `complete=true` prohibited when a **required** source failed, even if remaining evidence is current |
-| **DBC-07 Policy safety** | Private-code cloud upload forbidden; Vertex or Jev requested | Typed `POLICY_DENIED`, audit event, **zero** prohibited outbound requests | Do not reinterpret policy deny as technical outage; no fallback to another cloud |
+| **DBC-07 Policy safety** | Private-code cloud upload forbidden; Vertex/Jev or an LLM provider requested | Typed `POLICY_DENIED`, audit/evidence record where applicable, **zero** prohibited outbound requests | Gateway private-source projection requires explicit provider identity, cloud opt-in and provider allowlist; do not reinterpret policy deny as outage or auto-route/fallback to another cloud |
 | **DBC-08 Source exactness** | 2000+ line code and binary-like UTF-8 payload incl. newlines | Exact range pagination reassembles SHA-256-identical complete bytes | Source never silently truncated or replaced with summary |
-| **DBC-09 retired optional tool-call protocol conformance** | Codex client + official SDK transport, valid/invalid requests | Protocol initialize/list/call/errors/cancel/concurrent requests meet supported SDK/client contract | No hand-rolled production framing without approved ADR and conformance suite |
+| **DBC-09 Gateway/connector conformance** | supported coding-agent HTTP request + pinned Bifröst/connector + explicit authorized provider/model + valid/invalid projection cases | Gateway v1, auth, honest host-state confidence, request/session binding, pre-retrieval destination policy, secret guard, semantic body preservation and exact provider-attempt admission meet the accepted contract | No alternate transport, automatic/unauthorized provider selection, fabricated host transcript proof, unbound attempt, silent passthrough or unpinned plugin ABI |
 | **DBC-10 Memory stable identity** | Append one more JSONL episode to already imported history; replay | Prior episode IDs/citations stable; new episode added exactly once | File-level digest change must not re-identify existing episodes |
 | **DBC-11 Memory safe deletion** | Two distinct episodes reference identical content digest; delete only one | Survivor remains exactly readable; deleted episode inaccessible; derived projection purged | No shared content removal until reference-safe; no inferred decision auto-accepted |
-| **DBC-12 Benchmark attribution** | Pinned paired Codex runs on a real repo/task requiring code exploration | Report actual ACE call count, provider trace, token totals, quality, external costs and source hashes | Zero ACE calls **cannot** prove ACE-caused saving; forced extra tool call on trivial TODO does not establish value |
+| **DBC-12 Benchmark attribution** | Pinned paired real-agent runs on a repo/task requiring code exploration | Report valid ACE APPLY/receipt count, provider trace, token totals, quality, external costs and source hashes | No ACE APPLY/provider evidence **cannot** prove ACE-caused saving; trivial forced context injection does not establish value |
 | **DBC-13 Index persistence** | Restart ACE with dirty worktree and stale Qdrant generation | Startup/refresh computes truthful index status and incremental rebuild/overlay behavior | Restart never silently upgrades stale generation to current |
 | **DBC-14 Documentation conflict** | ADR says X, changed current code says Y | Bundle contains both, source classifications and timestamps, with conflict explicit | Documentation is not silently used as current source-code truth |
 
@@ -104,7 +99,7 @@ ContextRequest.resolve(request, workspace, policy)
 
 1. **Unit/contract**: pure domain rules; helper/fixture doubles permitted. Output: `contract-pass:isolated`.
 2. **Integration**: real pinned provider and wiring; down/up/outage/race. Output: `provider-pass`.
-3. **Agent E2E**: use the actual selected delivery path: Codex/retired optional tool-call protocol only tests explicit tools; Hermes native tests request-local context; future Bifrost tests verified provider-bound wire. Inspect answer/task quality, receipts and route identity. Output: `agent-e2e-pass` only for the tested path.
+3. **Agent E2E**: use the actual supported delivery path: real coding agent → Bifröst → ACE Gateway → authorized provider. Inspect server-minted physical request binding, normalized session correlation, APPLY/BLOCK receipt, provider-bound evidence, answer/task quality and route identity. Output: `agent-e2e-pass` only for the exact tested route/commit.
 4. **Benchmark**: paired Harbor retrieval-demanding tasks; real ACE calls and separate total tokens, costs, success/latency. Output: `evaluation-pass`.
 5. **Owner gate**: unresolved provider/license/K8s decisions approved and no outstanding mandatory contracts. Output: `production-ready` only then.
 

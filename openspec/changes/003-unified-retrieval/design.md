@@ -1,12 +1,10 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # Design — Unified context retrieval with Qdrant, AST/LSP and Vertex documentation
 
 **Status:** Proposed technical design. Decisions already accepted are listed in ADR; names, DTOs and interfaces in DDD documents are recommendations to be reviewed.
 
 ## Context
 
-The central PRD hypothesis requires all three knowledge classes in one accurate, freshness-aware context path, rather than independent unrelated retired optional tool-call protocol servers.
+The central PRD hypothesis requires all three knowledge classes in one accurate, freshness-aware ACE context path behind the single Gateway delivery adapter.
 
 Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deployment.md` plus PRD/ADRs before implementation.
 
@@ -29,7 +27,7 @@ Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deploymen
 - Respect aggregate boundaries and commands/events in `docs/architecture/02-event-storming.md` and `03-tactical-ddd.md`.
 - Keep provider clients out of domain packages; integration uses ports/adapters; domain events are past-tense facts, not implicit background jobs.
 - Use typed `unavailable/stale/unknown/denied` results; do not manufacture successful data.
-- Use one modular-monolith logical retired optional tool-call protocol facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
+- Keep one TypeScript + Effect modular-monolith ACE Core and one Bifröst Gateway delivery adapter; Qdrant/Graphiti/Vertex/Harbor remain explicit supporting dependencies, not domain microservices.
 
 ## Security, Consistency and Failure Modes
 

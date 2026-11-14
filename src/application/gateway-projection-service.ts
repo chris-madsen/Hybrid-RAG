@@ -2,6 +2,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
+import { type DataClass, type ProjectDataPolicy } from '../domain/policy.js';
+import { containsLikelySecret } from '../domain/sensitive-text.js';
+import { makeWorkspaceId } from '../domain/workspace.js';
 import { err, ok, type Result } from '../domain/result.js';
 import {
   type GatewayProjectionDecision,
@@ -10,10 +13,19 @@ import {
   validateGatewayProjectionRequest,
 } from '../domain/gateway-projection.js';
 import type { AceTransformResult, ContextTransformService } from './context-transform-service.js';
+import { authorizeAndAudit } from './policy-service.js';
+import type { AuditSink, ClockPort } from './ports.js';
 
 export interface GatewayProjectionService {
   readonly project: (value: unknown) => Effect.Effect<Result<GatewayProjectionDecision, DomainError>>;
 }
+export interface GatewayProjectionSecurity {
+  readonly policy: ProjectDataPolicy;
+  readonly allowedProviders: readonly string[];
+  readonly clock: ClockPort;
+  readonly audit: AuditSink;
+}
+
 
 const bodySha256 = (value: string): string => createHash('sha256').update(Buffer.from(value, 'base64')).digest('hex');
 const receiptFor = (request: GatewayProjectionRequest, decision: GatewayProjectionReceipt['decision'], extra: Partial<GatewayProjectionReceipt> = {}): GatewayProjectionReceipt => ({
@@ -68,6 +80,59 @@ const requestBodyIdentityValid = (
   return false;
 };
 
+const gatewayDataClasses = (value: GatewayProjectionRequest['dataClass']): readonly DataClass[] => {
+  const declared: DataClass = value === 'private' ? 'private_source' : value;
+  // Gateway v1 currently retrieves code only. The caller's wire classification
+  // may add restrictions for the original request, but it can never downgrade
+  // the private_source classification of repository evidence that ACE injects.
+  return declared === 'private_source' ? ['private_source'] : [declared, 'private_source'];
+};
+
+const providerManagedContinuationPresent = (body: Record<string, unknown>): boolean =>
+  ['previous_response_id', 'conversation', 'conversation_id', 'thread_id']
+    .some((field) => body[field] !== undefined && body[field] !== null && body[field] !== '');
+
+const authorizeGatewayEgress = (
+  request: GatewayProjectionRequest,
+  security: GatewayProjectionSecurity,
+  secretDetected = false,
+): Effect.Effect<Result<{ readonly allowed: boolean; readonly reasonCode: string }, DomainError>> =>
+  Effect.gen(function* () {
+    const workspaceId = makeWorkspaceId(request.workspaceId);
+    if (workspaceId._tag === 'Err') return workspaceId;
+    if (!security.allowedProviders.some((provider) => provider.toLowerCase() === request.provider.toLowerCase())) {
+      const written = yield* security.audit.append({
+        occurredAtMs: security.clock.nowMs(),
+        correlationId: request.requestId,
+        component: 'gateway-egress-policy',
+        category: 'policy',
+        policyVersion: security.policy.policyVersion,
+        outcome: 'denied',
+        reasonCode: 'POLICY_DENIED',
+      });
+      if (written._tag === 'Err') return written;
+      return ok({ allowed: false, reasonCode: 'POLICY_DENIED' });
+    }
+    const authorized = yield* authorizeAndAudit(
+      security.policy,
+      {
+        workspaceId: workspaceId.value,
+        operation: 'gateway_llm_projection',
+        destination: 'other_external',
+        dataClasses: gatewayDataClasses(request.dataClass),
+        paths: [],
+        secretDetected,
+      },
+      request.requestId,
+      { clock: security.clock, audit: security.audit },
+    );
+    if (authorized._tag === 'Err') return authorized;
+    return ok({
+      allowed: authorized.value.decision.outcome === 'allowed',
+      reasonCode: authorized.value.decision.reasonCode,
+    });
+  });
+
 const appendContext = (body: Record<string, unknown>, context: AceTransformResult): Result<string, DomainError> => {
   if (!Array.isArray(body.messages)) return err(domainError('PROTECTED_GROUP_INVALID', 'body.messages', 'OpenAI Chat request must contain messages'));
   const messages = body.messages as unknown[];
@@ -95,7 +160,10 @@ const transformRequestFor = (request: GatewayProjectionRequest): Parameters<Cont
   sourceObligations: { required: ['code'] },
 });
 
-export const makeGatewayProjectionService = (context: ContextTransformService): GatewayProjectionService => ({
+export const makeGatewayProjectionService = (
+  context: ContextTransformService,
+  security: GatewayProjectionSecurity,
+): GatewayProjectionService => ({
   project: (value) => Effect.gen(function* () {
     const decoded = validateGatewayProjectionRequest(value);
     if (decoded._tag === 'Err') return decoded;
@@ -106,12 +174,27 @@ export const makeGatewayProjectionService = (context: ContextTransformService): 
     if (request.nativeProjectionActive === true) return block(request, 'DUAL_PROJECTION_OWNER');
     if (request.attestation.sessionId !== request.agentSessionId) return block(request, 'HOST_SESSION_MISMATCH');
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
-    if (!request.attestation.hostTranscriptAttested) return block(request, 'HOST_CONTEXT_UNATTESTED');
-    if (request.attestation.compactionEnabled || request.attestation.hostCompactionEpoch === 'unknown') return block(request, 'HOST_COMPACTION_ACTIVE');
+    // Gateway delivery may safely augment the exact request bytes Bifröst can
+    // observe even when the coding host's durable transcript/compaction state
+    // is not attested. That mode must remain explicitly non-exclusive in the
+    // receipt. If a host *does* claim transcript attestation, enforce the
+    // stricter no-compaction invariant before accepting that stronger claim.
+    if (request.attestation.hostTranscriptAttested
+      && (request.attestation.compactionEnabled || request.attestation.hostCompactionEpoch === 'unknown')) {
+      return block(request, 'HOST_COMPACTION_ACTIVE');
+    }
     if (request.attestation.providerManagedHistoryCapability !== 'visible') return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
     const body = parseBody(request);
     if (body._tag === 'Err') return body;
     if (!requestBodyIdentityValid(body.value, request)) return block(request, 'BODY_IDENTITY_MISMATCH');
+    if (providerManagedContinuationPresent(body.value)) return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
+    // The original agent request is part of the external LLM egress too. Do
+    // not inspect only newly retrieved ACE context: a secret already present
+    // in the prompt/body must fail closed before retrieval or provider send.
+    const originalSecretDetected = containsLikelySecret(JSON.stringify(body.value));
+    const authorized = yield* authorizeGatewayEgress(request, security, originalSecretDetected);
+    if (authorized._tag === 'Err') return authorized;
+    if (!authorized.value.allowed) return block(request, authorized.value.reasonCode);
     const transformed = yield* context.transform(transformRequestFor(request));
     if (transformed._tag === 'Err') return block(request, transformed.error.code);
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
@@ -122,6 +205,11 @@ export const makeGatewayProjectionService = (context: ContextTransformService): 
     }
     if (result.status !== 'ready' || !result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
       return block(request, 'TRANSFORM_NOT_READY');
+    }
+    if (containsLikelySecret(result.contextText)) {
+      const secretDecision = yield* authorizeGatewayEgress(request, security, true);
+      if (secretDecision._tag === 'Err') return secretDecision;
+      return block(request, secretDecision.value.reasonCode);
     }
     const projected = appendContext(body.value, result);
     if (projected._tag === 'Err') return block(request, projected.error.code);

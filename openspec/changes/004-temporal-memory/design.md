@@ -1,5 +1,3 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # Design — Immutable original Codex session archive and Graphiti temporal memory
 
 **Status:** Proposed technical design. Decisions already accepted are listed in ADR; names, DTOs and interfaces in DDD documents are recommendations to be reviewed.
@@ -28,7 +26,7 @@ Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deploymen
 - Respect aggregate boundaries and commands/events in `docs/architecture/02-event-storming.md` and `03-tactical-ddd.md`.
 - Keep provider clients out of domain packages; integration uses ports/adapters; domain events are past-tense facts, not implicit background jobs.
 - Use typed `unavailable/stale/unknown/denied` results; do not manufacture successful data.
-- Use one modular-monolith logical retired optional tool-call protocol facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
+- Keep one TypeScript + Effect modular-monolith ACE Core with the sole Bifröst Gateway delivery adapter; external Qdrant/Graphiti/Vertex/Harbor processes are supporting dependencies, not domain microservices.
 
 ## Security, Consistency and Failure Modes
 

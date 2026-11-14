@@ -1,17 +1,15 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # production-retrieval — Spec Delta
 
 ## ADDED Requirements
 
 ### Requirement: Real executable production composition
 
-The system SHALL expose `ace_context` through a standards-compliant official TypeScript retired optional tool-call protocol SDK facade and SHALL invoke selected, configured real retrieval providers in the production runtime when required by an authorized request, rather than satisfying the capability with a disconnected adapter, test double or lexical fallback.
+The system SHALL invoke selected, configured real retrieval providers from the production ACE runtime when required by an authorized Bifröst Gateway projection, rather than satisfying the capability with a disconnected adapter, test double or lexical fallback.
 
 #### Scenario: DBC-01 actual provider wiring
 
 - **WHEN** an authorized code-intelligence query requires semantic discovery, AST spans and LSP semantics in a pinned environment with approved providers
-- **THEN** an observable Codex retired optional tool-call protocol call reaches actual Qdrant with a genuine approved embedding, Tree-sitter/ast-grep, approved LSP and current source verification, and the resulting evidence carries provider and source provenance
+- **THEN** an observable request-bound Bifröst → ACE Gateway projection reaches actual Qdrant with a genuine approved embedding, Tree-sitter/ast-grep, approved LSP and current source verification, and the resulting evidence carries provider/source/request provenance
 - **AND** an implementation where only a regex/full-file local provider is invoked SHALL fail this scenario
 
 #### Scenario: Unapproved production dependency
@@ -63,10 +61,10 @@ The system SHALL determine completeness from all required route sources and veri
 
 The system SHALL prove end-to-end behavior with official SDK/client conformance and quality-gated, attribution-aware Harbor comparisons.
 
-#### Scenario: DBC-09 retired optional tool-call protocol conformance
+#### Scenario: DBC-09 Gateway/connector conformance
 
-- **WHEN** Codex initializes and invokes ACE under supported SDK protocol, including errors, cancellation and concurrent calls
-- **THEN** the official retired optional tool-call protocol SDK facade remains interoperable and preserves typed failure semantics
+- **WHEN** a supported coding-agent request reaches Bifröst and ACE Gateway under valid, malformed, cancelled or concurrent conditions
+- **THEN** Gateway v1 plus the pinned connector remain interoperable, preserve typed failure semantics and never authorize an unbound provider attempt
 
 #### Scenario: DBC-12 agent benchmark attribution
 
@@ -86,4 +84,4 @@ The system SHALL preserve persisted-index freshness across restarts and SHALL su
 #### Scenario: DBC-14 conflicting documentation
 
 - **WHEN** approved documentation asserts X but current verified source implements Y
-- **THEN** `ace_context` exposes both with source classification, timestamp/revision and explicit conflict rather than silently preferring documentation as current code truth
+- **THEN** the Gateway-projected ACE evidence exposes both with source classification, timestamp/revision and explicit conflict rather than silently preferring documentation as current code truth

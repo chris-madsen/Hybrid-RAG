@@ -1,12 +1,10 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # architecture-fitness — Spec Delta
 
 ## ADDED Requirements
 
 ### Requirement: Meyer design-by-contract gates at observable boundaries
 
-The system SHALL validate production capabilities with explicit **preconditions**, **postconditions**, **class/aggregate invariants**, **frame conditions**, and **exceptional postconditions** at real provider integration or Codex retired optional tool-call protocol E2E level; isolated mocks SHALL be insufficient as sole evidence of production acceptance.
+The system SHALL validate production capabilities with explicit **preconditions**, **postconditions**, **class/aggregate invariants**, **frame conditions**, and **exceptional postconditions** at real provider integration or Gateway real-agent E2E level; isolated mocks SHALL be insufficient as sole evidence of production acceptance.
 
 #### Scenario: Valid external query precondition
 
@@ -47,8 +45,8 @@ The system SHALL separate port-designed, adapter-implemented, real-provider-test
 
 #### Scenario: Adapter passes but runtime composition fails
 
-- **WHEN** isolated Qdrant and LSP adapter tests pass but the retired optional tool-call protocol executable does not invoke them
-- **THEN** capability remains `not_ready`, and all mandatory relevant runtime gate tasks remain unchecked
+- **WHEN** isolated Qdrant and LSP adapter tests pass but the actual Gateway runtime path does not invoke them for a required request
+- **THEN** capability remains `not_ready`, and all mandatory relevant runtime/provider gate tasks remain unchecked
 
 #### Scenario: Zero ACE calls despite lower tokens
 

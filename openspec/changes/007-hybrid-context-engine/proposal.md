@@ -1,5 +1,3 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # Proposal — Hybrid Context Engine completion
 
 **Status: Accepted direction; implementation/evidence pending.**
@@ -18,7 +16,7 @@ Current ACE already has maintained structural extraction, dense Qdrant retrieval
 
 1. Add Qdrant dense+sparse hybrid retrieval with RRF.
 2. Add an optional local maintained reranker behind a provider port.
-3. Add authoritative Git working-state signals plus optional retired optional tool-call protocol focus/open-file hints.
+3. Add authoritative Git working-state signals plus versioned working-context hints only where the Gateway contract explicitly supports them.
 4. Add stable bundle/evidence receipts and delta delivery.
 5. Make compact structural outlines available in locate-mode ContextBundles.
 6. Benchmark dense-only, sparse-only, hybrid, reranked and delta-delivery arms.

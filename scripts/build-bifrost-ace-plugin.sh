@@ -15,9 +15,15 @@ if [[ "$actual" != "$BIFROST_COMMIT" ]]; then
 fi
 
 repo_root=$(git rev-parse --show-toplevel)
+ace_commit=$(git -C "$repo_root" rev-parse HEAD)
+if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]]; then
+  echo "ACE source checkout must be clean before plugin compilation" >&2
+  exit 2
+fi
 build_root=$(mktemp -d "${TMPDIR:-/tmp}/ace-bifrost-plugin.XXXXXX")
 trap 'rm -rf "$build_root"' EXIT
 cp integrations/bifrost/ace-connector/plugin/main.go "$build_root/main.go"
+cp integrations/bifrost/ace-connector/plugin/main_test.go "$build_root/main_test.go"
 cat > "$build_root/go.mod" <<EOF
 module ace-gateway-projection-plugin
 
@@ -38,5 +44,5 @@ else
   output_path="$repo_root/$OUTPUT"
 fi
 mkdir -p "$(dirname "$output_path")"
-(cd "$build_root" && "$GO_BIN" mod tidy && "$GO_BIN" build -tags=bifrost_plugin -buildmode=plugin -o "$output_path" .)
+(cd "$build_root" && "$GO_BIN" mod tidy && "$GO_BIN" test -tags=bifrost_plugin -count=1 . && "$GO_BIN" build -tags=bifrost_plugin -buildmode=plugin -ldflags "-X main.aceSourceCommit=$ace_commit" -o "$output_path" .)
 sha256sum "$output_path"

@@ -1,27 +1,22 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
-# Proposal — Foundation: workspace truth, safety and retired optional tool-call protocol boundary
+# Proposal — Foundation: workspace truth, safety and Gateway boundary
 
 ## Why
 
-A context harness cannot supply trustworthy evidence without workspace identity, access control, source freshness and a stable agent-facing boundary.
+A context engine cannot supply trustworthy evidence without workspace identity, access control, source freshness and one stable agent-facing delivery boundary.
 
-## What Changes
+## What changes
 
-Create domain contracts for workspace registration and verified reads; enforce data policy; expose a single Codex-compatible retired optional tool-call protocol façade with lossless expansion and safe errors. No user-code writing.
+Create domain contracts for workspace registration and verified reads; enforce data policy; expose agent-neutral ACE context automatically through the versioned Bifröst Gateway Projection boundary; preserve exact authorized source bytes; never write user code.
 
 ## Capabilities
 
-### New Capabilities
+- `workspace-identity` — stable workspace identity and verified read boundary.
+- `security-policy` — local/cloud data policy and fail-closed authorization.
+- `gateway-foundation` — sole Gateway-only agent-facing delivery boundary plus lossless source preservation.
 
-- `workspace-identity` — Registry, working-tree identity and freshness boundaries.
-- `security-policy` — Cloud opt-in, deny behavior and safe failure records.
-- `retired-tool-protocol-gateway` — Single logical retired optional tool-call protocol surface and lossless artifact boundary.
+## Non-goals
 
-## Impact
-
-- **Domain contexts:** consult `docs/architecture/01-strategic-ddd.md`; references ADR-001…010 as applicable.
-- **Dependencies:** none (starting capability).
-- **Non-goals:** RAG/AST implementation, Jev, Graphiti extraction, complete observability, agent-written patch interception.
-- **Risk:** provider contracts/versions, security and provenance must be tested before asserting production behavior.
-- **Acceptance:** normative scenarios in `specs/*/spec.md` plus `tasks.md`; no performance claim without measured evaluation.
+- provider-specific retrieval implementation in the domain;
+- a second model-invoked context tool path;
+- native agent-specific ACE delivery bridges;
+- user-worktree mutation.

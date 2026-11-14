@@ -71,4 +71,4 @@ Expected: exit **2**, verdict `BLOCKED`, `G02=BLOCKED` even if the plan exists. 
 - Real provider or agent E2E: `PASS` only with real observed commands/artifacts; otherwise `NOT-RUN` or `UNKNOWN`.
 - PR number, source head, CI checkout/merge SHA, review and owner decision. A failed prior CI attempt stays visible.
 
-Optional skills such as Matt Pocock's upstream collection remain uninstalled unless separately verified and vendored. TypeSpec is selected architecture, but no compiler/codegen is asserted as installed. Never use a second orchestrator or `mise daemons` to run this SDLC.
+Optional skills such as Matt Pocock's upstream collection remain uninstalled unless separately verified and vendored. TypeSpec Gateway v1 compiler/codegen is installed and CI-checked through merged #244; broader contract migration remains staged. Never use a second orchestrator or `mise daemons` to run this SDLC.

@@ -13,7 +13,7 @@ The system SHALL assemble local candidates, AST/LSP facts, documentation and opt
 #### Scenario: Multi-source issue
 
 - **WHEN** a query requires code, types and an ADR
-- **THEN** one `ace_context` request returns a deduplicated bundle with cited evidence
+- **THEN** one authorized Gateway projection assembles a deduplicated source-attributed context result for the model-bound request
 
 #### Scenario: Simple known symbol
 
@@ -41,7 +41,7 @@ The system SHALL reduce irrelevant context through ranking, deduplication and di
 #### Scenario: Long required snippet
 
 - **WHEN** a relevant generated source has at least 2000 lines
-- **THEN** the source is preserved exactly and can be fetched completely via `ace_expand`
+- **THEN** the source is preserved exactly with a verifiable digest and remains available for authorized internal retrieval/re-projection without silent truncation
 
 #### Scenario: Pathological result
 

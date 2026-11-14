@@ -10,6 +10,7 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import { makeFileArtifactStore } from '../adapters/file-artifact-store.js';
+import { makeFileAuditSink } from '../adapters/file-audit-sink.js';
 import { makeGitHistoryPort } from '../adapters/git-history.js';
 import { makeHostWorkspacePort, makeMtlsHostHelperTransport } from '../adapters/host-worktree-helper.js';
 import { makeFetchHttpPort, makeQdrantCodeCandidatePort } from '../adapters/http-provider-boundaries.js';
@@ -1086,6 +1087,19 @@ const main = async (): Promise<void> => {
     readiness.unified_context = { state: 'not_ready', reason: 'real_provider_disabled' };
     process.stderr.write('ace-runtime context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+ast-grep+TypeScript-LS composition; provider outage remains not_ready\n');
   }
+  const gatewayAllowedLlmProviders = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', [])
+    .map((provider) => provider.trim().toLowerCase())
+    .filter((provider) => provider.length > 0);
+  const gatewayExternalLlmOptIn = process.env.ACE_GATEWAY_EXTERNAL_LLM_OPT_IN === 'true';
+  const gatewayPolicy = {
+    ...defaultLocalPolicy(registered.value.workspaceId),
+    cloudOptIn: gatewayExternalLlmOptIn,
+    allowedCloudProviders: gatewayExternalLlmOptIn ? ['other_external'] as const : [],
+    allowedCloudDataClassesByProvider: gatewayExternalLlmOptIn
+      ? { other_external: ['private_source', 'project_document', 'public'] as const }
+      : {},
+  };
+
   const contextBridge = context === undefined
     ? undefined
     : makeContextTransformService({
@@ -1115,7 +1129,12 @@ const main = async (): Promise<void> => {
     ))),
   };
   try {
-    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge ?? unavailableContext));
+    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge ?? unavailableContext, {
+      policy: gatewayPolicy,
+      allowedProviders: gatewayAllowedLlmProviders,
+      clock: ports.clock,
+      audit: makeFileAuditSink(resolve(stateDirectory, 'gateway-policy-audit.jsonl')),
+    }));
   } finally {
     let cleanupError: unknown;
     try {

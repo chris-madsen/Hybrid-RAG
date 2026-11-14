@@ -62,24 +62,33 @@ The system SHALL answer prior-session queries using original episodes, time-awar
 - **WHEN** two episodes disagree on the accepted solution
 - **THEN** the answer preserves the conflict and does not fabricate an authoritative synthesis
 
-### Requirement: Valid-time as-of semantics and complete decision evidence
+### Requirement: Valid-time as-of eligibility
 
-The `as_of` query parameter SHALL be an inclusive valid/reference-time cutoff. It SHALL filter episode occurrence time and immutable decision transition time; import time is provenance metadata, not an implicit knowledge-time cutoff. A late-imported episode with an occurrence at or before `as_of` remains eligible, while tombstoned episodes remain excluded at every time. A hit SHALL expose every applicable decision sourced by that episode, and SHALL not collapse multiple decisions into the first decision's state.
+The `as_of` query parameter SHALL be an inclusive valid/reference-time cutoff. Episode occurrence time and immutable decision transition time determine historical eligibility; import time is provenance metadata rather than an implicit knowledge-time cutoff.
 
 #### Scenario: Late import at a historical valid time
 
 - **WHEN** an episode occurred before `as_of` but was imported after `as_of`
 - **THEN** the episode remains eligible as valid-time evidence, with its import timestamp preserved separately
 
+### Requirement: Complete decision evidence at as-of
+
+A matching memory hit SHALL expose every applicable decision sourced by that eligible episode and SHALL NOT collapse multiple decisions into the first decision's state.
+
 #### Scenario: Multiple decisions share one source episode
 
 - **WHEN** more than one decision references a matching episode and is applicable at `as_of`
 - **THEN** the result returns all decision identifiers and their state at `as_of`, without an ambiguous single-state summary
 
+### Requirement: Tombstone precedence over historical visibility
+
+A tombstoned episode SHALL be excluded from retrieval for every `as_of` value, even when its occurrence time is before or equal to the requested cutoff.
+
 #### Scenario: Tombstone overrides historical visibility
 
 - **WHEN** a matching episode is tombstoned
 - **THEN** it is excluded even when its occurrence time is at or before `as_of`
+
 
 ### Requirement: Deletion and privacy propagation
 
