@@ -83,6 +83,8 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
   isolated Go connector and a pinned Bifrost mock-provider wire proof; real
   external-provider, agent-E2E and production gates remain separate.
 
+Before enabling Gateway projection, configure a shared high-entropy secret in the ACE process (`ACE_GATEWAY_HTTP_SHARED_SECRET`) and the Bifröst plugin (`ACE_GATEWAY_PROJECTION_TOKEN`). Without it the projection POST endpoint returns `NOT_READY` (503); callers without the correct Bearer token receive 401. Authentication is independent of request-specific host attestation; both are required.
+
 For Gateway projection, run `ACE_WORKSPACE_ROOT=/path/to/repo npm run gateway:http` and configure the coding agent's model endpoint through Bifröst.
 Without the real retrieval provider it exposes an honest `not_ready` status,
 not a simulated production search. For the **experimental** local retrieval
