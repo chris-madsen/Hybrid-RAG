@@ -6,28 +6,41 @@
 Coding agent
   -> provider-compatible HTTP request
   -> Bifröst HTTP transport
-       - resolves request ID and coding-harness session ID
+       - authenticates the request
        - ACE plugin snapshots exact visible request bytes
+       - ACE plugin mints a physical request ID
+       - ACE plugin normalizes caller-asserted coding-harness session correlation
   -> authenticated loopback ACE Gateway Projection API
   -> ACE Core (TypeScript + Effect)
        retrieval / source verification / policy / context projection
   -> validated additive projection
-  -> Bifröst normalized Chat request
-  -> PreLLM receipt/model/provider/context guard
+  -> Bifröst normalized Chat request / Core context
+       - Bifröst resolves its session correlation
+  -> PreLLM receipt/request/session/model/provider/context guard
   -> provider attempt
 ```
 
 There is no alternative model-invoked tool path and no Hermes-native ACE context path.
 
-## Request-bound identity
+## Request-bound physical identity and session correlation
 
-For a supported Chat request the plugin uses Bifröst's own trusted context:
+The pinned Bifröst `HTTPTransportPreHook` runs after transport authentication but **before**
+`ConvertToBifrostContext` populates `BifrostContextKeyRequestID` and
+`BifrostContextKeySessionID`. The ACE plugin therefore does not pretend those later
+Core values exist at projection time.
 
-- `BifrostContextKeyRequestID` — physical ingress request and initial attempt-group identity.
-- `BifrostContextKeySessionID` — session resolved by Bifröst from supported coding-harness/session headers.
+For a supported Chat request the plugin binds:
+
+- a fresh 128-bit ACE physical request ID minted inside the post-auth transport hook; this is the projection request and initial attempt-group identity and is not caller-controlled;
+- a normalized coding-harness session correlation derived directly from the same supported header precedence Bifröst Core uses later. Session headers are caller-asserted correlation, **not authentication**;
 - deployment-configured workspace ID;
 - explicit provider/model derived with the pinned Bifröst `ParseModelString` semantics; unprefixed/automatic provider routing is rejected;
 - SHA-256 of the exact inbound JSON body.
+
+The physical ID and session correlation are carried through plugin context. In `PreLLMHook`,
+the receipt must bind the minted physical ID and Bifröst Core's later-resolved
+`BifrostContextKeySessionID` must equal the correlation captured at ingress. A client-supplied
+`x-request-id` is never used as ACE's security identity.
 
 Gateway v1 retains required legacy fields named `durableActiveTranscriptRevision` and `durableActiveTranscriptDigest`. Bifröst does **not** possess the evidence needed to populate them as durable-host facts. Therefore the connector sets `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, an explicit `bifrost-visible-request-only` engine marker, and an `unattested:<request-id>` revision marker. The digest is the exact visible request body only as a request-binding diagnostic; while `hostTranscriptAttested=false` it MUST NOT be interpreted as durable transcript proof.
 
@@ -68,7 +81,8 @@ The application service applies the existing `ProjectDataPolicy` to `other_exter
 
 Before the provider call, PreLLM verifies:
 
-- an APPLY receipt exists for the current request;
+- an APPLY receipt exists and binds the server-minted physical request ID / attempt group;
+- Bifröst Core's resolved session correlation matches the post-auth ingress correlation;
 - the selected normalized model matches the projected model;
 - the selected provider is exactly the explicitly authorized provider and the normalized model matches;
 - the exact inserted ACE context survived Bifröst normalization;
