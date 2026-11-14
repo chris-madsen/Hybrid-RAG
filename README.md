@@ -61,7 +61,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
   Harbor/third-party contracts are verified;
 - local lexical candidate retrieval retained for controlled experiments, not
   a substitute for production hybrid context;
-- an experimental real-provider `ace_context` path using local FastEmbed/ONNX
+- an experimental real-provider Gateway projection path using local FastEmbed/ONNX
   dense + sparse/BM25, Qdrant native RRF fusion, maintained ast-grep structural
   spans, optional reranking, and generic LSP (TypeScript Language Server is the
   default); exact source rechecks and receipt/delta delivery are implemented;
@@ -79,7 +79,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
 - typed Qdrant/Vertex/Graphiti/Jev HTTP boundaries and a Harbor CLI runner with
   policy-gated requests, response validation and retained failed-run evidence.
 - versioned `ace.gateway.v1` projection/ownership contracts, deterministic
-  request-local projection tests, a Hermes compaction ownership guard, an
+  request-local projection tests, a host-compaction ownership guard, an
   isolated Go connector and a pinned Bifrost mock-provider wire proof; real
   external-provider, agent-E2E and production gates remain separate.
 
