@@ -89,6 +89,43 @@ test('gateway blocks hidden provider state and active or unknown host compaction
   }
 });
 
+test('gateway may augment Bifrost-visible request bytes without fabricating durable host transcript proof', async () => {
+  const visibleOnly = {
+    ...attestation,
+    activeEngineId: 'bifrost-visible-request-only',
+    effectiveCompressionControlsDigest: digest('host-compression-controls:unattested'),
+    durableActiveTranscriptRevision: 'unattested:request-1',
+    durableActiveTranscriptDigest: digest(JSON.stringify(body)),
+    hostCompactionEpoch: 'unknown' as const,
+    attestorId: 'ace-bifrost-plugin@test',
+    hostTranscriptAttested: false,
+    compactionEnabled: false,
+  };
+  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ attestation: visibleOnly })));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Err') return;
+  assert.equal(decision.value.kind, 'APPLY');
+  assert.equal(decision.value.receipt.hostCompactionEpoch, 'unknown');
+  assert.equal(decision.value.receipt.activeEngineId, 'bifrost-visible-request-only');
+});
+
+test('unattested host history never weakens provider-held-history blocking', async () => {
+  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({
+    attestation: {
+      ...attestation,
+      activeEngineId: 'bifrost-visible-request-only',
+      hostTranscriptAttested: false,
+      hostCompactionEpoch: 'unknown',
+      providerManagedHistoryCapability: 'hidden',
+    },
+  })));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Ok') {
+    assert.equal(decision.value.kind, 'BLOCK');
+    assert.equal(decision.value.receipt.reasonCode, 'PROVIDER_MANAGED_STATE_UNKNOWN');
+  }
+});
+
 test('gateway never treats context failure as unchanged success', async () => {
   const failing: ContextTransformService = { transform: () => Effect.succeed(err(domainError('NOT_READY', 'context', 'provider unavailable'))) };
   const decision = await Effect.runPromise(makeGatewayProjectionService(failing).project(request()));
