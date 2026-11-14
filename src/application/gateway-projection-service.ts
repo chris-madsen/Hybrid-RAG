@@ -2,6 +2,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
+import { authorizeOutbound, type DataClass, type ProjectDataPolicy } from '../domain/policy.js';
+import { containsLikelySecret } from '../domain/sensitive-text.js';
+import { makeWorkspaceId } from '../domain/workspace.js';
 import { err, ok, type Result } from '../domain/result.js';
 import {
   type GatewayProjectionDecision,
@@ -14,6 +17,11 @@ import type { AceTransformResult, ContextTransformService } from './context-tran
 export interface GatewayProjectionService {
   readonly project: (value: unknown) => Effect.Effect<Result<GatewayProjectionDecision, DomainError>>;
 }
+export interface GatewayProjectionSecurity {
+  readonly policy: ProjectDataPolicy;
+  readonly allowedProviders: readonly string[];
+}
+
 
 const bodySha256 = (value: string): string => createHash('sha256').update(Buffer.from(value, 'base64')).digest('hex');
 const receiptFor = (request: GatewayProjectionRequest, decision: GatewayProjectionReceipt['decision'], extra: Partial<GatewayProjectionReceipt> = {}): GatewayProjectionReceipt => ({
@@ -68,6 +76,28 @@ const requestBodyIdentityValid = (
   return false;
 };
 
+const gatewayDataClass = (value: GatewayProjectionRequest['dataClass']): DataClass =>
+  value === 'private' ? 'private_source' : value;
+
+const egressAllowed = (
+  request: GatewayProjectionRequest,
+  security: GatewayProjectionSecurity,
+): Result<boolean, DomainError> => {
+  if (!security.allowedProviders.includes(request.provider)) return ok(false);
+  const workspaceId = makeWorkspaceId(request.workspaceId);
+  if (workspaceId._tag === 'Err') return workspaceId;
+  const decision = authorizeOutbound({
+    workspaceId: workspaceId.value,
+    operation: 'gateway_llm_projection',
+    destination: 'other_external',
+    dataClasses: [gatewayDataClass(request.dataClass)],
+    paths: [],
+    secretDetected: false,
+  }, security.policy);
+  if (decision._tag === 'Err') return decision;
+  return ok(decision.value.outcome === 'allowed');
+};
+
 const appendContext = (body: Record<string, unknown>, context: AceTransformResult): Result<string, DomainError> => {
   if (!Array.isArray(body.messages)) return err(domainError('PROTECTED_GROUP_INVALID', 'body.messages', 'OpenAI Chat request must contain messages'));
   const messages = body.messages as unknown[];
@@ -95,7 +125,10 @@ const transformRequestFor = (request: GatewayProjectionRequest): Parameters<Cont
   sourceObligations: { required: ['code'] },
 });
 
-export const makeGatewayProjectionService = (context: ContextTransformService): GatewayProjectionService => ({
+export const makeGatewayProjectionService = (
+  context: ContextTransformService,
+  security: GatewayProjectionSecurity,
+): GatewayProjectionService => ({
   project: (value) => Effect.gen(function* () {
     const decoded = validateGatewayProjectionRequest(value);
     if (decoded._tag === 'Err') return decoded;
@@ -116,6 +149,9 @@ export const makeGatewayProjectionService = (context: ContextTransformService): 
       return block(request, 'HOST_COMPACTION_ACTIVE');
     }
     if (request.attestation.providerManagedHistoryCapability !== 'visible') return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
+    const authorized = egressAllowed(request, security);
+    if (authorized._tag === 'Err') return authorized;
+    if (!authorized.value) return block(request, 'POLICY_DENIED');
     const body = parseBody(request);
     if (body._tag === 'Err') return body;
     if (!requestBodyIdentityValid(body.value, request)) return block(request, 'BODY_IDENTITY_MISMATCH');
@@ -130,6 +166,7 @@ export const makeGatewayProjectionService = (context: ContextTransformService): 
     if (result.status !== 'ready' || !result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
       return block(request, 'TRANSFORM_NOT_READY');
     }
+    if (containsLikelySecret(result.contextText)) return block(request, 'SECRET_DETECTED');
     const projected = appendContext(body.value, result);
     if (projected._tag === 'Err') return block(request, projected.error.code);
     if (Buffer.from(projected.value, 'base64').length > 4 * 1024 * 1024) return block(request, 'PROJECTED_BODY_TOO_LARGE');
