@@ -5,7 +5,7 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { createAceServer } from '../src/transport/mcp-sdk-stdio.js';
 import { makeFileArtifactStore } from '../src/adapters/file-artifact-store.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeFileWorkspaceStore } from '../src/adapters/file-workspace-store.js';
+import { makeFileWorkspaceStore } from '../src/application/file-workspace-store.js';
 import { makeMcpGateway } from '../src/gateway/mcp-gateway.js';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
