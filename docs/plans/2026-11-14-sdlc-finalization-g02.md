@@ -27,7 +27,7 @@
 
 ## Accepted design
 
-- Bifröst is trusted for the request bytes and request/session identity it actually observes; it is **not** trusted as evidence of coding-host durable transcript/compaction state.
+- Bifröst's post-auth transport hook is trusted to expose the actual request bytes after transport authentication. Request/session headers are **caller-asserted correlation, not authenticated identity**; the ACE plugin therefore mints its own physical request ID and later cross-checks the normalized harness session against Bifröst Core. Bifröst is **not** trusted as evidence of coding-host durable transcript/compaction state.
 - Session identity comes from Bifröst's existing coding-harness session resolver; request ID is the attempt-group identity for the physical HTTP request.
 - Gateway v1 still requires durable-transcript-shaped fields, so the Bifröst connector fills them only as non-authoritative request markers: `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, `activeEngineId="bifrost-visible-request-only"`, and `durableActiveTranscriptRevision="unattested:<request-id>"`; the digest binds the exact visible request body.
 - ACE allows additive evidence delivery in that explicitly lower-assurance state. A future authenticated host-side attestor may set `hostTranscriptAttested=true`; only then does the strict no-compaction invariant apply. Production/benchmark claims of exclusive context ownership remain blocked until that evidence exists.
