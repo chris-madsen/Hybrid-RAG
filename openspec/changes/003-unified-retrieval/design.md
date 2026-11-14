@@ -29,7 +29,7 @@ Read `docs/architecture/01-strategic-ddd.md` through `05-contracts-and-deploymen
 - Respect aggregate boundaries and commands/events in `docs/architecture/02-event-storming.md` and `03-tactical-ddd.md`.
 - Keep provider clients out of domain packages; integration uses ports/adapters; domain events are past-tense facts, not implicit background jobs.
 - Use typed `unavailable/stale/unknown/denied` results; do not manufacture successful data.
-- Use one modular-monolith logical retired optional tool-call protocol facade; any external Qdrant/Graphiti/Vertex/Harbor process is an explicit supporting dependency, not a new domain microservice.
+- Keep one TypeScript + Effect modular-monolith ACE Core and one Bifröst Gateway delivery adapter; Qdrant/Graphiti/Vertex/Harbor remain explicit supporting dependencies, not domain microservices.
 
 ## Security, Consistency and Failure Modes
 
