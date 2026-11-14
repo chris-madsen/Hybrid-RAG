@@ -7,7 +7,7 @@ import type { AceTransformResult, ContextTransformService } from '../src/applica
 import { sha256Base64, validateGatewayProjectionRequest, type GatewayProjectionRequest } from '../src/domain/gateway-projection.js';
 import { err, ok } from '../src/domain/result.js';
 import { domainError } from '../src/domain/errors.js';
-import { defaultLocalPolicy, type ProjectDataPolicy } from '../src/domain/policy.js';
+import { defaultLocalPolicy, type ProjectDataPolicy, type SafeAuditRecord } from '../src/domain/policy.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 
 const body = { model: 'test-model', messages: [{ role: 'system', content: 'policy' }, { role: 'user', content: 'find handler' }], unknown: { keep: true } };
@@ -42,7 +42,18 @@ const gatewayPolicy: ProjectDataPolicy = {
     other_external: ['private_source'],
   },
 };
-const gatewaySecurity = { policy: gatewayPolicy, allowedProviders: ['mock'] as const };
+const gatewayAuditRecords: SafeAuditRecord[] = [];
+const gatewaySecurity = {
+  policy: gatewayPolicy,
+  allowedProviders: ['mock'] as const,
+  clock: { nowMs: () => 1234 },
+  audit: {
+    append: (record: SafeAuditRecord) => {
+      gatewayAuditRecords.push(record);
+      return Effect.succeed(ok(undefined));
+    },
+  },
+};
 const serviceFor = (value: ContextTransformService = context) => makeGatewayProjectionService(value, gatewaySecurity);
 
 test('gateway request validation binds exact original bytes and rejects malformed bounds', () => {
@@ -257,12 +268,14 @@ test('gateway denies private source egress without explicit cloud opt-in', async
   const denied = makeGatewayProjectionService(context, {
     policy: defaultLocalPolicy(workspace.value),
     allowedProviders: ['mock'],
+    clock: gatewaySecurity.clock,
+    audit: gatewaySecurity.audit,
   });
   const decision = await Effect.runPromise(denied.project(request()));
   assert.equal(decision._tag, 'Ok');
   if (decision._tag === 'Ok') {
     assert.equal(decision.value.kind, 'BLOCK');
-    assert.equal(decision.value.receipt.reasonCode, 'POLICY_DENIED');
+    assert.equal(decision.value.receipt.reasonCode, 'AUTH_REQUIRED');
   }
 });
 
@@ -279,4 +292,34 @@ test('gateway blocks likely secret material before appending retrieved context',
     assert.equal(decision.value.kind, 'BLOCK');
     assert.equal(decision.value.receipt.reasonCode, 'SECRET_DETECTED');
   }
+});
+
+test('gateway egress decisions are safely audited and audit failure blocks projection', async () => {
+  gatewayAuditRecords.length = 0;
+  const allowed = await Effect.runPromise(serviceFor().project(request()));
+  assert.equal(allowed._tag, 'Ok');
+  assert.ok(gatewayAuditRecords.some((record) =>
+    record.correlationId === 'request-1'
+    && record.outcome === 'allowed'
+    && record.reasonCode === 'ALLOWED'));
+
+  gatewayAuditRecords.length = 0;
+  const denied = await Effect.runPromise(serviceFor().project(request({ provider: 'anthropic' })));
+  assert.equal(denied._tag, 'Ok');
+  assert.ok(gatewayAuditRecords.some((record) =>
+    record.correlationId === 'request-1'
+    && record.outcome === 'denied'
+    && record.reasonCode === 'POLICY_DENIED'));
+
+  const unavailableAudit = makeGatewayProjectionService(context, {
+    policy: gatewayPolicy,
+    allowedProviders: ['mock'],
+    clock: gatewaySecurity.clock,
+    audit: {
+      append: () => Effect.succeed(err(domainError('AUDIT_FAILED', 'audit', 'fixture audit unavailable'))),
+    },
+  });
+  const blocked = await Effect.runPromise(unavailableAudit.project(request()));
+  assert.equal(blocked._tag, 'Err');
+  if (blocked._tag === 'Err') assert.equal(blocked.error.code, 'AUDIT_FAILED');
 });
