@@ -19,10 +19,11 @@
 |---|---|---|---|---|---|
 | SF-01 | Gateway-only owner decision | Bifröst HTTP request → ACE projection | derive request/session/attempt identity from trusted Bifröst context | Go tests: missing session/request blocks; populated context projects | real agent Bifröst run still separate |
 | SF-02 | no fabricated transcript state | `GatewayHostAttestation` | bind exact visible request while setting host transcript/compaction state explicitly unattested/unknown | fixture rejects `hostTranscriptAttested=true` from Bifröst and preserves unknown epoch | authenticated host attestor required for exclusive-context claim |
-| SF-03 | provider identity must not drift | requested provider/model vs PreLLM selected route | parse requested provider from model using pinned Bifröst semantics, then compare selected provider/model in PreLLM | provider/model swap negative tests | real configured provider run |
+| SF-03 | provider identity and destination policy must not drift | explicit provider/model + ProjectDataPolicy + PreLLM selected route | reject unprefixed models; authorize exact provider/private-source egress before retrieval; compare selected provider/model in PreLLM | provider allowlist/cloud-opt-in/secret/provider-swap negative tests | real configured provider run |
 | SF-04 | no second integration plane | plugin remains sole Bifröst seam; no proxy/tool bridge | delete requirement for external `ace.*` request context | source/contract regression | no |
 | SF-05 | SDLC truthfulness | catalog, adoption plan, remediation ledger | mark merged/active gates accurately; distinguish report-only/nightly/not-run | docs link + closure audit | no |
 | SF-06 | closure is evidence, not fiction | machine-readable closure command | add deterministic closure audit for installed SDLC/architecture invariants | positive + intentional negative fixture | cannot replace G11 real provider/agent acceptance |
+| SF-07 | no unauthorized source egress | Gateway application security + explicit Bifröst route | use existing `ProjectDataPolicy` (`other_external/private_source`), exact provider allowlist and secret guard before projected body construction | deterministic policy-denial and secret fixtures | final provider wire remains G11 |
 
 ## Accepted design
 
@@ -30,7 +31,7 @@
 - Session identity comes from Bifröst's existing coding-harness session resolver; request ID is the attempt-group identity for the physical HTTP request.
 - Gateway v1 still requires durable-transcript-shaped fields, so the Bifröst connector fills them only as non-authoritative request markers: `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, `activeEngineId="bifrost-visible-request-only"`, and `durableActiveTranscriptRevision="unattested:<request-id>"`; the digest binds the exact visible request body.
 - ACE allows additive evidence delivery in that explicitly lower-assurance state. A future authenticated host-side attestor may set `hostTranscriptAttested=true`; only then does the strict no-compaction invariant apply. Production/benchmark claims of exclusive context ownership remain blocked until that evidence exists.
-- Provider is derived from the model using Bifröst's own `ParseModelString` semantics; a later routing mismatch fails closed in PreLLM.
+- Provider must be explicitly encoded as a Bifröst `provider/model` route. Gateway Core authorizes the exact provider against `ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON` plus `ACE_GATEWAY_EXTERNAL_LLM_OPT_IN=true` and `ProjectDataPolicy` before retrieval; PreLLM blocks any provider/model drift.
 - Workspace remains configured deployment identity, not caller-controlled state.
 - This slice does not claim external provider byte certification, streaming/fallback certification, or task-quality economics.
 
