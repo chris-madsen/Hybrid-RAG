@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -24,6 +24,25 @@ test('SDLC closure audit fails closed when active-gate evidence is absent', () =
     const result = JSON.parse(run.stdout);
     assert.equal(result.structuralVerdict, 'FAIL');
     assert.ok(result.results.some((entry) => entry.reason === 'missing_file'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
+test('active OpenSpec guard rejects superseded integration changes and retired delivery requirements', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-openspec-closure-negative-'));
+  try {
+    const stale = join(root, 'openspec', 'changes', '009-bifrost-hermes-ownership');
+    mkdirSync(stale, { recursive: true });
+    writeFileSync(join(stale, 'proposal.md'), '# stale\nretired optional tool-call protocol\n');
+    const run = spawnSync(process.execPath, [audit, '--root', root, '--openspec-only'], { encoding: 'utf8' });
+    assert.equal(run.status, 1, run.stderr || run.stdout);
+    const result = JSON.parse(run.stdout);
+    const guard = result.results.find((entry) => entry.id === 'OPENSPEC_ACTIVE_GATEWAY_ONLY');
+    assert.equal(guard?.status, 'FAIL');
+    assert.ok(guard?.forbiddenActiveDirs?.includes('009-bifrost-hermes-ownership'));
+    assert.ok(guard?.violations?.some((entry) => entry.forbidden.includes('retired optional tool-call protocol')));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
