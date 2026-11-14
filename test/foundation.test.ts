@@ -9,7 +9,7 @@ import { Effect } from 'effect';
 import { makeFileArtifactStore } from '../src/adapters/file-artifact-store.js';
 import { makeFileAuditSink } from '../src/adapters/file-audit-sink.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeFileWorkspaceStore } from '../src/application/file-workspace-store.js';
+import { makeFileWorkspaceStore } from '../src/adapters/file-workspace-store.js';
 import { authorizeAndAudit } from '../src/application/policy-service.js';
 import { type IdPort, type WorkspaceFilePort } from '../src/application/ports.js';
 import { registerWorkspace, observeWorkspace, readVerified } from '../src/application/workspace-service.js';
