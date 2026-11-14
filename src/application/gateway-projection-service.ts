@@ -83,7 +83,7 @@ const egressAllowed = (
   request: GatewayProjectionRequest,
   security: GatewayProjectionSecurity,
 ): Result<boolean, DomainError> => {
-  if (!security.allowedProviders.includes(request.provider)) return ok(false);
+  if (!security.allowedProviders.some((provider) => provider.toLowerCase() === request.provider.toLowerCase())) return ok(false);
   const workspaceId = makeWorkspaceId(request.workspaceId);
   if (workspaceId._tag === 'Err') return workspaceId;
   const decision = authorizeOutbound({
