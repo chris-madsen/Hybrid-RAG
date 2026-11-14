@@ -1,5 +1,3 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # Proposal — Production retrieval vertical slice and architecture fitness
 
 **Status: Proposed. Owner approval required.** The existing 001–005 changes are only partially implemented; 006 is an acceptance hardening change, **not permission to skip earlier provider approvals**.
