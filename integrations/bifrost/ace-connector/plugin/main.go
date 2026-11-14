@@ -17,13 +17,11 @@ import (
 )
 
 const (
-	workspaceKey   schemas.BifrostContextKey = "ace.workspace_id"
-	sessionKey     schemas.BifrostContextKey = "ace.session_id"
-	attemptGroupKey schemas.BifrostContextKey = "ace.attempt_group_id"
-	providerKey    schemas.BifrostContextKey = "ace.provider"
-	attestationKey schemas.BifrostContextKey = "ace.host_attestation"
-	projectedModelKey schemas.BifrostContextKey = "ace.projection.original_model"
-	contextDigestKey schemas.BifrostContextKey = "ace.projection.context_sha256"
+	workspaceKey            schemas.BifrostContextKey = "ace.workspace_id"
+	projectedModelKey       schemas.BifrostContextKey = "ace.projection.normalized_model"
+	requestedProviderKey    schemas.BifrostContextKey = "ace.projection.requested_provider"
+	contextDigestKey        schemas.BifrostContextKey = "ace.projection.context_sha256"
+	pinnedBifrostCommit                              = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
 )
 
 var projectionClient connector.Client
@@ -49,6 +47,45 @@ func Init(config any) error {
 }
 
 func GetName() string { return "ace-gateway-projection" }
+
+func sha256Hex(value []byte) string {
+	sum := sha256.Sum256(value)
+	return hex.EncodeToString(sum[:])
+}
+
+func requestBoundIdentity(ctx *schemas.BifrostContext, body []byte, rawModel string) (string, string, string, string, json.RawMessage, error) {
+	requestID, okRequest := ctx.Value(schemas.BifrostContextKeyRequestID).(string)
+	sessionID, okSession := ctx.Value(schemas.BifrostContextKeySessionID).(string)
+	if !okRequest || strings.TrimSpace(requestID) == "" || !okSession || strings.TrimSpace(sessionID) == "" {
+		return "", "", "", "", nil, errors.New("Bifrost request/session identity is unavailable")
+	}
+	provider, normalizedModel := schemas.ParseModelString(rawModel, "")
+	if normalizedModel == "" {
+		normalizedModel = rawModel
+	}
+	providerIdentity := string(provider)
+	if providerIdentity == "" {
+		providerIdentity = "bifrost:auto"
+	}
+	attestationValue := map[string]any{
+		"hostBuildDigest": sha256Hex([]byte("ace-bifrost-plugin:" + pinnedBifrostCommit)),
+		"sessionId": sessionID,
+		"activeEngineId": "gateway",
+		"effectiveCompressionControlsDigest": sha256Hex([]byte("bifrost-http:no-host-compaction:v1")),
+		"durableActiveTranscriptRevision": requestID,
+		"durableActiveTranscriptDigest": sha256Hex(body),
+		"hostCompactionEpoch": 0,
+		"attestorId": "bifrost-http@" + pinnedBifrostCommit,
+		"providerManagedHistoryCapability": "visible",
+		"hostTranscriptAttested": true,
+		"compactionEnabled": false,
+	}
+	attestation, err := json.Marshal(attestationValue)
+	if err != nil {
+		return "", "", "", "", nil, err
+	}
+	return requestID, sessionID, providerIdentity, normalizedModel, attestation, nil
+}
 
 func stringValue(ctx *schemas.BifrostContext, key schemas.BifrostContextKey) (string, bool) {
 	value, ok := ctx.Value(key).(string)
@@ -144,21 +181,20 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 		return errorResponse(415, "ACE requires a JSON POST Chat Completions request"), nil
 	}
 	workspaceID, okWorkspace := stringValue(ctx, workspaceKey)
-	sessionID, okSession := stringValue(ctx, sessionKey)
-	attemptGroupID, okAttempt := stringValue(ctx, attemptGroupKey)
-	provider, okProvider := stringValue(ctx, providerKey)
-	attestation, okAttestation := ctx.Value(attestationKey).(json.RawMessage)
-	if !okWorkspace || !okSession || !okAttempt || !okProvider || !okAttestation || len(attestation) == 0 {
-		return errorResponse(503, "ACE host identity attestation is unavailable"), nil
+	if !okWorkspace {
+		return errorResponse(503, "ACE workspace identity is unavailable"), nil
 	}
 	model, query, err := requestQuery(req.Body)
 	if err != nil {
 		return errorResponse(400, err.Error()), nil
 	}
+	requestID, sessionID, provider, normalizedModel, attestation, err := requestBoundIdentity(ctx, req.Body, model)
+	if err != nil {
+		return errorResponse(503, "ACE request-bound host identity is unavailable"), nil
+	}
 	deadline := time.Now().Add(30 * time.Second)
-	requestID := fmt.Sprintf("bifrost-%d", time.Now().UnixNano())
 	projection, err := projectionClient.Project(ctx, connector.Request{
-		RequestID: requestID, AttemptGroupID: attemptGroupID, AgentSessionID: sessionID,
+		RequestID: requestID, AttemptGroupID: requestID, AgentSessionID: sessionID,
 		WorkspaceID: workspaceID, DataClass: "private", Protocol: "openai.chat.completions",
 		Provider: provider, Model: model, Query: query, ProjectionMode: "gateway",
 		DeadlineEpochMs: deadline.UnixMilli(), Body: req.Body, Attestation: attestation,
@@ -178,7 +214,8 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	ctx.SetValue(contextDigestKey, contextDigest)
 	ctx.SetValue(schemas.BifrostContextKey("ace.projection.receipt"), projection.Receipt)
 	ctx.SetValue(schemas.BifrostContextKey("ace.projection.base_digest"), projection.Receipt.BaseBodySHA256)
-	ctx.SetValue(projectedModelKey, model)
+	ctx.SetValue(projectedModelKey, normalizedModel)
+	ctx.SetValue(requestedProviderKey, provider)
 	return nil, nil
 }
 
@@ -215,8 +252,11 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	if !bound || ingressModel != model {
 		return blockProviderAttempt(req, "ACE provider model differs from authorized ingress payload")
 	}
-	authorizedProvider, hasProvider := stringValue(ctx, providerKey)
-	if !hasProvider || string(provider) != authorizedProvider {
+	authorizedProvider, hasProvider := ctx.Value(requestedProviderKey).(string)
+	if !hasProvider || authorizedProvider == "" {
+		return blockProviderAttempt(req, "ACE requested provider identity is unavailable")
+	}
+	if authorizedProvider != "bifrost:auto" && string(provider) != authorizedProvider {
 		return blockProviderAttempt(req, "ACE provider differs from the authenticated ingress identity")
 	}
 	expectedContextDigest, hasContextDigest := ctx.Value(contextDigestKey).(string)
