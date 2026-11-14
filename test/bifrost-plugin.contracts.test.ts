@@ -23,6 +23,8 @@ test('Bifrost plugin build is pinned and fail-closed before plugin compilation',
   assert.match(plugin, /message\.Content\.ContentStr/u);
   assert.match(plugin, /ACE context was lost or modified before the provider attempt/u);
   assert.doesNotMatch(plugin, /ACE_GATEWAY_STRICT/u, 'missing ACE receipts must never be a configurable bypass');
+  assert.doesNotMatch(plugin, /ACE_BIFROST_SESSION_ID|ACE_BIFROST_ATTEMPT_GROUP_ID|ACE_BIFROST_HOST_ATTESTATION_JSON/u);
+  assert.match(plugin, /ACE provider differs from the authenticated ingress identity/u);
   // Reuse Bifrost's own request cancellation/deadline context. An orphan
   // context.Background() would keep the provider projection running after
   // a host request was cancelled.
