@@ -10,7 +10,7 @@ import { authorizeAndAudit } from '../src/application/policy-service.js';
 import { authorizeOutbound, defaultLocalPolicy } from '../src/domain/policy.js';
 import type { AuditSink, ExactRead, WorkspaceFilePort, WorkspaceStore } from '../src/application/ports.js';
 import { observeWorkspace, readVerified, registerWorkspace } from '../src/application/workspace-service.js';
-import { makeFileWorkspaceStore } from '../src/application/file-workspace-store.js';
+import { makeFileWorkspaceStore } from '../src/adapters/file-workspace-store.js';
 import { makeMcpGateway } from '../src/gateway/mcp-gateway.js';
 import { domainError } from '../src/domain/errors.js';
 import { err, isOk, ok, type Result } from '../src/domain/result.js';
