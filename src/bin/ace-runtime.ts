@@ -10,9 +10,6 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import { makeFileArtifactStore } from '../adapters/file-artifact-store.js';
-import { makeAsyncFileMemoryArchive } from '../adapters/file-memory-archive.js';
-import { makeFileDecisionHistory } from '../adapters/file-decision-history.js';
-import { makeGraphitiMcpPort } from '../adapters/graphiti-mcp.js';
 import { makeGitHistoryPort } from '../adapters/git-history.js';
 import { makeHostWorkspacePort, makeMtlsHostHelperTransport } from '../adapters/host-worktree-helper.js';
 import { makeFetchHttpPort, makeQdrantCodeCandidatePort } from '../adapters/http-provider-boundaries.js';
@@ -54,7 +51,7 @@ import {
 } from '../adapters/lsp-semantic.js';
 import { makeVertexRagRetrievalPort } from '../adapters/vertex-rag.js';
 import { makeFileWorkspaceStore } from '../adapters/file-workspace-store.js';
-import type { MemorySearchPort, WorkspaceFilePort } from '../application/ports.js';
+import type { WorkspaceFilePort } from '../application/ports.js';
 import { defaultLocalPolicy } from '../domain/policy.js';
 import { makeWorkspaceId, type RepoPath, type WorkspaceId } from '../domain/workspace.js';
 import { isSensitiveSourcePath } from '../domain/sensitive-path.js';
@@ -76,7 +73,6 @@ import {
   type WorkspaceSync,
 } from '../application/workspace-sync.js';
 import { verifyCompiledRuntimeProvenance } from '../application/runtime-provenance.js';
-import { makeMcpGateway, type CapabilityReadiness } from '../gateway/mcp-gateway.js';
 import { makeContextTransformService } from '../application/context-transform-service.js';
 import { makeContextAssembler } from '../application/context-assembler.js';
 import { makeRepoMapService, type RepoMapService } from '../application/repo-map-service.js';
@@ -87,9 +83,7 @@ import {
 import { knownLspServers, selectInstalledLspServersForPaths } from '../application/lsp/claw-discovery.js';
 import { makeRoutedLspSession } from '../application/lsp/routed-semantic.js';
 import { makeGatewayProjectionService } from '../application/gateway-projection-service.js';
-import { runContextBridgeStdio } from '../transport/context-bridge-stdio.js';
 import { runGatewayProjectionHttp } from '../transport/gateway-projection-http.js';
-import { runMcpSdkStdio } from '../transport/mcp-sdk-stdio.js';
 
 const required = (name: string): string => {
   const value = process.env[name];
@@ -203,6 +197,11 @@ const makeDocumentationProvider = (
   });
 };
 
+type CapabilityReadiness = {
+  readonly state: 'ready' | 'degraded' | 'not_ready' | 'disabled';
+  readonly reason: string;
+};
+
 const main = async (): Promise<void> => {
   const sourceRuntime = /[\\/]src[\\/]/u.test(fileURLToPath(import.meta.url));
   const runtimeRoot = resolve(
@@ -212,12 +211,12 @@ const main = async (): Promise<void> => {
     if (process.env.ACE_ALLOW_SOURCE_RUNTIME !== 'true') {
       throw new Error('source ACE runtime requires explicit ACE_ALLOW_SOURCE_RUNTIME=true; compiled dist provenance is mandatory otherwise');
     }
-    process.stderr.write('ace-mcp source runtime explicitly allowed for development/test; compiled provenance was not used\n');
+    process.stderr.write('ace-runtime source runtime explicitly allowed for development/test; compiled provenance was not used\n');
   } else {
     const provenance = await verifyCompiledRuntimeProvenance(runtimeRoot, fileURLToPath(import.meta.url));
     if (provenance._tag === 'Err') throw new Error(`${provenance.error.code}: ${provenance.error.message}`);
-    process.stderr.write(`ace-mcp runtime provenance runtime_id=${provenance.value.runtimeId} source_commit=${provenance.value.sourceCommit} source_manifest_sha256=${provenance.value.sourceManifestSha256} executable_sha256=${provenance.value.executableSha256} runtime_root=${runtimeRoot} node=${process.version} build_node=${provenance.value.buildRuntime.node} mcp_client=${provenance.value.buildRuntime.mcpClientSdk} mcp_server=${provenance.value.buildRuntime.mcpServerSdk}\n`);
-    process.stderr.write(`ace-mcp provider identities embedding=${process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx'}|model=${process.env.ACE_EMBEDDING_MODEL?.trim() || defaultEmbeddingModel} sparse=${process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25'} qdrant=${process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2'} lsp=${process.env.ACE_LSP_SERVER?.trim() || 'typescript-language-server'} reranker=${process.env.ACE_RERANKER_MODEL?.trim() || 'disabled'}\n`);
+    process.stderr.write(`ace-runtime runtime provenance runtime_id=${provenance.value.runtimeId} source_commit=${provenance.value.sourceCommit} source_manifest_sha256=${provenance.value.sourceManifestSha256} executable_sha256=${provenance.value.executableSha256} runtime_root=${runtimeRoot} node=${process.version} build_node=${provenance.value.buildRuntime.node}\n`);
+    process.stderr.write(`ace-runtime provider identities embedding=${process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx'}|model=${process.env.ACE_EMBEDDING_MODEL?.trim() || defaultEmbeddingModel} sparse=${process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25'} qdrant=${process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2'} lsp=${process.env.ACE_LSP_SERVER?.trim() || 'typescript-language-server'} reranker=${process.env.ACE_RERANKER_MODEL?.trim() || 'disabled'}\n`);
   }
   const runtimeTestFailpoint = configuredRuntimeTestFailpoint();
   const rootPath = resolve(required('ACE_WORKSPACE_ROOT'));
@@ -324,50 +323,12 @@ const main = async (): Promise<void> => {
     });
   }
   const history = makeGitHistoryPort({ trace: providerTrace, providerVersion: 'git/cli' });
-  let memory: MemorySearchPort | undefined;
-  let closeMemory: (() => Promise<void>) | undefined;
   let closeSemantics: (() => void) | undefined;
   const lspRegistry = makeLspServerRegistry();
   let closeReranker: (() => void) | undefined;
   let closeSparseEmbeddings: (() => void) | undefined;
   if (process.env.ACE_ENABLE_GRAPHITI === 'true') {
-    const archiveRoot = resolve(required('ACE_MEMORY_ARCHIVE_ROOT'));
-    const command = required('ACE_GRAPHITI_COMMAND');
-    let args: string[];
-    try {
-      const decoded: unknown = JSON.parse(required('ACE_GRAPHITI_ARGS_JSON'));
-      if (!Array.isArray(decoded) || !decoded.every((item) => typeof item === 'string')) {
-        throw new Error('ACE_GRAPHITI_ARGS_JSON must decode to a string array');
-      }
-      args = decoded;
-    } catch (cause) {
-      throw new Error(cause instanceof Error ? cause.message : 'ACE_GRAPHITI_ARGS_JSON is invalid');
-    }
-    const archive = await makeAsyncFileMemoryArchive(archiveRoot);
-    const decisionHistory = makeFileDecisionHistory(
-      resolve(process.env.ACE_MEMORY_DECISIONS_PATH?.trim() || join(archiveRoot, 'decisions.json')),
-    );
-    try {
-      const graphiti = await makeGraphitiMcpPort({
-        command,
-        args,
-        groupId: required('ACE_GRAPHITI_GROUP_ID'),
-        workspaceId: registered.value.workspaceId,
-        policy: defaultLocalPolicy(registered.value.workspaceId),
-        archive,
-        decisionHistory,
-        trace: providerTrace,
-        providerVersion: process.env.ACE_GRAPHITI_VERSION?.trim() || 'graphiti-mcp/unknown',
-      });
-      memory = graphiti.memory;
-      closeMemory = graphiti.close;
-      if (memory === undefined) throw new Error('Graphiti archive-backed memory search was not initialized');
-      readiness.project_memory = { state: 'degraded', reason: 'provider_initialized_not_health_probed' };
-      process.stderr.write(`ace-mcp temporal memory configured workspace_id=${registered.value.workspaceId}\n`);
-    } catch (cause) {
-      readiness.project_memory = { state: 'not_ready', reason: 'graphiti_startup_failed' };
-      process.stderr.write(`ace-mcp memory NOT_READY: ${cause instanceof Error ? cause.message : 'Graphiti startup failed'}\n`);
-    }
+    throw new Error('Legacy Graphiti tool-server adapter has been retired; Gateway-native memory provider is not configured');
   }
   const scopeFingerprint = process.env.ACE_INDEX_SCOPE_FINGERPRINT?.trim()
     || createHash('sha256').update('ace-scope/default-v1', 'utf8').digest('hex');
@@ -508,7 +469,7 @@ const main = async (): Promise<void> => {
         } else {
           candidate.close();
           readiness.reranker = { state: 'not_ready', reason: 'reranker_provider_unavailable' };
-          process.stderr.write(`ace-mcp reranker NOT_READY: provider preflight failed (${probe.error.code})\n`);
+          process.stderr.write(`ace-runtime reranker NOT_READY: provider preflight failed (${probe.error.code})\n`);
         }
       }
     }
@@ -521,7 +482,7 @@ const main = async (): Promise<void> => {
     const handleQdrantUnavailable = (errorCode: string): void => {
       readiness.code_retrieval = { state: 'not_ready', reason: 'qdrant_collection_unavailable' };
       readiness.unified_context = { state: 'not_ready', reason: 'qdrant_collection_unavailable' };
-      process.stderr.write(`ace-mcp context NOT_READY: qdrant service unavailable (${errorCode})\n`);
+      process.stderr.write(`ace-runtime context NOT_READY: qdrant service unavailable (${errorCode})\n`);
     };
     const qdrantReachable = await Effect.runPromise(probeQdrantService(qdrantSdk));
     if (qdrantReachable._tag === 'Err') {
@@ -531,7 +492,7 @@ const main = async (): Promise<void> => {
       || (astGrepProvider !== 'napi' && !commandBoundaryExists(astGrepCommand))) {
       readiness.code_retrieval = { state: 'not_ready', reason: 'provider_runtime_missing' };
       readiness.unified_context = { state: 'not_ready', reason: 'provider_runtime_missing' };
-      process.stderr.write('ace-mcp context NOT_READY: configured embedding/ast-grep runtime files are missing\n');
+      process.stderr.write('ace-runtime context NOT_READY: configured embedding/ast-grep runtime files are missing\n');
     } else {
       const embeddings = makeProcessEmbeddingPort({
         command: embeddingWorker,
@@ -588,7 +549,7 @@ const main = async (): Promise<void> => {
         }
         readiness.code_retrieval = { state: 'not_ready', reason: 'embedding_provider_unavailable' };
         readiness.unified_context = { state: 'not_ready', reason: 'embedding_provider_unavailable' };
-        process.stderr.write(`ace-mcp context NOT_READY: embedding provider preflight failed (${embeddingReady.error.code})\n`);
+        process.stderr.write(`ace-runtime context NOT_READY: embedding provider preflight failed (${embeddingReady.error.code})\n`);
       } else if (sparseReady?._tag === 'Err') {
         embeddings.close();
         sparseEmbeddings?.close();
@@ -598,7 +559,7 @@ const main = async (): Promise<void> => {
         readiness.sparse_embedding = { state: 'not_ready', reason: 'sparse_embedding_provider_unavailable' };
         readiness.code_retrieval = { state: 'not_ready', reason: 'sparse_embedding_provider_unavailable' };
         readiness.unified_context = { state: 'not_ready', reason: 'sparse_embedding_provider_unavailable' };
-        process.stderr.write(`ace-mcp context NOT_READY: sparse embedding provider preflight failed (${sparseReady.error.code})\n`);
+        process.stderr.write(`ace-runtime context NOT_READY: sparse embedding provider preflight failed (${sparseReady.error.code})\n`);
       } else {
         const effectiveEmbedding = embeddings.identity();
         const effectiveSparseEmbedding = sparseEmbeddings?.identity();
@@ -609,7 +570,7 @@ const main = async (): Promise<void> => {
           readiness.sparse_embedding = { state: 'not_ready', reason: 'sparse_embedding_identity_unavailable' };
           readiness.code_retrieval = { state: 'not_ready', reason: 'retrieval_identity_unavailable' };
           readiness.unified_context = { state: 'not_ready', reason: 'retrieval_identity_unavailable' };
-          process.stderr.write('ace-mcp context NOT_READY: required embedding provider returned no verified identity\n');
+          process.stderr.write('ace-runtime context NOT_READY: required embedding provider returned no verified identity\n');
         } else {
           readiness.sparse_embedding = effectiveSparseEmbedding === undefined
             ? { state: 'disabled', reason: 'dense_only_no_sparse_worker' }
@@ -718,7 +679,7 @@ const main = async (): Promise<void> => {
             if (missingReferenceCoverage.length > 0
               || !structuralAnalyses.some((analysis) => analysis.identifiers !== undefined)) {
               activeRepoMap = undefined;
-              process.stderr.write(`ace-mcp RepoMap NOT_READY: shared def/ref records incomplete for ${missingReferenceCoverage.length} structural files; refusing a second parser pass\n`);
+              process.stderr.write(`ace-runtime RepoMap NOT_READY: shared def/ref records incomplete for ${missingReferenceCoverage.length} structural files; refusing a second parser pass\n`);
             } else {
               const repoMapDelta = await Effect.runPromise(buildRepoMapDelta({
                 candidates: build.index.candidates,
@@ -729,12 +690,12 @@ const main = async (): Promise<void> => {
               }));
               if (repoMapDelta._tag === 'Err') {
                 activeRepoMap = undefined;
-                process.stderr.write(`ace-mcp RepoMap NOT_READY: structural graph assembly failed (${repoMapDelta.error.code})\n`);
+                process.stderr.write(`ace-runtime RepoMap NOT_READY: structural graph assembly failed (${repoMapDelta.error.code})\n`);
               } else {
                 const updatedRepoMap = await Effect.runPromise(repoMapService.update(repoMapDelta.value));
                 if (updatedRepoMap._tag === 'Err') {
                   activeRepoMap = undefined;
-                  process.stderr.write(`ace-mcp RepoMap NOT_READY: structural graph update failed (${updatedRepoMap.error.code})\n`);
+                  process.stderr.write(`ace-runtime RepoMap NOT_READY: structural graph update failed (${updatedRepoMap.error.code})\n`);
                 } else {
                   for (const repoPath of changedPaths) repoMapSymbolIdsByPath.delete(repoPath);
                   for (const symbol of repoMapDelta.value.upserted) {
@@ -854,7 +815,7 @@ const main = async (): Promise<void> => {
             const lspConfigured = acquiredRoutes.some((route) =>
               build.indexedPaths.some((file) => lspLanguageIdForPath(file, route.languageIds) !== undefined));
             if (!lspConfigured) {
-              process.stderr.write('ace-mcp semantic LSP NOT_READY: no installed server for indexed source languages\n');
+              process.stderr.write('ace-runtime semantic LSP NOT_READY: no installed server for indexed source languages\n');
             }
             let finalManifest;
             if (verification === 'incremental') {
@@ -909,7 +870,7 @@ const main = async (): Promise<void> => {
                 true, // stable physical membership permits mixed index_key values after changed-path publication
               ));
             if (indexed._tag === 'Err') { semanticLease.release(); return indexed; }
-            process.stderr.write(`ace-mcp qdrant candidate verified workspace_id=${registered.value.workspaceId} index_key=${sourceKey} collection=${collection} publication_mode=stable_collection_direct reused_vectors=${indexed.value.reusedVectorCount}\n`);
+            process.stderr.write(`ace-runtime qdrant candidate verified workspace_id=${registered.value.workspaceId} index_key=${sourceKey} collection=${collection} publication_mode=stable_collection_direct reused_vectors=${indexed.value.reusedVectorCount}\n`);
             if (runtimeTestFailpoint === 'after_qdrant_verify_before_publish') {
               process.stderr.write('ace test failpoint reached name=after_qdrant_verify_before_publish\n');
               process.kill(process.pid, 'SIGKILL');
@@ -958,7 +919,7 @@ const main = async (): Promise<void> => {
               : build.coverage.failedPaths === 0
                 ? { state: 'ready', reason: 'real_code_context_preflight_passed' }
                 : { state: 'degraded', reason: 'index_coverage_partial' };
-            process.stderr.write(`ace-mcp real retrieval workspace_id=${registered.value.workspaceId} generation=${buildGeneration} indexed_paths=${build.indexedPaths.length} candidates=${build.index.candidates.length} coverage_failed=${build.coverage.failedPaths} delta_added=${deltaMetrics?.added ?? delta?.added.length ?? 0} delta_changed=${deltaMetrics?.changed ?? delta?.changed.length ?? 0} delta_deleted=${deltaMetrics?.deleted ?? delta?.deleted.length ?? 0} delta_renamed=${deltaMetrics?.renamed ?? delta?.renamed.length ?? 0} delta_unchanged=${deltaMetrics?.unchanged ?? (delta === undefined ? build.indexedPaths.length : 0)} source_snapshot_digest=${build.coverage.sourceSnapshotDigest} embedding_identity=${embeddingFingerprint.slice(0, 12)} sparse_identity=${sparseEmbeddingFingerprint.slice(0, 12)} retrieval_mode=${retrievalStrategy} sparse_model=${effectiveSparseEmbedding?.model ?? 'disabled'} structural_identity=${structuralFingerprint.slice(0, 12)} lsp_identity=${semanticProviderVersion} retrieval_fingerprint=${retrievalFingerprint} index_key=${sourceKey} index_mode=${indexed.value.reused ? 'warm_reused' : 'rebuilt'} reused_vectors=${indexed.value.reusedVectorCount} collection=${collection} publication_mode=stable_collection_direct\n`);
+            process.stderr.write(`ace-runtime real retrieval workspace_id=${registered.value.workspaceId} generation=${buildGeneration} indexed_paths=${build.indexedPaths.length} candidates=${build.index.candidates.length} coverage_failed=${build.coverage.failedPaths} delta_added=${deltaMetrics?.added ?? delta?.added.length ?? 0} delta_changed=${deltaMetrics?.changed ?? delta?.changed.length ?? 0} delta_deleted=${deltaMetrics?.deleted ?? delta?.deleted.length ?? 0} delta_renamed=${deltaMetrics?.renamed ?? delta?.renamed.length ?? 0} delta_unchanged=${deltaMetrics?.unchanged ?? (delta === undefined ? build.indexedPaths.length : 0)} source_snapshot_digest=${build.coverage.sourceSnapshotDigest} embedding_identity=${embeddingFingerprint.slice(0, 12)} sparse_identity=${sparseEmbeddingFingerprint.slice(0, 12)} retrieval_mode=${retrievalStrategy} sparse_model=${effectiveSparseEmbedding?.model ?? 'disabled'} structural_identity=${structuralFingerprint.slice(0, 12)} lsp_identity=${semanticProviderVersion} retrieval_fingerprint=${retrievalFingerprint} index_key=${sourceKey} index_mode=${indexed.value.reused ? 'warm_reused' : 'rebuilt'} reused_vectors=${indexed.value.reusedVectorCount} collection=${collection} publication_mode=stable_collection_direct\n`);
             return ok({
               workspaceId: registered.value.workspaceId,
               rootPath: registered.value.rootPath,
@@ -995,7 +956,6 @@ const main = async (): Promise<void> => {
               },
               history,
               ...(documentation === undefined ? {} : { documentation }),
-              ...(memory === undefined ? {} : { memory }),
               ...(activeRepoMap === undefined ? {} : { repoMap: activeRepoMap }),
             });
           };
@@ -1007,7 +967,7 @@ const main = async (): Promise<void> => {
               if (refreshed._tag === 'Err') return refreshed;
               const published = latestPublished;
               if (published === undefined) return err(domainError('NOT_READY', 'workspace_sync', 'synchronized publication is not available'));
-              process.stderr.write(`ace-mcp workspace reconciled changed=${delta.changed.length} added=${delta.added.length} deleted=${delta.deleted.length} renamed=${delta.renamed.length} scope_changed=${delta.scopeChanged} refreshed=${String(refreshed.value.refreshed)}\n`);
+              process.stderr.write(`ace-runtime workspace reconciled changed=${delta.changed.length} added=${delta.added.length} deleted=${delta.deleted.length} renamed=${delta.renamed.length} scope_changed=${delta.scopeChanged} refreshed=${String(refreshed.value.refreshed)}\n`);
               return ok({
                 ...published,
                 reconcile: reconcileRuntime,
@@ -1036,14 +996,14 @@ const main = async (): Promise<void> => {
             embeddings.close();
             readiness.code_retrieval = { state: 'not_ready', reason: 'structural_index_failed' };
             readiness.unified_context = { state: 'not_ready', reason: 'structural_index_failed' };
-            process.stderr.write(`ace-mcp context NOT_READY: structural index failed (${built.error.code})\n`);
+            process.stderr.write(`ace-runtime context NOT_READY: structural index failed (${built.error.code})\n`);
           } else {
             const published = await publishBuild(built.value, generation, 'full', [], undefined, startupDeltaMetrics);
             if (published._tag === 'Err') {
               embeddings.close();
               readiness.code_retrieval = { state: 'not_ready', reason: 'qdrant_index_failed' };
               readiness.unified_context = { state: 'not_ready', reason: 'qdrant_index_failed' };
-              process.stderr.write(`ace-mcp context NOT_READY: retrieval publication failed (${published.error.code}: ${published.error.message})\n`);
+              process.stderr.write(`ace-runtime context NOT_READY: retrieval publication failed (${published.error.code}: ${published.error.message})\n`);
             } else {
               latestBuild = built.value;
               latestPublished = published.value;
@@ -1124,7 +1084,7 @@ const main = async (): Promise<void> => {
   } else {
     readiness.code_retrieval = { state: 'not_ready', reason: 'real_provider_disabled' };
     readiness.unified_context = { state: 'not_ready', reason: 'real_provider_disabled' };
-    process.stderr.write('ace-mcp context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+ast-grep+TypeScript-LS composition; provider outage remains not_ready\n');
+    process.stderr.write('ace-runtime context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+ast-grep+TypeScript-LS composition; provider outage remains not_ready\n');
   }
   const contextBridge = context === undefined
     ? undefined
@@ -1141,32 +1101,14 @@ const main = async (): Promise<void> => {
         semantic: process.env.ACE_LSP_VERSION?.trim() || 'typescript-language-server/6.0.2',
       },
     });
-  if (process.env.ACE_GATEWAY_HTTP_MODE === 'true'
-    && process.env.ACE_CONTEXT_BRIDGE_MODE === 'true') {
-    throw new Error('ACE_GATEWAY_HTTP_MODE and ACE_CONTEXT_BRIDGE_MODE are mutually exclusive context-delivery owners');
+  // The LLM Gateway is the single agent-facing context-delivery owner.
+  // There is no model-invoked fallback, even when the provider is not ready.
+  if (process.env.ACE_CONTEXT_BRIDGE_MODE === 'true') {
+    throw new Error('Direct agent context bridge mode is retired; configure the agent endpoint through Bifrost');
   }
   try {
-    if (process.env.ACE_GATEWAY_HTTP_MODE === 'true') {
-      if (contextBridge === undefined) throw new Error('ACE gateway HTTP requires a ready context provider');
-      await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge));
-    } else if (process.env.ACE_CONTEXT_BRIDGE_MODE === 'true') {
-      if (contextBridge === undefined) throw new Error('ACE context bridge requires a ready context provider');
-      await runContextBridgeStdio(contextBridge);
-    } else {
-      // MCP is the optional explicit-tool plane; the model-bound Bifrost
-      // projection and native Hermes modes do not instantiate an MCP gateway.
-      const mcpGateway = makeMcpGateway({
-        clock: ports.clock,
-        ids: ports.ids,
-        files,
-        store,
-        artifacts,
-        ...(context === undefined ? {} : { context }),
-        ...(memory === undefined ? {} : { memory }),
-        readiness: () => ({ ...readiness }),
-      });
-      await runMcpSdkStdio(mcpGateway, benchmarkTrace === undefined ? {} : { benchmarkTrace });
-    }
+    if (contextBridge === undefined) throw new Error('ACE Gateway requires a ready context provider');
+    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge));
   } finally {
     let cleanupError: unknown;
     try {
@@ -1174,7 +1116,6 @@ const main = async (): Promise<void> => {
       await Effect.runPromise(lspRegistry.close());
       if (closeReranker !== undefined) closeReranker();
       if (closeSparseEmbeddings !== undefined) closeSparseEmbeddings();
-      if (closeMemory !== undefined) await closeMemory();
     } catch (error) {
       cleanupError = error;
     } finally {
@@ -1192,6 +1133,6 @@ const main = async (): Promise<void> => {
 try {
   await main();
 } catch (error) {
-  process.stderr.write(`ace-mcp failed: ${error instanceof Error ? error.message : 'unknown error'}\n`);
+  process.stderr.write(`ace-runtime failed: ${error instanceof Error ? error.message : 'unknown error'}\n`);
   process.exitCode = 1;
 }
