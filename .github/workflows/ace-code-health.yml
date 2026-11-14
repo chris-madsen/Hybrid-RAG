@@ -1,0 +1,105 @@
+name: ACE code health (QG6)
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "test/**"
+      - "scripts/nightly-targeted-mutation.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ace-code-health.yml"
+      - "docs/research/sdlc/**"
+      - "docs/plans/**"
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Initialize pinned CodeQL
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4 tag, 2026-11-04
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Analyze source
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4 tag, 2026-11-04
+        with:
+          category: "/language:javascript-typescript"
+
+  targeted-mutation:
+    name: Targeted critical mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove critical security mutants are killed
+        run: npm run test:mutation:critical
+
+  remote-links:
+    name: Scheduled remote Markdown links (signal only)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    continue-on-error: true
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Check remote Markdown links without blocking delivery
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          lycheeVersion: v0.24.2
+          token: ""
+          args: >-
+            --no-progress
+            --max-retries 2
+            --timeout 20
+            "README.md"
+            "docs/**/*.md"
+          fail: false
+          failIfEmpty: false
+          jobSummary: true
+          output: lychee/qg6-remote-links.md
