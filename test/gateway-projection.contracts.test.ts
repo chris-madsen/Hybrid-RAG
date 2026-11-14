@@ -26,7 +26,8 @@ const request = (overrides: Partial<GatewayProjectionRequest> = {}): GatewayProj
 const transformed: AceTransformResult = {
   schemaVersion: 1, requestId: 'request-1', sessionId: 'session-1', turnId: 'attempt-group-1', workspaceId: 'workspace-1' as never,
   status: 'ready', contextText: 'verified handler context', evidence: [], selectedEvidenceIds: ['ev-1'], omittedEvidenceIds: [],
-  estimatedTokens: 4, providerIdentities: {}, receiptId: 'receipt-1', providerRequestId: 'provider-1', limitations: [],
+  estimatedTokens: 4, tokenCountMode: 'character_estimate', providerIdentities: {}, receiptId: 'receipt-1', providerRequestId: 'provider-1',
+  limitations: ['token budget is a character-based estimate; model-exact fit is unverified'],
 };
 const context: ContextTransformService = { transform: () => Effect.succeed(ok(transformed)) };
 
@@ -63,7 +64,7 @@ test('gateway rejects malformed UTF-8 rather than silently replacing original by
   assert.equal(response._tag, 'Err');
 });
 
-test('gateway applies request-local context and preserves unknown provider fields', async () => {
+test('gateway applies estimated-token context without a model-counter admission gate', async () => {
   const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request()));
   assert.equal(decision._tag, 'Ok');
   if (decision._tag === 'Err' || decision.value.kind !== 'APPLY') return;

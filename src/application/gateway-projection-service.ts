@@ -62,7 +62,10 @@ const transformRequestFor = (request: GatewayProjectionRequest): Parameters<Cont
   turnId: request.attemptGroupId,
   workspaceId: request.workspaceId,
   query: request.query,
-  budgetTokens: Math.max(1, Math.floor((request.deadlineEpochMs - Date.now()) / 10)),
+  // Deadline is time, not model tokens. Gateway v1 has no model budget field.
+  // Do not manufacture token admission from wall-clock time: the versioned
+  // transport has independent 4 MiB message safety bounds.
+  budgetTokens: Number.MAX_SAFE_INTEGER,
   sourceObligations: { required: ['code'] },
 });
 

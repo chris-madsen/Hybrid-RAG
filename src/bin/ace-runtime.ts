@@ -1106,9 +1106,16 @@ const main = async (): Promise<void> => {
   if (process.env.ACE_CONTEXT_BRIDGE_MODE === 'true') {
     throw new Error('Direct agent context bridge mode is retired; configure the agent endpoint through Bifrost');
   }
+  // Keep the Gateway available for readiness and explicit blocked projection
+  // receipts during provider outages. Never turn missing retrieval into an
+  // unmodified model request, and never install an optional tool fallback.
+  const unavailableContext = {
+    transform: () => Effect.succeed(err(domainError(
+      'NOT_READY', 'unified_context', 'required context provider is unavailable',
+    ))),
+  };
   try {
-    if (contextBridge === undefined) throw new Error('ACE Gateway requires a ready context provider');
-    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge));
+    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge ?? unavailableContext));
   } finally {
     let cleanupError: unknown;
     try {
