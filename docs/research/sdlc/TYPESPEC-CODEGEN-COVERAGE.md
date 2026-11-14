@@ -2,7 +2,9 @@
 
 # Contract-first code generation — Sphericon lessons applied to ACE
 
-**Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document proposes actual generation coverage and gates; no TypeSpec generator is installed by writing it.
+**Current implementation status (2026-11-14):** PR #244 merged the pinned TypeSpec Gateway v1 vertical slice through the documented TS-00…TS-06 scope: OpenAPI/JSON Schema generation, maintained TypeScript SDK artifacts, regeneration drift checks, strict Gateway schema compatibility and exhaustive DTO mapping checks. This document still describes broader candidate generation targets; those candidates are not implied to be installed merely because Gateway v1 is active.
+
+**Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document records both the installed Gateway v1 generation slice and broader generation coverage candidates; only committed generator/config/CI artifacts count as installed.
 
 ## Inspected concrete Sphericon pipeline
 
