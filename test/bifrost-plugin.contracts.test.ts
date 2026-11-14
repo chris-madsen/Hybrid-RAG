@@ -17,6 +17,11 @@ test('Bifrost plugin build is pinned and fail-closed before plugin compilation',
   assert.match(plugin, /BifrostContextKeySessionID/u);
   assert.match(plugin, /durableActiveTranscriptDigest/u);
   assert.match(plugin, /sha256Hex\(body\)/u);
+  assert.match(plugin, /"hostTranscriptAttested": false/u);
+  assert.match(plugin, /"hostCompactionEpoch": "unknown"/u);
+  assert.match(plugin, /bifrost-visible-request-only/u);
+  assert.doesNotMatch(plugin, /"hostTranscriptAttested": true/u,
+    'Bifrost cannot claim it observed the coding host durable transcript');
   assert.match(plugin, /schemas\.ParseModelString\(rawModel, ""\)/u);
   assert.match(plugin, /ACE request-bound host identity is unavailable/u);
   assert.match(plugin, /ACE projection blocked/u);
