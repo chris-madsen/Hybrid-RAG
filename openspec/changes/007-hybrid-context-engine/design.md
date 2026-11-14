@@ -4,7 +4,7 @@
 
 **Normative ADR:** ADR-014.
 
-**Transport clarification (2026-10-24):** This specification governs ACE retrieval/projection semantics, not a mandatory retired optional tool-call protocol model-context path. Bifrost is selected but not implemented for gateway delivery (ADR-017), Hermes native ContextEngine exists (ADR-016), and retired optional tool-call protocol is an explicit tools interface.
+**Transport clarification (updated 2026-11-14):** This specification governs ACE internal retrieval/projection semantics. Bifröst Gateway is the sole agent-facing delivery path; Hermes-native and model-invoked ACE delivery paths are retired. Transport ownership is defined by active change `010-gateway-only-ownership`.
 
 ## Retrieval pipeline
 
@@ -57,7 +57,7 @@ The reranker, when approved, only reorders the fused shortlist.
 
 ## Working-state priors
 
-ACE independently observes Git/worktree state. Authorized native/gateway adapters and explicit retired optional tool-call protocol tool clients MAY supply focus/open-file/range hints.
+ACE independently observes Git/worktree state. The Gateway adapter MAY supply focus/open-file/range hints only through an accepted, versioned contract field; no retired delivery client is an alternate source of authority.
 
 Working-state values influence ranking and context assembly but never override:
 - exact source digest verification;
@@ -66,11 +66,11 @@ Working-state values influence ranking and context assembly but never override:
 
 ## Delta delivery
 
-ContextBundle evidence has stable identities. A client can provide known bundle/evidence identities. ACE omits unchanged body bytes and returns compact references, while `ace_expand` remains exact and lossless.
+ContextBundle evidence has stable identities. A Gateway request can provide known evidence identities where the accepted wire contract supports them. ACE may omit unchanged projected evidence while retaining exact verified source bytes internally for authorized re-projection.
 
 This is distinct from embedding cache reuse:
 - embedding reuse reduces indexing compute;
-- context delta delivery reduces repeated context-transfer/model input bytes on the authorized adapter, including explicit retired optional tool-call protocol tool responses where applicable.
+- context delta delivery reduces repeated context-transfer/model input bytes on the authorized Gateway adapter where compatibility and provider-wire evidence permit it.
 
 ## Failure semantics
 
