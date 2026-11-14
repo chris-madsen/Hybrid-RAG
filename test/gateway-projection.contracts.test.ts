@@ -7,6 +7,8 @@ import type { AceTransformResult, ContextTransformService } from '../src/applica
 import { sha256Base64, validateGatewayProjectionRequest, type GatewayProjectionRequest } from '../src/domain/gateway-projection.js';
 import { err, ok } from '../src/domain/result.js';
 import { domainError } from '../src/domain/errors.js';
+import { defaultLocalPolicy, type ProjectDataPolicy } from '../src/domain/policy.js';
+import { makeWorkspaceId } from '../src/domain/workspace.js';
 
 const body = { model: 'test-model', messages: [{ role: 'system', content: 'policy' }, { role: 'user', content: 'find handler' }], unknown: { keep: true } };
 const bodyBase64 = Buffer.from(JSON.stringify(body), 'utf8').toString('base64');
@@ -30,6 +32,18 @@ const transformed: AceTransformResult = {
   limitations: ['token budget is a character-based estimate; model-exact fit is unverified'],
 };
 const context: ContextTransformService = { transform: () => Effect.succeed(ok(transformed)) };
+const workspace = makeWorkspaceId('workspace-1');
+if (workspace._tag === 'Err') throw new Error(workspace.error.message);
+const gatewayPolicy: ProjectDataPolicy = {
+  ...defaultLocalPolicy(workspace.value),
+  cloudOptIn: true,
+  allowedCloudProviders: ['other_external'],
+  allowedCloudDataClassesByProvider: {
+    other_external: ['private_source'],
+  },
+};
+const gatewaySecurity = { policy: gatewayPolicy, allowedProviders: ['mock'] as const };
+const serviceFor = (value: ContextTransformService = context) => makeGatewayProjectionService(value, gatewaySecurity);
 
 test('gateway request validation binds exact original bytes and rejects malformed bounds', () => {
   assert.equal(validateGatewayProjectionRequest(request())._tag, 'Ok');
@@ -57,7 +71,7 @@ test('gateway request validation binds exact original bytes and rejects malforme
 test('gateway rejects malformed UTF-8 rather than silently replacing original bytes', async () => {
   const invalidUtf8 = Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d]);
   const badBase64 = invalidUtf8.toString('base64');
-  const response = await Effect.runPromise(makeGatewayProjectionService(context).project(request({
+  const response = await Effect.runPromise(serviceFor().project(request({
     bodyBase64: badBase64,
     bodySha256: sha256Base64(badBase64),
   })));
@@ -65,7 +79,7 @@ test('gateway rejects malformed UTF-8 rather than silently replacing original by
 });
 
 test('gateway applies estimated-token context without a model-counter admission gate', async () => {
-  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request()));
+  const decision = await Effect.runPromise(serviceFor().project(request()));
   assert.equal(decision._tag, 'Ok');
   if (decision._tag === 'Err' || decision.value.kind !== 'APPLY') return;
   const projected = JSON.parse(Buffer.from(decision.value.bodyBase64, 'base64').toString('utf8')) as typeof body;
@@ -77,7 +91,7 @@ test('gateway applies estimated-token context without a model-counter admission 
 });
 
 test('gateway blocks hidden provider state and active or unknown host compaction', async () => {
-  const service = makeGatewayProjectionService(context);
+  const service = serviceFor();
   for (const override of [
     { attestation: { ...attestation, providerManagedHistoryCapability: 'unknown' as const } },
     { attestation: { ...attestation, compactionEnabled: true } },
@@ -101,7 +115,7 @@ test('gateway may augment Bifrost-visible request bytes without fabricating dura
     hostTranscriptAttested: false,
     compactionEnabled: false,
   };
-  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ attestation: visibleOnly })));
+  const decision = await Effect.runPromise(serviceFor().project(request({ attestation: visibleOnly })));
   assert.equal(decision._tag, 'Ok');
   if (decision._tag === 'Err') return;
   assert.equal(decision.value.kind, 'APPLY');
@@ -110,7 +124,7 @@ test('gateway may augment Bifrost-visible request bytes without fabricating dura
 });
 
 test('unattested host history never weakens provider-held-history blocking', async () => {
-  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({
+  const decision = await Effect.runPromise(serviceFor().project(request({
     attestation: {
       ...attestation,
       activeEngineId: 'bifrost-visible-request-only',
@@ -128,7 +142,7 @@ test('unattested host history never weakens provider-held-history blocking', asy
 
 test('gateway never treats context failure as unchanged success', async () => {
   const failing: ContextTransformService = { transform: () => Effect.succeed(err(domainError('NOT_READY', 'context', 'provider unavailable'))) };
-  const decision = await Effect.runPromise(makeGatewayProjectionService(failing).project(request()));
+  const decision = await Effect.runPromise(serviceFor(failing).project(request()));
   assert.equal(decision._tag, 'Ok');
   if (decision._tag === 'Ok') {
     assert.equal(decision.value.kind, 'BLOCK');
@@ -138,7 +152,7 @@ test('gateway never treats context failure as unchanged success', async () => {
 
 test('legacy projection modes are decodable but never bypass the Gateway', async () => {
   for (const mode of ['native', 'assist-only', 'observe-only', 'off'] as const) {
-    const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ projectionMode: mode })));
+    const decision = await Effect.runPromise(serviceFor().project(request({ projectionMode: mode })));
     assert.equal(decision._tag, 'Ok');
     if (decision._tag === 'Ok') {
       assert.equal(decision.value.kind, 'BLOCK');
@@ -148,7 +162,7 @@ test('legacy projection modes are decodable but never bypass the Gateway', async
 });
 
 test('gateway blocks simultaneous native projection ownership', async () => {
-  const decision = await Effect.runPromise(makeGatewayProjectionService(context).project(request({ nativeProjectionActive: true })));
+  const decision = await Effect.runPromise(serviceFor().project(request({ nativeProjectionActive: true })));
   assert.equal(decision._tag, 'Ok');
   if (decision._tag === 'Ok') {
     assert.equal(decision.value.kind, 'BLOCK');
@@ -157,7 +171,7 @@ test('gateway blocks simultaneous native projection ownership', async () => {
 });
 
 test('gateway rejects mismatched host session and unverified transform results', async () => {
-  const gateway = makeGatewayProjectionService(context);
+  const gateway = serviceFor();
   const wrongSession = await Effect.runPromise(gateway.project(request({
     attestation: { ...attestation, sessionId: 'other-session' },
   })));
@@ -172,7 +186,7 @@ test('gateway rejects mismatched host session and unverified transform results',
     { ...transformed, selectedEvidenceIds: [] },
   ]) {
     const invalidContext: ContextTransformService = { transform: () => Effect.succeed(ok(result)) };
-    const response = await Effect.runPromise(makeGatewayProjectionService(invalidContext).project(request()));
+    const response = await Effect.runPromise(serviceFor(invalidContext).project(request()));
     assert.equal(response._tag, 'Ok');
     if (response._tag === 'Ok') {
       assert.equal(response.value.kind, 'BLOCK');
@@ -189,7 +203,7 @@ test('gateway blocks a forged model or retrieval query before asking ACE for con
       return Effect.succeed(ok(transformed));
     },
   };
-  const service = makeGatewayProjectionService(observing);
+  const service = serviceFor(observing);
   for (const override of [
     { model: 'different-model' },
     { query: 'find something unrelated' },
@@ -212,7 +226,7 @@ test('gateway binds multimodal user content semantically, without JSON property-
     ],
   };
   const base64 = Buffer.from(JSON.stringify(multimodal), 'utf8').toString('base64');
-  const result = await Effect.runPromise(makeGatewayProjectionService(context).project(request({
+  const result = await Effect.runPromise(serviceFor().project(request({
     bodyBase64: base64,
     bodySha256: sha256Base64(base64),
     query: JSON.stringify([{ text: 'find handler', type: 'text' }, { image_url: { url: 'data:image/png;base64,YQ==' }, type: 'image_url' }]),
@@ -221,3 +235,48 @@ test('gateway binds multimodal user content semantically, without JSON property-
   if (result._tag === 'Ok') assert.equal(result.value.kind, 'APPLY');
 });
 
+
+test('gateway denies unapproved LLM provider before retrieval', async () => {
+  let transformations = 0;
+  const observing: ContextTransformService = {
+    transform: () => {
+      transformations += 1;
+      return Effect.succeed(ok(transformed));
+    },
+  };
+  const decision = await Effect.runPromise(serviceFor(observing).project(request({ provider: 'anthropic' })));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Ok') {
+    assert.equal(decision.value.kind, 'BLOCK');
+    assert.equal(decision.value.receipt.reasonCode, 'POLICY_DENIED');
+  }
+  assert.equal(transformations, 0, 'provider policy must run before retrieval');
+});
+
+test('gateway denies private source egress without explicit cloud opt-in', async () => {
+  const denied = makeGatewayProjectionService(context, {
+    policy: defaultLocalPolicy(workspace.value),
+    allowedProviders: ['mock'],
+  });
+  const decision = await Effect.runPromise(denied.project(request()));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Ok') {
+    assert.equal(decision.value.kind, 'BLOCK');
+    assert.equal(decision.value.receipt.reasonCode, 'POLICY_DENIED');
+  }
+});
+
+test('gateway blocks likely secret material before appending retrieved context', async () => {
+  const secretContext: ContextTransformService = {
+    transform: () => Effect.succeed(ok({
+      ...transformed,
+      contextText: 'deployment api_key=abcd1234567890',
+    })),
+  };
+  const decision = await Effect.runPromise(serviceFor(secretContext).project(request()));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Ok') {
+    assert.equal(decision.value.kind, 'BLOCK');
+    assert.equal(decision.value.receipt.reasonCode, 'SECRET_DETECTED');
+  }
+});
