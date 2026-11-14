@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Retrieval replacement foundation readiness
 
 > Status: implementation PR only. This is the first infrastructure slice of the Aider/Claw retrieval-composition plan; it is **not** the finished composition and makes no production or token-savings claim.
@@ -113,7 +115,7 @@ These provider results do not close NAPI real-repository parity, RepoMap quality
 
 - `makeQdrantCodeCandidatePort` and the collection/alias/count/scroll/membership helpers now use the official `@qdrant/js-client-rest` client; no Qdrant `http.request` branch remains in `src/adapters/qdrant-context-provider.ts`.
 - The SDK boundary still validates the declared destination against the local-only policy before every operation; transport consolidation did not move authorization out to callers.
-- `src/bin/ace-mcp.ts` and `scripts/qdrant-hybrid-rank-probe.ts` pass the authenticated SDK client plus the policy-bound local endpoint; direct contracts use SDK-shaped doubles.
+- `src/bin/ace-retired-tool-protocol.ts` and `scripts/qdrant-hybrid-rank-probe.ts` pass the authenticated SDK client plus the policy-bound local endpoint; direct contracts use SDK-shaped doubles.
 - The later direct-stable-collection change removed alias publication from the replacement runtime. Full current-snapshot publication may prune older workspace versions only after exact current-key membership, completed SDK mutation status and the generation fence `generation < currentGeneration` are proven. Here `generation` is the persisted workspace observation epoch advanced through the workspace-store CAS path, not an alias or `index_key`; mixed-key warm reuse does not perform workspace-wide cleanup.
 - Runtime SHA `8867d94e3ebadf917e26bd9a24dd0dff8e354309` passed full `npm run verify:pr` (`633/633` TypeScript tests, Hermes context plugin `20/20`, ESLint, build and clean runtime provenance) and OpenSpec validation (`9/9 PASS`). That remains Qdrant-boundary component evidence, not acceptance evidence for the later PR #187 runtime.
 - The `2a58463` runs below are historical because later production fixes changed stable cleanup fencing and SDK mutation postconditions. They are not used as final R4 acceptance evidence.
@@ -173,4 +175,4 @@ A fresh runtime bundle was built from the same clean SHA with bundle SHA `60dfb1
 - Runner hardening — `BLOCKED` for this historical run: source/runtime binding was exercised, but the executing runner itself was not bound to a committed clean worktree.
 - Harbor/Hermes — `NOT_RUN`: exact-current native/ACE job directories and model-bound experiment binding are absent.
 
-The earlier separate-runtime attempt was blocked before provider execution because the old current-main runners launched source-worktree `dist/bin/ace-mcp.js` while `ACE_RUNTIME_ROOT` pointed at the bundle. The current runner slice fixes that path and now records runner provenance, waits for bounded process-tree shutdown, and hashes traces only after provider exit. The observations above must be rerun on the final committed runner before promotion; they do not close Aider parity, full Claw parity, model-bound Hermes, Harbor, production readiness or token-savings claims.
+The earlier separate-runtime attempt was blocked before provider execution because the old current-main runners launched source-worktree `dist/bin/ace-retired-tool-protocol.js` while `ACE_RUNTIME_ROOT` pointed at the bundle. The current runner slice fixes that path and now records runner provenance, waits for bounded process-tree shutdown, and hashes traces only after provider exit. The observations above must be rerun on the final committed runner before promotion; they do not close Aider parity, full Claw parity, model-bound Hermes, Harbor, production readiness or token-savings claims.

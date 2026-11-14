@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Quality Gates adoption plan — scoped changes, no tool explosion
 
 **Status:** proposal for implementation PRs; none of the recommended new tools is considered installed until its own implementation/test PR passes. Existing ACE scripts/CI continue to run under current AGENTS.md, accepted ADR/OpenSpec and testing-strategy.md.
@@ -47,7 +49,7 @@
 **Starting set (pilot only):**
 - direct infrastructure imports forbidden in the specific domain/application package, if actual imports show a stable boundary;
 - known anti-pattern converting provider technical failure into complete/empty-success in relevant adapters;
-- disallowed cross-boundary import (MCP explicit tool layer vs gateway projection) where a simple import can prove it.
+- disallowed cross-boundary import (retired optional tool-call protocol explicit tool layer vs gateway projection) where a simple import can prove it.
 
 **Tools:** \`ast-grep\` rule files + valid/invalid test fixtures; use existing installed ast-grep provider only if the pinned CLI version supports rules and test command. Otherwise install a pinned CLI. For typed edges compare TS compiler graph / dependency-cruiser first. Don't use SCIP/easement until an actual typed rule is unexpressible cheaply.
 
@@ -74,15 +76,15 @@
 
 **Policy:** first scan report-only; owner reviews legitimate unused files vs dynamic usage. New confirmed dead exports/deps can fail PR; legacy debt tracked with explicit expiry. **OSV:** schedule lockfile scan; keep existing production npm audit/release evidence. **Exit:** negative fixture for unused export and known dynamic plugin exception, reproducible scanner version.
 
-## PR-QG5 — MCP/context contract compatibility (P1)
+## PR-QG5 — retired optional tool-call protocol/context contract compatibility (P1)
 
 **Goal:** prevent one-agent changes from breaking clients/projections even with passing TS types.
 
-**Scope:** changes to MCP input/output schema, context bundle completeness/freshness enums, typed error names or versioned Bifrost/Hermes interfaces.
+**Scope:** changes to retired optional tool-call protocol input/output schema, context bundle completeness/freshness enums, typed error names or versioned Bifrost/Hermes interfaces.
 
 **Procedure:** identify canonical OpenSpec/ADR contract owner, create pre/post JSON schema or typed snapshot when appropriate, compare breaking changes, require owner acceptance and explicit migration. Test both allowed additive change and breaking removal/rename. Do NOT add TypeSpec merely to implement this gate.
 
-**Real integration:** official MCP SDK wire test / provider-bound Bifrost receipt must reflect the specific changed path; a schema-only mock cannot certify a live provider.
+**Real integration:** official retired optional tool-call protocol SDK wire test / provider-bound Bifrost receipt must reflect the specific changed path; a schema-only mock cannot certify a live provider.
 
 ## PR-QG6 — nightly code health / security (P1)
 
@@ -98,13 +100,13 @@
 
 **Only if measured pain:** compare \`dependency-cruiser\` against \`easement + SCIP\` on a known true/false dependency violation; measure correctness, cold CI latency, cache behavior, maintenance effort and relation to TypeScript module resolution.
 
-**Service orchestration decision:** do **not** add `mise daemons`. ACE uses local k3s for reusable integration services and worktree/namespace isolation; lightweight fake HTTP/MCP dependencies remain in-process. Existing npm/lockfiles/CI continue to pin the software toolchain. Add a new toolchain manager only for a separately measured reproducibility problem.
+**Service orchestration decision:** do **not** add `mise daemons`. ACE uses local k3s for reusable integration services and worktree/namespace isolation; lightweight fake HTTP/retired optional tool-call protocol dependencies remain in-process. Existing npm/lockfiles/CI continue to pin the software toolchain. Add a new toolchain manager only for a separately measured reproducibility problem.
 
 **Parallelism / resource isolation:** extend the existing k3s worktree/namespace pattern when concurrent integration environments contend for Qdrant, LSP or other real services; do not add a second daemon supervisor.
 
 ## PR-QG8 — TypeSpec-first public contracts (owner-selected, staged)
 
-**TypeSpec:** only after a documented stable multi-client public HTTP API requirement. Pilot one operation and validate generated server+client schema ownership, compatibility, reproducibility and real consumers. If this duplicates MCP/Zod/OpenSpec, reject.
+**TypeSpec:** only after a documented stable multi-client public HTTP API requirement. Pilot one operation and validate generated server+client schema ownership, compatibility, reproducibility and real consumers. If this duplicates retired optional tool-call protocol/Zod/OpenSpec, reject.
 
 **SQL/Ent/Goose/Squawk/Schemalens/DB Cleaner:** not applicable to ACE's current Qdrant/Graphiti architecture. If ACE adopts SQL later, plan migration immutability, schema consistency and safe transaction test isolation then. Current storage gates must instead test Qdrant collection contracts, snapshots, revision/digest preservation and memory/archive compatibility.
 

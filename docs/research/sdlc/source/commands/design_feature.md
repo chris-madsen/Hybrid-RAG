@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Design Feature — architecture and behavior contract
 
 ## Mission
@@ -53,7 +55,7 @@ For each affected context:
 | Any nontrivial feature | Architecture + behavior + decisions + testing + index |
 | New/change domain event | Events, payload versioning and consumers |
 | Persisted entity/store mapping changes | Storage/repo-model, migration/compatibility |
-| Public HTTP/MCP/projection interface changes | API contract, schemas, errors and compatibility |
+| Public HTTP/retired optional tool-call protocol/projection interface changes | API contract, schemas, errors and compatibility |
 | Cross-process/async workflow | Sequence and state machine, retries, dedup, checkpoint semantics |
 | Personal/private data egress | Classification, authorization, destination and audit |
 | Provider selection / build-vs-buy | Decision record with alternatives and measurable selection |
@@ -145,7 +147,7 @@ For changed external interface specify:
 - contract test owners.
 
 ### ACE boundary caveats
-A newly defined MCP tool is **not** automatic model-bound context injection. A tested Bifrost connector is not proof of live provider egress. Vertex RAG is project-document-only under explicit authorization; it is not a default destination for private code.
+A newly defined retired optional tool-call protocol tool is **not** automatic model-bound context injection. A tested Bifrost connector is not proof of live provider egress. Vertex RAG is project-document-only under explicit authorization; it is not a default destination for private code.
 
 ## Integration / consistency pass
 

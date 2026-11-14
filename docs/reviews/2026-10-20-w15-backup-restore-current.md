@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W15 backup/restore evidence — 2026-10-20
 
 This receipt was generated from the exact branch commit
@@ -24,7 +26,7 @@ The evaluator returned `operations-backup-restore-incomplete`:
 
 - `OPS-01` local archive backup/verify/restore: PASS.
 - `OPS-06` isolated restore safety: PASS.
-- `OPS-02` Graphiti/FalkorDB restore: BLOCKED; no supported local Graphiti MCP
+- `OPS-02` Graphiti/FalkorDB restore: BLOCKED; no supported local Graphiti retired optional tool-call protocol
   command or approved provider backup was available.
 - `OPS-03` Qdrant/PVC restore: BLOCKED; no retained Qdrant/PVC restore run was
   executed.

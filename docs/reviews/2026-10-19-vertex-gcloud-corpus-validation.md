@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Vertex AI RAG validation — Europe
 
 **Date:** 2026-10-19
@@ -30,7 +32,7 @@ invented and no empty corpus is reported as a successful documentation hit.
 
 ## Policy and next gate
 
-The MCP composition enables this provider only when
+The retired optional tool-call protocol composition enables this provider only when
 `ACE_ENABLE_VERTEX=true`, `ACE_VERTEX_PROJECT` and `ACE_VERTEX_CORPUS_ID` are
 explicitly configured. `ACE_VERTEX_LOCATION` defaults to `europe-west4`.
 Outbound calls use the short-lived `gcloud auth print-access-token` result in

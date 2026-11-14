@@ -1,10 +1,12 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # C-A / W04 real Qdrant interrupted-writer publication runbook
 
 This runner prepares **real-provider alias-publication evidence**. It does not mark DBC-13 PASS and does not approve the embedding/LSP stack.
 
 ## Scenario
 
-The runner uses the production `dist/bin/ace-mcp.js` path with:
+The runner uses the production `dist/bin/ace-retired-tool-protocol.js` path with:
 
 - real local Qdrant;
 - the configured embedding worker;

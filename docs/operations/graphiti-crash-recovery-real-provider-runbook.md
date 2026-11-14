@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W07 real Graphiti crash-recovery runbook
 
 This is the executable W07 **crash-consistency** handoff. It is separate from the happy-path Graphiti lifecycle gate.
@@ -6,7 +8,7 @@ Only the committed frozen synthetic fixture is allowed. This procedure does not 
 
 ## Preconditions
 
-Run a supported local Graphiti MCP server backed by the intended local FalkorDB and local inference stack.
+Run a supported local Graphiti retired optional tool-call protocol server backed by the intended local FalkorDB and local inference stack.
 
 Required:
 

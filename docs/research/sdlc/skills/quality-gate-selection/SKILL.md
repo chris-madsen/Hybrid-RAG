@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 ---
 name: quality-gate-selection
 description: Select the smallest meaningful set of ACE developer quality gates for a change, verify installed commands and their evidence, and avoid treating proposed scanners as active CI.
@@ -5,7 +7,7 @@ description: Select the smallest meaningful set of ACE developer quality gates f
 
 # Quality Gate Selection for ACE — portable, single agent
 
-This Markdown skill is deliberately **agent-client neutral**. It does not require Claude Team APIs, LangGraph, MCP tools or a separate execution service. Clients that cannot load \`SKILL.md\` natively can read it as a normal repository instruction file.
+This Markdown skill is deliberately **agent-client neutral**. It does not require Claude Team APIs, LangGraph, retired optional tool-call protocol tools or a separate execution service. Clients that cannot load \`SKILL.md\` natively can read it as a normal repository instruction file.
 
 ## When to use
 

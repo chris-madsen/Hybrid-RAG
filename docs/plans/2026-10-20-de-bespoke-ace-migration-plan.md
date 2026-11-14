@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 > **Status update — 2026-10-21:** PR #94 implemented the core de-bespoke migrations: ast-grep production structure, generic LSP, Qdrant immutable collections/atomic alias publication, content-addressed vector reuse, deletion of filesystem snapshot/lease/caches, request-time reconciliation and explicit source obligations. This plan is now historical migration guidance. **Current next-step plan:** [2026-10-21-cursor-like-hybrid-context-completion-plan.md](2026-10-21-cursor-like-hybrid-context-completion-plan.md).
 
 # ACE de-bespoke migration plan — replace custom infrastructure with maintained engines
@@ -84,7 +86,7 @@ Do **not** confuse “remove bikes” with “remove ACE”.
 
 ACE-specific responsibilities remain:
 
-- MCP facade and agent-neutral tool contract;
+- retired optional tool-call protocol facade and agent-neutral tool contract;
 - workspace registration / authorization;
 - data-class and outbound policy;
 - exact source re-read before citation;
@@ -115,7 +117,7 @@ Everything below those contracts should be delegated when an upstream engine alr
 | `file-qdrant-snapshot-state.ts` (~565 LOC) | ACE reimplements publication, leases, ownership and GC around Qdrant | **REPLACE** with Qdrant snapshot collections + atomic alias |
 | `workspace-manifest.ts` diff/rename engine | duplicates source-control/change bookkeeping | **SHRINK** to an identity/check function, or remove if the workspace snapshot/Git provider supplies the needed identity directly |
 | custom candidate ID coupled to file digest/range | an unchanged chunk inside an edited file loses embedding reuse | **SPLIT** source citation identity from `embeddingKey = hash(provider + chunk bytes)` |
-| custom semantic dependency fingerprint logic in `ace-mcp.ts` | runtime hand-builds a partial model of TS project lifecycle | **DELETE with LSP migration**; server/project config becomes semantic provider identity |
+| custom semantic dependency fingerprint logic in `ace-retired-tool-protocol.ts` | runtime hand-builds a partial model of TS project lifecycle | **DELETE with LSP migration**; server/project config becomes semantic provider identity |
 | immediate Qdrant generation GC + reader lease model | creates race/locking complexity | **DELETE**; retain old snapshot collections conservatively and prune asynchronously |
 
 Implementation-specific tests for deleted machinery should be removed with it. Keep black-box correctness tests that express observable contracts.
@@ -459,7 +461,7 @@ Success is not “same number of tests after rewrite”. A smaller system should
 
 - [ ] Reduce workspace manifest to identity only.
 - [ ] Measure and remove structural/candidate file caches if they do not materially improve end-to-end latency.
-- [ ] Long-lived dirty-tree E2E: add/delete/rename/edit after MCP startup.
+- [ ] Long-lived dirty-tree E2E: add/delete/rename/edit after retired optional tool-call protocol startup.
 - [ ] Optional maintained watcher only if refresh latency needs it.
 
 ### Phase 5 — benchmark before further architecture

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE testing strategy
 
 This document describes the operational test loop. Normative capability acceptance still lives in OpenSpec and the architecture fitness contracts.
@@ -74,7 +76,7 @@ Typical mapping:
 
 - Qdrant / embeddings / index lifecycle: `test:real-provider*`, `test:real-qdrant-crash`, and `test:real-index-scale` when scale behavior changed.
 - ast-grep structural / generic LSP provider: `test:real-semantic`, `test:real-same-name`, and `test:real-non-ts-lsp` when a selected non-TypeScript server/runtime is available.
-- MCP runtime/container composition: `test:container-provider`.
+- retired optional tool-call protocol runtime/container composition: `test:container-provider`.
 - Graphiti / retained memory / outbox: `test:real-graphiti-lifecycle`, `test:real-graphiti-crash`.
 - Vertex documentation path: `test:real-vertex-conflict`.
 - Harbor / DBC / release: run the relevant gates only for acceptance or release evidence, not after ordinary edits.

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ast-index adoption: one-pass execution slices
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use Superpowers `subagent-driven-development` (recommended) or `executing-plans` to implement this plan task-by-task. Each task is a separate review gate and normally a separate PR.
@@ -102,7 +104,7 @@
 
 **Done when:** a graph can be queried safely without persistence or retrieval integration.
 
-**OUT:** PPR, PageRank, SQL, MCP tools.
+**OUT:** PPR, PageRank, SQL, retired optional tool-call protocol tools.
 
 ---
 
@@ -240,7 +242,7 @@
 - Extend: `src/application/symbol-graph.ts`
 - Create: `test/symbol-impact.contracts.test.ts`
 
-**Produces:** bounded `dependents`, `dependencies`, `impact`, `paths` application calls. No MCP exposure yet.
+**Produces:** bounded `dependents`, `dependencies`, `impact`, `paths` application calls. No retired optional tool-call protocol exposure yet.
 
 - [ ] RED-test cycles, max depth, max paths and high-degree caps.
 - [ ] Implement pure bounded queries.
@@ -250,13 +252,13 @@
 
 ---
 
-### Slice AI-11: Graph MCP/context surface
+### Slice AI-11: Graph retired optional tool-call protocol/context surface
 
 **Gate:** AI-10 plus owner choice of surface after inspecting current OpenSpec.
 
 **Files:**
 - Modify: applicable OpenSpec change first.
-- Modify: `src/transport/mcp-sdk-stdio.ts` and gateway/application wiring only after the contract exists.
+- Modify: `src/transport/retired-tool-protocol-sdk-stdio.ts` and gateway/application wiring only after the contract exists.
 - Add transport contract tests.
 
 - [ ] Specify either `ace_context(intent="impact")` or a narrowly justified graph tool; do not add both.
@@ -264,7 +266,7 @@
 - [ ] Implement transport mapping.
 - [ ] Commit and PR.
 
-**Done when:** a real MCP client can request impact data without bypassing source freshness.
+**Done when:** a real retired optional tool-call protocol client can request impact data without bypassing source freshness.
 
 ---
 
@@ -375,7 +377,7 @@ AI-02 domain ──┬─> AI-03 traversal ─────┐
                  v                                      v               v
               AI-10 impact                          AI-12 PPR        AI-13/14 signals
                  │
-              AI-11 MCP
+              AI-11 retired optional tool-call protocol
 
 AI-15 persistence, AI-16 history, AI-17 module graph are evidence-gated after AI-09.
 ```

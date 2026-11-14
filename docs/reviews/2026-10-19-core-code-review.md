@@ -1,8 +1,10 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Core Code Review — 2026-10-19
 
 ## Scope
 
-Reviewed core domain, adapters, and MCP gateway implementation:
+Reviewed core domain, adapters, and retired optional tool-call protocol gateway implementation:
 - `src/domain/retrieval.ts`
 - `src/domain/workspace.ts`
 - `src/domain/memory.ts`
@@ -13,7 +15,7 @@ Reviewed core domain, adapters, and MCP gateway implementation:
 - `src/adapters/file-artifact-store.ts`
 - `src/adapters/evaluation-fingerprint.ts`
 - `src/adapters/codex-usage-events.ts`
-- `src/gateway/mcp-gateway.ts`
+- `src/gateway/retired-tool-protocol-gateway.ts`
 
 Focus: semantic correctness and consistency with the repository’s stated invariants. This does not claim production readiness or complete coverage of every source file.
 

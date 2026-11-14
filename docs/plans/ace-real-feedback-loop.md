@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE Real Feedback Loop — Full Completion Plan
 
 > **For agentic workers:** use Superpowers `subagent-driven-development` for independent implementation slices. Each code slice requires a spec review, a quality review, focused verification, and a pull request targeting `main`.
@@ -6,9 +8,9 @@
 >
 > **Status rule:** this is an execution plan and evidence ledger. It is not a benchmark result, a production approval, or a 5x claim.
 
-**Goal:** obtain a reproducible quality-first answer about verified code retrieval and agent economics using the real ACE MCP path, a native Hermes baseline, and an ACE-optional Hermes natural-use arm on the same underlying GPT model.
+**Goal:** obtain a reproducible quality-first answer about verified code retrieval and agent economics using the real ACE retired optional tool-call protocol path, a native Hermes baseline, and an ACE-optional Hermes natural-use arm on the same underlying GPT model.
 
-**Architecture:** preserve the existing MCP facade, exact-source reread, provider receipts, source-coverage semantics, OAuth auth-file route, and fail-closed statuses. Do not replace an unavailable provider with a mock or lexical success.
+**Architecture:** preserve the existing retired optional tool-call protocol facade, exact-source reread, provider receipts, source-coverage semantics, OAuth auth-file route, and fail-closed statuses. Do not replace an unavailable provider with a mock or lexical success.
 
 **Auth decision:** Harbor Hermes jobs use Hermes provider `openai-codex` with a dedicated host Hermes OAuth store (`~/.hermes/auth.json`, or the explicitly configured `HERMES_HOME` / `HERMES_AUTH_JSON_PATH`). The benchmark never borrows `~/.codex/auth.json`; Hermes owns and refreshes its own token chain. The store is staged into `HERMES_HOME=/tmp/hermes` inside the ephemeral task container and synchronized back atomically after each serial trial. A manually supplied `OPENAI_API_KEY` or `OPENROUTER_API_KEY` is not required for this subscription route. A task-specific remote verifier may declare its own requirement; that is separate from agent authentication.
 
@@ -30,8 +32,8 @@
 
 | Area | Current status | Limitation |
 |---|---|---|
-| Provider implementation | **IMPLEMENTED/CONTRACT-TESTED** | MCP, ast-grep, LSP, FastEmbed, Qdrant, receipts, and fail-closed reporting exist. This is not agent-E2E evidence. |
-| CST to LSP | **REAL STAGE-0 PASS / LIMITED COVERAGE** | A real source checkout produced one current/direct LSP-confirmed class symbol through MCP. Three optional arrow-function cases remain unconfirmed because the provider did not expose an exact name anchor; they are not counted as direct evidence. |
+| Provider implementation | **IMPLEMENTED/CONTRACT-TESTED** | retired optional tool-call protocol, ast-grep, LSP, FastEmbed, Qdrant, receipts, and fail-closed reporting exist. This is not agent-E2E evidence. |
+| CST to LSP | **REAL STAGE-0 PASS / LIMITED COVERAGE** | A real source checkout produced one current/direct LSP-confirmed class symbol through retired optional tool-call protocol. Three optional arrow-function cases remain unconfirmed because the provider did not expose an exact name anchor; they are not counted as direct evidence. |
 | Hermes authentication | **IMPLEMENTED / REAL HERMES SMOKE PENDING** | Exact-current preflight validates the dedicated host Hermes store `~/.hermes/auth.json` (or explicit Hermes auth path); the Harbor adapter stages it into the trial and synchronizes refreshed OAuth state back after the serial run. `~/.codex/auth.json` is deliberately not shared. Credentials are not retained in manifests or logs. |
 | Local provider stack | **LOCAL PROVIDERS READY / HERMES HARBOR SMOKE PENDING** | Node/npm, ast-grep, TypeScript LSP, dense/sparse FastEmbed, Qdrant, Harbor and Docker remain required. Host Codex CLI is no longer a runtime prerequisite for the Hermes route; ChatGPT OAuth state is imported directly. A new real Hermes smoke is required after this agent change. |
 | Harbor natural-use feedback | **NOT RUN — INPUTS FROZEN** | Twenty source-bound SWE-Atlas task identities and main/holdout selection are frozen, but job generation/smoke cannot pass the local image/verifier gate. No natural, forced, zero-call, paired, repeat, or holdout result is accepted. |
@@ -44,7 +46,7 @@
 The following evidence is retained outside the checkout under `/tmp/ace-feedback/` and is bound to implementation commit `bd7d2a62f3ad45cedf454b4803b0ce1d3dd671d2`:
 
 - OAuth-first preflight: `/tmp/ace-feedback/20261022T180000Z/preflight/manifest.json`, SHA-256 `da400ee50dfbe0459102e48c24367f481cedc84e326031b05ecd3d703ae8c63f`; status `BLOCKED` only for Harbor jobs and local image inspection, with all local provider/auth checks ready.
-- Real CST→LSP stage: `/tmp/ace-feedback/20261022T180000Z/stage0/manifest.json`, status `PASS`; raw MCP SHA-256 `7366acb41687677298ecc25fa19bbe3146df395e9f25862645825aabe4b6a010`, provider trace SHA-256 `bb0931a67878be2b76751bad5207904552482a06f0ca9d765b0b2b257da6b697`, receipt SHA-256 `2bf6e5b251bfb871f2820b5f663b8a721cca49b64571546df8766b5cc503f242`.
+- Real CST→LSP stage: `/tmp/ace-feedback/20261022T180000Z/stage0/manifest.json`, status `PASS`; raw retired optional tool-call protocol SHA-256 `7366acb41687677298ecc25fa19bbe3146df395e9f25862645825aabe4b6a010`, provider trace SHA-256 `bb0931a67878be2b76751bad5207904552482a06f0ca9d765b0b2b257da6b697`, receipt SHA-256 `2bf6e5b251bfb871f2820b5f663b8a721cca49b64571546df8766b5cc503f242`.
 - Frozen SWE-Atlas registry: registry SHA-256 `da1446bce05eabbd72a25eb9eef5a2f5db94645ce88c28e2497581433b3d2e60`; source checkout commit `b0611b05a9f4f09b25aafad96617f9ec64ad722b`; source digest `f378424588b7b6eb3ed001fcd0450a63909bbd5af1d1eb10957cd9c27d1664f3`; task manifest SHA-256 `65bdefdc29f9fb42ff8db1b6a0809c20d745512024cd17a3a6bd170eaebc4e38`.
 - Registry image digests were observed remotely but are not local runtime evidence: wp-calypso `sha256:b2fb707a7ce2f6f6c1f500d1ec7ed3f5143f72fb0bbc8fe3bf1ab6691400c105`; simple-login `sha256:b82cb15631e92ade58b8cf10493550f03a54dc5a8f25d3f31ef41afc186ee2c1`.
 - RepoBench-R blocker: `/tmp/ace-feedback/20261022T181000Z/repobench-r/manifest.json`, SHA-256 `dba797e7d11d10582a369fd5ba240a3dc01b5b646eb8aec81658f213bbbb6733`; no source-bound retrieval metrics were produced.
@@ -72,13 +74,13 @@ AUTH-01 OAuth-first preflight
 **Files:** `scripts/feedback-loop-preflight.ts`, `src/domain/feedback-preflight.ts`, and the existing preflight contract owner.
 
 - Validate the Hermes-owned `~/.hermes/auth.json` (or explicit Hermes auth path) and its `providers.openai-codex` OAuth state without logging token bytes.
-- Record the Hermes `openai-codex` authentication route and pin the custom Harbor adapter plus MCP entrypoint digests.
+- Record the Hermes `openai-codex` authentication route and pin the custom Harbor adapter plus retired optional tool-call protocol entrypoint digests.
 - Do not require `OPENAI_API_KEY`, `OPENAI_API_BASE` or `OPENROUTER_API_KEY` for the agent route.
 - Remove the global API verifier from the required base checks.
 - Check a remote verifier only when the selected Harbor task explicitly requires one.
 - Emit preflight manifest schema version 2 and reject stale schema-1 manifests for current trials.
 
-**Tests:** valid Hermes `providers.openai-codex` OAuth state with no API key is ready; missing/malformed auth is blocked; generated jobs use the pinned Hermes adapter and native MCP registration; the adapter never reads `~/.codex/auth.json`; manifests contain no credentials.
+**Tests:** valid Hermes `providers.openai-codex` OAuth state with no API key is ready; missing/malformed auth is blocked; generated jobs use the pinned Hermes adapter and native retired optional tool-call protocol registration; the adapter never reads `~/.codex/auth.json`; manifests contain no credentials.
 
 **Done:** focused tests and typecheck pass, and the preflight distinguishes OAuth agent authentication from task-specific verifier readiness.
 
@@ -106,10 +108,10 @@ If any mandatory dependency is unavailable, retain `BLOCKED` with the exact reas
 ## STAGE0-01 — Real CST to LSP evidence
 
 - Use a real pinned TypeScript repository, not the synthetic fixture.
-- Exercise `ast-grep → local index → Qdrant → ace_context → TypeScript LSP` through the real MCP executable.
+- Exercise `ast-grep → local index → Qdrant → ace_context → TypeScript LSP` through the real retired optional tool-call protocol executable.
 - Forbid manual `semanticAnchor` injection.
 - Cover class/function/method, same-name scopes, Unicode, imports/re-exports, overloads, and nested declarations.
-- Retain raw MCP/provider traces and exact source/runtime digests.
+- Retain raw retired optional tool-call protocol/provider traces and exact source/runtime digests.
 - Report indexed symbols, anchored symbols, LSP-confirmed symbols, LSP-unconfirmed symbols, and errors by language.
 - Preserve `uncertain` for ambiguous declarations and open issues for unsupported language/name-node cases.
 
@@ -130,7 +132,7 @@ If any mandatory dependency is unavailable, retain `BLOCKED` with the exact reas
 
 After `RB-01=READY`:
 
-- Run dense, sparse, and hybrid through the real MCP on one source generation.
+- Run dense, sparse, and hybrid through the real retired optional tool-call protocol on one source generation.
 - Do not use an unapproved reranker.
 - Retain request IDs, ranked candidates, paths, byte ranges, AST/LSP verdicts, source digests, provider traces, payload bytes, and latency.
 - Compute Recall@1/3/5, MRR, exact-span grounding, unknown/uncertain rate, duplicate rate, payload size, and latency.
@@ -141,9 +143,9 @@ After `RB-01=READY`:
 - Use `scale-ai/swe-atlas-qna` and pin Harbor registry/version plus source repository commits.
 - Select exactly 10 main tasks and 10 untouched holdout tasks.
 - Hash task inputs and source checkouts.
-- Pin Hermes version, `openai-codex` model, reasoning effort, task image digests, source revision, adapter/MCP entrypoint digests, and OAuth route.
+- Pin Hermes version, `openai-codex` model, reasoning effort, task image digests, source revision, adapter/retired optional tool-call protocol entrypoint digests, and OAuth route.
 - Generate native and ACE-optional Hermes jobs through the existing generator.
-- Native job must expose no ACE MCP server; ACE-optional job must expose exactly the pinned ACE stdio MCP server.
+- Native job must expose no ACE retired optional tool-call protocol server; ACE-optional job must expose exactly the pinned ACE stdio retired optional tool-call protocol server.
 - Enforce serial execution: `n_concurrent_trials=1`, `n_attempts=1`.
 
 **Done:** task, job, experiment, source, image, auth, and runtime manifests agree byte-for-byte or the slice is `BLOCKED`.
@@ -153,7 +155,7 @@ After `RB-01=READY`:
 Run one frozen task in this order:
 
 1. native Hermes without ACE;
-2. ACE-optional Hermes with ACE available through native MCP but not forced.
+2. ACE-optional Hermes with ACE available through native retired optional tool-call protocol but not forced.
 
 Inside the ACE container verify `ace_context`, Qdrant reachability, source mount, provider receipts, task verifier, and raw JSONL retention. A zero ACE-call result is `ACE_NOT_USED`, not savings.
 
@@ -242,4 +244,4 @@ All repository changes must be made on a reviewable branch and delivered through
 
 ## Agent migration note — 2026-10-23
 
-Owner decision ADR-015 plus ADR-016 changes only the current feedback-loop harness: Hermes is now primary, GPT remains routed through the ChatGPT/Codex subscription via `openai-codex`, and ACE is integrated through Hermes `ContextEngine.select_context()` over the direct local bridge. MCP remains optional for explicit expansion/diagnostics, not mandatory context injection. Earlier Codex preflight/smoke artifacts above are retained as historical evidence only and do not satisfy the new Hermes agent-E2E gate. The next executable gate is a fresh one-task Hermes native vs Hermes+ACE ContextEngine smoke before any 10-task run, repeats or holdout.
+Owner decision ADR-015 plus ADR-016 changes only the current feedback-loop harness: Hermes is now primary, GPT remains routed through the ChatGPT/Codex subscription via `openai-codex`, and ACE is integrated through Hermes `ContextEngine.select_context()` over the direct local bridge. retired optional tool-call protocol remains optional for explicit expansion/diagnostics, not mandatory context injection. Earlier Codex preflight/smoke artifacts above are retained as historical evidence only and do not satisfy the new Hermes agent-E2E gate. The next executable gate is a fresh one-task Hermes native vs Hermes+ACE ContextEngine smoke before any 10-task run, repeats or holdout.

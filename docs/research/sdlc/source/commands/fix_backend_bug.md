@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Fix Backend Bug — controlled root-cause-to-PR workflow
 
 ## When to invoke
@@ -43,7 +45,7 @@ Inspect:
 - other ports/adapters implementing the same interface;
 - retry/fallback paths and client version compatibility;
 - persisted data/schema/migration and archive records;
-- API/MCP/gateway outward error contracts;
+- API/retired optional tool-call protocol/gateway outward error contracts;
 - auth/data policy/egress and sensitive logging;
 - LSP/Qdrant/Graphiti/Vertex/Harbor where affected;
 - deployment configs and release gates;

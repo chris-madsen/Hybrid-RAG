@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Architecture Reviewer — read-only pass
 
 ## Role
@@ -24,7 +26,7 @@ Review a concrete design or implementation diff against the **accepted** archite
 12. Validate the planned deletion of superseded functionality.
 13. Check whether tests prove the architectural boundary they claim.
 14. For RAG, distinguish retrieved candidate from verified authoritative source.
-15. For agent integration, distinguish explicit MCP tools from provider-bound gateway projection.
+15. For agent integration, distinguish explicit retired optional tool-call protocol tools from provider-bound gateway projection.
 16. Check deployment/data locality implications if new provider introduced.
 17. Verify no unapproved language/service or framework expansion.
 18. Check documented alternatives or owner decisions still open.

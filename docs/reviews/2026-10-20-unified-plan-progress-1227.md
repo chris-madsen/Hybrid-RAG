@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — повторная проверка выполнения плана
 
 Дата: 2026-10-20. Расширенная редакция после запроса 13:25 EEST.
@@ -14,7 +16,7 @@
 
 ## 2. Что проверено
 
-Повторно прочитаны полностью OpenSpec tasks 003/004/006, авторитетный 006 CODEX-EXECUTION-PLAN; gateway, source-coverage, retained-memory, memory-import, ace-memory CLI, file-projection-outbox, Graphiti MCP adapter, semantic-snapshot, Vertex RAG adapter; Graphiti parser/delete и Harbor three-arm tests. Использованы небольшие commit patches для восстановления caller context GC и startup metrics, который ранее был обрезан.
+Повторно прочитаны полностью OpenSpec tasks 003/004/006, авторитетный 006 CODEX-EXECUTION-PLAN; gateway, source-coverage, retained-memory, memory-import, ace-memory CLI, file-projection-outbox, Graphiti retired optional tool-call protocol adapter, semantic-snapshot, Vertex RAG adapter; Graphiti parser/delete и Harbor three-arm tests. Использованы небольшие commit patches для восстановления caller context GC и startup metrics, который ранее был обрезан.
 
 В предыдущем проходе прочитаны snapshot-state и его tests, Harbor domain/CLI, release domain/CLI, DBC evidence, scale runner, package/workflow; ledger, follow-up 1/2 и первичные crash/10k JSON. Это совокупный охват двух проходов, не утверждение о повторном запуске всех проверок.
 
@@ -93,7 +95,7 @@ Caller проверен по patch `fc261011`: explicit collection без exclus
 
 Риск: derived данные возвращаются после подтверждённого удаления; byte-exact archive safety этого не предотвращает. Delete tests проверяют задержку/outage, но в прочитанном файле нет concurrent projection case. Нужно persisted deletion intent, episode fence/version, остановка/координация projector, terminal-state CAS и проверка отсутствия после завершения in-flight операций. Статически выведено, не real reproduction.
 
-### M3 — P1/P2: ошибочный MCP reply может стать успешным Graphiti search/absence
+### M3 — P1/P2: ошибочный retired optional tool-call protocol reply может стать успешным Graphiti search/absence
 
 В `replyJsonObject` structuredContent принимается ДО проверки isError. Поэтому `{isError:true, structuredContent:{episodes:[]}}` проходит parser и даёт isPresent=false; аналогично facts=[] может выглядеть как успешный empty search. Mutation validators проверяют isError отдельно, но projectionState/search используют этот parser. Для deletion oracle это опасно: error не может доказывать absence.
 

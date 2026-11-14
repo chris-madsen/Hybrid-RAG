@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Ревью хода выполнения унифицированного плана ACE
 
 **Дата:** 2026-10-20  
@@ -10,7 +12,7 @@
 ## 0. Границы проверки
 
 - План прочитан до раздела W02 включительно: инструмент чтения обрезал файл. Пакеты W03–W16 оценены по [ledger](./2026-10-20-implementation-evidence-ledger.md), истории коммитов и описаниям PR #45–#64.
-- Код прочитан на указанном commit: `http-provider-boundaries.ts`, `qdrant-context-provider.ts` (хвост `search` обрезан), `process-embedding.ts`, `file-qdrant-snapshot-state.ts`, `domain/memory.ts`, `bin/ace-mcp.ts` (блок после настройки documentation обрезан), `test/qdrant-real-pipeline.contracts.test.ts` (хвост обрезан).
+- Код прочитан на указанном commit: `http-provider-boundaries.ts`, `qdrant-context-provider.ts` (хвост `search` обрезан), `process-embedding.ts`, `file-qdrant-snapshot-state.ts`, `domain/memory.ts`, `bin/ace-retired-tool-protocol.ts` (блок после настройки documentation обрезан), `test/qdrant-real-pipeline.contracts.test.ts` (хвост обрезан).
 - Код, тесты и реальные провайдеры не запускались. CI на head PR #63 зелёный; PR #64 в момент проверки выполнялся. Результат CI именно для merge-коммита `main` не проверялся.
 - Метки находок: **подтверждено в коде**, **статически выведено** (не воспроизведено), **не проверено**.
 
@@ -60,7 +62,7 @@ Lease хранится файлом в `<ACE_STATE_DIR>/qdrant-snapshots/leases/
 
 ### F4 (P2, статически выведено) — в процессе нет единого владельца контракта готовности запуска
 
-В `ace-mcp.ts` часть сбоев после первичной подготовки приводит к `throw` и завершению процесса (preflight embedding, LSP), часть — к состоянию `not_ready` с продолжением работы (Qdrant, structural index). Оба поведения безопасны, но для оператора и k3s readiness-проб поведение при сбое зависит от места сбоя. Стоит зафиксировать единую таблицу «сбой → состояние процесса» в runbook. Это замечание по ясности, не по корректности данных.
+В `ace-retired-tool-protocol.ts` часть сбоев после первичной подготовки приводит к `throw` и завершению процесса (preflight embedding, LSP), часть — к состоянию `not_ready` с продолжением работы (Qdrant, structural index). Оба поведения безопасны, но для оператора и k3s readiness-проб поведение при сбое зависит от места сбоя. Стоит зафиксировать единую таблицу «сбой → состояние процесса» в runbook. Это замечание по ясности, не по корректности данных.
 
 ### F5 (P3, подтверждено в коде) — результат поиска памяти показывает состояние только первого решения
 

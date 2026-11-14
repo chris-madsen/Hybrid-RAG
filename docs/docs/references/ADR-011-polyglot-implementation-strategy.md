@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-011 — TypeScript + Effect core with measured Rust extraction
 
 **Status:** Accepted for the initial ACE implementation · **Date:** 2026-10-17
@@ -8,7 +10,7 @@
 
 ACE is a modular monolith, not a collection of language-specific services. The
 implementation still needs a language boundary that supports typed domain models,
-explicit effects, MCP integration and safe filesystem orchestration. The supplied
+explicit effects, retired optional tool-call protocol integration and safe filesystem orchestration. The supplied
 language discussion proposes TypeScript + Effect for the core, Rust only where
 measurements justify native performance, and Python for existing Graphiti/Harbor
 components.

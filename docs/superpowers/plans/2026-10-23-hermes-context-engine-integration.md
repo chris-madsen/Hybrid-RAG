@@ -1,10 +1,12 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Hermes ContextEngine integration for ACE Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the current Hermes-facing ACE MCP-tool path with a direct Hermes `ContextEngine.select_context()` integration that transforms the outgoing model request without mutating the durable Hermes transcript.
+**Goal:** Replace the current Hermes-facing ACE retired optional tool-call protocol-tool path with a direct Hermes `ContextEngine.select_context()` integration that transforms the outgoing model request without mutating the durable Hermes transcript.
 
-**Architecture:** Hermes owns the agent loop, provider call, durable session history, tool execution, and provider-specific message invariants. ACE becomes a request-time context transformation service: it receives the current workspace/query/budget, retrieves and verifies evidence, and returns a request-only context projection. A small local JSONL bridge separates the Python Hermes plugin from the TypeScript ACE runtime; MCP remains optional for explicit diagnostics and exact expansion, not the primary context injection path.
+**Architecture:** Hermes owns the agent loop, provider call, durable session history, tool execution, and provider-specific message invariants. ACE becomes a request-time context transformation service: it receives the current workspace/query/budget, retrieves and verifies evidence, and returns a request-only context projection. A small local JSONL bridge separates the Python Hermes plugin from the TypeScript ACE runtime; retired optional tool-call protocol remains optional for explicit diagnostics and exact expansion, not the primary context injection path.
 
 **Tech Stack:** TypeScript + Effect ACE runtime, Node JSONL bridge, Python Hermes plugin implementing `ContextEngine`, Harbor 0.24.0, Hermes pinned runtime, Qdrant/FastEmbed/ast-grep/LSP providers, JSONL evidence receipts, TypeScript contract tests, Python plugin tests.
 
@@ -14,7 +16,7 @@
 
 - Hermes context transformation MUST use `ContextEngine.select_context()` for the primary path; `pre_llm_call` is a compatibility fallback only if the pinned Hermes runtime lacks `select_context`.
 - The transformation is request-only. Durable Hermes session history MUST remain unchanged except for the existing exact request-sidecar mechanism required for replay/cache stability.
-- ACE MUST NOT depend on Hermes calling an MCP tool to obtain mandatory context.
+- ACE MUST NOT depend on Hermes calling an retired optional tool-call protocol tool to obtain mandatory context.
 - Preserve complete logical message groups: user turn, assistant reasoning/content, tool-call plus matching tool-result messages, and provider-specific reasoning/signature carriers.
 - Current verified workspace bytes outrank stale index data and derived memory; changed/untracked/removed paths remain visible in workspace identity and evidence receipts.
 - Missing, failed, stale, malformed, or uncorrelated ACE transformation evidence is `UNKNOWN`/`BLOCKED`, never an empty successful context or zero savings.
@@ -46,7 +48,7 @@
 - Create: `openspec/changes/008-hermes-context-integration/design.md`
 - Create: `openspec/changes/008-hermes-context-integration/specs/hermes-context-integration/spec.md`
 - Create: `openspec/changes/008-hermes-context-integration/tasks.md`
-- Modify: `docs/docs/references/ADR-015-hermes-primary-feedback-agent.md` only if the owner approves an amendment to the MCP-only wording
+- Modify: `docs/docs/references/ADR-015-hermes-primary-feedback-agent.md` only if the owner approves an amendment to the retired optional tool-call protocol-only wording
 
 **Interfaces:**
 - `AceTransformRequest` and `AceTransformResult` names defined in the OpenSpec/design documents become the cross-language contract used by Tasks 1-4.
@@ -76,7 +78,7 @@ If `select_context` is absent or incompatible with `v0.22.3`, stop and record wh
 
 - [ ] **Step 3: Record the accepted decision**
 
-State explicitly that MCP is not the mandatory context-injection path. MCP remains optional for explicit `ace_expand`, diagnostics, and operator tools. Record the request-only transformation, transcript immutability, evidence identity, and quality-first benchmark rules.
+State explicitly that retired optional tool-call protocol is not the mandatory context-injection path. retired optional tool-call protocol remains optional for explicit `ace_expand`, diagnostics, and operator tools. Record the request-only transformation, transcript immutability, evidence identity, and quality-first benchmark rules.
 
 - [ ] **Step 4: Validate the OpenSpec change**
 
@@ -97,7 +99,7 @@ git commit -m "docs: define Hermes request-time ACE context integration"
 **Files:**
 - Create: `src/domain/context-transform.ts`
 - Create: `src/application/context-transform-service.ts`
-- Modify: `src/gateway/mcp-gateway.ts` to reuse the same provider orchestration where practical
+- Modify: `src/gateway/retired-tool-protocol-gateway.ts` to reuse the same provider orchestration where practical
 - Modify: `src/index.ts` to export the new types/service boundary
 - Test: `test/context-transform.contracts.test.ts`
 
@@ -177,13 +179,13 @@ npm run check
 
 ```bash
 git add src/domain/context-transform.ts src/application/context-transform-service.ts \
-  src/gateway/mcp-gateway.ts src/index.ts test/context-transform.contracts.test.ts
+  src/gateway/retired-tool-protocol-gateway.ts src/index.ts test/context-transform.contracts.test.ts
 git commit -m "feat: add direct ACE context transformation service"
 ```
 
 ---
 
-## Task 2: Add a non-MCP local JSONL bridge for the Hermes plugin
+## Task 2: Add a non-retired optional tool-call protocol local JSONL bridge for the Hermes plugin
 
 **Files:**
 - Create: `src/bin/ace-context-bridge.ts`
@@ -215,7 +217,7 @@ Test:
 
 - [ ] **Step 2: Extract shared runtime construction**
 
-Refactor only the runtime construction needed by `ace-mcp.ts` and `ace-context-bridge.ts` into a shared application factory. Keep the MCP transport and direct bridge transport separate. Do not make the bridge call MCP or duplicate Qdrant/embedding/LSP setup.
+Refactor only the runtime construction needed by `ace-retired-tool-protocol.ts` and `ace-context-bridge.ts` into a shared application factory. Keep the retired optional tool-call protocol transport and direct bridge transport separate. Do not make the bridge call retired optional tool-call protocol or duplicate Qdrant/embedding/LSP setup.
 
 - [ ] **Step 3: Implement the JSONL bridge**
 
@@ -280,7 +282,7 @@ Test:
 - the selected projection stays within `budget_tokens`;
 - bridge `not_ready`, timeout, malformed response, and empty response fail closed according to the configured policy;
 - retries for the same request reuse the same receipt and projection;
-- no MCP tool is registered or required by the plugin;
+- no retired optional tool-call protocol tool is registered or required by the plugin;
 - the plugin can operate with an explicit no-op mode for the native baseline.
 
 - [ ] **Step 2: Implement the bridge client**
@@ -311,13 +313,13 @@ git add integrations/hermes/ace_context_engine
 
 ---
 
-## Task 4: Wire the plugin into Harbor without MCP context injection
+## Task 4: Wire the plugin into Harbor without retired optional tool-call protocol context injection
 
 **Files:**
 - Modify: `scripts/harbor_hermes_codex_oauth.py`
 - Modify: `scripts/prepare-harbor-feedback-jobs.ts`
 - Modify: `src/domain/feedback-harbor-config.ts`
-- Modify: `scripts/harbor-ace-mcp.sh` only for diagnostics/`ace_expand`, not mandatory context retrieval
+- Modify: `scripts/harbor-ace-retired-tool-protocol.sh` only for diagnostics/`ace_expand`, not mandatory context retrieval
 - Create: `scripts/harbor-hermes-context-plugin.sh` or equivalent pinned plugin bootstrap
 - Test: `test/feedback-loop-experiment.contracts.test.ts`
 - Test: `test/feedback-preflight.contracts.test.ts`
@@ -332,11 +334,11 @@ git add integrations/hermes/ace_context_engine
 
 Assert that:
 
-- ACE-optional job has no mandatory `mcp_servers` entry for context retrieval;
+- ACE-optional job has no mandatory `retired-tool-protocol_servers` entry for context retrieval;
 - ACE-optional job pins plugin source/digest, bridge executable/digest, ACE runtime/source commit, and plugin configuration;
 - native job contains none of those ACE injection components;
 - job identity validation rejects plugin/version/bridge/model/source/image drift;
-- `ace_expand` MCP is optional diagnostics only and cannot be counted as the context injection mechanism.
+- `ace_expand` retired optional tool-call protocol is optional diagnostics only and cannot be counted as the context injection mechanism.
 
 - [ ] **Step 2: Stage the plugin and bridge into the task container**
 
@@ -410,7 +412,7 @@ Test that:
 
 - [ ] **Step 2: Parse Hermes session and plugin receipts separately**
 
-Keep session parsing for tool/turn observations, but use plugin receipts as the source of truth for request-time context transformation. Do not infer transformation from MCP tool calls.
+Keep session parsing for tool/turn observations, but use plugin receipts as the source of truth for request-time context transformation. Do not infer transformation from retired optional tool-call protocol tool calls.
 
 - [ ] **Step 3: Bind collector inputs**
 
@@ -502,7 +504,7 @@ git add scripts/feedback-loop-preflight.ts scripts/fastembed-sparse-worker.sh \
 
 ---
 
-## Task 7: Retire the MCP-only path from the primary feedback loop
+## Task 7: Retire the retired optional tool-call protocol-only path from the primary feedback loop
 
 **Files:**
 - Modify: `docs/docs/references/ADR-015-hermes-primary-feedback-agent.md`
@@ -525,12 +527,12 @@ Document:
 - direct bridge and plugin identity;
 - native vs ACE-enabled arms;
 - request-only transformation and transcript immutability;
-- MCP as optional diagnostics/expansion only;
+- retired optional tool-call protocol as optional diagnostics/expansion only;
 - preflight/smoke/evidence gates.
 
 - [ ] **Step 3: Add stale-contract regression checks**
 
-Fail if the current primary Hermes job generator adds ACE only as `mcp_servers` or if the primary feedback plan still describes MCP as the context-injection mechanism.
+Fail if the current primary Hermes job generator adds ACE only as `retired-tool-protocol_servers` or if the primary feedback plan still describes retired optional tool-call protocol as the context-injection mechanism.
 
 - [ ] **Step 4: Commit**
 
@@ -607,7 +609,7 @@ npm run test:fast
 
 Acceptance requires all of the following:
 
-- ACE context is transformed at Hermes request time through `ContextEngine.select_context` or a documented pinned-runtime fallback, not through a mandatory MCP tool call.
+- ACE context is transformed at Hermes request time through `ContextEngine.select_context` or a documented pinned-runtime fallback, not through a mandatory retired optional tool-call protocol tool call.
 - Durable Hermes history is unchanged by request-time selection.
 - Direct bridge/runtime/plugin identities are pinned and correlated.
 - Current source/workspace verification and evidence receipts survive the transformation.

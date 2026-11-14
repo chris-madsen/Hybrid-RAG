@@ -1,4 +1,6 @@
-# Amplifier + official Graphiti MCP preflight
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
+# Amplifier + official Graphiti retired optional tool-call protocol preflight
 
 This runbook implements the selected upstream composition for the committed
 synthetic Graphiti fixture. It does not authorize private Codex-session upload,
@@ -12,7 +14,7 @@ The exact upstream commits and license/provenance metadata are in
 
 - Amplifier Agent HTTP face: `a289011169520f8cb2d023f0a486cbbb00082a8f`;
 - official ChatGPT/Codex OAuth provider: `b1341edd1545ba4b89a416184797ccfbc346413b`;
-- official Graphiti MCP: `3cc723cd292eb5c2ac5ea2c5539270b8e1b6389f`.
+- official Graphiti retired optional tool-call protocol: `3cc723cd292eb5c2ac5ea2c5539270b8e1b6389f`.
 
 Do not replace a commit with a moving branch during evidence collection.
 
@@ -47,7 +49,7 @@ needs a text completion only and must not receive shell/filesystem tools.
 
 ## Graphiti configuration
 
-Use the official `mcp_server/main.py` at the pinned Graphiti checkout, with the
+Use the official `retired-tool-protocol_server/main.py` at the pinned Graphiti checkout, with the
 committed config copied or referenced through `CONFIG_PATH`:
 
 ```bash
@@ -57,7 +59,7 @@ export ACE_AMPLIFIER_FACE_MODEL="$ACE_AMPLIFIER_MODEL_ID"
 export ACE_GRAPHITI_SOURCE_ROOT=/absolute/path/to/graphiti-at-pinned-commit
 export ACE_GRAPHITI_CONFIG="$PWD/infra/providers/amplifier-graphiti/graphiti-config.yaml"
 export ACE_GRAPHITI_COMMAND=uv
-export ACE_GRAPHITI_ARGS_JSON='["run","--directory","/absolute/path/to/graphiti-at-pinned-commit/mcp_server","main.py","--transport","stdio"]'
+export ACE_GRAPHITI_ARGS_JSON='["run","--directory","/absolute/path/to/graphiti-at-pinned-commit/retired-tool-protocol_server","main.py","--transport","stdio"]'
 export ACE_GRAPHITI_E2E_ACK_SYNTHETIC_ONLY=true
 export ACE_GRAPHITI_EMBEDDER_PROVIDER=sentence_transformers
 export FALKORDB_URI=redis://127.0.0.1:6379
@@ -70,7 +72,7 @@ The preflight reads `/v1/models` and
 model is usable only when it appears in the live account catalog. It records
 model IDs and status, never authorization headers or response payloads.
 
-At the pinned Graphiti MCP commit, the official config schema accepts only
+At the pinned Graphiti retired optional tool-call protocol commit, the official config schema accepts only
 `openai`, `azure_openai`, `gemini`, and `voyage` embedder providers. It also has
 a BGE fallback implementation, but its factory does not expose a configuration
 switch for selecting that local reranker when the LLM is the OpenAI-compatible
@@ -78,7 +80,7 @@ Amplifier face. Therefore the preflight is expected to be `not_ready` in the
 current environment. This is an upstream capability blocker, not permission to
 write a shim, switch to a cloud embedder/reranker, or pass with mocks.
 
-When an updated official Graphiti MCP commit adds both capabilities, update the
+When an updated official Graphiti retired optional tool-call protocol commit adds both capabilities, update the
 pin, rerun this preflight, and retain the exact source ref and provider package
 identities in the real lifecycle receipt.
 

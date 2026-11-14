@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # AI-assisted SDLC — full working prompts, standards and ACE integration
 
 This directory contains a **multi-file practical instruction set**, designed for one coding agent and portable across Codex, Claude Code, OpenCode, Gemini CLI, Cursor and similar tools. The source-methodology was demonstrated in the [AI SDLC video](https://www.youtube.com/watch?v=7oRBHxMvWxQ); missing instructions were expanded using working engineering practices and comparable public projects. These are maintained working files, not a verbatim archive of the presenter’s private repository.
@@ -58,7 +60,7 @@ A single agent can run these as distinct sequential instruction sets. This does 
 Research documents **facts only**. Design proposes changed behavior and accepts human decisions. Plan defines dependency-ordered slices and exact test oracles. Implement executes one slice and four separate quality reviews with proof. A failure returns to repair; a successful phase is committed and delivered in a PR. Final cross-phase and real-provider checks happen before any production claim.
 
 ## ACE constraints
-Root AGENTS.md, Accepted ADRs, OpenSpec and existing CI retain full authority. No automatic 5× savings claim, no model-bound Bifrost claim from MCP-only tests, no false source freshness, no unauthorized cloud egress, no Go-style runtime rewrite and no second agent orchestrator.
+Root AGENTS.md, Accepted ADRs, OpenSpec and existing CI retain full authority. No automatic 5× savings claim, no model-bound Bifrost claim from retired optional tool-call protocol-only tests, no false source freshness, no unauthorized cloud egress, no Go-style runtime rewrite and no second agent orchestrator.
 
 ## Quality Gates and reusable reviewer procedure
 

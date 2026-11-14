@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE implementation and B0 evidence — 2026-10-20
 
 **Status:** implementation evidence retained; B0 is **not** a production or 5×
@@ -50,7 +52,7 @@ to zero-cost or successful quality.
 
 ## Provider blocker observed during B0
 
-The forced trajectory contains real `mcp__ace__ace_context` calls. Their structured
+The forced trajectory contains real `retired-tool-protocol__ace__ace_context` calls. Their structured
 responses were:
 
 ```text

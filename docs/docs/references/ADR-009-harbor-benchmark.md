@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-009 — Harbor как evaluation harness; точный учёт токенов и доказательство 5×
 
 **Статус:** **Accepted (Harbor и принципы оценки)**; точный dataset adapter / сбор usage — предмет реализации  
@@ -9,11 +11,11 @@
 
 > **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
 
-> **Superseded agent-specific clauses (2026-10-23):** выбор Harbor, quality-first benchmarking и правила учёта остаются Accepted, но Codex-специфичный primary baseline/auth path для текущего feedback loop заменён решением ADR-015: Hermes + native MCP + `openai-codex` ChatGPT OAuth. Исторические Codex evidence/result artifacts не переименовываются и сохраняют исходный смысл.
+> **Superseded agent-specific clauses (2026-10-23):** выбор Harbor, quality-first benchmarking и правила учёта остаются Accepted, но Codex-специфичный primary baseline/auth path для текущего feedback loop заменён решением ADR-015: Hermes + native retired optional tool-call protocol + `openai-codex` ChatGPT OAuth. Исторические Codex evidence/result artifacts не переименовываются и сохраняют исходный смысл.
 
 ## Контекст
 
-Для CV и для отбора решений нужен честный измеримый эффект, а не оценка по размеру одного MCP-ответа. Codex уже сообщает токены; требуется готовый фреймворк для повторяемых задач, изоляции и сравнения конфигураций.
+Для CV и для отбора решений нужен честный измеримый эффект, а не оценка по размеру одного retired optional tool-call protocol-ответа. Codex уже сообщает токены; требуется готовый фреймворк для повторяемых задач, изоляции и сравнения конфигураций.
 
 ## Решение
 

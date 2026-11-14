@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # PRD — Agentic Code Intelligence Harness
 
 **Рабочее название:** Adaptive Context Engine (ACE) / Agentic Code Intelligence Harness  
@@ -17,7 +19,7 @@
 ### 1.1. Две бизнес-цели
 
 1. **Практическая:** увеличить эффективность собственной агентной разработки: меньше лишних токенов и повторного исследования проекта, меньше недостоверных утверждений о коде и пропущенных зависимостей, лучше перенос контекста между сессиями.
-2. **Профессиональная:** продемонстрировать востребованные в компаниях навыки: интеграция MCP, облачного и локального RAG, AST/LSP, code intelligence, долговременной памяти, CI/CD, observability, экспериментальной оценки, FinOps и security engineering.
+2. **Профессиональная:** продемонстрировать востребованные в компаниях навыки: интеграция retired optional tool-call protocol, облачного и локального RAG, AST/LSP, code intelligence, долговременной памяти, CI/CD, observability, экспериментальной оценки, FinOps и security engineering.
 
 ### 1.2. Продуктовая идея
 
@@ -72,7 +74,7 @@
 
 ### P2 — AI Platform / DevEx Engineer (вторичный)
 
-«Когда команде нужно внедрять coding-агентов, я хочу подключать проверенные инструменты с контролем доступа, телеметрией и измеримым эффектом, а не создавать ненаблюдаемый зоопарк MCP-серверов».
+«Когда команде нужно внедрять coding-агентов, я хочу подключать проверенные инструменты с контролем доступа, телеметрией и измеримым эффектом, а не создавать ненаблюдаемый зоопарк retired optional tool-call protocol-серверов».
 
 ### P3 — Interviewer / hiring manager (стейкхолдер доказательности)
 
@@ -94,7 +96,7 @@
 | O-06 | Инженерная воспроизводимость | Автоматизированные evals, traces, setup | Независимый запуск из публичной инструкции на разрешённой кодовой базе |
 | O-07 | Польза для CV | Работающий demo + документированные результаты | Возможность честно объяснить архитектурный выбор, trade-offs и причинность результата |
 
-**Трактовка 5×:** `R_tokens = baseline_total_tokens / harness_total_tokens`; целевой `R_tokens ≥ 5`. Сравниваются полные агентные траектории, а не только размер ответов MCP. Нужны показатели по среднему, медиане, p90 и разбивка по классам задач, чтобы единичные выбросы не создавали ложного успеха.
+**Трактовка 5×:** `R_tokens = baseline_total_tokens / harness_total_tokens`; целевой `R_tokens ≥ 5`. Сравниваются полные агентные траектории, а не только размер ответов retired optional tool-call protocol. Нужны показатели по среднему, медиане, p90 и разбивка по классам задач, чтобы единичные выбросы не создавали ложного успеха.
 
 ### 4.2. Guardrails
 
@@ -140,8 +142,8 @@
 | Система | Уже решает | Позиция в проекте | Где можно искать наше преимущество |
 |---|---|---|---|
 | **Codex native** | Встроенный shell/search, агентные циклы, собственное управление контекстом | **Основной обязательный baseline** | Меньше общего контекста, повторного исследования и забывания прошлых решений |
-| **Augment Code Context Engine MCP** | Семантический поиск и контекст для coding-агентов, включая Codex | **Сильный коммерческий benchmark** | Adaptive routing, долговременная память, прозрачность и локальная data residency, стоимость для конкретных репозиториев |
-| **Serena** | Symbol-aware retrieval/editing, LSP и MCP | **И кандидат в стек, и baseline** | Композитные запросы, RAG-документация, межсессионная память и единое измерение полной стоимости |
+| **Augment Code Context Engine retired optional tool-call protocol** | Семантический поиск и контекст для coding-агентов, включая Codex | **Сильный коммерческий benchmark** | Adaptive routing, долговременная память, прозрачность и локальная data residency, стоимость для конкретных репозиториев |
+| **Serena** | Symbol-aware retrieval/editing, LSP и retired optional tool-call protocol | **И кандидат в стек, и baseline** | Композитные запросы, RAG-документация, межсессионная память и единое измерение полной стоимости |
 | **GitNexus** | Локальный code graph, поиск, анализ влияния изменений, агентные интеграции | **Feature benchmark / изучение подходов** | Достоверность, темпоральная память, работа с документацией, adaptive policy; проверить возможности по версии |
 | **Sourcegraph / Cody / Code Graph** | Корпоративный поиск, определения, references и code graph | **Enterprise benchmark по возможностям** | Лёгкая локальная интеграция, персональные сессии, воспроизводимость, vendor-neutrality |
 | **Aider Repository Map** | Сжатая карта репозитория с ранжированием в token budget | **Референс техники контекстной экономии** | Проверить, даёт ли комбинированный retrieval преимущество над компактным repomap |
@@ -211,10 +213,10 @@
 
 | ID | Pri | Требование | Проверяемый результат |
 |---|---|---|---|
-| FR-24 | P0 | Интеграция с Codex через поддерживаемые расширяемые интерфейсы (MCP в первую очередь) | Codex может вызвать единый контекстный инструмент |
+| FR-24 | P0 | Интеграция с Codex через поддерживаемые расширяемые интерфейсы (retired optional tool-call protocol в первую очередь) | Codex может вызвать единый контекстный инструмент |
 | FR-25 | P0 | Без принудительной замены Codex или вмешательства в закрытые внутренности модели | Codex продолжает использовать стандартные инструменты |
 | FR-26 | P1 | Context policy и необязательные рекомендации в AGENTS.md | Агент направляется к эффективным инструментам, но не лишается fallback |
-| FR-27 | P1 | Экспортируемый интерфейс для других MCP-совместимых агентов | Не требуется переписывать retrieval при смене клиента |
+| FR-27 | P1 | Экспортируемый интерфейс для других retired optional tool-call protocol-совместимых агентов | Не требуется переписывать retrieval при смене клиента |
 | FR-28 | P1 | Fail-open для доступности поиска, fail-closed для рискованных действий и доступа к данным | Недоступный retrieval не блокирует обычный поиск; security guardrail не отключается |
 
 ### 7.5. Evaluation и прозрачность
@@ -259,8 +261,8 @@
 
 | Задача | Основной кандидат для оценки | Альтернатива / контроль | Почему полезно для навыков и продукта |
 |---|---|---|---|
-| Coding agent | **Codex** | Другой MCP-совместимый агент позднее | Реальная цель внедрения, понятный baseline |
-| Агентный протокол | **MCP** | Native APIs / CLI adapters, если обосновано | Широко применимый интеграционный навык |
+| Coding agent | **Codex** | Другой retired optional tool-call protocol-совместимый агент позднее | Реальная цель внедрения, понятный baseline |
+| Агентный протокол | **retired optional tool-call protocol** | Native APIs / CLI adapters, если обосновано | Широко применимый интеграционный навык |
 | Документация и ADR | **Google Vertex AI RAG Engine** | Локальный документный RAG | Cloud AI, IAM, ingestion, retrieval, enterprise patterns |
 | Локальный кодовый RAG | **Qdrant** | **LanceDB**, при необходимости SQLite FTS + vectors | Hybrid search, индексация, data lifecycle |
 | Lexical search | **ripgrep** | Zoekt для больших много-repo наборов | Хороший дешёвый baseline и fallback |
@@ -278,18 +280,18 @@
 - **Функциональная полнота:** покрывает ли пользовательский сценарий, а не просто имеет нужный термин в README.
 - **Точность и свежесть:** полнота символов/ссылок, корректность после рабочей правки.
 - **End-to-end экономика:** токены + embeddings + LLM-as-judge + облако + CPU/RAM/операционные расходы.
-- **Интеграция:** зрелый API/MCP, наблюдаемость, стабильность, поддержка платформы.
+- **Интеграция:** зрелый API/retired optional tool-call protocol, наблюдаемость, стабильность, поддержка платформы.
 - **Licensing / security / data residency.**
 - **Доказательства:** воспроизводимые evals против alternatives.
 
 ### 9.2. Важные лицензии и зависимости
 
-- **Serena:** в актуальном описании проекта приложение — `GPL-3.0-or-later`, а компонент **SolidLSP** — `MIT`; важно отличать запуск отдельного MCP-сервиса от включения кода в собственный продукт. Перед корпоративным распространением — юридическая проверка.
+- **Serena:** в актуальном описании проекта приложение — `GPL-3.0-or-later`, а компонент **SolidLSP** — `MIT`; важно отличать запуск отдельного retired optional tool-call protocol-сервиса от включения кода в собственный продукт. Перед корпоративным распространением — юридическая проверка.
 - **GitNexus:** `PolyForm Noncommercial 1.0.0`, то есть **не считать permissive open source** и не делать его без проверки лицензионной базой коммерческого дистрибутива. Можно рассматривать функциональность и легитимные исследовательские сценарии в рамках условий лицензии.
 - **CodeGraphContext:** README декларирует MIT; подтвердить лицензию и зависимости при выборе.
 - **Graphiti:** `Apache-2.0` в метаданных `graphiti-core`; проверить все компоненты и используемые backend.
 - **Langfuse:** open-source core заявлен под MIT, часть enterprise governance опционально коммерческая; проверить версию дистрибутива.
-- **Mem0:** cloud MCP предполагает передачу памяти на удалённый сервис; on-prem/local возможности и лицензию конкретной сборки проверить отдельно.
+- **Mem0:** cloud retired optional tool-call protocol предполагает передачу памяти на удалённый сервис; on-prem/local возможности и лицензию конкретной сборки проверить отдельно.
 - **Vertex AI RAG:** облачная обработка, IAM, условия Google Cloud, доступность по региону и data residency требуют отдельного согласования.
 
 ---
@@ -395,10 +397,10 @@ uncertainty:
 |---|---|---|
 | B0 | Codex без внешнего harness | Главный baseline |
 | B1 | Codex + Serena | Цена/выигрыш symbol-aware LSP |
-| B2 | Codex + Augment Context Engine MCP | Сильный коммерческий ориентир |
+| B2 | Codex + Augment Context Engine retired optional tool-call protocol | Сильный коммерческий ориентир |
 | B3 | Codex + GitNexus (в разрешённых лицензией условиях) или аналогичный graph tool | Графовый benchmark |
 | B4 | Codex + локальный hybrid RAG | Вклад семантического поиска |
-| B5 | Codex + RAG + AST/LSP как **независимые** MCP-инструменты | Выявить пользу простого набора интеграций |
+| B5 | Codex + RAG + AST/LSP как **независимые** retired optional tool-call protocol-инструменты | Выявить пользу простого набора интеграций |
 | B6 | Codex + **наш Unified Harness** | Проверка именно интеграционного слоя |
 | B7 | B6 без persistent memory и B6 с memory | Межсессионный эффект |
 
@@ -479,7 +481,7 @@ CI/CD, monitoring, эксплуатационная документация, у
 | Вариант | Плюсы | Минусы | Решение для R&D |
 |---|---|---|---|
 | Только Augment / Serena | Быстро, мало собственного кода | Ограниченный контроль полной стратегии; сложнее показать собственное engineering достижение | Обязательный benchmark |
-| Простая связка независимых MCP | Быстрая интеграция, демонстрация навыков | Модель сама маршрутизирует запросы; возможно избыточное повторение инструментов | Промежуточный baseline |
+| Простая связка независимых retired optional tool-call protocol | Быстрая интеграция, демонстрация навыков | Модель сама маршрутизирует запросы; возможно избыточное повторение инструментов | Промежуточный baseline |
 | Собственный Unified Context Layer поверх готовых движков | Контроль маршрутизации, бюджеты, memory, freshness, telemetry | Собственная сложность и риск ухудшить скорость/качество | **Основная продуктовая гипотеза** |
 | Полностью собственные движки AST/LSP/vector | Максимальный контроль | Высокая стоимость и бессмысленное дублирование зрелых решений | Не выбирать без исключительного обоснования |
 
@@ -507,7 +509,7 @@ CI/CD, monitoring, эксплуатационная документация, у
 | R-06: Динамические вызовы не видны LSP | Пропущенное последствие правки | Unknown/unverified status, optional traces / data flow |
 | R-07: Лицензии GitNexus / Serena | Нельзя легально использовать в нужной форме | Separate adapter vs redistribution analysis; permissive alternatives; юридическая проверка |
 | R-08: Утечка кода через embeddings / внешние API | Конфиденциальность / compliance | Local-first code retrieval, opt-in облачные маршруты, secret scanning |
-| R-09: MCP и сервисы увеличат latency | Агент станет медленнее | Query budget, timeout, caching, direct path, оценка p95 |
+| R-09: retired optional tool-call protocol и сервисы увеличат latency | Агент станет медленнее | Query budget, timeout, caching, direct path, оценка p95 |
 | R-10: Benchmark подогнан | CV-результат недостоверен | Holdout, независимые тесты, raw data, open methodology |
 | R-11: Vendor/API churn | Поломка интеграций | Adapter interfaces, pinned versions, compatibility tests |
 | R-12: Scope creep в AIOps | Основная цель не достигнута | Отложить infra/runtime expansion до успешного ядра |
@@ -526,7 +528,7 @@ CI/CD, monitoring, эксплуатационная документация, у
 
 **Пример CV-пункта — использовать только после получения подтверждённых результатов:**
 
-> Built an MCP-based Adaptive Context Harness for Codex integrating local hybrid code retrieval, AST/LSP semantic intelligence, project-documentation RAG, and temporal project memory. Benchmarked against native Codex and off-the-shelf context engines, achieving **[X×] lower end-to-end token usage** across **[N] reproducible tasks** while maintaining **[quality metric]**. Implemented CI/CD, tracing, indexing freshness controls, and cost observability.
+> Built an retired optional tool-call protocol-based Adaptive Context Harness for Codex integrating local hybrid code retrieval, AST/LSP semantic intelligence, project-documentation RAG, and temporal project memory. Benchmarked against native Codex and off-the-shelf context engines, achieving **[X×] lower end-to-end token usage** across **[N] reproducible tasks** while maintaining **[quality metric]**. Implemented CI/CD, tracing, indexing freshness controls, and cost observability.
 
 Отдельно стоит знать, что **интеграция сервисов с воспроизводимым результатом сама по себе ценный AI Platform Engineering кейс**, даже если результат не опередит Augment по всем задачам.
 
@@ -538,7 +540,7 @@ CI/CD, monitoring, эксплуатационная документация, у
 
 ### Системы сравнения
 
-- Augment Context Engine MCP, официальный анонс: <https://www.augmentcode.com/blog/context-engine-mcp-now-live> — vendor-reported результаты; не независимый benchmark.
+- Augment Context Engine retired optional tool-call protocol, официальный анонс: <https://www.augmentcode.com/blog/context-engine-retired-tool-protocol-now-live> — vendor-reported результаты; не независимый benchmark.
 - Serena, проект и лицензия: <https://github.com/oraios/serena> и <https://github.com/oraios/serena/blob/main/README.md>.
 - GitNexus, README и noncommercial license: <https://github.com/abhigyanpatwari/GitNexus/blob/main/gitnexus/README.md>.
 - Sourcegraph Cody context / code graph: <https://sourcegraph.com/docs/cody/core-concepts/context>, <https://sourcegraph.com/docs/cody/core-concepts/code-graph>.
@@ -550,9 +552,9 @@ CI/CD, monitoring, эксплуатационная документация, у
 - Google RAG Engine, quickstart и security limitations: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/rag-engine/rag-quickstart>.
 - Qdrant hybrid search: <https://qdrant.tech/documentation/search/text-search/hybrid-search/>.
 - LanceDB OSS / embedded / search: <https://github.com/lancedb/docs/blob/main/docs/index.mdx>.
-- ast-grep MCP, experimental: <https://github.com/ast-grep/ast-grep-mcp>.
+- ast-grep retired optional tool-call protocol, experimental: <https://github.com/ast-grep/ast-grep-retired-tool-protocol>.
 - CodeGraphContext README (MIT заявлен авторами): <https://github.com/CodeGraphContext/CodeGraphContext/blob/main/README.md>.
-- Graphiti temporal-memory MCP: <https://github.com/getzep/graphiti/blob/main/mcp_server/README.md>.
+- Graphiti temporal-memory retired optional tool-call protocol: <https://github.com/getzep/graphiti/blob/main/retired-tool-protocol_server/README.md>.
 - Graphiti Python package license: <https://github.com/getzep/graphiti/blob/main/pyproject.toml>.
 - Mem0 Codex integration: <https://github.com/mem0ai/mem0/blob/main/docs/integrations/codex.mdx>.
 - Langfuse self-host / evaluation: <https://langfuse.com/resources/engineering/clarifications>.

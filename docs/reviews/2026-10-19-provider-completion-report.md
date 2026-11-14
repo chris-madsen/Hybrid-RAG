@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Provider completion report — ACE PR #2
 
 Date: 2026-10-19. Status: **code submitted, CI/real-service acceptance pending**. No 5× claim.
@@ -12,9 +14,9 @@ Required settings: `ACE_VERTEX_PROJECT`, `ACE_VERTEX_LOCATION`, `ACE_VERTEX_CORP
 
 ### Graphiti
 
-`src/adapters/graphiti-mcp.ts` uses the **official MCP TypeScript client v2** to launch/connect to Graphiti's supported `stdio` MCP server. It calls real `add_memory` and `delete_episode` tools with group partition and deterministic episode UUID; there are no hand-invented `/episodes/{id}/project` routes. Graphiti's `add_memory` is asynchronous; projected receipts stay `pending`, not falsely `projected`. Graphiti facts are derived and `approval=unverified`.
+`src/adapters/graphiti-retired-tool-protocol.ts` uses the **official retired optional tool-call protocol TypeScript client v2** to launch/connect to Graphiti's supported `stdio` retired optional tool-call protocol server. It calls real `add_memory` and `delete_episode` tools with group partition and deterministic episode UUID; there are no hand-invented `/episodes/{id}/project` routes. Graphiti's `add_memory` is asynchronous; projected receipts stay `pending`, not falsely `projected`. Graphiti facts are derived and `approval=unverified`.
 
-The `src/bin/ace-memory.ts` CLI imports original Codex history into the immutable archive before queuing its Graphiti projection, and on deletion purges derived facts **before** tombstoning source. Retries are idempotent at the source archive. The CLI uses `ACE_MEMORY_ARCHIVE_ROOT`, `ACE_WORKSPACE_ID`, `ACE_GRAPHITI_COMMAND`, `ACE_GRAPHITI_ARGS_JSON` (JSON argv array) and `ACE_GRAPHITI_GROUP_ID`. Graphiti MCP `stdio` requires its own installed Python, database and configured inference credentials. No Graphiti environment was provided here. Official MCP server tools and group scoping: https://github.com/getzep/graphiti/tree/main/mcp_server
+The `src/bin/ace-memory.ts` CLI imports original Codex history into the immutable archive before queuing its Graphiti projection, and on deletion purges derived facts **before** tombstoning source. Retries are idempotent at the source archive. The CLI uses `ACE_MEMORY_ARCHIVE_ROOT`, `ACE_WORKSPACE_ID`, `ACE_GRAPHITI_COMMAND`, `ACE_GRAPHITI_ARGS_JSON` (JSON argv array) and `ACE_GRAPHITI_GROUP_ID`. Graphiti retired optional tool-call protocol `stdio` requires its own installed Python, database and configured inference credentials. No Graphiti environment was provided here. Official retired optional tool-call protocol server tools and group scoping: https://github.com/getzep/graphiti/tree/main/retired-tool-protocol_server
 
 **Open Graphiti issues:** transactionally durable outbox between raw archive and asynchronous Graphiti processing, projection acknowledgement/reconciliation, and `search_memory_facts` query/citation mapping back to immutable originals are still not end-to-end verified. The legacy `makeGraphitiProjectionPort` and `makeVertexDocumentationPort` in `http-provider-boundaries.ts` are obsolete generic prototypes; do **not** wire them.
 
@@ -24,7 +26,7 @@ The file archive now wraps **all mutations** in a global `mkdir` lock across pro
 
 ### Harbor
 
-`scripts/harbor-retrieval-gate.ts` consumes raw trial results and Codex JSONL MCP call evidence from **two real Harbor job directories**, computes quality, tokens and observed ACE invocations, and fails if success rates fall, counts differ or ACE is not actually called. It never manufactures an improvement ratio. A new `benchmarks/harbor/ace-retrieval-impact` behavior-driven task requires locating a retry-limit defect across multiple files while preserving the independent payment flow.
+`scripts/harbor-retrieval-gate.ts` consumes raw trial results and Codex JSONL retired optional tool-call protocol call evidence from **two real Harbor job directories**, computes quality, tokens and observed ACE invocations, and fails if success rates fall, counts differ or ACE is not actually called. It never manufactures an improvement ratio. A new `benchmarks/harbor/ace-retrieval-impact` behavior-driven task requires locating a retry-limit defect across multiple files while preserving the independent payment flow.
 
 Invocation **after running real paired Harbor jobs**:
 
@@ -48,7 +50,7 @@ Codex runtime is still required for the paired gate.
 | Real API shapes researched and adapters implemented | Code committed |
 | Multi-instance file-lock regression | Test committed; CI pending |
 | Vertex denied-before-network contract | Test committed; CI pending |
-| Graphiti stdio client + tools wired for import/delete | Code committed; real Graphiti MCP not exercised |
+| Graphiti stdio client + tools wired for import/delete | Code committed; real Graphiti retired optional tool-call protocol not exercised |
 | Paired Harbor tool and behavioral task | Tool and three exploratory tasks committed; native-only attempt rejected with preserved failure evidence; paired benchmark remains open |
 | OpenSpec 006 production acceptance, 5× | **Not proven** |
 

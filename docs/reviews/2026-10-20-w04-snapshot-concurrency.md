@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W04 same-snapshot concurrency refresh
 
 **Date:** 2026-10-20  
@@ -12,7 +14,7 @@ ACE_QDRANT_URL=http://127.0.0.1:6333 npm run test:real-qdrant-concurrency -- \
 ```
 
 Source commit: `b98af68682486a9dba7d537c158b4d0baeeaa5ae`. The run used two
-independent MCP stdio clients against the same workspace, state directory and
+independent retired optional tool-call protocol stdio clients against the same workspace, state directory and
 unique explicit Qdrant collection. It used Qdrant `1.19.2`, the real FastEmbed
 worker, Tree-sitter helper and TypeScript language service. The fixture was
 synthetic and local-only; no private dialogue or cloud provider was used.

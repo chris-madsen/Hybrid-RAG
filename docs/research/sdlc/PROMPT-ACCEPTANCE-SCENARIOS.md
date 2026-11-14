@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Acceptance scenarios for the SDLC instruction set
 
 These scenarios are **manual or future automated prompt checks**. They do not claim an agent has passed them. To test, invoke the stage prompt against a controlled fixture and compare actual artifact to expected behavior. A model's self-reported PASS is not evidence.
@@ -11,7 +13,7 @@ These scenarios are **manual or future automated prompt checks**. They do not cl
 | R-05 | Unavailable source file | UNKNOWN and explicit gap | fabricates path:line |
 | R-06 | User asks to research one precise file | reads relevant full definition | generic follow-up instead |
 | D-01 | Simple T0 docs typo | no forced C4/research marathon | writes eight design files |
-| D-02 | New MCP tool vs Bifrost context injection | distinct contracts drawn | conflates them |
+| D-02 | New retired optional tool-call protocol tool vs Bifrost context injection | distinct contracts drawn | conflates them |
 | D-03 | API mutation with partial failure | error/compensation sequence and tests | only happy path |
 | D-04 | Vertex documentation import | explicit egress policy and source class | sends private code |
 | D-05 | Existing accepted ADR conflicts with proposal | owner decision gate | silently overrides |
@@ -67,7 +69,7 @@ Fixture IDs use the `QGF-` prefix so they cannot be confused with actual gate ID
 | QGF-10 | typed import boundary that naive text matches incorrectly | typed graph evidence or UNKNOWN, not fake PASS |
 | QGF-11 | proposed Knip identifies dynamically loaded CLI | report-only, maintain real entrypoint exclusion |
 | QGF-12 | Qdrant/Graphiti schema evolves | provider-specific state contract, no SQL/Ent migration tools |
-| QGF-13 | MCP input field removed without versioning | compatibility review identifies breaking contract |
+| QGF-13 | retired optional tool-call protocol input field removed without versioning | compatibility review identifies breaking contract |
 | QGF-14 | uninstalled `lychee` task named in plan | NOT-RUN, never PASS |
 | QGF-15 | full PR statuses from earlier commit | cannot prove latest HEAD; reverify |
 | QGF-16 | new tool flags hundreds of preexisting noncritical issues | report-only/frozen expiring baseline; no hidden broad ignore |

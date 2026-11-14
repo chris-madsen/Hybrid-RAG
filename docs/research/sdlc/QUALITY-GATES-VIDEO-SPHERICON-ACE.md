@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Quality Gates research: video → Sphericon → ACE
 
 **Status:** research and proposed adoption; no new Quality Gate is executable in ACE merely because it appears here.
@@ -16,7 +18,7 @@
 
 1. Sphericon keeps **review rules separate from how to run tools**: \`docs/standards/review-rules.md\` is a numbered rules catalog; \`CODING_STANDARDS.md\` maps enforceable rules to analyzers and \`mise run check\`; \`AGENTS.md\` says which checks apply. ACE should replicate **that separation of concerns**, not those Go implementation details.
 2. Syntax-only invariants use **ast-grep rules with positive and negative rule tests**. Type-aware invariants use Sphericon's Go custom \`go/analysis\` and **SCIP-based** \`easement\` for inter-package boundaries. ACE can start with a few TS ast-grep checks; escalate to SCIP/easement only when ordinary import/AST constraints cannot express the actual rule.
-3. Sphericon's code generation is **one-way**: TypeSpec → OpenAPI → generated Go/TypeScript, Ent → generated storage and mapping, with generated-file ownership checks. ACE has no comparable proven multiparty TypeSpec source of truth. For ACE use existing MCP schemas, Effect contracts and OpenSpec; introduce TypeSpec *only after* a versioned public API requires it.
+3. Sphericon's code generation is **one-way**: TypeSpec → OpenAPI → generated Go/TypeScript, Ent → generated storage and mapping, with generated-file ownership checks. ACE has no comparable proven multiparty TypeSpec source of truth. For ACE use existing retired optional tool-call protocol schemas, Effect contracts and OpenSpec; introduce TypeSpec *only after* a versioned public API requires it.
 4. Sphericon uses many **independently scheduled gates**. Heavy language/package tests run in PR CI, whereas mutation testing, API fuzzing, coverage, CodeQL and vulnerability freshness are scheduled/nightly. ACE already splits fast deterministic PR verification from real Qdrant/LSP and production gates.
 5. Sphericon's \`mise\` pins heterogeneous tool versions, runs tasks, dev services and hooks; \`hk.pkl\` is fast staged-file checks only. ACE could benefit from pinned tools eventually, but **adding mise is not the prerequisite** to making its SDLC useful.
 6. Sphericon's schema-consistency (\`schemalens\` with Ent adapter), migration immutability (Goose/Squawk), DB test rollback and SQL contract fuzzing are tied to a **PostgreSQL/Ent** stack. ACE does not need a fabricated relational database migration gate for Qdrant/Graphiti. Translate the invariant to **collection/payload-schema, snapshot, reindex and retained-memory provenance tests** instead.
@@ -36,9 +38,9 @@ Legend: EXISTING = already present in ACE; ADOPT = suitable next implementation;
 | Type-aware boundaries | SCIP \`easement check\` with Go+TS indexers | TypeScript imports and existing architecture contracts | **PILOT**, compare with dependency-cruiser / native TS graph |
 | Custom type-aware analyzer | \`go/analysis\` in custom golangci-lint | TS + Effect compiler and tests | **CONDITIONAL**; TypeScript/ts-morph analyzer only if needed |
 | Stale/generated artifacts | codegen pipeline and \`check:generated\` | compiled runtime provenance manifest | **ADOPT conditionally** for real generated assets; do not invent a new generator |
-| API-first contract | TypeSpec → OpenAPI / SDK | OpenSpec, MCP/tool and projection contracts | **PILOT TypeSpec**, only if multiple independently versioned clients justify |
+| API-first contract | TypeSpec → OpenAPI / SDK | OpenSpec, retired optional tool-call protocol/tool and projection contracts | **PILOT TypeSpec**, only if multiple independently versioned clients justify |
 | OpenAPI spec lint | Vacuum + custom response rule | No stable generated OpenAPI verified | **CONDITIONAL** when OpenAPI introduced |
-| API fuzz | Schemathesis on live external API, nightly | MCP/agent E2E and typed contracts | **PILOT** schema-based MCP fuzz/property tests before HTTP fuzz |
+| API fuzz | Schemathesis on live external API, nightly | retired optional tool-call protocol/agent E2E and typed contracts | **PILOT** schema-based retired optional tool-call protocol fuzz/property tests before HTTP fuzz |
 | Backwards compatibility | contract/migration upgrade checker | ADR/contract tests, release evidence | **ADOPT** protocol/schema compatibility when versioned clients exist |
 | Dead code / deps | Knip | no Knip task identified | **ADOPT** report-only first, dynamic entries exclude false positives |
 | Secret scanning | Betterleaks staged/full history | strong privacy rules and release audit; no PR secret scanner verified | **ADOPT P0** Git hook + PR scanner and CI evidence |
@@ -71,7 +73,7 @@ ACE should require for every new static rule: a numbered requirement, meaning, e
 See [easement.yml](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/easement.yml) and [CI arch job](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/.github/workflows/ci.yml). It uses SCIP indexers and caching; a separate job avoids CPU starvation from language linters. ACE shouldn't install SCIP until a typed dependency/ownership rule genuinely requires it.
 
 ### 3. Generated contract is owned once
-See [codegen.md](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/docs/agents/codegen.md) and [generated check](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/mise/scripts/check-generated.ts). In ACE generated clients and compiled artifacts require one source schema and exact generation verification **if introduced**, not duplicate manually kept TypeSpec/OpenAPI/MCP/Zod descriptions.
+See [codegen.md](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/docs/agents/codegen.md) and [generated check](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/mise/scripts/check-generated.ts). In ACE generated clients and compiled artifacts require one source schema and exact generation verification **if introduced**, not duplicate manually kept TypeSpec/OpenAPI/retired optional tool-call protocol/Zod descriptions.
 
 ### 4. Fast vs slow gates
 See [ci.yml](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/.github/workflows/ci.yml) and [nightly.yml](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/.github/workflows/nightly.yml). Sphericon schedules:
@@ -94,14 +96,14 @@ Sphericon rules explicitly reject persistent baselines. A new ACE rule that find
 ### P1 — after P0 is measured
 6. **Knip** report-only unused exports/deps with explicit dynamic-entry exceptions; fail only new confirmed debt.
 7. **TypeScript architecture import/SCIP pilot** on selected DDD boundaries, compare simple TS graph / dependency-cruiser with Easement before deciding.
-8. **Change compatibility gate** for MCP/tool schemas, context projection payloads and public error enums; breaking changes require intentional owner decision.
+8. **Change compatibility gate** for retired optional tool-call protocol/tool schemas, context projection payloads and public error enums; breaking changes require intentional owner decision.
 9. **Nightly risk checks**: CodeQL, OSV lockfiles, negative/property tests of parsing and source freshness.
 10. **Targeted mutation tests** for policy denial, stale-source and completeness decisions if their test oracles are weak.
 
 ### P2 — conditional engineering investments
 11. **Contract-first generation (TypeSpec)** only with a stable multi-client public API; measure reduced duplicate code and generation drift versus added complexity.
 12. **SCIP-based enterprise boundary analysis** only if simple rules miss meaningful violations and CI cost justified.
-13. **No `mise daemons` in ACE target architecture.** Local k3s owns reusable integration services and namespace/worktree isolation; small fake HTTP/MCP/provider dependencies stay in-process. Tool version pinning remains with existing lockfiles/CI unless a concrete gap appears.
+13. **No `mise daemons` in ACE target architecture.** Local k3s owns reusable integration services and namespace/worktree isolation; small fake HTTP/retired optional tool-call protocol/provider dependencies stay in-process. Tool version pinning remains with existing lockfiles/CI unless a concrete gap appears.
 14. **Worktree resource partitioning in k3s** only where concurrent integration environments need isolation.
 15. **SQL schema lint/DB Cleaner** only if a relational SQL store is introduced; Qdrant/FalkorDB require different state-level contracts today.
 

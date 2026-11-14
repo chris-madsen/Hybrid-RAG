@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Implement Backend — single-agent phase executor with explicit quality gates
 
 ## Mission and mode
@@ -67,7 +69,7 @@ Stop if a critical test is impossible to specify or the plan contradicts an acce
 9. Keep TS + Effect domain/application ownership, typed service dependencies and explicit errors.
 10. Do not mutate a user's worktree through ACE retrieval operations.
 11. Respect data-policy checks before any transmission.
-12. Separate explicit MCP tools, Hermes native context transformation and Bifrost gateway projection.
+12. Separate explicit retired optional tool-call protocol tools, Hermes native context transformation and Bifrost gateway projection.
 13. For retries distinguish safe reads from side-effecting tools. Idempotency/recovery is required for relevant replays.
 14. Preserve source freshness, exact ranges and honest partial/unavailable semantics.
 15. Delete superseded implementation when replacement owner is verified. Document temporary compatibility and deletion point.
@@ -111,7 +113,7 @@ Checklist:
 5. Type and symbol semantics provided by real ast-grep/LSP, not regex heuristics.
 6. Correct Qdrant index/warm cache and source revision binding.
 7. Honest completeness/freshness and user-authorized expansions.
-8. Clear separation of MCP explicit tools from model-bound Bifrost injection.
+8. Clear separation of retired optional tool-call protocol explicit tools from model-bound Bifrost injection.
 9. Provider selection evidence rather than "implemented == chosen."
 10. Native library feature check before bespoke cache, protocol, lifecycle, queue or parser.
 11. No accidental service-per-DDD-context or unapproved language/runtime introduction.

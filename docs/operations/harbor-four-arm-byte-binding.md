@@ -1,7 +1,9 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Harbor four-arm byte binding
 
 The external four-arm workload is accepted only when the task manifest, task
-payloads, effective Codex/MCP configuration, model/provider identity and
+payloads, effective Codex/retired optional tool-call protocol configuration, model/provider identity and
 runtime image identity are bound to the jobs.
 
 ## Freeze
@@ -54,7 +56,7 @@ frozen job task path or the task ID from the frozen manifest**, in serial
 execution order. The raw Harbor aggregate file itself must exist. Trial
 directories are ordered by their observed `started_at` timestamps (not
 lexical directory names); ambiguous timestamps and unexpected task identities
-are blocked. One successful MCP request ID cannot be counted again in another
+are blocked. One successful retired optional tool-call protocol request ID cannot be counted again in another
 trial or arm. A failed ACE trial paired with a successful native trial blocks
 quality non-inferiority regardless of the report's `qualityNonInferior` flag.
 
@@ -76,6 +78,6 @@ paths, unknown required telemetry keeps the release gate closed. Byte hashes
 alone cannot justify a release claim.
 
 The four-arm result remains `NOT_RUN`/`BLOCKED` until real Harbor, Codex/OAuth,
-Docker/Linux execution supplies correlated MCP calls, per-trial task success,
+Docker/Linux execution supplies correlated retired optional tool-call protocol calls, per-trial task success,
 raw usage, latency and failure evidence. This binding workflow does not claim
 5× savings, production readiness or owner approval.

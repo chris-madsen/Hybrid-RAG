@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # TypeSpec Contract First — public wire schemas for ACE
 
 **Owner choice:** TypeSpec is the selected canonical language for new and migrated ACE **public machine contracts**. Its tools and generated artifacts are *planned*, not present merely because this standard exists.
@@ -8,7 +10,7 @@ OpenSpec answers **what behavior is required**, ADR answers **why architecture i
 
 Use TypeSpec for:
 - ACE Gateway Projection HTTP operations and request/response/error payloads;
-- MCP tool input/output public JSON schemas where the compiled schema can be faithfully mapped into the official MCP SDK;
+- retired optional tool-call protocol tool input/output public JSON schemas where the compiled schema can be faithfully mapped into the official retired optional tool-call protocol SDK;
 - relevant native Hermes bridge JSONL message contract where serialization is explicit and versioned;
 - other public versioned JSON API/SDK surfaces as actually present.
 
@@ -25,7 +27,7 @@ TypeSpec source (typespec/) — public operation and wire schema authority
           +--> @typespec/openapi3 --> OpenAPI --> supported client/server generation
           |
           +--> @typespec/json-schema --> JSON Schema
-                                      --> explicit tested MCP SDK schema adaptation
+                                      --> explicit tested retired optional tool-call protocol SDK schema adaptation
           |
           +--> generated TypeScript DTO/type artifacts (selected pinned generation)
           |
@@ -33,7 +35,7 @@ TypeSpec source (typespec/) — public operation and wire schema authority
 adapter validation/mapping ↔ internal immutable ADT ↔ pure domain rules
 \`\`\`
 
-**No TypeSpec-to-MCP leap:** Verify the exact compiler/JSON Schema keyword dialect and SDK schema adapter compatibility. TypeSpec doesn't magically implement MCP method registration, authorization, transport routing, Effect DI, or provider-bound Bifrost behavior.
+**No TypeSpec-to-retired optional tool-call protocol leap:** Verify the exact compiler/JSON Schema keyword dialect and SDK schema adapter compatibility. TypeSpec doesn't magically implement retired optional tool-call protocol method registration, authorization, transport routing, Effect DI, or provider-bound Bifrost behavior.
 
 ## Contract design rules
 
@@ -45,7 +47,7 @@ adapter validation/mapping ↔ internal immutable ADT ↔ pure domain rules
 6. Validate request at trust boundary at runtime. Generated TypeScript types **do not** validate arbitrary JSON by themselves.
 7. Map wire DTO to domain ADT using explicit one-way functions and return stable typed errors; do not leak generated HTTP types into domain core.
 8. Avoid hand-maintained copies of field constraints/enums in README/tests/client/server; generate fixtures, SDK, validators where verified/appropriate.
-9. Use the project's accepted official MCP SDK; do not emit a new homebrew MCP transport.
+9. Use the project's accepted official retired optional tool-call protocol SDK; do not emit a new homebrew retired optional tool-call protocol transport.
 10. Confirm whether TypeSpec can represent native stream, cancellation, error and protocol features; if not, document a narrow adapter and preserve semantics rather than lying in the spec.
 11. Keep data classification, authorization and policy enforcement in application boundary. The wire annotation is **not** proof a request was authorized.
 12. A generated schema that parses is not evidence the right real provider was invoked; preserve ACE provider and agent E2E.
@@ -57,7 +59,7 @@ adapter validation/mapping ↔ internal immutable ADT ↔ pure domain rules
 18. Use real source SHA and compiler/tool version for every emission/contract check.
 
 ## First vertical adoption acceptance
-- Inventory current gateway projection, MCP tool schemas and Hermes wire messages.
+- Inventory current gateway projection, retired optional tool-call protocol tool schemas and Hermes wire messages.
 - Select one existing public Gateway Projection operation as a safe slice.
 - Pin TypeSpec and its emitter libraries.
 - Produce OpenAPI and/or JSON Schema and validate generation is reproducible.
@@ -74,7 +76,7 @@ adapter validation/mapping ↔ internal immutable ADT ↔ pure domain rules
 - \`TSP-04\`: additive/breaking compatibility checks against baseline, with explicit owner-approved change.
 - \`TSP-05\`: every public ADT variant survives TypeSpec → JSON → runtime decoder → domain → encoder roundtrip.
 - \`TSP-06\`: invalid/discriminant-missing/unknown-version cases fail closed.
-- \`TSP-07\`: MCP/HTTP/native adapter uses the compiled schema and real provider path when claimed.
+- \`TSP-07\`: retired optional tool-call protocol/HTTP/native adapter uses the compiled schema and real provider path when claimed.
 
 **Do not call these gates ACTIVE until scripts, pinned versions and positive+negative fixtures actually run in CI for the current PR revision, with both the source-branch HEAD and actual tested checkout/merge SHA recorded.**
 

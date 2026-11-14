@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE post-merge correctness and acceptance plan
 
 > **Этот план объединён в [единый рабочий план](./2026-10-19-unified-ace-correctness-and-production-plan.md).** Для новых задач используйте единый backlog; этот файл сохранён для истории и проверки источников. Он не является самостоятельной очередью выполнения.
@@ -23,16 +25,16 @@ Already present at the reviewed baseline, not new work: final source reread afte
 4. Track C: index coverage and truthful completeness; integrate with A/B.
 5. Track D: resolved embedding configuration and actual worker identity; complete before real-provider validation of A.
 6. Track E: temporal decision history; independent of retrieval fixes.
-7. Run cross-track failure/restart/concurrency tests, CI and real MCP/provider gates.
+7. Run cross-track failure/restart/concurrency tests, CI and real retired optional tool-call protocol/provider gates.
 8. Reconcile specs, review findings and readiness evidence; then owner review.
 
 Priorities: A-D are P1 correctness work. E is P2 and must not block unrelated retrieval experiments. No 5x result is a prerequisite for running tests.
 
 ## 2. Track A — Qdrant snapshot isolation and lifecycle (P1)
 
-Files: `src/adapters/http-provider-boundaries.ts`, `src/adapters/qdrant-context-provider.ts`, `src/bin/ace-mcp.ts`; relevant ports/storage contracts.
+Files: `src/adapters/http-provider-boundaries.ts`, `src/adapters/qdrant-context-provider.ts`, `src/bin/ace-retired-tool-protocol.ts`; relevant ports/storage contracts.
 
-Observed mechanism: point ID depends on candidateId, whereas index_key is only payload. An unchanged file keeps its candidate IDs across workspace snapshots. Upserting S2 can therefore overwrite S1 points before S2 is complete. Startup pruning can also delete S1 while another MCP process still reads it. Real concurrency/restart reproduction is required before closing the finding.
+Observed mechanism: point ID depends on candidateId, whereas index_key is only payload. An unchanged file keeps its candidate IDs across workspace snapshots. Upserting S2 can therefore overwrite S1 points before S2 is complete. Startup pruning can also delete S1 while another retired optional tool-call protocol process still reads it. Real concurrency/restart reproduction is required before closing the finding.
 
 Tasks:
 - [ ] Reproduce two processes on one collection/workspace: A serves S1; B builds S2 after changing only one file. Prove unchanged-file candidates are not lost to A.
@@ -45,7 +47,7 @@ Tasks:
 - [ ] Prefer retaining uncertain/orphan snapshots to deleting possibly active data. Add an operator-visible cleanup procedure and bound storage growth.
 - [ ] Migrate old point-ID/schema layout explicitly: new namespace/version or controlled rebuild. Never silently warm-reuse incompatible old points.
 
-Acceptance: S2 build failure/cancellation leaves S1 usable; S2 publication never exposes partial data; active S1 readers survive publication/cleanup; eventual cleanup does not remove active snapshots; restart with unchanged bytes reuses a verified snapshot; dirty restart cannot serve stale source as current. Verify through actual MCP clients and real Qdrant, not only mocked HTTP.
+Acceptance: S2 build failure/cancellation leaves S1 usable; S2 publication never exposes partial data; active S1 readers survive publication/cleanup; eventual cleanup does not remove active snapshots; restart with unchanged bytes reuses a verified snapshot; dirty restart cannot serve stale source as current. Verify through actual retired optional tool-call protocol clients and real Qdrant, not only mocked HTTP.
 
 ## 3. Track B — exact LSP identity (P1)
 
@@ -66,7 +68,7 @@ Acceptance: wrong same-line/nested definition never earns semantic confirmation;
 
 ## 4. Track C — index coverage and completeness (P1)
 
-Files: `src/adapters/local-code-index.ts`, `src/bin/ace-mcp.ts`, `src/adapters/qdrant-context-provider.ts`, retrieval domain/ports and workspace status.
+Files: `src/adapters/local-code-index.ts`, `src/bin/ace-retired-tool-protocol.ts`, `src/adapters/qdrant-context-provider.ts`, retrieval domain/ports and workspace status.
 
 Observed mechanism: unreadable files and structural failures are skipped with build warnings; runtime prints warnings but does not carry build coverage into ContextBundle. Successful retrieval from surviving candidates can therefore hide a degraded index.
 
@@ -83,7 +85,7 @@ Tests: one healthy file plus unreadable required file; parser crash; syntax-erro
 
 ## 5. Track D — resolved embedding configuration and worker identity (P1)
 
-Files: `src/bin/ace-mcp.ts`, `src/adapters/process-embedding.ts`, Python workers, launcher scripts and artifact verifier.
+Files: `src/bin/ace-retired-tool-protocol.ts`, `src/adapters/process-embedding.ts`, Python workers, launcher scripts and artifact verifier.
 
 Observed gap: bootstrap computes defaults used in collection identity/trace labels, but spawn inherits original environment rather than receiving that resolved configuration. Explicitly exported settings may work; omitted settings can leave metadata claiming a revision the worker never received.
 
@@ -123,8 +125,8 @@ Acceptance: yesterday's query returns yesterday's justified state, not today's m
 - [ ] Add deterministic unit/contract regressions for A-E before changing acceptance logic.
 - [ ] Run npm ci, npm run check, npm run lint, npm test and npm run build; retain exact commands, commit and outputs. Keep Python artifact integrity tests enabled.
 - [ ] Validate affected OpenSpec changes strictly using the repository's verified CLI/environment.
-- [ ] Add real Qdrant lifecycle tests with two independent MCP processes and fault injection during batches/publication/pruning.
-- [ ] Run actual embedding workers and structural/LSP providers through the official MCP client; test startup, timeout, cancellation, outage and restart.
+- [ ] Add real Qdrant lifecycle tests with two independent retired optional tool-call protocol processes and fault injection during batches/publication/pruning.
+- [ ] Run actual embedding workers and structural/LSP providers through the official retired optional tool-call protocol client; test startup, timeout, cancellation, outage and restart.
 - [ ] Check exact artifact expansion, progressive payloads, source-frame conditions, secret-safe diagnostics and no unauthorized egress.
 - [ ] Separate deterministic CI from credential/hardware-dependent gates. Skipped integration means unverified, never passed. Do not weaken assertions or delete failing tests to get green CI.
 

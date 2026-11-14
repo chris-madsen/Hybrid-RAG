@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Qdrant PR #213 and R1/R6 reconciliation
 
 **Date:** 2026-10-31
@@ -30,12 +32,12 @@
 ### R1 — Qdrant SDK boundary: still open
 
 - PR #213 removes the raw REST response-envelope fallback and adds schema/read-back and finite-score protections. The follow-up corrects its failing test fixture and propagates non-conflict create errors.
-- `src/adapters/http-provider-boundaries.ts` and `src/adapters/qdrant-context-provider.ts` still both directly own Qdrant SDK operations. `src/bin/ace-mcp.ts`, `scripts/qdrant-hybrid-rank-probe.ts`, and the adapter/real-pipeline suites remain caller surfaces to inventory before any one-owner move.
+- `src/adapters/http-provider-boundaries.ts` and `src/adapters/qdrant-context-provider.ts` still both directly own Qdrant SDK operations. `src/bin/ace-retired-tool-protocol.ts`, `scripts/qdrant-hybrid-rank-probe.ts`, and the adapter/real-pipeline suites remain caller surfaces to inventory before any one-owner move.
 - The R1 one-owner exit criterion and the broader R4 concurrent publication/crash/restart proof are not met by this PR or by the focused real-provider pass.
 
 ### R6 — full Hermes through Bifrost Responses: blocked/incomplete
 
-- Counter/window: `src/bin/ace-mcp.ts` still constructs `makeContextAssembler()` without a verified model-compatible counter; `src/application/gateway-projection-service.ts` still derives the budget from the request deadline. The exact counter and effective context window for `openai-codex/gpt-6-luna` with separate `reasoning_effort=xhigh` remain unverified.
+- Counter/window: `src/bin/ace-retired-tool-protocol.ts` still constructs `makeContextAssembler()` without a verified model-compatible counter; `src/application/gateway-projection-service.ts` still derives the budget from the request deadline. The exact counter and effective context window for `openai-codex/gpt-6-luna` with separate `reasoning_effort=xhigh` remain unverified.
 - The current ACE gateway advertises only `openai.chat.completions`; `/internal/ace-gateway/v1/record-delivery` still returns 501; `PostLLMHook` still passes the response through without a final usage receipt. No Responses provider-wire or final-egress receipt has been proven.
 - The full Hermes CLI path through Bifrost `/v1/responses`, Hermes-owned Codex OAuth without an API key, exact `reasoning_effort=xhigh`, privacy-safe `store:false`, final-wire identity, and a matched Hermes pair remain unverified. Chat Completions is not an acceptable route or fallback.
 - As checked on 2026-10-31, Bifrost PRs #4548 (OAuth pass-through for Responses), #8008 (caller OAuth preservation), and #9142 (terminal Responses usage) remained open. The latest review evidence for #4548 reports a raw-body path that may bypass `store:false`; do not merge, pin, or use that path until the current implementation proves the privacy invariant. No experimental pin or private-code egress approval is recorded.

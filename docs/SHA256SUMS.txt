@@ -7,7 +7,7 @@ ea9b98ce3f26dbdad57cfc83eaaaa948647825917433c80a4c5ceed0548bca38  docs/docs/arch
 4b01c63b56a42be398329c1fafb7ebe44d93961c4ee8fec2895b8ba96bbfe69a  docs/docs/architecture/05-contracts-and-deployment.md
 351f112372961faa9cbe2f8d21765d244fa54666ed0163b37b53de44fb443726  docs/docs/architecture/06-traceability-and-review.md
 64d99cfcac493e89271854d2988778bcd36562ed82e3d82ce990a1320c751168  docs/docs/references/ADR-000-decision-register.md
-6abcc03087003b4619de354b6827610633e650981cff30ce6ca7188b049e4d5a  docs/docs/references/ADR-001-agent-boundary-mcp.md
+6abcc03087003b4619de354b6827610633e650981cff30ce6ca7188b049e4d5a  docs/docs/references/ADR-001-agent-boundary-retired-tool-protocol.md
 86fab9c9e90c47554d4ec49e09ce3634253e20f4e2e695325a064c59a5b29ad9  docs/docs/references/ADR-002-adaptive-routing-jev.md
 43439332b1b5f60b418e6f774b612df898580dfcd34c15dd3b7ccc5f1980ff46  docs/docs/references/ADR-003-dual-rag.md
 b34f0105a48abdc958c0a81a468e5e9fbf109f895de1faf5851dd081953cb03a  docs/docs/references/ADR-004-ast-lsp-freshness.md
@@ -29,7 +29,7 @@ d55c964a10eb6934c8e078af7962c5ccd9f2d99155554f965688b48afec46049  docs/docs/spik
 85b53dd24fbe7d19c8b0f0ddccf5e82600c5c372c76b57a2a89dc34dfb0fc5b9  openspec/changes/001-foundation/.openspec.yaml
 cf080770e726714449e975d003db9053f6668ab76bf43e5067929dbf57a52e50  openspec/changes/001-foundation/design.md
 3d516d4e18c76042496bbc4bb3f584ca9c6c45c3100d3a5d6d751305a512b8e5  openspec/changes/001-foundation/proposal.md
-91933d6aa85b1188e21cae5a0d6585bf9afbe59cfed09d841889178b94e1a427  openspec/changes/001-foundation/specs/mcp-gateway/spec.md
+91933d6aa85b1188e21cae5a0d6585bf9afbe59cfed09d841889178b94e1a427  openspec/changes/001-foundation/specs/retired-tool-protocol-gateway/spec.md
 695b76b94cf59c9bf053917df2b1ca32873552ffa3c8580da673d6e67ce9a004  openspec/changes/001-foundation/specs/security-policy/spec.md
 07d355c8306e756aae703b9137231b9f58634548bde7e506b3bd50cdd7443155  openspec/changes/001-foundation/specs/workspace-identity/spec.md
 4b153c323957dced6155d3edeae1766717f247754bce02735caed0e03542adf9  openspec/changes/001-foundation/tasks.md

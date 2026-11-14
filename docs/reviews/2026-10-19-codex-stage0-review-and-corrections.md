@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Review — Codex stage0/provider closure corrections
 
 **Reviewed branch:** `codex/stage0-baseline` at `cebf48de798e8b28510e61c52690f70fb80846b8`  
@@ -33,7 +35,7 @@
 
 **Fix:** enabling the provider no longer grants data egress. Runtime cloud egress additionally requires `ACE_CLOUD_DOCS_OPT_IN=true`. Secret-like documentation queries are conservatively denied before HTTP. The Europe corpus remains owner-authorized and is not deleted.
 
-### P1 — MCP cancellation
+### P1 — retired optional tool-call protocol cancellation
 
 **Finding:** the client could observe cancellation while the underlying ACE Effect continued.
 
@@ -59,7 +61,7 @@ The Codex branch checked several normative contracts using only sub-gate evidenc
 
 - **DBC-03 reopened:** real embeddings are useful experimental evidence, but the semantic provider/model is not production-approved and top-1 quality remains imperfect.
 - **DBC-04 reopened:** same-name tests pass for direct TS LS and Serena, but ADR-004 comparison remains incomplete and no LSP winner is approved.
-- **DBC-09 reopened:** the official MCP TypeScript client passes a conformance sub-gate, but the normative contract says **Codex initializes/invokes ACE**. The failed Harbor/Codex run does not satisfy that.
+- **DBC-09 reopened:** the official retired optional tool-call protocol TypeScript client passes a conformance sub-gate, but the normative contract says **Codex initializes/invokes ACE**. The failed Harbor/Codex run does not satisfy that.
 - **DBC-14 reopened:** conflict-merging logic passes with a test DocumentationPort, but real Vertex citation-vs-current-code conflict evidence is still missing.
 - **DBC-08 retained as passed** after adding a >2000-line Unicode + mixed-newline exact-byte round-trip contract.
 
@@ -96,7 +98,7 @@ A local candidate failing is an engineering result, not a reason to stop and req
 
 - Production embedding/model/runtime selection after a reproducible larger holdout.
 - Completed Serena vs direct TypeScript LS matched comparison and owner selection.
-- Actual Codex→ACE MCP E2E for DBC-09.
+- Actual Codex→ACE retired optional tool-call protocol E2E for DBC-09.
 - Real Vertex corpus with an authorized synthetic/public fixture and citation/version conflict test for DBC-14; private documents remain separately gated.
 - Graphiti extraction/recall/purge/recovery E2E with local inference; DBC-11 still needs derived-graph purge proof.
 - Successful paired Harbor native-vs-ACE runs with valid Codex authentication, actual ACE calls, quality parity and attributable total token/cost numbers. 5× remains a measured target, not an entry condition.

@@ -1,10 +1,12 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Owner architecture correction: Gateway-only ACE agent integration
 
 **Owner decision:** 2026-11-14. Model-invoked optional context tools are explicitly REJECTED. The only agent-facing delivery path for ACE is the configured **Bifröst LLM Gateway** and its versioned ACE projection API. This supersedes the two-plane clause of ADR-017, earlier tool-facade architecture decisions, and TypeSpec TS-04 optional-tool schemas. Not a token-admission change.
 
 ## AS-IS evidence (pre-code)
 
-- `src/bin/ace-mcp.ts` is the 69 KiB composition root, and its **default** branch instantiates `makeMcpGateway` + `runMcpSdkStdio`; Gateway is only selected by `ACE_GATEWAY_HTTP_MODE=true`.
+- `src/bin/ace-retired-tool-protocol.ts` is the 69 KiB composition root, and its **default** branch instantiates `makeRetiredToolProtocolGateway` + `runRetiredToolProtocolSdkStdio`; Gateway is only selected by `ACE_GATEWAY_HTTP_MODE=true`.
 - `src/bin/ace-gateway-http.ts` and `ace-context-bridge.ts` import the former composition root; removing the old binary without preserving the composition root breaks both. Preserve internal source indexing, search and context projection.
 - `package.json` pins optional tool-server/client SDK packages, `Dockerfile.ace` and k3s deploy a stdio-server, and benchmark scripts/configs collect optional tool calls.
 - Graphiti currently uses its own tool-protocol client adapter; it is not the agent-facing Gateway. Eliminating its backend protocol must not be disguised as a successful Graphiti replacement. Do not assert temporal graph capabilities when the provider is disconnected.
@@ -28,4 +30,4 @@
 - SEC: no additional network egress or raw prompt logging; deny checks intact; explicit NOT_READY on unavailable providers.
 - PLAN: exact removed files/symbols/commands, regression tests, merged-base CI, remaining unsupported services.
 
-**No direct main mutation.** Commit the correction on a branch, verify with focused CI, then review/merge. This is an explicit owner-approved architectural decision; no further MCP-first compatibility requirement may override it.
+**No direct main mutation.** Commit the correction on a branch, verify with focused CI, then review/merge. This is an explicit owner-approved architectural decision; no further retired optional tool-call protocol-first compatibility requirement may override it.

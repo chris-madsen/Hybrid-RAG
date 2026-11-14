@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # SDLC-QG2 architecture fitness rule selection
 
 **Date:** 2026-11-10  
@@ -33,21 +35,21 @@ Decision:
 - do **not** ban `node:*` in this PR; current accepted domain code uses it.
 - do **not** add a broad application→adapter ban; current accepted application code contains explicit adapter imports, including `graphiti-lifecycle-gate.ts` and `retained-memory.ts`.
 
-### MCP explicit-tool plane vs Gateway Projection plane
+### retired optional tool-call protocol explicit-tool plane vs Gateway Projection plane
 
 Accepted authority:
-- ADR-014: MCP is the explicit tool-call plane; model-bound delivery uses native/gateway paths.
-- ADR-017 `ace-bifrost-gateway-protocol`: Bifrost/Gateway Projection is a separate delivery mechanism alongside MCP explicit tools.
-- `docs/docs/architecture/07-architecture-fitness-contracts.md` repeats that MCP conformance proves explicit tools, not automatic model-bound context injection.
+- ADR-014: retired optional tool-call protocol is the explicit tool-call plane; model-bound delivery uses native/gateway paths.
+- ADR-017 `ace-bifrost-gateway-protocol`: Bifrost/Gateway Projection is a separate delivery mechanism alongside retired optional tool-call protocol explicit tools.
+- `docs/docs/architecture/07-architecture-fitness-contracts.md` repeats that retired optional tool-call protocol conformance proves explicit tools, not automatic model-bound context injection.
 
 Current code:
-- `src/transport/mcp-sdk-stdio.ts` imports the MCP server SDK and `../gateway/mcp-gateway.js`; it does not import Gateway Projection domain/service/transport modules.
-- `src/transport/gateway-projection-http.ts` imports HTTP + Gateway Projection domain types; it does not import MCP SDK, `mcp-gateway`, or `mcp-sdk-stdio`.
+- `src/transport/retired-tool-protocol-sdk-stdio.ts` imports the retired optional tool-call protocol server SDK and `../gateway/retired-tool-protocol-gateway.js`; it does not import Gateway Projection domain/service/transport modules.
+- `src/transport/gateway-projection-http.ts` imports HTTP + Gateway Projection domain types; it does not import retired optional tool-call protocol SDK, `retired-tool-protocol-gateway`, or `retired-tool-protocol-sdk-stdio`.
 
 Decision:
 - encode both dependency directions separately so accidental plane collapse is visible:
-  - MCP stdio transport must not import Gateway Projection domain/application/transport modules.
-  - Gateway Projection HTTP transport must not import MCP SDK/MCP gateway/MCP stdio transport.
+  - retired optional tool-call protocol stdio transport must not import Gateway Projection domain/application/transport modules.
+  - Gateway Projection HTTP transport must not import retired optional tool-call protocol SDK/retired optional tool-call protocol gateway/retired optional tool-call protocol stdio transport.
 
 These are intentionally narrow import-edge rules. They do not claim that no shared domain/application code may ever serve both planes.
 
@@ -61,27 +63,27 @@ These are intentionally narrow import-edge rules. They do not claim that no shar
 
 **Repair hint:** move provider/I/O dependency behind an application port and keep provider implementation in adapters.
 
-### ACE-ARCH-002 — mcp-transport-no-gateway-projection-import
+### ACE-ARCH-002 — retired-tool-protocol-transport-no-gateway-projection-import
 
-**Invariant:** `src/transport/mcp-sdk-stdio.ts` must not directly import:
+**Invariant:** `src/transport/retired-tool-protocol-sdk-stdio.ts` must not directly import:
 - `../domain/gateway-projection.js`;
 - `../application/gateway-projection-service.js`;
 - `./gateway-projection-http.js`.
 
 **Owner source:** ADR-014/017 plane separation.
 
-**Repair hint:** keep explicit MCP tool transport on MCP contracts; share only a lower neutral domain/application abstraction if behavior is genuinely common.
+**Repair hint:** keep explicit retired optional tool-call protocol tool transport on retired optional tool-call protocol contracts; share only a lower neutral domain/application abstraction if behavior is genuinely common.
 
-### ACE-ARCH-003 — gateway-transport-no-mcp-import
+### ACE-ARCH-003 — gateway-transport-no-retired-tool-protocol-import
 
 **Invariant:** `src/transport/gateway-projection-http.ts` must not directly import:
 - `@modelcontextprotocol/*`;
-- `../gateway/mcp-gateway.js`;
-- `./mcp-sdk-stdio.js`.
+- `../gateway/retired-tool-protocol-gateway.js`;
+- `./retired-tool-protocol-sdk-stdio.js`.
 
 **Owner source:** ADR-014/017 plane separation.
 
-**Repair hint:** keep model-bound Gateway Projection transport independent from MCP framing/tool transport.
+**Repair hint:** keep model-bound Gateway Projection transport independent from retired optional tool-call protocol framing/tool transport.
 
 ## Why the suggested provider-failure rule is not in 1.0
 
@@ -127,12 +129,12 @@ architecture/
   sgconfig.yml
   rules/
     ace-domain-no-adapter-import.yml
-    ace-mcp-transport-no-gateway-projection-import.yml
-    ace-gateway-transport-no-mcp-import.yml
+    ace-retired-tool-protocol-transport-no-gateway-projection-import.yml
+    ace-gateway-transport-no-retired-tool-protocol-import.yml
   rule-tests/
     ace-domain-no-adapter-import-test.yml
-    ace-mcp-transport-no-gateway-projection-import-test.yml
-    ace-gateway-transport-no-mcp-import-test.yml
+    ace-retired-tool-protocol-transport-no-gateway-projection-import-test.yml
+    ace-gateway-transport-no-retired-tool-protocol-import-test.yml
 ```
 
 Package scripts:

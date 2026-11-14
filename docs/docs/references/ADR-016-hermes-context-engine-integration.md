@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-016 — Hermes ContextEngine как основной путь интеграции ACE
 
 **Статус:** Accepted direction; implementation and evidence pending
@@ -6,7 +8,7 @@
 
 ## Решение
 
-Для текущего Hermes feedback loop ACE не должен передавать обязательный контекст через MCP tool call. MCP остаётся дополнительной плоскостью для явных операций: `ace_expand`, диагностика и операторские запросы.
+Для текущего Hermes feedback loop ACE не должен передавать обязательный контекст через retired optional tool-call protocol tool call. retired optional tool-call protocol остаётся дополнительной плоскостью для явных операций: `ace_expand`, диагностика и операторские запросы.
 
 Основной путь — Hermes `ContextEngine.select_context(...)`, который выполняется перед provider request и возвращает request-only представление контекста. Durable Hermes transcript и исходная история сессии не переписываются.
 
@@ -14,7 +16,7 @@
 
 ## Граница интеграции
 
-ACE предоставляет прямой локальный JSONL bridge, не зависящий от MCP transport:
+ACE предоставляет прямой локальный JSONL bridge, не зависящий от retired optional tool-call protocol transport:
 
 ```text
 Hermes ContextEngine
@@ -62,7 +64,7 @@ ContextEngine.select_context(request_messages, conversation_messages, incoming_m
 - ACE управляет фактическим model context, а не ждёт добровольного tool call.
 - Durable transcript и request projection разделены.
 - Retrieval остаётся в ACE и не дублируется Python plugin’ом.
-- MCP сохраняет полезность для exact expansion и диагностики.
+- retired optional tool-call protocol сохраняет полезность для exact expansion и диагностики.
 
 Цена:
 

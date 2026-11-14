@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Stage 0 Baseline — ACE real-provider closure
 
 **Date:** 2026-10-19
@@ -64,7 +66,7 @@ The PyTorch result is the strongest result on this tiny holdout but is slower an
 2. The measured FastEmbed multilingual candidate is wired for exploratory Qdrant E2E in a model-versioned collection. Production selection still requires the larger holdout, model/license/digest review and owner approval.
 3. Compare Serena with direct TypeScript Language Service on identical fixtures before making a production LSP recommendation.
 4. The Vertex Europe corpus is intentionally empty and owner-authorized. The authenticated corpus/retrieveContexts validation is recorded in `2026-10-19-vertex-gcloud-corpus-validation.md`; keep the corpus. Private-document upload remains separately permissioned.
-5. Continue Graphiti MCP extraction immediately with a supported **local-only experimental** LLM/inference configuration selected by Codex; no additional owner model choice is required for the experiment. FalkorDB health alone is not Graphiti extraction evidence.
-6. Begin Harbor exploratory paired runs only after the actual MCP/provider composition and trace parser are available.
+5. Continue Graphiti retired optional tool-call protocol extraction immediately with a supported **local-only experimental** LLM/inference configuration selected by Codex; no additional owner model choice is required for the experiment. FalkorDB health alone is not Graphiti extraction evidence.
+6. Begin Harbor exploratory paired runs only after the actual retired optional tool-call protocol/provider composition and trace parser are available.
 
 No production-readiness or 5× claim is made by this baseline.

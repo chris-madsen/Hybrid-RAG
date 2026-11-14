@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Quality Gates — single-agent reviewer and CI implementation policy
 
 ## Role
@@ -94,7 +96,7 @@ Never add a regex search as an alleged type-aware LSP/SCIP proof. Never infer eg
 | Secret scan | one maintained scanner, redacted | hand-written heuristic |
 | Workflow security | zizmor/actionlint, pinned | relying on model advice alone |
 | Dead exports/dependencies | Knip report-only then scoped gate | deleting dynamic entrypoints unreviewed |
-| API/OpenAPI | TypeSpec/Vacuum/Schemathesis only when actual versioned HTTP API | duplicating MCP/Zod ownership |
+| API/OpenAPI | TypeSpec/Vacuum/Schemathesis only when actual versioned HTTP API | duplicating retired optional tool-call protocol/Zod ownership |
 | Qdrant/memory | state schema and real-provider contracts | Postgres/Ent schemalens |
 | Multiple agent resource contention | measured worktree isolation, optional Heavy | adding new daemon for one agent |
 | Multi-language toolchain | pinned existing CI, mise pilot if needed | unconditional rewrite of Makefile |

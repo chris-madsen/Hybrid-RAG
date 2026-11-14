@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Plan: compose Aider RepoMap + ast-grep CST/AST + real LSP + Qdrant into a smaller ACE retrieval path
 
 **Date:** 2026-10-26  
@@ -378,7 +380,7 @@ Hermes must receive the ACE projection only when it replaces more expensive hist
 | `src/adapters/qdrant-context-provider.ts` (~62 KB) | **DECOMPOSE/DELETE MOST** — Qdrant adapter, sync, LSP enrichment, source verification and context assembly must not live in one file. |
 | Qdrant portion of `src/adapters/http-provider-boundaries.ts` | **REPLACE** with official Qdrant JS client. Keep unrelated Vertex/Graphiti code only if still required elsewhere. |
 | `src/adapters/node-workspace-port.ts` | **KEEP path safety/exact read; REMOVE full-repo hashing from query hot path.** |
-| `src/bin/ace-mcp.ts` (~52 KB) | **SHRINK** — composition/config only; no giant index lifecycle. |
+| `src/bin/ace-retired-tool-protocol.ts` (~52 KB) | **SHRINK** — composition/config only; no giant index lifecycle. |
 | benchmark three/four-arm generations | **NO NEW WORK** until one real Hermes A/B works. |
 | PR #175 linear-index + dense/sparse fixes | **KEEP** as correct tactical fixes; batch CLI is transitional if NAPI lands. |
 

@@ -1,12 +1,14 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — Контракты, интеграции и Deployment Sketch
 
-**Статус:** Proposed technical design. Контракты ниже — **логические**, а не обнаруженные API Qdrant/Vertex/Harbor/Codex. При реализации проверить версии библиотек и MCP tool schema. Физический data model и SDK DTO остаются adapter-specific.
+**Статус:** Proposed technical design. Контракты ниже — **логические**, а не обнаруженные API Qdrant/Vertex/Harbor/Codex. При реализации проверить версии библиотек и retired optional tool-call protocol tool schema. Физический data model и SDK DTO остаются adapter-specific.
 
 ## 1. Инварианты границ
 
-**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. MCP remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
+**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. retired optional tool-call protocol remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
 
-1. **Раздельные плоскости:** model-bound context via planned Bifrost → ACE Gateway Projection API (ADR-017) or existing native Hermes ContextEngine (ADR-016); MCP — only existing explicit tool calls, not mandatory LLM context injection. LangGraph schedules agents externally.
+1. **Раздельные плоскости:** model-bound context via planned Bifrost → ACE Gateway Projection API (ADR-017) or existing native Hermes ContextEngine (ADR-016); retired optional tool-call protocol — only existing explicit tool calls, not mandatory LLM context injection. LangGraph schedules agents externally.
 2. Выполнение кодовых правок и контроль Git остаются за Codex; ACE **read-only** относительно файлов проекта (кроме своих индексов/архивов).
 3. Порты не импортируют типы Qdrant/Vertex/Graphiti в домен.
 4. `RepoPath` не может выйти из разрешённого root после canonicalization (включая symlinks).
@@ -14,7 +16,7 @@
 6. Все большие оригиналы доступны без потерь; handles должны быть неугадываемыми/access-scoped и протухать/перепроверяться.
 7. Evidence provenance и certainty сохраняются в каждом переходе; LLM-generated summary не становится `source`.
 
-## 2. MCP Tool Surface — explicit tool calls (not automatic model-context injection)
+## 2. retired optional tool-call protocol Tool Surface — explicit tool calls (not automatic model-context injection)
 
 | Tool | Аргументы | Результат | Контроль |
 |---|---|---|---|
@@ -23,7 +25,7 @@
 | `ace_memory_search` | `workspace_id`, `query`, optional `as_of`, `include_original` | Episodes + decision timeline + primary refs | Только доступные/подтверждённые категории |
 | `ace_workspace_status` | `workspace_id` | observed epoch, index freshness, incomplete sources | Не объявлять stale индекс текущим |
 
-`ace_context` должен быть достаточным для common tasks. Специальные инструменты drill-down не заменяют свойство unified retrieval. API MCP проходит schema validation; подсказки в тексте выдачи не могут вызвать произвольные операции.
+`ace_context` должен быть достаточным для common tasks. Специальные инструменты drill-down не заменяют свойство unified retrieval. API retired optional tool-call protocol проходит schema validation; подсказки в тексте выдачи не могут вызвать произвольные операции.
 
 ## 3. Версионированный ContextBundle (draft contract)
 
@@ -105,7 +107,7 @@ Security logs: `occurred_at, correlation_id, component, category, policy_version
 
 ## 6. Sync / async boundaries
 
-**Sync within authorized context request (native, planned gateway or explicit MCP tool):** workspace/policy check, retrieval planning, candidate fetch, live hash check, selective AST/LSP resolve, merge and bundle delivery. При конфликте файлов состояние маркируется.
+**Sync within authorized context request (native, planned gateway or explicit retired optional tool-call protocol tool):** workspace/policy check, retrieval planning, candidate fetch, live hash check, selective AST/LSP resolve, merge and bundle delivery. При конфликте файлов состояние маркируется.
 
 **Async outside request:** index construction/refresh, session import, Graphiti projection, Harbor run aggregation. Event retry idempotent; не ждать Graphiti ingestion во время каждого `ace_context`.
 
@@ -119,8 +121,8 @@ flowchart TB
   AG -->|"LLM endpoint: planned"| BF["Bifrost + thin Go ACE connector: planned"]
   BF -->|"Projection API: planned"| ACE["ACE modular monolith / TS+Effect"]
   BF -->|"Provider request"| LLM["LLM provider"]
-  AG -.->|"Explicit MCP tools: existing"| MCP["ACE MCP tool facade"]
-  MCP --> ACE
+  AG -.->|"Explicit retired optional tool-call protocol tools: existing"| retired optional tool-call protocol["ACE retired optional tool-call protocol tool facade"]
+  retired optional tool-call protocol --> ACE
   HE["Hermes ContextEngine: existing"] -->|"Native JSONL bridge"| ACE
   ACE --> Q["Qdrant"]
   ACE --> T["ast-grep / LSP"]
@@ -147,7 +149,7 @@ flowchart TB
 
 ## 9. Versioning и migrations
 
-- `ContextBundle.schema_version` и domain events имеют версии; backward compatibility tests для MCP tool consumers.
+- `ContextBundle.schema_version` и domain events имеют версии; backward compatibility tests для retired optional tool-call protocol tool consumers.
 - Индекс содержит `embeddingProfileVersion`, `parserVersion`, `repo revision` и `generationId`; смена профиля требует нового generation.
 - История Graphiti extraction версионируется; смена extractor не меняет raw archive, только derived projection.
 - Test fixtures/Harbor/Codex/provider model versions замораживаются в run manifest.
@@ -175,17 +177,17 @@ CPU/memory-heavy code-intelligence операций; Python остаётся в�
 
 ## Implementation correction — executable composition and proof (proposed, 2026-10-18)
 
-1. **Production bootstrap contract:** `ace_context` must be exposed by a standards-compliant **official MCP TypeScript SDK**, then use an explicit effect/runtime wiring graph with chosen, configured Qdrant, measured genuine embedding provider, Tree-sitter structural analysis, and approved LSP when relevant. Vertex and Graphiti are routed only on appropriate authorized requests; an unavailable unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
+1. **Production bootstrap contract:** `ace_context` must be exposed by a standards-compliant **official retired optional tool-call protocol TypeScript SDK**, then use an explicit effect/runtime wiring graph with chosen, configured Qdrant, measured genuine embedding provider, Tree-sitter structural analysis, and approved LSP when relevant. Vertex and Graphiti are routed only on appropriate authorized requests; an unavailable unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
 2. **Provider truth:** attach `provider_id`, `version`, `status`, `source_digest`, `range`, `evidence_method`, and internal trace/call receipts to every claimed real-provider integration. Runtime receipts may be logged in a secret-safe test channel rather than exposed as user text. Do not silently substitute regex/whole-file candidates for AST spans or hash vectors for embeddings.
 3. **Completeness:** compute `complete` from the **required** retrieval plan (covered/failed/skipped-by-policy per source) and source verification; a missing required backend makes the bundle partial even when other evidence is current.
 4. **Relevance vs losslessness:** first response provides accurate minimal relevant spans without arbitrary mandatory token ceilings; exact full file/2000-line artifact remains retrievable with an authorized handle. Returning every entire file per lexical symbol is a retrieval-quality failure, not compliance with ADR-006.
 5. **Failure isolation:** technical outage can use labelled local fallback with partial provenance; security denial is fail-closed and audited. Preserve cancellation, concurrency, SDK protocol compliance and immutable user worktree.
-6. **Stage gates:** component tests → real-provider integration → Codex/MCP E2E → Harbor attribution/quality/cost tests → owner acceptance. Unpassed gates are **not ready**; do not mark them `[x]` via a controlled exception. See `07-architecture-fitness-contracts.md` and OpenSpec `006-production-retrieval-vertical-slice`.
+6. **Stage gates:** component tests → real-provider integration → Codex/retired optional tool-call protocol E2E → Harbor attribution/quality/cost tests → owner acceptance. Unpassed gates are **not ready**; do not mark them `[x]` via a controlled exception. See `07-architecture-fitness-contracts.md` and OpenSpec `006-production-retrieval-vertical-slice`.
 
 
 ## 12. Accepted hybrid-context contract update — 2026-10-21
 
-ADR-014 supersedes the earlier “dense candidate store + optional extra tools” interpretation with an explicit **multi-layer hybrid Context Engine** while preserving the same MCP facade and trust boundaries.
+ADR-014 supersedes the earlier “dense candidate store + optional extra tools” interpretation with an explicit **multi-layer hybrid Context Engine** while preserving the same retired optional tool-call protocol facade and trust boundaries.
 
 ### Code retrieval
 
@@ -214,4 +216,4 @@ ContextBundle evolves to carry stable bundle/evidence receipts. A caller MAY pre
 
 ### Agent independence
 
-No editor-specific state is mandatory. IDE-aware clients may provide richer hints; CLI agents can use the same MCP contract with only workspace/query/source obligations. See ADR-014 and OpenSpec change 007.
+No editor-specific state is mandatory. IDE-aware clients may provide richer hints; CLI agents can use the same retired optional tool-call protocol contract with only workspace/query/source obligations. See ADR-014 and OpenSpec change 007.

@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE × Bifrost LLM Gateway — architecture and delivery plan
 
 **Status:** Proposed / design baseline. **Owner:** ACE. **Scope:** agent-independent context delivery, not a rewrite of ACE or of Bifrost.
@@ -10,7 +12,7 @@ The long-term goal is to run one ACE context-selection/compaction/retrieval impl
 
 The **ACE Context Protocol** (agent-independent) and **ACE Gateway Protocol** (Bifrost connector ↔ ACE service) are distinct contracts. Bifrost owns credentials, provider routing, HTTP transport, retry/fallback policy, and streaming. ACE owns evidence acquisition, memory, source provenance, context budget, projection compilation, and the associated receipts. The Go connector is a deliberately small protocol client, NOT a second ACE implementation.
 
-**No silent degradation:** a full-context route must produce an outbound verified projection or reject the request. An append-only or MCP fallback must be explicitly labelled as a lower capability tier.
+**No silent degradation:** a full-context route must produce an outbound verified projection or reject the request. An append-only or retired optional tool-call protocol fallback must be explicitly labelled as a lower capability tier.
 
 ## 1. Non-goals and boundaries
 
@@ -57,7 +59,7 @@ A route is identified by `(agent, agentVersion, ingressProtocol, provider, model
 | L3 native | Agent context hook | Can replace full provider-bound transcript with agent state; persisted transcript remains intact |
 | L2 gateway/verified | Bifrost connector | Can replace all **visible** provider-request content; final wire payload passes conformance and egress guards |
 | L2 gateway/limited | Bifrost connector | Selected fields can be rewritten but opaque provider state or conversions limit control; explicitly reported |
-| L1 assist | MCP/skills/context files | Agent chooses if/when to use retrieved context; NOT full replacement |
+| L1 assist | retired optional tool-call protocol/skills/context files | Agent chooses if/when to use retrieved context; NOT full replacement |
 | L0 observe | Telemetry only | No intervention |
 
 The route registry must declare:

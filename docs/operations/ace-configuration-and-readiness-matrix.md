@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE configuration and readiness matrix
 
 **Status:** operational reference. This document describes what the current runtime can do and, just as importantly, what each configuration is allowed to claim.
@@ -8,8 +10,8 @@ ACE has no `PRODUCTION=true` switch. Provider flags enable code paths; they do n
 
 | Mode | Key configuration | Expected capability state | Allowed claim |
 | --- | --- | --- | --- |
-| Offline / provider-disabled | `ACE_ENABLE_EXPERIMENTAL_QDRANT=false` | code/unified context `not_ready` | MCP process/tool surface exists; no code retrieval readiness |
-| Provider unavailable | Qdrant/embedding/structural provider is unavailable | code/unified context `not_ready` | No lexical substitute is composed into the production MCP runtime |
+| Offline / provider-disabled | `ACE_ENABLE_EXPERIMENTAL_QDRANT=false` | code/unified context `not_ready` | retired optional tool-call protocol process/tool surface exists; no code retrieval readiness |
+| Provider unavailable | Qdrant/embedding/structural provider is unavailable | code/unified context `not_ready` | No lexical substitute is composed into the production retired optional tool-call protocol runtime |
 | Real local retrieval composition | `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` plus Qdrant, embedding worker, ast-grep and LSP runtime | `ready` only after real startup preflights and complete index coverage; otherwise `degraded/not_ready` | measured real-provider path; still not production-approved merely because it starts |
 | Temporal memory enabled | `ACE_ENABLE_GRAPHITI=true` plus archive, local Graphiti command/args/group | memory starts `degraded` until the real provider lifecycle is proven | local temporal-memory integration is available; production memory requires real lifecycle/deletion/recovery evidence |
 | Vertex documentation enabled | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true`, project/corpus config | documentation configured as `degraded` until real retrieval evidence exists | explicitly authorized documentation retrieval only; source code remains current-behavior truth |
@@ -20,7 +22,7 @@ A green process is not the same thing as a ready provider. `ace_workspace_status
 
 ## Startup failure disposition
 
-ACE intentionally distinguishes failures that make the process configuration itself unsafe from provider/capability failures that can be represented truthfully while the MCP process stays alive.
+ACE intentionally distinguishes failures that make the process configuration itself unsafe from provider/capability failures that can be represented truthfully while the retired optional tool-call protocol process stays alive.
 
 | Failure class | Process behavior | Capability/readiness behavior | Operator meaning |
 | --- | --- | --- | --- |
@@ -29,7 +31,7 @@ ACE intentionally distinguishes failures that make the process configuration its
 | Transient embedding/provider timeout or unavailable startup probe | process stays alive | code/unified context = `not_ready` | retry/reconcile is required; provider failure is never promoted to `ready` |
 | Corrupt workspace/provider identity state or semantic snapshot identity race | **fatal** — startup exits non-zero | no current-source claim | continuing could break source/provider truth |
 | Selected LSP construction/preflight failure after the configured real composition is being built | **fatal** for an invalid/corrupt semantic snapshot; otherwise `not_ready` for a transient provider outage | no selected semantic-provider claim | selected semantic contract is unavailable; exact bytes may remain citable without current semantic confirmation |
-| Qdrant collection unavailable with fallback disabled | process stays alive | code/unified context = `not_ready` | MCP/tool surface may still report status; code retrieval is unavailable |
+| Qdrant collection unavailable with fallback disabled | process stays alive | code/unified context = `not_ready` | retired optional tool-call protocol/tool surface may still report status; code retrieval is unavailable |
 | Qdrant collection unavailable with explicit local fallback enabled | process stays alive | code/unified context = `degraded` if fallback index builds, otherwise `not_ready` | development fallback only; never production semantic readiness |
 | Required embedding/ast-grep executable missing before provider startup | process stays alive | code/unified context = `not_ready` | installation/runtime dependency missing |
 | Structural index build or Qdrant population failure | process stays alive | code/unified context = `not_ready` | provider path exists but current index could not be made trustworthy |
@@ -71,7 +73,7 @@ and per-source coverage. `denied`, `unavailable`, `empty`, `partial`, and
 The current real local composition is:
 
 ```text
-MCP -> ace_context
+retired optional tool-call protocol -> ace_context
     -> embedding worker
     -> Qdrant
     -> exact workspace reread
@@ -114,11 +116,11 @@ For a release candidate, embedding identity must be pinned and match the worker'
 ACE_REQUIRE_PINNED_EMBEDDING=true
 ```
 
-and the configured model/artifact revision and digest values required by `ace-mcp.ts`. Production approval is still a separate evidence/owner decision.
+and the configured model/artifact revision and digest values required by `ace-retired-tool-protocol.ts`. Production approval is still a separate evidence/owner decision.
 
 For each workspace and embedding identity, ACE publishes a verified immutable Qdrant collection and exposes it through the native `..._current` alias. The collection name includes the effective provider/model/artifact digest, preprocessing, execution mode, runtime build/version and source `index_key`. A requested environment label therefore cannot place a different loaded artifact/runtime into the same collection namespace. The alias is the only read surface used by the production runtime; an unverified collection is never made current.
 
-The production MCP runtime has no lexical fallback switch. Qdrant, embedding or structural-provider failure remains `not_ready`; local lexical providers are test/spike-only and cannot satisfy a production retrieval gate.
+The production retired optional tool-call protocol runtime has no lexical fallback switch. Qdrant, embedding or structural-provider failure remains `not_ready`; local lexical providers are test/spike-only and cannot satisfy a production retrieval gate.
 
 ### Qdrant publication and cleanup
 
@@ -151,7 +153,7 @@ Graphiti is local-first and independently enabled:
 ```bash
 ACE_ENABLE_GRAPHITI=true
 ACE_MEMORY_ARCHIVE_ROOT=/absolute/local/archive
-ACE_GRAPHITI_COMMAND=<supported-local-graphiti-mcp-command>
+ACE_GRAPHITI_COMMAND=<supported-local-graphiti-retired-tool-protocol-command>
 ACE_GRAPHITI_ARGS_JSON='[...]'
 ACE_GRAPHITI_GROUP_ID=<workspace-scoped-group>
 ```

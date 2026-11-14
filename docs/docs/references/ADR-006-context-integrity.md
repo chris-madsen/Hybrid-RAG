@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-006 — Context Bundle: relevance-first без потери длинного созданного кода
 
 **Статус:** **Accepted**  
@@ -18,9 +20,9 @@
 1. Выдавать **структурированный Context Bundle**: релевантные символы, диапазоны, связи, источники, revision/freshness, неопределённость; давать возможность запросить детали.
 2. **Не вводить обязательный фиксированный лимит в N токенов** для контекста. Основная оптимизация: `relevance-first` retrieval, дедупликация, проверка свежести и progressive disclosure, а не механическое обрезание.
 3. **Длинный написанный/изменённый агентом код — защищённый артефакт.** Его нельзя молча truncate, суммаризировать вместо сохранения, заменять неполным патчем или терять при переходе через итерации.
-4. **Полный текст созданных файлов/патчей должен сохраняться точно** в рабочем дереве/надёжном артефакте. При необходимости представление в MCP может содержать ссылку и диапазон для последующего **побайтно полного** извлечения; если требуется полный вывод, инструмент должен позволять вернуть его целиком или lossless-страницами с явными маркерами продолжения.
+4. **Полный текст созданных файлов/патчей должен сохраняться точно** в рабочем дереве/надёжном артефакте. При необходимости представление в retired optional tool-call protocol может содержать ссылку и диапазон для последующего **побайтно полного** извлечения; если требуется полный вывод, инструмент должен позволять вернуть его целиком или lossless-страницами с явными маркерами продолжения.
 5. Защитные пределы допускаются только против патологических событий (например, рекурсивный бесконечный обход, гигантский log dump). Они не должны молча обрезать пользовательский исходник, корректный тестовый результат, содержательный патч или изменять семантику.
-6. Изменение/сжатие **истории модели** невозможно гарантировать только MCP: харнесс контролирует собственные выдачи и сохранённые источники, а не внутренний контекстный механизм Codex. Любая более глубокая интеграция — предмет исследования ADR-001.
+6. Изменение/сжатие **истории модели** невозможно гарантировать только retired optional tool-call protocol: харнесс контролирует собственные выдачи и сохранённые источники, а не внутренний контекстный механизм Codex. Любая более глубокая интеграция — предмет исследования ADR-001.
 
 ## Альтернативы
 
@@ -48,8 +50,8 @@
 
 Progressive disclosure must reduce not only initial payload size but also **repeated transmission of unchanged evidence**.
 
-ACE SHALL evolve ContextBundle delivery so that stable bundle/evidence identities can be acknowledged by an MCP client. When unchanged evidence is already known, ACE SHOULD return a compact reference instead of resending the same body. Changed/new evidence is delivered normally; exact original bytes remain available through `ace_expand`.
+ACE SHALL evolve ContextBundle delivery so that stable bundle/evidence identities can be acknowledged by an retired optional tool-call protocol client. When unchanged evidence is already known, ACE SHOULD return a compact reference instead of resending the same body. Changed/new evidence is delivered normally; exact original bytes remain available through `ace_expand`.
 
-This is distinct from embedding cache reuse: embedding reuse saves indexing compute, while context receipts/delta delivery save MCP/model-input bytes. No hidden mandatory token cap is introduced.
+This is distinct from embedding cache reuse: embedding reuse saves indexing compute, while context receipts/delta delivery save retired optional tool-call protocol/model-input bytes. No hidden mandatory token cap is introduced.
 
 See ADR-014 and OpenSpec change 007.

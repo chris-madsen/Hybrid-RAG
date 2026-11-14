@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE Hybrid Context evidence update — 2026-10-21
 
 This update records the post-merge H3–H5 review without rewriting the earlier
@@ -14,7 +16,7 @@ historical evidence documents.
 | Area | State | Evidence |
 |---|---|---|
 | H3 Git history | implemented + contracted | `ea6ca3f` is present in current `main`; history evidence is routed as an explicit source |
-| H4 receipt portability | implemented + contract-tested | independent MCP client/server instances; unchanged, changed digest/range/content, unknown/stale receipts; exact UTF-8/base64 expansion |
+| H4 receipt portability | implemented + contract-tested | independent retired optional tool-call protocol client/server instances; unchanged, changed digest/range/content, unknown/stale receipts; exact UTF-8/base64 expansion |
 | H5 source-aware delivery dedupe | implemented + contract-tested | one canonical path in `context-delivery.ts`; exact digest-verified code span only; aliases preserve suppressed evidence IDs; docs/memory and conflicting claims remain separate |
 | Retrieval quality gate | implemented + contract-tested | optional same-holdout baseline comparison; dense-only baseline can fail candidate critical Recall@5, MRR or nDCG@5 regressions before compactness/latency is considered |
 | Frozen retrieval holdout | frozen artifact prepared, not scored | `benchmarks/retrieval/frozen-multi-repository-v1.json`; ACE `4c1d6aa`, Chess `23a7bb6b`; 24 cases, 12 per repository; holdout SHA-256 `e147d03f626acedcb311b55ecf7604db13d9e5ebd3ff3bedbcd492823fe00a23` |
@@ -37,7 +39,7 @@ Using the isolated Linux Node runtime with the repository lockfile:
 - `npm exec -- eslint src/domain/context-delivery.ts src/domain/retrieval.ts test/context-receipt-portability.contracts.test.ts test/evidence-dedupe.contracts.test.ts --max-warnings=0` — PASS.
 - Full `npm run test` — 355 PASS, 5 FAIL. The failures are existing
   environment/provider-process checks involving TypeScript language-server
-  subprocess availability and MCP readiness provider startup; no H4/H5 test
+  subprocess availability and retired optional tool-call protocol readiness provider startup; no H4/H5 test
   failed. The full suite is therefore not a release-green result.
 
 ## Still open

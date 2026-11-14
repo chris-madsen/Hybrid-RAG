@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Contract-first code generation — Sphericon lessons applied to ACE
 
 **Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document proposes actual generation coverage and gates; no TypeSpec generator is installed by writing it.
@@ -13,7 +15,7 @@ Their \`mise run generate\` sequence covers:
 4. **Ent** storage schema → generated ORM, scoped clients and storage models.
 5. **Goverter** converts server/API DTOs ↔ storage types from **hand-written converter interface declarations**; generated implementations fail when mappings are missing. Enum transformers require explicit handling rather than silent casts.
 6. \`moq\` generates test doubles from interfaces; fixture and configuration references have code generators.
-7. Typed **TypeSpec decorators** express scopes/permissions, "untrusted" and MCP operation metadata. A custom generator creates permission/scope tables; tests validate decorator usage and emitted contract extensions.
+7. Typed **TypeSpec decorators** express scopes/permissions, "untrusted" and retired optional tool-call protocol operation metadata. A custom generator creates permission/scope tables; tests validate decorator usage and emitted contract extensions.
 8. \`.gitattributes\` identifies generated output; \`check-generated.ts\` validates header→attribute and attribute→file consistency.
 9. CI checks generated drift, contract semantics, architecture and permission requirements; generator output is not edited by hand.
 
@@ -23,7 +25,7 @@ Their \`mise run generate\` sequence covers:
 
 | Layer | Generation target | Candidate approach | Ownership / proof |
 |---|---|---|---|
-| Protocol source | versioned Gateway Projection HTTP, MCP JSON messages, Hermes native envelope | \`typespec/\` authoring, shared models and official emitters | **TypeSpec** for wire, OpenSpec for behavioral requirements |
+| Protocol source | versioned Gateway Projection HTTP, retired optional tool-call protocol JSON messages, Hermes native envelope | \`typespec/\` authoring, shared models and official emitters | **TypeSpec** for wire, OpenSpec for behavioral requirements |
 | Protocol artifacts | OpenAPI and JSON Schema | \`@typespec/openapi3\`, \`@typespec/json-schema\`, pinned | deterministic compiler output |
 | Typed clients | HTTP request/response DTOs, operations, client SDK | maintained OpenAPI→TS client generator, assess \`@hey-api/openapi-ts\` | generated files, wire compatibility |
 | Server surface | typed handler signature, operation IDs, routing adapter scaffold | OpenAPI-aware TypeScript server generator or small **thin verified adapter**, after spike | handlers only; no domain decisions generated |
@@ -81,11 +83,11 @@ Given TypeSpec defines \`indexGenerationId\` on response:
 4. Fixture roundtrip: client SDK request → decoded type → Effect use case → pure domain result → mapper → encoder → SDK response.
 5. Check exact invalid/unknown/denied/unavailable variants and authorization metadata.
 6. Regenerate from a clean checkout and assert no diff or tracked output discrepancy; record both the PR source HEAD and the exact commit CI checked out/tested (a synthetic merge SHA is valid but must be labeled as such).
-7. Provider E2E is independent: mock and schema codegen cannot prove real Bifrost/MCP/Hermes integration.
+7. Provider E2E is independent: mock and schema codegen cannot prove real Bifrost/retired optional tool-call protocol/Hermes integration.
 
 ## Recommended staged implementation in ACE
 
-**TS-00: inventory and authority.** Audit current MCP schema definitions, Hermes JSONL, Bifrost Gateway Projection API, Effect domain DTOs and error contracts. Decide explicit canonical schema owners and current-version baseline. Do not overwrite existing runtime.
+**TS-00: inventory and authority.** Audit current retired optional tool-call protocol schema definitions, Hermes JSONL, Bifrost Gateway Projection API, Effect domain DTOs and error contracts. Decide explicit canonical schema owners and current-version baseline. Do not overwrite existing runtime.
 
 **TS-01: HTTP thin vertical slice.** Pin TypeSpec compiler/emitters and one maintained TS OpenAPI client generator. Define one Gateway Projection operation, generate its wire model and SDK, implement thin server adapter and explicit DTO→ADT mapping. Compare exact old/new wire output.
 
@@ -93,7 +95,7 @@ Given TypeSpec defines \`indexGenerationId\` on response:
 
 **TS-03: policy/schema metadata.** If TypeSpec decorators are appropriate, define types for access scope, data classification and trusted/untrusted transfer. Generate metadata table **only after** proving a supported compile/emitter path. Enforce at actual application send-time as an independent negative-test gate.
 
-**TS-04: MCP/native bridge.** TypeSpec JSON Schema → tested mapping to official MCP SDK schemas; Hermes versioned message mapper; no claim of native MCP emitter without proof. Test protocol-specific wire variants; keep gateway and explicit MCP planes distinct.
+**TS-04: retired optional tool-call protocol/native bridge.** TypeSpec JSON Schema → tested mapping to official retired optional tool-call protocol SDK schemas; Hermes versioned message mapper; no claim of native retired optional tool-call protocol emitter without proof. Test protocol-specific wire variants; keep gateway and explicit retired optional tool-call protocol planes distinct.
 
 **TS-05: generated artifact policy.** Generated output directory/header, \`.gitattributes\`, reproducible \`generate\` task, generated-diff check and schema compatibility gate. Include semantic tests for transport/permissions/mapping; ensure codegen changes are scope-aware in CI.
 
@@ -108,6 +110,6 @@ Given TypeSpec defines \`indexGenerationId\` on response:
 - **TSP-05** typed permission/scope metadata roundtrip **and actual runtime authorization negative tests**.
 - **TSP-06** backward compatibility against base main, explicit breaking version/owner decision.
 - **TSP-07** invalid JSON/unknown variant rejected by runtime decoder, no fabricated defaults.
-- **TSP-08** actual route/MCP/native adapter and provider E2E **distinct from pure codegen tests**.
+- **TSP-08** actual route/retired optional tool-call protocol/native adapter and provider E2E **distinct from pure codegen tests**.
 
 **Result:** a generated shell around a handwritten functional domain core, with hard failures for incomplete mapping and protocol drift — not just prettier interfaces.

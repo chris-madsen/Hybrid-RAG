@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Что ACE может позаимствовать из Xiaomi MiMo Code и Mi-Memory: подробный research/adoption plan
 
 > **Статус:** исследование, предлагаемая архитектура и экспериментальный план; **не Accepted ADR, не OpenSpec requirement и не отчёт об имплементации**.
@@ -52,7 +54,7 @@
 | Scheduling | [auto-dream.ts](https://github.com/XiaomiMiMo/MiMo-Code/blob/213365a0a3fd1ec0b171687d85bc453f05d33863/packages/cli/src/session/auto-dream.ts) | Default интервалы 7 / 30 дней **только если `dream.auto` / `distill.auto` включены**, плюс write gate | Опциональные scheduled passes, idempotent, disabled by default в ACE |
 | Memory write gate | [memory/write-gate.ts](https://github.com/XiaomiMiMo/MiMo-Code/blob/213365a0a3fd1ec0b171687d85bc453f05d33863/packages/cli/src/memory/write-gate.ts) | Единый предикат допуска записи, чтение отдельно | Централизованная data-policy проверка при каждом write |
 
-**Точная граница переноса:** MiMo управляет *собственным* runtime и знает момент compaction. ACE — **внешний agent-neutral MCP context provider**, поэтому не знает о заполнении контекстного окна клиента и не может принудительно пересобрать внутренние сообщения Codex/Claude по одному только MCP. Понадобятся добровольные client lifecycle hooks / адаптер либо явный вызов агентом функции resume. **Не обещать auto-checkpoint по 20/45/70% без подтверждённой телеметрии конкретного клиента.**
+**Точная граница переноса:** MiMo управляет *собственным* runtime и знает момент compaction. ACE — **внешний agent-neutral retired optional tool-call protocol context provider**, поэтому не знает о заполнении контекстного окна клиента и не может принудительно пересобрать внутренние сообщения Codex/Claude по одному только retired optional tool-call protocol. Понадобятся добровольные client lifecycle hooks / адаптер либо явный вызов агентом функции resume. **Не обещать auto-checkpoint по 20/45/70% без подтверждённой телеметрии конкретного клиента.**
 
 Также MiMo хранит **редактируемые** checkpoint.md/MEMORY.md, индексируя их. В ACE `immutable archive` остаётся authoritative, а checkpoint — **версионированная производная проекция**, которую можно пересчитать или отбросить. Нельзя буквально копировать “перезаписать MEMORY.md” как политику для ACE.
 
@@ -73,7 +75,7 @@
 ### 1.3. Разделение: наблюдение / предложение / подтверждение
 
 - **Upstream observed:** перечисленные исходники MiMo Code реально содержат указанные сущности, правила и интерфейсы.
-- **ACE observed:** существующий код и Accepted ADR фиксируют архив, Graphiti, decision states, source integrity и выдачу через MCP.
+- **ACE observed:** существующий код и Accepted ADR фиксируют архив, Graphiti, decision states, source integrity и выдачу через retired optional tool-call protocol.
 - **Proposed:** схемы `SessionCheckpoint`, `ResumeContext`, порты и тестовые пороги ниже — **наш дизайн-кандидат**. Их пока **нет** как production capability.
 - **Unverified:** выигрыш токенов, качество возобновления сессий, ускорение от FTS и польза Dream/Distill не измерены в этом исследовании.
 
@@ -85,18 +87,18 @@
 |---|---|---|---|
 | Immutable Codex episode archive | `src/adapters/codex-session-history.ts`, `src/adapters/file-memory-archive.ts` | Исходные эпизоды, digest, content-addressed bytes, tombstones | Не подменять checkpoint строкой истории |
 | Import / reliable graph projection | `src/application/memory-import.ts`, `src/application/memory-reconcile.ts`, `src/adapters/file-projection-outbox.ts` | Archive-first, retry, projection states | Использовать существующую семантику idempotency для новой производной записи |
-| Temporal factual memory | `src/adapters/graphiti-mcp.ts`, `src/domain/memory.ts` | Temporal search, эпизодное provenance, версионирование extracted facts | Не заменять на generic “summary facts”; запросы текущей задачи отличаются от temporal lookup |
+| Temporal factual memory | `src/adapters/graphiti-retired-tool-protocol.ts`, `src/domain/memory.ts` | Temporal search, эпизодное provenance, версионирование extracted facts | Не заменять на generic “summary facts”; запросы текущей задачи отличаются от temporal lookup |
 | Decision approval | `src/domain/memory.ts`, `src/adapters/file-decision-history.ts` | Proposed / Accepted / Rejected / Superseded, транзакции решений | Dream НЕ может автоматически создавать Accepted |
 | Memory admission/cost | `src/domain/memory-admission.ts`, `src/domain/memory-economics.ts`, соответствующие tests | Явный допуск проекций и экономические метрики | Связать proposed Dream с admission, считать writer tokens |
-| Context delivery | `src/domain/context-delivery.ts`, `src/gateway/mcp-gateway.ts` | Evidence IDs, compact projection, receipts, exact expansion | Добавить *оперативную* resume projection, не ломая ContextBundle |
-| MCP facade | `src/transport/mcp-sdk-stdio.ts` | `ace_context`, `ace_expand`, `ace_workspace_status`, `ace_memory_search` | В первой версии **не обязательно** вводить новый публичный MCP tool |
+| Context delivery | `src/domain/context-delivery.ts`, `src/gateway/retired-tool-protocol-gateway.ts` | Evidence IDs, compact projection, receipts, exact expansion | Добавить *оперативную* resume projection, не ломая ContextBundle |
+| retired optional tool-call protocol facade | `src/transport/retired-tool-protocol-sdk-stdio.ts` | `ace_context`, `ace_expand`, `ace_workspace_status`, `ace_memory_search` | В первой версии **не обязательно** вводить новый публичный retired optional tool-call protocol tool |
 | Agent feedback | [real feedback loop](../plans/ace-real-feedback-loop.md), Harbor tooling | Существует план и harness для natural-use проверок | Нет доказанного memory-resume выигрыша; сначала собрать baseline |
 
 **Обязательные архитектурные ограничения:**
 
 - [ADR-005](../docs/references/ADR-005-persistent-memory.md): byte-exact, immutable original Codex history; Graphiti local-first *derived* temporal memory; owner confirmation for major decisions; source-linked deletion/tombstone.
-- [ADR-006](../docs/references/ADR-006-context-integrity.md): начальная выдача компактна, но любые оригиналы и изменённые файлы должны быть recoverable losslessly; no silent truncation; MCP не контролирует internal compaction клиента.
-- [ADR-014](../docs/references/ADR-014-hybrid-context-engine.md): agent-neutral MCP, source freshness, Graphiti/Vertex/Qdrant distinct roles, receipts/delta, quality-first, buy-before-build.
+- [ADR-006](../docs/references/ADR-006-context-integrity.md): начальная выдача компактна, но любые оригиналы и изменённые файлы должны быть recoverable losslessly; no silent truncation; retired optional tool-call protocol не контролирует internal compaction клиента.
+- [ADR-014](../docs/references/ADR-014-hybrid-context-engine.md): agent-neutral retired optional tool-call protocol, source freshness, Graphiti/Vertex/Qdrant distinct roles, receipts/delta, quality-first, buy-before-build.
 - [root AGENTS.md](../../AGENTS.md): TS + Effect modular monolith, no unnecessary service/database, no cloud transfer of dialogues without authorization, retain real-provider evidence, PR workflow and owner gates.
 - Правила нормального *production* поведения — **только в последующем OpenSpec + при необходимости Proposed ADR**, не в данном исследовательском плане.
 
@@ -106,7 +108,7 @@
 
 ```text
 Codex / Claude Code / other agent
-  │  explicit lifecycle events or voluntary MCP calls
+  │  explicit lifecycle events or voluntary retired optional tool-call protocol calls
   │  [session/workspace/agent IDs, events, task state, optional telemetry]
   ▼
 ACE client adapter (optional; per client, no privileged assumption)
@@ -240,9 +242,9 @@ interface SessionCheckpointV1 {
 
 ### 5.3. Где интегрировать
 
-В ACE runtime создаётся новый typed port/adapter; client-specific hooks живут **за пределом domain**. Для первого эксперимента достаточно поддерживаемого Codex lifecycle adapter или explicit invocations, **не обещая**, что всякий MCP client автоматически позволит наблюдать своё compaction.
+В ACE runtime создаётся новый typed port/adapter; client-specific hooks живут **за пределом domain**. Для первого эксперимента достаточно поддерживаемого Codex lifecycle adapter или explicit invocations, **не обещая**, что всякий retired optional tool-call protocol client автоматически позволит наблюдать своё compaction.
 
-В production нельзя тихо регистрировать обязательный пятый MCP инструмент; если понадобится `ace_checkpoint`/`ace_resume`, описать capability/protocol в OpenSpec, проверить официальный MCP SDK и backward compatibility. Пока можно собрать proof с отдельным prototype adapter + существующими `ace_context`/`ace_memory_search` для исходников и памяти.
+В production нельзя тихо регистрировать обязательный пятый retired optional tool-call protocol инструмент; если понадобится `ace_checkpoint`/`ace_resume`, описать capability/protocol в OpenSpec, проверить официальный retired optional tool-call protocol SDK и backward compatibility. Пока можно собрать proof с отдельным prototype adapter + существующими `ace_context`/`ace_memory_search` для исходников и памяти.
 
 ---
 
@@ -497,14 +499,14 @@ Mi-Memory формулирует diagnostic/audit contract и “governed evolut
 |---|---|---|
 | Какие lifecycle events доступны в Codex и Claude Code? | G0 probe на актуальной версии, explicit fallback | **Open** |
 | Где хранить checkpoint: existing archive sidecar или отдельная derived projection? | Derived versioned object в существующей локальной storage boundary | **Open / benchmark** |
-| Нужен ли новый MCP tool? | Сначала клиентский spike; только затем OpenSpec contract | **Open** |
+| Нужен ли новый retired optional tool-call protocol tool? | Сначала клиентский spike; только затем OpenSpec contract | **Open** |
 | Насколько допустим model-based writer для private sessions? | Local-only opt-in + bounded calls; deterministic first | **Open / policy** |
 | FTS5 vs current Graphiti/grep/other maintained primitives? | Matched query evaluation, не создавать dependency заранее | **Open / evidence** |
 | Promotion durable knowledge? | Existing admission + explicit owner gate for major decisions | **Constrained by ADR-005** |
 | Scheduling Dream/Distill? | Manual/disabled by default до реальных нужд | **Open / owner** |
 | Какие criteria для rollout? | Quality/safety gates, paired tokens, verified rollback | **Open / evidence** |
 
-Предложить новый ADR только при **материальном** изменении authority, data storage semantics, event capture scope или публичного MCP protocol; иначе достаточно узкого OpenSpec change и эксперимента.
+Предложить новый ADR только при **материальном** изменении authority, data storage semantics, event capture scope или публичного retired optional tool-call protocol protocol; иначе достаточно узкого OpenSpec change и эксперимента.
 
 ---
 
@@ -550,7 +552,7 @@ Mi-Memory формулирует diagnostic/audit contract и “governed evolut
 - [Memory domain](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/21074994220272b4e4fc381333967bc9a80cc7b7/src/domain/memory.ts)
 - [Memory import](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/21074994220272b4e4fc381333967bc9a80cc7b7/src/application/memory-import.ts)
 - [Immutable file archive](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/21074994220272b4e4fc381333967bc9a80cc7b7/src/adapters/file-memory-archive.ts)
-- [Graphiti adapter](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/21074994220272b4e4fc381333967bc9a80cc7b7/src/adapters/graphiti-mcp.ts)
+- [Graphiti adapter](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/21074994220272b4e4fc381333967bc9a80cc7b7/src/adapters/graphiti-retired-tool-protocol.ts)
 - [Progressive context delivery](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/blob/21074994220272b4e4fc381333967bc9a80cc7b7/src/domain/context-delivery.ts)
 - [Real feedback loop](../plans/ace-real-feedback-loop.md)
 

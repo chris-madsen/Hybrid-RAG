@@ -46,21 +46,21 @@ PR #217–#219 — три последние узкие среза; их сум�
 | 19 | `contracts/ace-gateway/v1/projection-decision.schema.json` | `fcd537f1751d` feat: implement Bifrost gateway and Hermes ownership contracts (#168) / PR #168 | same | tracked/clean | = | U |
 | 20 | `contracts/ace-gateway/v1/projection-request.schema.json` | `fcd537f1751d` feat: implement Bifrost gateway and Hermes ownership contracts (#168) / PR #168 | same | tracked/clean | = | U |
 | 21 | `docs/README.md` | `26204a9a050a` docs: align strategic diagrams, decision register and OpenSpec with Bifrost gateway / GitHub associated PR: [] | same | tracked/clean | = | U |
-| 22 | `docs/docs/architecture/01-strategic-ddd.md` | `311c71b56cfa` docs: flag historical MCP-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 22 | `docs/docs/architecture/01-strategic-ddd.md` | `311c71b56cfa` docs: flag historical retired optional tool-call protocol-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
 | 23 | `docs/docs/architecture/05-contracts-and-deployment.md` | `26204a9a050a` docs: align strategic diagrams, decision register and OpenSpec with Bifrost gateway / GitHub associated PR: [] | same | tracked/clean | = | U |
-| 24 | `docs/docs/architecture/06-traceability-and-review.md` | `311c71b56cfa` docs: flag historical MCP-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
-| 25 | `docs/docs/architecture/07-architecture-fitness-contracts.md` | `311c71b56cfa` docs: flag historical MCP-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 24 | `docs/docs/architecture/06-traceability-and-review.md` | `311c71b56cfa` docs: flag historical retired optional tool-call protocol-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 25 | `docs/docs/architecture/07-architecture-fitness-contracts.md` | `311c71b56cfa` docs: flag historical retired optional tool-call protocol-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
 | 26 | `docs/docs/operations/retrieval-composition-readiness.md` | `a444ed6cf16f` fix: make retrieval provider gates reproducible (#199) / PR #199 | same | staged | = | U |
 | 27 | `docs/docs/references/ADR-000-decision-register.md` | `26204a9a050a` docs: align strategic diagrams, decision register and OpenSpec with Bifrost gateway / GitHub associated PR: [] | same | tracked/clean | = | U |
-| 28 | `docs/docs/references/ADR-001-agent-boundary-mcp.md` | `212817a20a24` docs: define Bifrost LLM projection separately from MCP tools / GitHub associated PR: [] | same | tracked/clean | = | U |
-| 29 | `docs/docs/references/ADR-014-hybrid-context-engine.md` | `212817a20a24` docs: define Bifrost LLM projection separately from MCP tools / GitHub associated PR: [] | same | tracked/clean | = | U |
-| 30 | `docs/docs/references/ADR-015-hermes-primary-feedback-agent.md` | `311c71b56cfa` docs: flag historical MCP-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 28 | `docs/docs/references/ADR-001-agent-boundary-retired-tool-protocol.md` | `212817a20a24` docs: define Bifrost LLM projection separately from retired optional tool-call protocol tools / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 29 | `docs/docs/references/ADR-014-hybrid-context-engine.md` | `212817a20a24` docs: define Bifrost LLM projection separately from retired optional tool-call protocol tools / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 30 | `docs/docs/references/ADR-015-hermes-primary-feedback-agent.md` | `311c71b56cfa` docs: flag historical retired optional tool-call protocol-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
 | 31 | `docs/docs/references/ADR-016-hermes-context-engine-integration.md` | `30632de15642` feat: integrate ACE through Hermes ContextEngine (#159) / PR #159 | same | tracked/clean | = | U |
 | 32 | `docs/docs/references/ADR-017-ace-bifrost-gateway-protocol.md` | `a15723f284e4` docs(ace): specify agent-independent Bifrost LLM Gateway interface and acceptance plan (#165) / PR #165 | same | tracked/clean | = | U |
-| 33 | `docs/docs/references/ADR-017-bifrost-unified-llm-gateway.md` | `212817a20a24` docs: define Bifrost LLM projection separately from MCP tools / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 33 | `docs/docs/references/ADR-017-bifrost-unified-llm-gateway.md` | `212817a20a24` docs: define Bifrost LLM projection separately from retired optional tool-call protocol tools / GitHub associated PR: [] | same | tracked/clean | = | U |
 | 34 | `docs/docs/references/ADR-018-ace-context-economics-audit.md` | `a71e20850a38` fix: harden Hermes ACE Harbor benchmark runtime (#164) / PR #164 | same | tracked/clean | = | U |
 | 35 | `docs/operations/testing-strategy.md` | `64183cca184c` fix: minimize affected tests across type-only edges (#192) / PR #192 | same | staged | = | U |
-| 36 | `docs/plans/2026-10-21-cursor-like-hybrid-context-completion-plan.md` | `311c71b56cfa` docs: flag historical MCP-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
+| 36 | `docs/plans/2026-10-21-cursor-like-hybrid-context-completion-plan.md` | `311c71b56cfa` docs: flag historical retired optional tool-call protocol-first contracts as superseded by Bifrost and Hermes / GitHub associated PR: [] | same | tracked/clean | = | U |
 | 37 | `docs/plans/2026-10-24-bifrost-unified-llm-gateway-plan.md` | `4b40dafb688c` docs: verify Hermes compaction ownership before ACE Bifrost rollout (#166) / PR #166 | same | tracked/clean | = | U |
 | 38 | `docs/plans/2026-10-25-hermes-compaction-ownership-verification.md` | `4b40dafb688c` docs: verify Hermes compaction ownership before ACE Bifrost rollout (#166) / PR #166 | same | tracked/clean | = | U |
 | 39 | `docs/plans/2026-10-26-ace-hermes-economics-and-cleanup-plan.md` | `b0484c7b189e` docs(review): record ACE/Hermes economics audit and approvable execution plan (#172) / PR #172 | same | tracked/clean | = | U |
@@ -80,7 +80,7 @@ PR #217–#219 — три последние узкие среза; их сум�
 | 53 | `integrations/bifrost/ace-connector/connector.go` | `fcd537f1751d` feat: implement Bifrost gateway and Hermes ownership contracts (#168) / PR #168 | same | tracked/clean | = | U |
 | 54 | `integrations/bifrost/ace-connector/connector_test.go` | `fcd537f1751d` feat: implement Bifrost gateway and Hermes ownership contracts (#168) / PR #168 | same | tracked/clean | = | U |
 | 55 | `integrations/bifrost/ace-connector/go.mod` | `fcd537f1751d` feat: implement Bifrost gateway and Hermes ownership contracts (#168) / PR #168 | same | tracked/clean | = | U |
-| 56 | `integrations/bifrost/ace-connector/plugin/main.go` | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
+| 56 | `integrations/bifrost/ace-connector/plugin/main.go` | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
 | 57 | `integrations/hermes/ace_context_engine/__init__.py` | `9f6726adb60b` feat: add fast fail-closed feedback benchmark loop (#169) / PR #169 | same | tracked/clean | = | U |
 | 58 | `integrations/hermes/ace_context_engine/bridge.py` | `bc9d8a6a4fcd` fix: make Hermes ACE Harbor runtime relocatable (#161) / PR #161 | same | tracked/clean | = | U |
 | 59 | `integrations/hermes/ace_context_engine/engine.py` | `9f6726adb60b` feat: add fast fail-closed feedback benchmark loop (#169) / PR #169 | same | tracked/clean | = | U |
@@ -167,7 +167,7 @@ PR #217–#219 — три последние узкие среза; их сум�
 | 140 | `src/application/workspace-sync.ts` | `4929caf638d8` feat(retrieval): complete safe stable changed-path Qdrant mutation (#180) / PR #180 | same | tracked/clean | = | U |
 | 141 | `src/bin/ace-context-bridge.ts` | `30632de15642` feat: integrate ACE through Hermes ContextEngine (#159) / PR #159 | same | tracked/clean | = | U |
 | 142 | `src/bin/ace-gateway-http.ts` | `fcd537f1751d` feat: implement Bifrost gateway and Hermes ownership contracts (#168) / PR #168 | same | tracked/clean | = | U |
-| 143 | `src/bin/ace-mcp.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | diff | staged | локальный comment edit в merge resolution | C |
+| 143 | `src/bin/ace-retired-tool-protocol.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | diff | staged | локальный comment edit в merge resolution | C |
 | 144 | `src/domain/ace-runtime-bundle.ts` | `76776c81f4c3` fix: validate pinned embedding runtime artifacts (#193) / PR #193 | same | staged | = | U |
 | 145 | `src/domain/aider-tree-context.ts` | `f9e0a4c7fdba` feat(retrieval): complete one-pass AST, multi-LSP routing and real Qdrant race acceptance (#210) / PR #210 | same | staged | = | U |
 | 146 | `src/domain/context-assembly.ts` | `3d3cb3c846a1` feat(context): use model-bound host token counters for exact assembled budgets (#202) / PR #202 | same | staged | = | U |
@@ -188,16 +188,16 @@ PR #217–#219 — три последние узкие среза; их сум�
 | 161 | `src/domain/source-coverage.ts` | `12d80d965a74` fix: retrieval freshness, LSP lifecycle, and workspace Git scope (#187) / PR #187 | same | staged | = | U |
 | 162 | `src/domain/workspace-manifest.ts` | `4929caf638d8` feat(retrieval): complete safe stable changed-path Qdrant mutation (#180) / PR #180 | same | tracked/clean | = | U |
 | 163 | `src/domain/workspace.ts` | `4929caf638d8` feat(retrieval): complete safe stable changed-path Qdrant mutation (#180) / PR #180 | same | tracked/clean | = | U |
-| 164 | `src/index.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
+| 164 | `src/index.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
 | 165 | `src/transport/context-bridge-stdio.ts` | `bc9d8a6a4fcd` fix: make Hermes ACE Harbor runtime relocatable (#161) / PR #161 | same | tracked/clean | = | U |
 | 166 | `src/transport/gateway-projection-http.ts` | `fcd537f1751d` feat: implement Bifrost gateway and Hermes ownership contracts (#168) / PR #168 | same | tracked/clean | = | U |
-| 167 | `src/transport/mcp-stdio.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
+| 167 | `src/transport/retired-tool-protocol-stdio.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
 | 168 | `test/ace-runtime-bundle.contracts.test.ts` | `76776c81f4c3` fix: validate pinned embedding runtime artifacts (#193) / PR #193 | same | staged | = | U |
-| 169 | `test/architecture-regressions.test.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
+| 169 | `test/architecture-regressions.test.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
 | 170 | `test/ast-grep-napi.contracts.test.ts` | `f9e0a4c7fdba` feat(retrieval): complete one-pass AST, multi-LSP routing and real Qdrant race acceptance (#210) / PR #210 | diff | staged | локально staged, отсутствует в MERGE_HEAD и origin/main | N |
 | 171 | `test/ast-grep-parity.contracts.test.ts` | `b0b0d0d236de` feat: complete retrieval composition runtime slices (#183) / PR #183 | same | tracked/clean | = | U |
 | 172 | `test/ast-grep-structural.contracts.test.ts` | `62ed9d108571` feat(retrieval): finish shared ast-grep NAPI def/ref without a second parse (#209) / PR #209 | same | staged | = | U |
-| 173 | `test/bifrost-plugin.contracts.test.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
+| 173 | `test/bifrost-plugin.contracts.test.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
 | 174 | `test/context-assembler.contracts.test.ts` | `3d3cb3c846a1` feat(context): use model-bound host token counters for exact assembled budgets (#202) / PR #202 | same | staged | = | U |
 | 175 | `test/context-bridge.contracts.test.ts` | `bc9d8a6a4fcd` fix: make Hermes ACE Harbor runtime relocatable (#161) / PR #161 | same | tracked/clean | = | U |
 | 176 | `test/context-transform.contracts.test.ts` | `a65e07e2b1e7` fix(context): never mark estimated token budgets model-exact ready (#206) / PR #206 | same | staged | = | U |
@@ -222,7 +222,7 @@ PR #217–#219 — три последние узкие среза; их сум�
 | 195 | `test/k3s-ace-runtime.contracts.test.ts` | `a71e20850a38` fix: harden Hermes ACE Harbor benchmark runtime (#164) / PR #164 | same | tracked/clean | = | U |
 | 196 | `test/lsp-semantic.contracts.test.ts` | `1ffc49a4e22e` fix(lsp): keep server truly lazy when source generation is refreshed (#205) / PR #205 | same | staged | = | U |
 | 197 | `test/lsp-server-registry.contracts.test.ts` | `f9e0a4c7fdba` feat(retrieval): complete one-pass AST, multi-LSP routing and real Qdrant race acceptance (#210) / PR #210 | same | staged | = | U |
-| 198 | `test/mcp-stdio.contracts.test.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
+| 198 | `test/retired-tool-protocol-stdio.contracts.test.ts` | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | same | staged | = | U |
 | 199 | `test/memory-admission.contracts.test.ts` | `dbf9d4f04550` fix: harden archive, workspace concurrency, source privacy and exact expansion (#170) / PR #170 | same | tracked/clean | = | U |
 | 200 | `test/outbound-secret-guards.contracts.test.ts` | `dbf9d4f04550` fix: harden archive, workspace concurrency, source privacy and exact expansion (#170) / PR #170 | same | tracked/clean | = | U |
 | 201 | `test/provider-and-multiprocess-contracts.test.ts` | `12d80d965a74` fix: retrieval freshness, LSP lifecycle, and workspace Git scope (#187) / PR #187 | same | staged | = | U |
@@ -323,7 +323,7 @@ PR #217–#219 — три последние узкие среза; их сум�
 | `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `src/adapters/local-code-index.ts` | staged | `496992d2534f` feat: retain path-keyed structural analysis records (#188) / PR #188 | C |
 | `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `src/adapters/lsp-semantic.ts` | UU / index stages 1,2,3 | `bd983e47a1a0` refactor(retrieval): consolidate Aider graph, verified tree context and Claw LSP discovery (#208) / PR #208 | C |
 | `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `src/adapters/repo-map-structural.ts` | UU / index stages 1,2,3 | `f9e0a4c7fdba` feat(retrieval): complete one-pass AST, multi-LSP routing and real Qdrant race acceptance (#210) / PR #210 | C |
-| `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `src/bin/ace-mcp.ts` | UU / index stages 1,2,3 | `1e4c9e6e1b15` refactor(gateway): delete legacy MCP framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | C |
+| `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `src/bin/ace-retired-tool-protocol.ts` | UU / index stages 1,2,3 | `1e4c9e6e1b15` refactor(gateway): delete legacy retired optional tool-call protocol framing; enforce Bifrost-only model plane; record current milestone (#211) / PR #211 | C |
 | `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `src/domain/repo-map.ts` | UU / index stages 1,2,3 | `f9e0a4c7fdba` feat(retrieval): complete one-pass AST, multi-LSP routing and real Qdrant race acceptance (#210) / PR #210 | C |
 | `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `src/domain/semantic.ts` | staged | `f9e0a4c7fdba` feat(retrieval): complete one-pass AST, multi-LSP routing and real Qdrant race acceptance (#210) / PR #210 | C |
 | `/home/ilja/.hermes/cache/scratch/retrieval-composed-followup` | `codex/retrieval-composed-followup` | `test/ast-grep-structural.contracts.test.ts` | staged | `62ed9d108571` feat(retrieval): finish shared ast-grep NAPI def/ref without a second parse (#209) / PR #209 | C |
@@ -402,7 +402,7 @@ PR #217–#219 — три последние узкие среза; их сум�
 ## Предлагаемый порядок восстановления
 
 1. Не создавать PR на 225 путей: они уже частично merged и частично лишь отсутствуют в старом merge tree.
-2. Сохранить/извлечь только 2 staged остатка: вернуть или отдельно обосновать comment-only правку в `src/bin/ace-mcp.ts`; для NAPI тестов исправить отрицательный путь (`Err`) и прогнать focused test, затем решить, открывать ли PR `test: cover NAPI import and interface-field parity` от свежего origin/main.
+2. Сохранить/извлечь только 2 staged остатка: вернуть или отдельно обосновать comment-only правку в `src/bin/ace-retired-tool-protocol.ts`; для NAPI тестов исправить отрицательный путь (`Err`) и прогнать focused test, затем решить, открывать ли PR `test: cover NAPI import and interface-field parity` от свежего origin/main.
 3. Восстановить primary ветку от `origin/main` на отдельном delivery worktree после решения по двум остаткам; старый merge PR #211 не коммитить как синхронизацию.
 4. Для `retrieval-composed-followup` не выбирать ours/theirs массово: сохранить рабочее дерево, разрешить 7 unmerged records по файлам, разделить R2/R3/LSP slices и только затем решать PR или удаление.
 5. Удалять generated caches и устаревшие merged worktrees только после сохранения нужных evidence; открытые #217–#219 оставить.

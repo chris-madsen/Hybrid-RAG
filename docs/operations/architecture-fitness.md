@@ -1,8 +1,10 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE architecture fitness pilot
 
 ACE uses the already pinned `@ast-grep/cli@0.51.0` for the first report-only architecture fitness checks.
 
-**Authority:** `docs/research/sdlc/source/standards/Architecture Layers.md`, root `AGENTS.md`, and the MCP/Gateway plane separation in ADR-014/ADR-017.
+**Authority:** `docs/research/sdlc/source/standards/Architecture Layers.md`, root `AGENTS.md`, and the retired optional tool-call protocol/Gateway plane separation in ADR-014/ADR-017.
 
 ## Commands
 
@@ -23,10 +25,10 @@ The rules remain `severity: warning`, so real findings are visible but do not bl
 ## Rules
 
 - `ACE-ARCH-001 / ace-domain-no-adapter-import` — domain does not directly import or re-export concrete adapters.
-- `ACE-ARCH-002 / ace-mcp-transport-no-gateway-projection-import` — explicit MCP stdio transport does not import or re-export Gateway Projection implementation modules.
-- `ACE-ARCH-003 / ace-gateway-transport-no-mcp-import` — Gateway Projection HTTP transport does not import or re-export MCP SDK/framing modules.
+- `ACE-ARCH-002 / ace-retired-tool-protocol-transport-no-gateway-projection-import` — explicit retired optional tool-call protocol stdio transport does not import or re-export Gateway Projection implementation modules.
+- `ACE-ARCH-003 / ace-gateway-transport-no-retired-tool-protocol-import` — Gateway Projection HTTP transport does not import or re-export retired optional tool-call protocol SDK/framing modules.
 - `ACE-ARCH-007 / ace-domain-no-provider-io-import` — pure functional domain modules must not import Node filesystem, network or process-execution capabilities; keep provider I/O in adapters and application orchestration.
-- `ACE-ARCH-004 / ace-application-no-mcp-gateway-import` — application interfaces must not import the MCP-specific gateway implementation. Shared `ContextProvider` is owned by `src/application/ports.ts` (#237).
+- `ACE-ARCH-004 / ace-application-no-retired-tool-protocol-gateway-import` — application interfaces must not import the retired optional tool-call protocol-specific gateway implementation. Shared `ContextProvider` is owned by `src/application/ports.ts` (#237).
 - `ACE-ARCH-005 / ace-application-no-adapter-import` — Effect application code depends on inward ports, not concrete adapters. The historical `AsyncMemoryArchivePort` import was repaired in #237; initial rule stays report-only as required by QG2.
 - `ACE-ARCH-006 / ace-domain-no-application-import` — pure domain logic must not import application orchestration. It complements the existing domain→adapters rule.
 

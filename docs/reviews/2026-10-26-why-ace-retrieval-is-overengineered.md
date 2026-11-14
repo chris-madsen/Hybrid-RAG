@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE code retrieval: why a ready-made Qdrant + Tree-sitter stack became difficult to operate
 
 **Date:** 2026-10-26
@@ -25,7 +27,7 @@ Some of those protections are valuable when accepting a production-ready source-
 
 ### R1 — P0: too many capabilities must initialize before simple search
 
-**Code:** `src/bin/ace-mcp.ts` (~52 KB of runtime composition).
+**Code:** `src/bin/ace-retired-tool-protocol.ts` (~52 KB of runtime composition).
 
 The real search is guarded by `ACE_ENABLE_EXPERIMENTAL_QDRANT=true`; otherwise code/unified context are explicitly `not_ready`. With it enabled, startup needs reachable Qdrant, dense embedding process, sparse embedding process, ast-grep executable, source index/snapshot publication and potentially LSP initialization. `ACE_CONTEXT_BRIDGE_MODE` rejects startup if no `context` provider was built. None of this establishes whether a **simple dense top-k retrieval** would work first.
 
@@ -58,7 +60,7 @@ For **N candidates**, independent repeated scanning and copying is **O(N²)** wo
 
 The test matrix checks many contracts but does not exercise the complete path: source code -> current ast-grep -> embeddings -> Qdrant -> ACE verified context -> **real Hermes outbound LLM request** -> accepted task -> token usage. `providerRequestId` in ACE bridge receipts identifies an internal retrieval operation, not a verified outbound Hermes model request. The current `not_beneficial/no_op` behavior also means a valid ACE call may **not inject context or reduce tokens**.
 
-**Action:** one controlled code-location query through actual MCP is the **first** gate; one real Hermes native-vs-ACE pair with accepted task quality and provider usage is the **second**. A receipt without LLM egress proof is not the second gate.
+**Action:** one controlled code-location query through actual retired optional tool-call protocol is the **first** gate; one real Hermes native-vs-ACE pair with accepted task quality and provider usage is the **second**. A receipt without LLM egress proof is not the second gate.
 
 ### R5 — P1: architectural scope switched faster than acceptance could close
 

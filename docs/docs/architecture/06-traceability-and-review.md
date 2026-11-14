@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — Traceability Matrix, Design Review и Definition of Ready
 
 **Статус:** Proposed. Цель: дать coding-агенту точную трассу от исходных требований к событиям, модулям, тестам и OpenSpec changes, а также показать, что **ещё не принято**.
@@ -11,7 +13,7 @@
 | FR-03 LSP definitions/refs/types | Semantic Intelligence | `semantic-verification` | 003 | Planned; LSP provider spike |
 | FR-04 docs RAG | Documentation Knowledge | `documentation-retrieval` | 003 | Planned |
 | FR-05 unified context | Context Orchestration | `unified-context` | 003 | Planned |
-| FR-06 fixed budget (original PRD) | Context Orchestration | `mcp-gateway`, `unified-context` | 001, 003 | **Superseded by ADR-006:** no mandatory cap; lossless output |
+| FR-06 fixed budget (original PRD) | Context Orchestration | `retired-tool-protocol-gateway`, `unified-context` | 001, 003 | **Superseded by ADR-006:** no mandatory cap; lossless output |
 | FR-07 adaptive routing | Context Orchestration | `adaptive-routing` | 005 | Experiment only; Jev not adopted |
 | FR-08 structural search | Semantic Intelligence | `semantic-verification` | 003 | Planned |
 | FR-09 graph/impact | Semantic Intelligence | `semantic-verification` | 003 | Minimal impact from AST/LSP; persistent graph deferred |
@@ -29,10 +31,10 @@
 | FR-21 time-aware | Memory | `project-memory` | 004 | Planned |
 | FR-22 delete/correct | Memory + Policy | `project-memory` | 004 | Planned |
 | FR-23 links to commits/ADRs | Memory + Workspace | `project-memory`, `workspace-identity` | 004 | Initial provenance; richer cross-graph linking later |
-| FR-24 Codex MCP | Agent Access | `mcp-gateway` | 001 | Planned |
-| FR-25 no Codex fork | Agent Access | `mcp-gateway` | 001 | Planned |
+| FR-24 Codex retired optional tool-call protocol | Agent Access | `retired-tool-protocol-gateway` | 001 | Planned |
+| FR-25 no Codex fork | Agent Access | `retired-tool-protocol-gateway` | 001 | Planned |
 | FR-26 AGENTS.md guidance | Agent Access | root `AGENTS.md` | 001 | Document provided, runtime guidance to verify |
-| FR-27 future agents | Agent Access ACL | `mcp-gateway` | 001 | Port designed; extra adapters deferred |
+| FR-27 future agents | Agent Access ACL | `retired-tool-protocol-gateway` | 001 | Port designed; extra adapters deferred |
 | FR-28 fail safe | Trust & Policy | `security-policy` | 001 | Planned |
 | FR-29 usage logs | Evaluation | `agent-benchmarking` | 002 | Planned |
 | FR-30 compare | Evaluation | `agent-benchmarking` | 002 | Planned |
@@ -47,11 +49,11 @@
 
 ## 2. ADR → design consequences
 
-> **Current delivery precedence (ADR-016/017, 2026-10-24):** the old ADR-001 `unified MCP` line below describes only the explicit tools facade. It is not an instruction to inject model context through MCP. Hermes-native ContextEngine is implemented; Bifrost gateway projection is selected but unimplemented and must pass provider-wire/agent E2E. LangGraph orchestration is outside ACE.
+> **Current delivery precedence (ADR-016/017, 2026-10-24):** the old ADR-001 `unified retired optional tool-call protocol` line below describes only the explicit tools facade. It is not an instruction to inject model context through retired optional tool-call protocol. Hermes-native ContextEngine is implemented; Bifrost gateway projection is selected but unimplemented and must pass provider-wire/agent E2E. LangGraph orchestration is outside ACE.
 
 | Accepted ADR | Realized by |
 |---|---|
-| ADR-001 agent-neutral core + existing MCP explicit tools | MCP tools ACL + BC-06, change 001; model delivery superseded by ADR-016/017 |
+| ADR-001 agent-neutral core + existing retired optional tool-call protocol explicit tools | retired optional tool-call protocol tools ACL + BC-06, change 001; model delivery superseded by ADR-016/017 |
 | ADR-002 Jev proposed | Change 005 **experiment**, not runtime dependency |
 | ADR-003 Qdrant code + Vertex docs | BC-02 + BC-04, change 003 |
 | ADR-004 Tree-sitter/ast-grep + LSP spike + fresh overlay | BC-01/02/03, changes 001/003 |
@@ -83,7 +85,7 @@
 | ACE-T014 | Lower token result but failing tests | Not accepted win | Evaluation |
 | ACE-T015 | Harbor run aborted/timeouts | Included in metrics and pass rate | Evaluation |
 | ACE-T016 | Jev cloud route lacks consent | No Jev request, rule route usable | Policy / Routing |
-| ACE-T017 | Host file changes during MCP request | Retry/changed_during_request, never falsely current | Workspace / Orchestration |
+| ACE-T017 | Host file changes during retired optional tool-call protocol request | Retry/changed_during_request, never falsely current | Workspace / Orchestration |
 | ACE-T018 | Generated code archived as exact artifact | No truncation by model budget logic | Agent Gateway / Orchestration |
 
 ## 4. Design Review decisions REQUIRED before implementation declares production readiness
@@ -96,7 +98,7 @@
 - **D-06:** Graphiti extractor/model + backend license, local privacy, durable storage and deletion.
 - **D-07:** Jev adoption only *after* comparative spike; optional forever.
 - **D-08:** Pinned Harbor/Codex adapter and normalization of usage counter semantics.
-- **D-09:** Exact MCP schema transport and handles supported by installed client.
+- **D-09:** Exact retired optional tool-call protocol schema transport and handles supported by installed client.
 
 Implementer MAY mock unresolved provider integration for isolated tests, but MUST return `unsupported/not_configured` in functional paths until an approved real provider exists. No simulated successful runtime behavior.
 
@@ -128,9 +130,9 @@ Implementer MAY mock unresolved provider integration for isolated tests, but MUS
 
 | Architecture contract | PRD / ADR | Spec owner | Current observed gap (2026-10-18) |
 |---|---|---|---|
-| DBC-01/02/03 actual Qdrant→AST→LSP, precise spans | FR-01/02/03/05, ADR-003/004 | 003 + 006 | Runtime `ace-mcp` uses regex/full-file lexical index |
+| DBC-01/02/03 actual Qdrant→AST→LSP, precise spans | FR-01/02/03/05, ADR-003/004 | 003 + 006 | Runtime `ace-retired-tool-protocol` uses regex/full-file lexical index |
 | DBC-06 completeness | FR-05/15/28, ADR-006/007 | 003 + 006 | Warnings can coexist with `complete=true` |
-| DBC-09 MCP SDK | FR-24/27, ADR-001 | 001 + 006 | Hand-rolled JSON-RPC instead of official SDK |
+| DBC-09 retired optional tool-call protocol SDK | FR-24/27, ADR-001 | 001 + 006 | Hand-rolled JSON-RPC instead of official SDK |
 | DBC-10/11 archive identity/delete | FR-17/18/22, ADR-005 | 004 + 006 | append re-identifies episodes; shared digest delete risk |
 | DBC-12 Harbor attribution | FR-29/30/35, ADR-009 | 002 + 006 | trivial forced smoke and zero-call natural smoke cannot prove gains |
 

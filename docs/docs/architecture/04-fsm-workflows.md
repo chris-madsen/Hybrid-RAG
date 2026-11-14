@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — FSM и сквозные workflows
 
 **Статус:** Proposed. FSM применяется только там, где порядок переходов защищает инварианты. Роутинг источников по необходимости — decision policy/strategy, **не** state machine. Технология FSM библиотека (например XState) не выбирается автоматически.
@@ -114,7 +116,7 @@ stateDiagram-v2
 2. Policy Gate разрешает локальный код. Rule router выбирает lexical + local semantic candidates, а документацию добавляет только при соответствующем вопросе/зависимости.
 3. Qdrant возвращает кандидатов `sourceDigest`, Tree-sitter/ast-grep выделяют точные spans, LSP разрешает symbols/references на текущей версии.
 4. EvidenceMerger отбрасывает дубли, не утверждает полное покрытие динамических вызовов.
-5. MCP возвращает `ContextBundle`: выдержки, связи, открываемые exact snippets, предупреждения; Codex сам редактирует файлы, запускает тесты.
+5. retired optional tool-call protocol возвращает `ContextBundle`: выдержки, связи, открываемые exact snippets, предупреждения; Codex сам редактирует файлы, запускает тесты.
 6. После патча Workspace Truth фиксирует изменение; stale результаты не становятся verified current. В следующем запросе активируется live overlay.
 
 ### UC-03 «Две недели назад обсуждали альтернативу B»

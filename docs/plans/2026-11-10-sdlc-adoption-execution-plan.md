@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE SDLC adoption execution plan
 
 **Date:** 2026-11-10  
@@ -106,7 +108,7 @@ Pilot only 2–3 accepted invariants whose semantics can be expressed reliably, 
 
 - forbidden direct infrastructure import from a specific domain/application boundary;
 - known provider-failure → fake complete/empty-success anti-pattern;
-- forbidden import crossing between explicit MCP tools and Gateway Projection where a simple import edge is authoritative.
+- forbidden import crossing between explicit retired optional tool-call protocol tools and Gateway Projection where a simple import edge is authoritative.
 
 Each rule requires:
 
@@ -141,13 +143,13 @@ Missing or conflicting entries produce `BLOCKED`, not a fabricated pass.
 
 ### SDLC-QG5 — contract compatibility guard
 
-Cover MCP input/output schemas, context completeness/freshness enums, stable error names and versioned Bifrost/Hermes interfaces.
+Cover retired optional tool-call protocol input/output schemas, context completeness/freshness enums, stable error names and versioned Bifrost/Hermes interfaces.
 
 - identify the canonical OpenSpec/ADR owner;
 - capture pre/post schema or typed snapshots where appropriate;
 - prove additive changes pass and breaking removal/rename is detected;
 - require owner-approved migration for breaking changes;
-- keep real MCP SDK/Bifrost integration proof separate from schema-only checks.
+- keep real retired optional tool-call protocol SDK/Bifrost integration proof separate from schema-only checks.
 
 ### SDLC-QG6 — nightly code health/security
 
@@ -188,7 +190,7 @@ Follow the existing staged plan without changing it:
 - **TS-01:** one Gateway Projection HTTP vertical slice;
 - **TS-02:** automated mapping completeness;
 - **TS-03:** policy/schema metadata if supported;
-- **TS-04:** MCP/native bridge mapping without replacing official transports;
+- **TS-04:** retired optional tool-call protocol/native bridge mapping without replacing official transports;
 - **TS-05:** generated-artifact ownership/reproducibility;
 - **TS-06:** incremental wider migration after parity proof.
 

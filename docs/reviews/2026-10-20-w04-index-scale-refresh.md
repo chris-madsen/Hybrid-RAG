@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W04 real index-scale refresh
 
 **Date:** 2026-10-20
@@ -12,7 +14,7 @@ ACE_QDRANT_URL=http://127.0.0.1:6333 npm run test:real-index-scale -- \
 ```
 
 Source commit: `fb76e9002f78df4547153bab0c39c8255f5502d4`. The run used the
-official MCP stdio client boundary, Qdrant `1.19.2`, the real FastEmbed worker,
+official retired optional tool-call protocol stdio client boundary, Qdrant `1.19.2`, the real FastEmbed worker,
 Tree-sitter helper and TypeScript language service. The generated fixture was
 isolated and contained a real dirty-tree mutation, rename, deletion and
 untracked file.

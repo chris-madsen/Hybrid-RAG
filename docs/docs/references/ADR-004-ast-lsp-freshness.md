@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ADR-004 — AST, LSP, анализ зависимостей и актуальность индекса
 
 **Статус:** **Accepted** для принципов; конкретный LSP-адаптер — pending benchmark  
@@ -38,7 +40,7 @@ RAG отвечает за discovery, но не доказывает, что ко
 - После изменения функции анализ показывает новый символ и не цитирует старый source как свежий.
 - `find references` различает одноимённые символы (при поддержке server).
 - Анализ unknown dynamic call не приводит к утверждению «точно не используется».
-- Измерить влияние AST/LSP против Codex baseline и отдельных MCP инструментов; число tool calls, токены, ошибки статического анализа.
+- Измерить влияние AST/LSP против Codex baseline и отдельных retired optional tool-call protocol инструментов; число tool calls, токены, ошибки статического анализа.
 - Сравнить Serena и native language service на одинаковых задачах с лицензиями и runtime overhead.
 
 ## Пересмотр

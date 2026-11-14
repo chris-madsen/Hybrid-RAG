@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # W04 real embedding timeout refresh
 
 **Date:** 2026-10-20  
@@ -19,7 +21,7 @@ delay/timeout settings were double-opted in with
 ## Observed result
 
 The worker was deliberately delayed for 1000 ms while ACE used a 100 ms
-embedding timeout. The worker timed out, the MCP process remained available for
+embedding timeout. The worker timed out, the retired optional tool-call protocol process remained available for
 `ace_workspace_status`, and both `code_retrieval` and `unified_context` stayed
 `not_ready` with reason `embedding_provider_unavailable`. A subsequent
 `ace_context` returned typed `NOT_READY`; it did not return evidence or claim
@@ -32,7 +34,7 @@ The retained machine-readable receipt is
 
 This closes only real worker timeout handling during pre-serve provider
 initialization. ACE currently initializes the index before `serveStdio`, so an
-MCP request cancellation cannot reach that startup operation. The receipt
+retired optional tool-call protocol request cancellation cannot reach that startup operation. The receipt
 therefore records `cancellationMeasured=false`; request cancellation remains a
 separate architecture task, not a silently inferred PASS. This run also does
 not approve production resource budgets, Graphiti/OAuth/Vertex, Harbor, 5×

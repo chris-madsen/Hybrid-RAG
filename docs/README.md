@@ -1,12 +1,14 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # Adaptive Context Engine (ACE) — DDD Architecture + OpenSpec SDD Blueprint
 
 **Version:** evolving implementation · **Updated:** 2026-10-24 · **Status:** active TypeScript + Effect implementation with real local retrieval, memory, provider and acceptance slices; full unified production approval is still evidence-gated.
 
 ## Runtime status
 
-**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. MCP remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
+**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. retired optional tool-call protocol remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
 
-The statement that this repository contains only a blueprint is obsolete. The current implementation includes the official MCP runtime for explicit tools/expansion, the direct Hermes ContextEngine integration bridge for request-time ACE context projection, exact workspace/artifact reads, Qdrant retrieval, embedding-worker and ast-grep provider identity checks, generic LSP confirmation through the configured language server (TypeScript by default), temporal-memory archive/Graphiti integration, deterministic source routing, Vertex/Harbor acceptance tooling, request-time workspace reconciliation, snapshot/retry recovery, and evidence-backed release gates.
+The statement that this repository contains only a blueprint is obsolete. The current implementation includes the official retired optional tool-call protocol runtime for explicit tools/expansion, the direct Hermes ContextEngine integration bridge for request-time ACE context projection, exact workspace/artifact reads, Qdrant retrieval, embedding-worker and ast-grep provider identity checks, generic LSP confirmation through the configured language server (TypeScript by default), temporal-memory archive/Graphiti integration, deterministic source routing, Vertex/Harbor acceptance tooling, request-time workspace reconciliation, snapshot/retry recovery, and evidence-backed release gates.
 
 Use [`operations/ace-configuration-and-readiness-matrix.md`](operations/ace-configuration-and-readiness-matrix.md) for the authoritative runtime/configuration meanings. A provider flag enables a code path; it does not by itself constitute production approval.
 

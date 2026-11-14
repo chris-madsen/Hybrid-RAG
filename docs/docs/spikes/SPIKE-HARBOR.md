@@ -1,6 +1,8 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # SPIKE-HARBOR — Provider and runner contract verification
 
-**Status:** Local smoke and native Codex MCP verified; forced integration and natural paired smoke measured; retrieval benefit remains open
+**Status:** Local smoke and native Codex retired optional tool-call protocol verified; forced integration and natural paired smoke measured; retrieval benefit remains open
 **Scope:** `002-harbor-evaluation`
 
 ## Observed environment
@@ -45,9 +47,9 @@ Its read-only bind mount exposes only the built harness at `/ace`, and it inject
 A non-Git workspace is supported by the local snapshot port; the fallback records
 `headRevision=unavailable` and all file states as `unknown`.
 
-The native Codex MCP path was verified in Harbor `0.24.0` with container Codex
+The native Codex retired optional tool-call protocol path was verified in Harbor `0.24.0` with container Codex
 `0.163.0` and OAuth authentication: the retained JSONL contains a completed
-`mcp_tool_call(server=ace, tool=ace_context)`, and the exact-byte verifier passed.
+`retired-tool-protocol_tool_call(server=ace, tool=ace_context)`, and the exact-byte verifier passed.
 The successful retained run is
 `artifacts/harbor-native-required/ace-local-smoke-instrumented/result.json`
 (`1/1`, reward `1.0`, no exceptions). The repeated paired result is retained
@@ -57,8 +59,8 @@ The repeatable paired holdout is implemented by
 `benchmarks/harbor/ace-suite/native-repeat5-job.json` and
 `benchmarks/harbor/ace-suite/ace-repeat5-job.json`. Both configurations use five
 serial trials of the same deterministic fixture, the same Codex model and reasoning
-effort, and retain every raw trial. The native configuration has no ACE MCP server;
-the ACE configuration exposes ACE MCP but does not force a call. The environment
+effort, and retain every raw trial. The native configuration has no ACE retired optional tool-call protocol server;
+the ACE configuration exposes ACE retired optional tool-call protocol but does not force a call. The environment
 Dockerfiles preinstall Harbor agent dependencies and the Codex CLI so trials do not
 depend on a fresh per-container `apt-get` setup race. Parallel ACE startup also
 exhibited a provider-side workspace-routing timeout, so the checked-in comparison is
@@ -69,12 +71,12 @@ The natural paired report is
 configurations completed `5/5` trials with reward `1.0` and pass@5 `1.0`. Native
 Codex used `362,152` provider-reported total tokens and cost `0.0152608`;
 Codex+ACE used `300,432` tokens and cost `0.0124782`, a measured ratio of `0.818x`
-on this fixture. Neither arm called ACE MCP, so this is only a no-regression smoke,
+on this fixture. Neither arm called ACE retired optional tool-call protocol, so this is only a no-regression smoke,
 not evidence of retrieval quality or a general cost reduction.
 
-The forced MCP integration report remains
+The forced retired optional tool-call protocol integration report remains
 `benchmarks/reports/ace-local-smoke-paired-repeat5.{md,json,csv}`. It measured
-`2.819x` ACE/native cost on the same tiny task because the forced MCP round-trip
+`2.819x` ACE/native cost on the same tiny task because the forced retired optional tool-call protocol round-trip
 caused an additional model pass while returning no useful evidence. That is measured
 overhead/regression, not an optimization result, and is retained as a warning against
 forcing context retrieval when the task does not need it.
@@ -85,7 +87,7 @@ The honest baseline-only smoke report is generated with
 retained runs: one OAuth-successful trial (`quality=passed`, `reward=1.0`) and one
 authentication-failed trial (`RecordedIncomplete`, usage unknown). It reports
 `60,298` total tokens and provider-reported cost `0.00367496` for the successful
-run; the native ACE MCP trial is retained separately and is not mixed into this
+run; the native ACE retired optional tool-call protocol trial is retained separately and is not mixed into this
 baseline aggregate. No 5x claim is made. The repeated native-vs-ACE report is kept
 separately because the single fixture is not a general benchmark.
 
@@ -129,5 +131,5 @@ CODEX_FORCE_AUTH_JSON=1 harbor run --config benchmarks/harbor/ace-suite/ace-repe
 npm run report:harbor-paired
 ```
 
-Serena, independent MCP and long-horizon memory extraction remain outside this
+Serena, independent retired optional tool-call protocol and long-horizon memory extraction remain outside this
 report and require separate provider decisions and tasks.

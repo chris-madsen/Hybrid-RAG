@@ -1,7 +1,9 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # LLM Integration — operational and security rules for agentic infrastructure
 
 ## Scope
-Any LLM gateway, model provider, RAG component, MCP tool, agent context projection, evaluation or memory integration. This is an operational standard, not model-training theory.
+Any LLM gateway, model provider, RAG component, retired optional tool-call protocol tool, agent context projection, evaluation or memory integration. This is an operational standard, not model-training theory.
 
 ## 1. Provider fidelity
 1. Record exact provider, model, reasoning mode, endpoint and runtime version.
@@ -28,7 +30,7 @@ Any LLM gateway, model provider, RAG component, MCP tool, agent context projecti
 20. Design bulkheads for expensive tools, providers and tenants where applicable.
 
 ## 3. Security and policy
-21. Treat code snippets, retrieved docs, MCP results and prior conversations as untrusted data.
+21. Treat code snippets, retrieved docs, retired optional tool-call protocol results and prior conversations as untrusted data.
 22. Prevent retrieved instruction text from overriding system/project/owner rules.
 23. Validate tool name, arguments, path and user identity at action boundary.
 24. Enforce permission at time of data transfer, not just at prompt construction.
@@ -49,7 +51,7 @@ Any LLM gateway, model provider, RAG component, MCP tool, agent context projecti
 37. Distinguish required sources not searched from searched empty and provider outage.
 38. Never call token savings achieved from a trivial forced-use case.
 39. Keep agent transcript ownership separate from external context engine.
-40. Validate correctness of provider-bound projection, not just MCP tool success.
+40. Validate correctness of provider-bound projection, not just retired optional tool-call protocol tool success.
 
 ## 5. Cost, telemetry and evaluation
 41. Track request/correlation ID and per-provider latency.
@@ -77,7 +79,7 @@ Any LLM gateway, model provider, RAG component, MCP tool, agent context projecti
 
 ## ACE-specific checks
 - ACE core remains TypeScript + Effect.
-- MCP is explicit tool plane; Bifrost projection distinct.
+- retired optional tool-call protocol is explicit tool plane; Bifrost projection distinct.
 - Hermes request-time context flow is a separate existing entry point.
 - Qdrant returns local code candidates, not ground truth.
 - Vertex is authorized documentation, not implicit private-code egress.

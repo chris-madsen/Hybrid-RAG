@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE — отдельное ревью смысловых ошибок
 
 Дата: 2026-10-20. Основание: проверка 14:04 EEST, оформление по запросу 14:20 EEST.
@@ -9,9 +11,9 @@
 
 Связанный расширенный отчёт: [ревью выполнения плана](./2026-10-20-unified-plan-progress-1227.md). Здесь находки имеют отдельные ID SB-01…06 для однозначных ссылок; они не являются новыми DBC-контрактами.
 
-## SB-01 — P1: MCP error может стать доказательством отсутствия Graphiti episode
+## SB-01 — P1: retired optional tool-call protocol error может стать доказательством отсутствия Graphiti episode
 
-Файл: `src/adapters/graphiti-mcp.ts`; `replyJsonObject`, `projectionState.isPresent`, `parseGraphitiFactSearchReply`.
+Файл: `src/adapters/graphiti-retired-tool-protocol.ts`; `replyJsonObject`, `projectionState.isPresent`, `parseGraphitiFactSearchReply`.
 
 Парсер принимает `structuredContent` до проверки `isError`; JSON text block также может быть принят до этой проверки. Например:
 
@@ -19,11 +21,11 @@
 {"isError":true,"structuredContent":{"episodes":[]}}
 ```
 
-Этот ответ даёт успешный typed object, затем `isPresent=false`. Аналогичный `facts:[]` может выглядеть как успешный пустой поиск. Проверка строкового поля `error` не заменяет обработку флага MCP. Mutation validators обрабатывают isError отдельно; ошибка относится к typed-read пути.
+Этот ответ даёт успешный typed object, затем `isPresent=false`. Аналогичный `facts:[]` может выглядеть как успешный пустой поиск. Проверка строкового поля `error` не заменяет обработку флага retired optional tool-call protocol. Mutation validators обрабатывают isError отдельно; ошибка относится к typed-read пути.
 
 Последствие: после успешного purge ошибка проверочного get_episodes может разрешить tombstone оригинала, хотя отсутствие derived данных не доказано.
 
-Исправление: отвергать MCP isError до любого разбора данных. Тесты: ошибочный structured/text ответ с episodes/facts, malformed reply, и интеграция с delete — archive.deleteEpisode не вызывается при verification error.
+Исправление: отвергать retired optional tool-call protocol isError до любого разбора данных. Тесты: ошибочный structured/text ответ с episodes/facts, malformed reply, и интеграция с delete — archive.deleteEpisode не вызывается при verification error.
 
 ## SB-02 — P1: удаление не ограждено от concurrent reconciliation
 

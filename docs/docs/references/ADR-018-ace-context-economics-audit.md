@@ -1,3 +1,5 @@
+> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+
 # ACE/Hermes Harbor context-economics audit (PR #164)
 
 **Review status:** implementation has **blocking architecture/economics gaps**. Runtime readiness and quality successes do not constitute context-cost savings.  
@@ -52,4 +54,4 @@ No artifact or locally observed PR-#164 Hermes token number should be inferred f
 
 ## Audit caveats
 
-This is a focused **cross-layer code-path audit**, not a claim that every file in the entire repository was line-by-line examined. Broader modules (Graphiti, Qdrant, LSP, MCP, backup/restore and deployment) have their own contracts; none can logically compensate for append-only LLM context delivery. Detailed native compressor composition and wire-level egress measurement require a separate implementation and a new Harbor run.
+This is a focused **cross-layer code-path audit**, not a claim that every file in the entire repository was line-by-line examined. Broader modules (Graphiti, Qdrant, LSP, retired optional tool-call protocol, backup/restore and deployment) have their own contracts; none can logically compensate for append-only LLM context delivery. Detailed native compressor composition and wire-level egress measurement require a separate implementation and a new Harbor run.
