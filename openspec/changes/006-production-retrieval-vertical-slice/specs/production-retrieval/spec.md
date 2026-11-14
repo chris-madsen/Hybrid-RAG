@@ -63,10 +63,10 @@ The system SHALL determine completeness from all required route sources and veri
 
 The system SHALL prove end-to-end behavior with official SDK/client conformance and quality-gated, attribution-aware Harbor comparisons.
 
-#### Scenario: DBC-09 retired optional tool-call protocol conformance
+#### Scenario: DBC-09 Gateway/connector conformance
 
-- **WHEN** Codex initializes and invokes ACE under supported SDK protocol, including errors, cancellation and concurrent calls
-- **THEN** the official retired optional tool-call protocol SDK facade remains interoperable and preserves typed failure semantics
+- **WHEN** a supported coding-agent request reaches Bifröst and ACE Gateway under valid, malformed, cancelled or concurrent conditions
+- **THEN** Gateway v1 plus the pinned connector remain interoperable, preserve typed failure semantics and never authorize an unbound provider attempt
 
 #### Scenario: DBC-12 agent benchmark attribution
 
