@@ -2,7 +2,7 @@
 
 # ACE Quality Gates — executable contract for a single-agent SDLC
 
-**Status:** proposed quality gate specification for future implementation. The gates named as *existing* refer to commands already in ACE. All other automation remains *not installed* until scripts, pinned dependencies, fixtures and passing CI are committed. This document governs **developer verification**, not ACE runtime API behavior.
+**Status:** current quality-gate catalog. Each row below states whether the gate is ACTIVE, REPORT-ONLY/PARTIAL, OPTIONAL, or still PLANNED. Historical proposal text is retained only where it still describes an unimplemented extension. This document governs **developer verification**, not ACE runtime API behavior.
 
 ## 0. Operating principles
 
@@ -21,21 +21,21 @@
 
 | ID | Stage | Gate | Tier | Type | Status today |
 |---|---|---|---|---|---|
-| G00 | preflight | repo/branch/HEAD, overlapping PR, owner rules | T0–T2 | manual + Git | current workflow |
-| G01 | post Research | AS-IS claim ↔ path:line ↔ runtime wiring | T1/T2 | evidence | current workflow |
-| G02 | before code | design/acceptance/owner/test consistency | T2; T1 compact | structured pre-build | **proposed new stage** |
-| G03 | inner loop | relevant typecheck, lint, affected tests | T1/T2 | automated | ACE existing |
-| G04 | inner loop | project ast-grep rule tests + scan changed code | T1/T2 where rule applies | automated | **proposed** |
-| G05 | inner loop | local staged secret + formatter checks | all changed scopes | automated optional hooks | **proposed** |
-| G06 | PR | architecture + dependency direction | T1/T2 | static + human | ACE contracts exist; static expansion proposed |
-| G07 | PR | security/workflow/dependency hygiene | all relevant | automated + review | release audit exists; earlier PR scans proposed |
-| G08 | PR | Markdown internal links / formatting | docs changed | automated | ACE diff check existing; links proposed |
-| G09 | PR | **TypeSpec contract-first** generation and public wire compatibility | new or migrated public contract | automated once installed | selected policy; toolchain not yet installed |
-| G10 | PR | requirement↔code↔test↔provider proof | T1/T2 | review + tests | current checklist; stronger mapping proposed |
-| G11 | provider acceptance | real provider and restart/data safety | changed capability | integration | ACE existing selective |
-| G12 | nightly | advisories, CodeQL, fuzz, targeted mutation | selected packages | automated | proposed |
-| G13 | release | SBOM, license, provenance, vulnerabilities | releases | artifact validation | ACE existing |
-| G14 | end | complete PR cross-phase consistency | T1/T2 | human+agent | workflow existing |
+| G00 | preflight | repo/branch/HEAD, overlapping PR, owner rules | T0–T2 | manual + Git | **ACTIVE** |
+| G01 | post Research | AS-IS claim ↔ path:line ↔ runtime wiring | T1/T2 | evidence | **ACTIVE** |
+| G02 | before code | design/acceptance/owner/test consistency | T2; T1 compact | structured pre-build | **ACTIVE procedural gate** |
+| G03 | inner loop | relevant typecheck, lint, affected tests | T1/T2 | automated | **ACTIVE** |
+| G04 | inner loop | project ast-grep rule tests + scan changed code | T1/T2 where rule applies | automated | **ACTIVE, report-only architecture rules** |
+| G05 | inner loop | local staged secret + formatter checks | all changed scopes | automated optional hooks | **OPTIONAL / not required** |
+| G06 | PR | architecture + dependency direction | T1/T2 | static + human | **ACTIVE** (test:arch-rules, check:arch, human review) |
+| G07 | PR | security/workflow/dependency hygiene | all relevant | automated + review | **ACTIVE** (Betterleaks, actionlint, zizmor; scheduled OSV report) |
+| G08 | PR | Markdown internal links / formatting | docs changed | automated | **ACTIVE** (offline Lychee + fixtures) |
+| G09 | PR | **TypeSpec contract-first** generation and public wire compatibility | new or migrated public contract | automated | **ACTIVE for Gateway v1**; wider migration remains staged |
+| G10 | PR | requirement↔code↔test↔provider proof | T1/T2 | review + tests | **ACTIVE process + closure audit** |
+| G11 | provider acceptance | real provider and restart/data safety | changed capability | integration | **ACTIVE selective; capability-specific evidence required** |
+| G12 | nightly | advisories, property/fuzz/mutation/security depth | selected packages | automated | **PARTIAL ACTIVE** (OSV report + Gateway property/nightly); CodeQL/mutation still planned |
+| G13 | release | SBOM, license, provenance, vulnerabilities | releases | artifact validation | **ACTIVE release evidence** |
+| G14 | end | complete PR cross-phase consistency | T1/T2 | human+agent | **ACTIVE** |
 
 ### G00 — Preflight
 **Inputs:** user task, current repo, HEAD/base, worktree, active PRs. **Commands:** git status/branch/diff, read AGENTS, accepted ADR/OpenSpec and actual code. **PASS:** source/owner identity recorded, no unacknowledged overlap, scope/tier decided. **FAIL/BLOCK:** unauthorized branch, material unapproved decision or untrusted instruction override. Do not create a new solution for code already delivered in another PR.
@@ -73,7 +73,7 @@ Use **exact project scripts at the checked-out revision**:
 
 **PASS requires actual command exit=0 and source SHA**; generated textual assertions don't count.
 
-### G04 — ACE architectural static rules (proposed ast-grep first)
+### G04 — ACE architectural static rules (installed ast-grep pilot, report-only)
 
 **Rule definition schema** — every new rule must contain:
 - Stable ID (\`ACE-ARCH-01\`...), mapped accepted ADR/OpenSpec invariant.
@@ -85,7 +85,7 @@ Use **exact project scripts at the checked-out revision**:
 - Owner, revision and retirement rule when architecture changes.
 - Fix hints in machine output and linked test.
 
-**Suggested first pilot rules (all need validation; do not consider installed):**
+**Installed structural pilot and remaining semantic limits:**
 - **ACE-ARCH-01**: domain/application code must not import infrastructure provider clients directly. Use architecture graph; a naive filename regex may misfire.
 - **ACE-ARCH-02**: explicit retired optional tool-call protocol route must not call provider-bound Bifrost code as hidden shortcut; target *actual imports/calls*, avoid text regex pretending semantic identity.
 - **ACE-ARCH-03**: forbid catch that maps a recognized provider failure to \`{kind:"complete", ...}\` or empty-success **in the relevant error boundary**; avoid blanket bans on legitimate empty results.
