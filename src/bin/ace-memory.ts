@@ -36,6 +36,7 @@ const run = async (): Promise<void> => {
   if (workspace._tag === 'Err') throw new Error(workspace.error.message);
   const archiveRoot = resolve(required('ACE_MEMORY_ARCHIVE_ROOT'));
   const archive = await makeAsyncFileMemoryArchive(archiveRoot);
+  const outbox = await makeFileProjectionOutbox(join(archiveRoot, 'projection-outbox'));
   // Source-true archival operations remain available, but derived graph
   // projection must not silently use the retired optional tool transport.
   // An approved provider-native Graphiti port is required before replay.
