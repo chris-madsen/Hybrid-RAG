@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,11 +18,13 @@ import (
 )
 
 const (
-	workspaceKey            schemas.BifrostContextKey = "ace.workspace_id"
-	projectedModelKey       schemas.BifrostContextKey = "ace.projection.normalized_model"
-	requestedProviderKey    schemas.BifrostContextKey = "ace.projection.requested_provider"
-	contextDigestKey        schemas.BifrostContextKey = "ace.projection.context_sha256"
-	pinnedBifrostCommit                              = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
+	workspaceKey             schemas.BifrostContextKey = "ace.workspace_id"
+	physicalRequestIDKey     schemas.BifrostContextKey = "ace.projection.physical_request_id"
+	sessionCorrelationKey    schemas.BifrostContextKey = "ace.projection.session_correlation"
+	projectedModelKey        schemas.BifrostContextKey = "ace.projection.normalized_model"
+	requestedProviderKey     schemas.BifrostContextKey = "ace.projection.requested_provider"
+	contextDigestKey         schemas.BifrostContextKey = "ace.projection.context_sha256"
+	pinnedBifrostCommit                               = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
 )
 
 var projectionClient connector.Client
@@ -58,11 +61,45 @@ func sha256Hex(value []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func requestBoundIdentity(ctx *schemas.BifrostContext, body []byte, rawModel string) (string, string, string, string, json.RawMessage, error) {
-	requestID, okRequest := ctx.Value(schemas.BifrostContextKeyRequestID).(string)
-	sessionID, okSession := ctx.Value(schemas.BifrostContextKeySessionID).(string)
-	if !okRequest || strings.TrimSpace(requestID) == "" || !okSession || strings.TrimSpace(sessionID) == "" {
-		return "", "", "", "", nil, errors.New("Bifrost request/session identity is unavailable")
+func newPhysicalRequestID() (string, error) {
+	var entropy [16]byte
+	if _, err := rand.Read(entropy[:]); err != nil {
+		return "", fmt.Errorf("mint ACE physical request identity: %w", err)
+	}
+	return "ace-" + hex.EncodeToString(entropy[:]), nil
+}
+
+// sessionCorrelationFromRequest mirrors Bifröst's HTTP session-header precedence,
+// but runs in HTTPTransportPreHook, before ConvertToBifrostContext has populated
+// BifrostContextKeySessionID. These values are caller-asserted correlation only;
+// they are never treated as authenticated identity.
+func sessionCorrelationFromRequest(req *schemas.HTTPRequest) (string, bool) {
+	if req == nil {
+		return "", false
+	}
+	if raw := req.CaseInsensitiveHeaderLookup("x-bf-session-id"); strings.TrimSpace(raw) != "" {
+		return schemas.NormalizeSessionID(raw)
+	}
+	for _, name := range schemas.HarnessSessionHeaders {
+		raw := req.CaseInsensitiveHeaderLookup(name)
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		if sessionID, ok := schemas.NormalizeSessionID(raw); ok {
+			return sessionID, true
+		}
+	}
+	return "", false
+}
+
+func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string) (string, string, string, string, json.RawMessage, error) {
+	requestID, err := newPhysicalRequestID()
+	if err != nil {
+		return "", "", "", "", nil, err
+	}
+	sessionID, okSession := sessionCorrelationFromRequest(req)
+	if !okSession {
+		return "", "", "", "", nil, errors.New("coding-harness session correlation is unavailable")
 	}
 	provider, normalizedModel := schemas.ParseModelString(rawModel, "")
 	if provider == "" || normalizedModel == "" {
@@ -71,9 +108,10 @@ func requestBoundIdentity(ctx *schemas.BifrostContext, body []byte, rawModel str
 	providerIdentity := string(provider)
 	// Bifröst can attest the exact HTTP request it observes, but it cannot
 	// truthfully attest whether the coding agent compacted its own durable
-	// transcript before sending those bytes. Keep Gateway delivery useful while
-	// making that uncertainty explicit; strict exclusive-context/benchmark
-	// acceptance requires a separate host-side attestor.
+	// transcript before sending those bytes. The ACE request ID is minted here,
+	// inside the authenticated post-auth transport hook, because Bifröst's own
+	// request/session context is populated only later by ConvertToBifrostContext.
+	// The coding-harness session value remains correlation, not authentication.
 	attestationValue := map[string]any{
 		"hostBuildDigest": sha256Hex([]byte("ace-bifrost-plugin:" + aceSourceCommit + ":" + pinnedBifrostCommit)),
 		"sessionId": sessionID,
@@ -195,14 +233,22 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	if err != nil {
 		return errorResponse(400, err.Error()), nil
 	}
-	requestID, sessionID, provider, normalizedModel, attestation, err := requestBoundIdentity(ctx, req.Body, model)
+	requestID, sessionID, provider, normalizedModel, attestation, err := requestBoundIdentity(req, req.Body, model)
 	if err != nil {
 		if strings.Contains(err.Error(), "explicit Bifrost provider/model") {
 			return errorResponse(400, err.Error()), nil
 		}
-		return errorResponse(503, "ACE request-bound host identity is unavailable"), nil
+		if strings.Contains(err.Error(), "session correlation") {
+			return errorResponse(400, "ACE coding-harness session correlation is unavailable"), nil
+		}
+		return errorResponse(503, "ACE physical request identity is unavailable"), nil
 	}
+	ctx.SetValue(physicalRequestIDKey, requestID)
+	ctx.SetValue(sessionCorrelationKey, sessionID)
 	deadline := time.Now().Add(30 * time.Second)
+	if hostDeadline, ok := ctx.Deadline(); ok && hostDeadline.Before(deadline) {
+		deadline = hostDeadline
+	}
 	projection, err := projectionClient.Project(ctx, connector.Request{
 		RequestID: requestID, AttemptGroupID: requestID, AgentSessionID: sessionID,
 		WorkspaceID: workspaceID, DataClass: "private", Protocol: "openai.chat.completions",
@@ -251,6 +297,15 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	if !hasReceipt || receipt.SchemaVersion != connector.SchemaVersion || receipt.Decision != "APPLY" {
 		return blockProviderAttempt(req, "ACE projection receipt is missing or not applicable")
 	}
+	physicalRequestID, hasPhysicalRequestID := ctx.Value(physicalRequestIDKey).(string)
+	if !hasPhysicalRequestID || physicalRequestID == "" || receipt.RequestID != physicalRequestID || receipt.AttemptGroupID != physicalRequestID {
+		return blockProviderAttempt(req, "ACE projection receipt is not bound to this physical request")
+	}
+	sessionCorrelation, hasSessionCorrelation := ctx.Value(sessionCorrelationKey).(string)
+	resolvedSession, hasResolvedSession := ctx.Value(schemas.BifrostContextKeySessionID).(string)
+	if !hasSessionCorrelation || !hasResolvedSession || sessionCorrelation == "" || resolvedSession != sessionCorrelation {
+		return blockProviderAttempt(req, "ACE coding-harness session correlation changed before provider dispatch")
+	}
 	if req == nil || req.ChatRequest == nil {
 		return blockProviderAttempt(req, "ACE provider attempt is outside the certified Chat route")
 	}
@@ -267,7 +322,7 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 		return blockProviderAttempt(req, "ACE requested provider identity is unavailable")
 	}
 	if string(provider) != authorizedProvider {
-		return blockProviderAttempt(req, "ACE provider differs from the authenticated ingress identity")
+		return blockProviderAttempt(req, "ACE provider differs from the authorized ingress provider")
 	}
 	expectedContextDigest, hasContextDigest := ctx.Value(contextDigestKey).(string)
 	foundContext := false
