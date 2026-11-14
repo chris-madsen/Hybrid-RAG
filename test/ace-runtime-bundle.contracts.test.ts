@@ -60,6 +60,7 @@ test('reports missing runtime bundle paths instead of treating an incomplete mou
   const missing = missingAceRuntimeBundlePaths(root);
   assert.deepEqual(missing, requiredAceRuntimeBundlePaths);
   await mkdir(join(root, 'dist/bin'), { recursive: true });
+  await writeFile(join(root, 'dist/bin/ace-context-bridge.js'), '');
   assert.ok(missingAceRuntimeBundlePaths(root).includes('node_modules/effect/package.json'));
 });
 
@@ -119,6 +120,15 @@ test('Docker runtime uses the pinned embedding versions from the Harbor bundle c
   assert.ok(!dockerfile.includes('pillow==11.3.0'));
   assert.ok(!dockerfile.includes('fastembed==0.7.4'));
   assert.ok(!dockerfile.includes('numpy==2.5.4'));
+
+  // Host Git owns source identity; Docker verifies exactly those source bytes
+  // and the compiled binary instead of inventing a HEAD inside a .git-free image.
+  const dockerignore = await readFile('.dockerignore', 'utf8');
+  assert.ok(dockerfile.includes('COPY dist ./dist'));
+  assert.ok(dockerfile.includes('verifyCompiledRuntimeProvenance'));
+  assert.ok(!dockerfile.includes('RUN npm run build'));
+  assert.ok(dockerignore.split('\n').includes('.git'));
+  assert.ok(!dockerignore.split('\n').includes('dist'));
 
   const taskDockerfiles = [
     'benchmarks/harbor/ace-shared-archive-impact/environment/Dockerfile',
@@ -199,3 +209,10 @@ test('Harbor runtime builder validates exact embedding pins and native Python im
   assert.match(builder, /from PIL import Image; import PIL, fastembed, onnxruntime/u);
 });
 
+test('Harbor MCP launcher requires Python 3.11 and installs the reviewed embedding pins', async () => {
+  const launcher = await readFile('scripts/harbor-ace-mcp.sh', 'utf8');
+  assert.match(launcher, /sys\.version_info < \(3, 11\)/u);
+  assert.match(launcher, /fastembed==0\.9\.1/u);
+  assert.match(launcher, /pillow==13\.0\.0/u);
+  assert.doesNotMatch(launcher, /fastembed==0\.7\.4/u);
+});
