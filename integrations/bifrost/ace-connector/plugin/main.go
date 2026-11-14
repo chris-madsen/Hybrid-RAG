@@ -72,17 +72,22 @@ func requestBoundIdentity(ctx *schemas.BifrostContext, body []byte, rawModel str
 	if providerIdentity == "" {
 		providerIdentity = "bifrost:auto"
 	}
+	// Bifröst can attest the exact HTTP request it observes, but it cannot
+	// truthfully attest whether the coding agent compacted its own durable
+	// transcript before sending those bytes. Keep Gateway delivery useful while
+	// making that uncertainty explicit; strict exclusive-context/benchmark
+	// acceptance requires a separate host-side attestor.
 	attestationValue := map[string]any{
 		"hostBuildDigest": sha256Hex([]byte("ace-bifrost-plugin:" + aceSourceCommit + ":" + pinnedBifrostCommit)),
 		"sessionId": sessionID,
-		"activeEngineId": "gateway",
-		"effectiveCompressionControlsDigest": sha256Hex([]byte("bifrost-http:no-host-compaction:v1")),
-		"durableActiveTranscriptRevision": requestID,
+		"activeEngineId": "bifrost-visible-request-only",
+		"effectiveCompressionControlsDigest": sha256Hex([]byte("host-compression-controls:unattested")),
+		"durableActiveTranscriptRevision": "unattested:" + requestID,
 		"durableActiveTranscriptDigest": sha256Hex(body),
-		"hostCompactionEpoch": 0,
+		"hostCompactionEpoch": "unknown",
 		"attestorId": "ace-bifrost-plugin@" + aceSourceCommit,
 		"providerManagedHistoryCapability": "visible",
-		"hostTranscriptAttested": true,
+		"hostTranscriptAttested": false,
 		"compactionEnabled": false,
 	}
 	attestation, err := json.Marshal(attestationValue)
