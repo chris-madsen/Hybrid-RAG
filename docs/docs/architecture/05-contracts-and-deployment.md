@@ -1,14 +1,12 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # ACE — Контракты, интеграции и Deployment Sketch
 
-**Статус:** Proposed technical design. Контракты ниже — **логические**, а не обнаруженные API Qdrant/Vertex/Harbor/Codex. При реализации проверить версии библиотек и retired optional tool-call protocol tool schema. Физический data model и SDK DTO остаются adapter-specific.
+**Статус:** Current contract/deployment architecture baseline, updated 2026-11-14. Domain contracts remain provider-neutral; Gateway v1 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
 
 ## 1. Инварианты границ
 
-**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. retired optional tool-call protocol remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
+**Current architecture (owner decision 2026-11-14):** participating coding agents use Bifröst as their configured model endpoint. A pinned thin Go connector calls the authenticated local `ace.gateway.v1` Projection API; ACE Core remains TypeScript + Effect. No Hermes-native or model-invoked ACE context route exists as an alternative. Provider-wire and real-agent acceptance are separate G11 evidence.
 
-1. **Раздельные плоскости:** model-bound context via planned Bifrost → ACE Gateway Projection API (ADR-017) or existing native Hermes ContextEngine (ADR-016); retired optional tool-call protocol — only existing explicit tool calls, not mandatory LLM context injection. LangGraph schedules agents externally.
+1. **Одна agent-facing плоскость:** model-bound context проходит только через Bifröst → authenticated ACE Gateway Projection API (ADR-017 / OpenSpec 010). LangGraph может планировать агентов снаружи ACE, но не является альтернативным context transport.
 2. Выполнение кодовых правок и контроль Git остаются за Codex; ACE **read-only** относительно файлов проекта (кроме своих индексов/архивов).
 3. Порты не импортируют типы Qdrant/Vertex/Graphiti в домен.
 4. `RepoPath` не может выйти из разрешённого root после canonicalization (включая symlinks).
@@ -16,16 +14,16 @@
 6. Все большие оригиналы доступны без потерь; handles должны быть неугадываемыми/access-scoped и протухать/перепроверяться.
 7. Evidence provenance и certainty сохраняются в каждом переходе; LLM-generated summary не становится `source`.
 
-## 2. retired optional tool-call protocol Tool Surface — explicit tool calls (not automatic model-context injection)
+## 2. Gateway Projection Surface — sole agent-facing delivery
 
-| Tool | Аргументы | Результат | Контроль |
+| Endpoint / boundary | Input | Output | Control |
 |---|---|---|---|
-| `ace_context` | `workspace_id`, `query`, optional `intent`, `include_docs`, `include_memory` | `ContextBundle` | Один composite запрос; policy + freshness + provenance |
-| `ace_expand` | `bundle_id`, `evidence_id`, optional byte/range cursor | Lossless artifact/content slice, checksum, next_cursor | Не silent truncate, авторизовать повторно |
-| `ace_memory_search` | `workspace_id`, `query`, optional `as_of`, `include_original` | Episodes + decision timeline + primary refs | Только доступные/подтверждённые категории |
-| `ace_workspace_status` | `workspace_id` | observed epoch, index freshness, incomplete sources | Не объявлять stale индекс текущим |
+| `POST /internal/ace-gateway/v1/project` | request/session/workspace identity, provider/model, exact body digest+Base64, query, deadline, attestation | `APPLY` with projected body+receipt or `BLOCK` | authenticated loopback caller, schema/digest/body identity, policy/freshness, permitted rewrite |
+| `GET /internal/ace-gateway/v1/health` | none | liveness + provider-wire certification state | liveness is not production readiness |
+| `GET /internal/ace-gateway/v1/capabilities` | none | supported schema/route capability | unsupported route never becomes implicit pass |
+| Bifröst provider-attempt guard | normalized request + request-local ACE receipt | allowed first attempt or fail-closed error | model/provider/context binding; no fallback/retry reuse without fresh authorization |
 
-`ace_context` должен быть достаточным для common tasks. Специальные инструменты drill-down не заменяют свойство unified retrieval. API retired optional tool-call protocol проходит schema validation; подсказки в тексте выдачи не могут вызвать произвольные операции.
+The public agent-facing contract is Gateway-only. Exact source retrieval, memory lookup and expansion remain internal ACE capabilities behind application ports. A model does not choose whether to call ACE.
 
 ## 3. Версионированный ContextBundle (draft contract)
 
@@ -107,9 +105,9 @@ Security logs: `occurred_at, correlation_id, component, category, policy_version
 
 ## 6. Sync / async boundaries
 
-**Sync within authorized context request (native, planned gateway or explicit retired optional tool-call protocol tool):** workspace/policy check, retrieval planning, candidate fetch, live hash check, selective AST/LSP resolve, merge and bundle delivery. При конфликте файлов состояние маркируется.
+**Sync within an authorized Gateway projection:** workspace/policy check, retrieval planning, candidate fetch, live hash check, selective AST/LSP resolve, merge and request-local projection. При конфликте файлов состояние маркируется.
 
-**Async outside request:** index construction/refresh, session import, Graphiti projection, Harbor run aggregation. Event retry idempotent; не ждать Graphiti ingestion во время каждого `ace_context`.
+**Async outside request:** index construction/refresh, session import, Graphiti projection, Harbor run aggregation. Event retry idempotent; не ждать Graphiti ingestion во время каждого Gateway projection.
 
 **No global distributed transaction:** local outbox + recheck invariants at delivery, rather than pretending that Git, Qdrant, Graphiti and Vertex commit atomically.
 
@@ -117,13 +115,10 @@ Security logs: `occurred_at, correlation_id, component, category, policy_version
 
 ```mermaid
 flowchart TB
-  LG["LangGraph external orchestrator"] --> AG["Coding agents"]
-  AG -->|"LLM endpoint: planned"| BF["Bifrost + thin Go ACE connector: planned"]
-  BF -->|"Projection API: planned"| ACE["ACE modular monolith / TS+Effect"]
-  BF -->|"Provider request"| LLM["LLM provider"]
-  AG -.->|"Explicit retired optional tool-call protocol tools: existing"| retired optional tool-call protocol["ACE retired optional tool-call protocol tool facade"]
-  retired optional tool-call protocol --> ACE
-  HE["Hermes ContextEngine: existing"] -->|"Native JSONL bridge"| ACE
+  LG["External orchestrator (optional)"] --> AG["Coding agents"]
+  AG -->|"configured model endpoint"| BF["Bifröst + pinned thin Go ACE connector"]
+  BF -->|"authenticated ace.gateway.v1"| ACE["ACE modular monolith / TS+Effect"]
+  BF -->|"authorized provider attempt"| LLM["LLM provider"]
   ACE --> Q["Qdrant"]
   ACE --> T["ast-grep / LSP"]
   ACE --> G["Archive / Graphiti"]
@@ -149,7 +144,7 @@ flowchart TB
 
 ## 9. Versioning и migrations
 
-- `ContextBundle.schema_version` и domain events имеют версии; backward compatibility tests для retired optional tool-call protocol tool consumers.
+- `ContextBundle.schema_version`, domain events and `ace.gateway.v1` have explicit versions; public Gateway compatibility is guarded by TypeSpec regeneration and v1 contract checks.
 - Индекс содержит `embeddingProfileVersion`, `parserVersion`, `repo revision` и `generationId`; смена профиля требует нового generation.
 - История Graphiti extraction версионируется; смена extractor не меняет raw archive, только derived projection.
 - Test fixtures/Harbor/Codex/provider model versions замораживаются в run manifest.
@@ -177,17 +172,17 @@ CPU/memory-heavy code-intelligence операций; Python остаётся в�
 
 ## Implementation correction — executable composition and proof (proposed, 2026-10-18)
 
-1. **Production bootstrap contract:** `ace_context` must be exposed by a standards-compliant **official retired optional tool-call protocol TypeScript SDK**, then use an explicit effect/runtime wiring graph with chosen, configured Qdrant, measured genuine embedding provider, Tree-sitter structural analysis, and approved LSP when relevant. Vertex and Graphiti are routed only on appropriate authorized requests; an unavailable unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
+1. **Production bootstrap contract:** a supported coding-agent model request must traverse Bifröst → request-bound ACE Gateway Projection → explicit Effect/runtime wiring with chosen, configured Qdrant, measured genuine embedding provider, Tree-sitter/ast-grep and approved LSP when relevant. Vertex and Graphiti are routed only on authorized requests; an unavailable/unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
 2. **Provider truth:** attach `provider_id`, `version`, `status`, `source_digest`, `range`, `evidence_method`, and internal trace/call receipts to every claimed real-provider integration. Runtime receipts may be logged in a secret-safe test channel rather than exposed as user text. Do not silently substitute regex/whole-file candidates for AST spans or hash vectors for embeddings.
 3. **Completeness:** compute `complete` from the **required** retrieval plan (covered/failed/skipped-by-policy per source) and source verification; a missing required backend makes the bundle partial even when other evidence is current.
 4. **Relevance vs losslessness:** first response provides accurate minimal relevant spans without arbitrary mandatory token ceilings; exact full file/2000-line artifact remains retrievable with an authorized handle. Returning every entire file per lexical symbol is a retrieval-quality failure, not compliance with ADR-006.
-5. **Failure isolation:** technical outage can use labelled local fallback with partial provenance; security denial is fail-closed and audited. Preserve cancellation, concurrency, SDK protocol compliance and immutable user worktree.
-6. **Stage gates:** component tests → real-provider integration → Codex/retired optional tool-call protocol E2E → Harbor attribution/quality/cost tests → owner acceptance. Unpassed gates are **not ready**; do not mark them `[x]` via a controlled exception. See `07-architecture-fitness-contracts.md` and OpenSpec `006-production-retrieval-vertical-slice`.
+5. **Failure isolation:** technical retrieval outage can yield explicit partial/not-ready evidence only where Gateway policy permits; security denial and missing request-bound admission are fail-closed. Preserve cancellation, concurrency, Gateway contract compliance and immutable user worktree.
+6. **Stage gates:** component/contract tests → pinned native Bifröst plugin build → real-provider integration/provider-wire capture → real coding-agent Gateway E2E → Harbor attribution/quality/cost tests → owner acceptance. Unpassed gates are **not ready**; do not mark them `[x]` via a controlled exception. See `07-architecture-fitness-contracts.md` and OpenSpec `006-production-retrieval-vertical-slice`.
 
 
 ## 12. Accepted hybrid-context contract update — 2026-10-21
 
-ADR-014 supersedes the earlier “dense candidate store + optional extra tools” interpretation with an explicit **multi-layer hybrid Context Engine** while preserving the same retired optional tool-call protocol facade and trust boundaries.
+ADR-014 supersedes the earlier “dense candidate store + optional extra tools” interpretation with an explicit **multi-layer hybrid Context Engine**. Agent-facing transport is independently fixed by Gateway-only ADR/OpenSpec 010.
 
 ### Code retrieval
 
@@ -208,12 +203,12 @@ A separate lexical database is not required by the architecture. Qdrant is the d
 
 ### Working Context
 
-`ace_context` MAY accept optional host hints such as focused/open paths and ranges. ACE independently observes authoritative Git/worktree state. Host hints influence ranking only and never override source digest verification or policy.
+Future Gateway contract versions MAY carry optional focused/open path/range hints. ACE independently observes authoritative Git/worktree state; hints influence ranking only and never override source digest verification or policy.
 
 ### Repeated-context suppression
 
-ContextBundle evolves to carry stable bundle/evidence receipts. A caller MAY present already-known bundle/evidence identities; unchanged evidence bodies SHOULD be represented compactly instead of retransmitted. Exact content remains available through `ace_expand`.
+ContextBundle/evidence identities support repeated-context suppression. A versioned Gateway request MAY present already-known evidence identities; unchanged evidence bodies can be omitted from projection only when compatibility and completeness semantics remain explicit. Exact source remains preserved internally for authorized re-projection.
 
 ### Agent independence
 
-No editor-specific state is mandatory. IDE-aware clients may provide richer hints; CLI agents can use the same retired optional tool-call protocol contract with only workspace/query/source obligations. See ADR-014 and OpenSpec change 007.
+No editor-specific state is mandatory. IDE-aware and CLI agents use the same Bifröst model endpoint; richer working-context hints require an accepted Gateway contract extension. See ADR-014, OpenSpec 007 and active Gateway ownership change 010.
