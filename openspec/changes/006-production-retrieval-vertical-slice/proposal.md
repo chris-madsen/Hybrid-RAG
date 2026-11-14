@@ -6,7 +6,7 @@
 
 ## Why
 
-The running Codex retired optional tool-call protocol bootstrap can use a regex/whole-file lexical path while separately implemented Qdrant/AST/LSP adapters are not composed. An isolated unit test or a checked task does not prove the intended ACE value.
+A running agent/Gateway path can appear healthy while real Qdrant/AST/LSP adapters are not composed. An isolated adapter unit test or checked task does not prove the intended ACE value.
 
 ## What changes
 
