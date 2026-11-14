@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/chris-madsen/Mult-agent-AI-Orchestration/integrations/bifrost/ace-connector"
@@ -19,6 +20,7 @@ const (
 	attemptGroupKey schemas.BifrostContextKey = "ace.attempt_group_id"
 	providerKey    schemas.BifrostContextKey = "ace.provider"
 	attestationKey schemas.BifrostContextKey = "ace.host_attestation"
+	projectedModelKey schemas.BifrostContextKey = "ace.projection.original_model"
 )
 
 var projectionClient connector.Client
@@ -106,11 +108,19 @@ func errorResponse(status int, message string) *schemas.HTTPResponse {
 }
 
 func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
+	if req == nil {
+		return errorResponse(400, "ACE gateway request is missing"), nil
+	}
 	if req.Path != "/v1/chat/completions" {
-		if os.Getenv("ACE_GATEWAY_STRICT") == "true" {
-			return errorResponse(415, "ACE gateway route is unsupported"), nil
+		// Administrative endpoints do not invoke a model. Every unsupported
+		// generation route is rejected, not forwarded under a disabled flag.
+		if strings.HasPrefix(req.Path, "/v1/") && req.Path != "/v1/models" {
+			return errorResponse(415, "ACE gateway model route is unsupported"), nil
 		}
 		return nil, nil
+	}
+	if req.Method != "POST" || !strings.HasPrefix(strings.ToLower(req.CaseInsensitiveHeaderLookup("Content-Type")), "application/json") {
+		return errorResponse(415, "ACE requires a JSON POST Chat Completions request"), nil
 	}
 	workspaceID, okWorkspace := stringValue(ctx, workspaceKey)
 	sessionID, okSession := stringValue(ctx, sessionKey)
@@ -146,6 +156,7 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	req.Body = projected
 	ctx.SetValue(schemas.BifrostContextKey("ace.projection.receipt"), projection.Receipt)
 	ctx.SetValue(schemas.BifrostContextKey("ace.projection.base_digest"), projection.Receipt.BaseBodySHA256)
+	ctx.SetValue(projectedModelKey, model)
 	return nil, nil
 }
 
@@ -168,9 +179,6 @@ func blockProviderAttempt(req *schemas.BifrostRequest, reason string) (*schemas.
 
 func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
 	receipt, hasReceipt := ctx.Value(schemas.BifrostContextKey("ace.projection.receipt")).(connector.Receipt)
-	if !hasReceipt && os.Getenv("ACE_GATEWAY_STRICT") != "true" {
-		return req, nil, nil
-	}
 	if !hasReceipt || receipt.SchemaVersion != connector.SchemaVersion || receipt.Decision != "APPLY" {
 		return blockProviderAttempt(req, "ACE projection receipt is missing or not applicable")
 	}
@@ -180,6 +188,10 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	provider, model, fallbacks := req.GetRequestFields()
 	if provider == "" || model == "" || len(fallbacks) != 0 {
 		return blockProviderAttempt(req, "ACE provider route or fallback is not certified")
+	}
+	ingressModel, bound := ctx.Value(projectedModelKey).(string)
+	if !bound || ingressModel != model {
+		return blockProviderAttempt(req, "ACE provider model differs from authorized ingress payload")
 	}
 	// Only the initial projected attempt was authorized by HTTPTransportPreHook.
 	// Until per-attempt ACE reauthorization is implemented, a second hook call
