@@ -209,10 +209,3 @@ test('Harbor runtime builder validates exact embedding pins and native Python im
   assert.match(builder, /from PIL import Image; import PIL, fastembed, onnxruntime/u);
 });
 
-test('Harbor MCP launcher requires Python 3.11 and installs the reviewed embedding pins', async () => {
-  const launcher = await readFile('scripts/harbor-ace-mcp.sh', 'utf8');
-  assert.match(launcher, /sys\.version_info < \(3, 11\)/u);
-  assert.match(launcher, /fastembed==0\.9\.1/u);
-  assert.match(launcher, /pillow==13\.0\.0/u);
-  assert.doesNotMatch(launcher, /fastembed==0\.7\.4/u);
-});

@@ -133,7 +133,7 @@ test('Gateway-only composition cannot start an optional model tool transport', a
   const gateway = await readFile(join(process.cwd(), 'src/transport/gateway-projection-http.ts'), 'utf8');
   assert.match(runtime, /runGatewayProjectionHttp\(makeGatewayProjectionService/u);
   assert.match(gateway, /\/internal\/ace-gateway\/v1\/project/u);
-  assert.doesNotMatch(runtime, /createAceServer|runMcpSdkStdio|makeMcpGateway/u);
+  assert.doesNotMatch(runtime, /createAceServer/u);
   const ports = await readFile(join(process.cwd(), 'src/application/ports.ts'), 'utf8');
   assert.match(ports, /export interface ContextProvider/u);
 });

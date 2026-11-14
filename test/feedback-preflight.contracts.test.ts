@@ -380,7 +380,7 @@ test('OAuth preflight inspects the dedicated Hermes auth store, not Codex CLI st
 });
 
 
-test('exact-current preflight requires a clean checkout, compiled runtime provenance and Hermes/MCP digests', async () => {
+test('exact-current preflight requires a clean checkout, compiled runtime provenance and Hermes/Gateway digests', async () => {
   const preflight = await readFile('scripts/feedback-loop-preflight.ts', 'utf8');
   assert.match(preflight, /status', '--porcelain=v1'/u);
   assert.match(preflight, /verifyCompiledRuntimeProvenance/u);

@@ -63,9 +63,9 @@ test('Harbor byte binding accepts the exact frozen task, manifest and config byt
   const taskPath = join(root, 'task.md');
   const configPath = join(root, 'dense.toml');
   await writeFile(taskPath, 'task bytes v1\n', 'utf8');
-  await writeFile(configPath, 'mcp = "ace"\n', 'utf8');
+  await writeFile(configPath, 'gateway = "ace"\n', 'utf8');
   const manifestSha256 = await writeFrozenManifest(root, taskPath, sha256('task bytes v1\n'));
-  const job = baseJob(root, taskPath, configPath, sha256('task bytes v1\n'), sha256('mcp = "ace"\n'), manifestSha256);
+  const job = baseJob(root, taskPath, configPath, sha256('task bytes v1\n'), sha256('gateway = "ace"\n'), manifestSha256);
 
   const result = await verifyHarborJobByteBinding(job, { workspaceRoot: root });
   assert.equal(result._tag, 'Ok');
@@ -93,9 +93,9 @@ test('Harbor binding rejects a wrong declared task SHA instead of trusting the m
   const taskPath = join(root, 'task.md');
   const configPath = join(root, 'dense.toml');
   await writeFile(taskPath, 'actual task bytes\n', 'utf8');
-  await writeFile(configPath, 'mcp = "ace"\n', 'utf8');
+  await writeFile(configPath, 'gateway = "ace"\n', 'utf8');
   const manifestSha256 = await writeFrozenManifest(root, taskPath, 'a'.repeat(64));
-  const job = baseJob(root, taskPath, configPath, 'a'.repeat(64), sha256('mcp = "ace"\n'), manifestSha256);
+  const job = baseJob(root, taskPath, configPath, 'a'.repeat(64), sha256('gateway = "ace"\n'), manifestSha256);
 
   const result = await verifyHarborJobByteBinding(job, { workspaceRoot: root });
   assert.equal(result._tag, 'Err');
@@ -107,18 +107,18 @@ test('Harbor binding rejects task and config changes after freeze', async () => 
   const taskPath = join(root, 'task.md');
   const configPath = join(root, 'dense.toml');
   await writeFile(taskPath, 'task bytes v1\n', 'utf8');
-  await writeFile(configPath, 'mcp = "ace"\n', 'utf8');
+  await writeFile(configPath, 'gateway = "ace"\n', 'utf8');
   const manifestSha256 = await writeFrozenManifest(root, taskPath, sha256('task bytes v1\n'));
-  const job = baseJob(root, taskPath, configPath, sha256('task bytes v1\n'), sha256('mcp = "ace"\n'), manifestSha256);
+  const job = baseJob(root, taskPath, configPath, sha256('task bytes v1\n'), sha256('gateway = "ace"\n'), manifestSha256);
   await writeFile(taskPath, 'task bytes v2\n', 'utf8');
 
   const changedTask = await verifyHarborJobByteBinding(job, { workspaceRoot: root });
   assert.equal(changedTask._tag, 'Err');
   await writeFile(taskPath, 'task bytes v1\n', 'utf8');
-  await writeFile(configPath, 'mcp = "other"\n', 'utf8');
+  await writeFile(configPath, 'gateway = "other"\n', 'utf8');
   const changedConfig = await verifyHarborJobByteBinding(job, { workspaceRoot: root });
   assert.equal(changedConfig._tag, 'Err');
-  await writeFile(configPath, 'mcp = "ace"\n', 'utf8');
+  await writeFile(configPath, 'gateway = "ace"\n', 'utf8');
   await writeFile(join(root, 'manifest.json'), '{"revision":"changed"}\n', 'utf8');
   const changedManifest = await verifyHarborJobByteBinding(job, { workspaceRoot: root });
   assert.equal(changedManifest._tag, 'Err');
