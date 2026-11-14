@@ -1,3 +1,5 @@
+> **Archived design evidence (2026-11-14):** This W04 runner predates the Gateway-only architecture. The executable index-scale harness and its package command were retired with the optional agent-tool path. The measurements and rationale below are retained for historical provenance only; the commands are **not current implementation instructions**. New scale acceptance must exercise the Bifröst → ACE Gateway Projection path and produce new request-bound evidence.
+
 > **RETIRED / historical evidence (2026-11-14).** The former index-scale
 > process runner and its command have been removed with the old agent-facing
 > tool transport. The steps and results below are preserved solely as historical
@@ -28,7 +30,7 @@ limit. A timeout is a failed measurement and must be retained as such.
 ## 1k run
 
 ```bash
-npm run test:real-index-scale -- \
+[retired command: no active replacement until Gateway scale E2E is implemented] -- \
   --files 1000 \
   --changed 1 \
   --output artifacts/index-scale/1000-files.json
@@ -37,7 +39,7 @@ npm run test:real-index-scale -- \
 ## 10k run
 
 ```bash
-npm run test:real-index-scale -- \
+[retired command: no active replacement until Gateway scale E2E is implemented] -- \
   --files 10000 \
   --changed 1 \
   --output artifacts/index-scale/10000-files.json
