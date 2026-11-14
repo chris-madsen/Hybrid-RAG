@@ -119,7 +119,7 @@ export const validateHarborFourArmDesign = (
       return err(domainError(
         'INVALID_BENCHMARK',
         'harbor_job.external_evidence.codex_config',
-        'each arm must bind the exact effective Codex/MCP config path and bytes; native must bind explicit no-config',
+        'each arm must bind the exact effective Codex/Gateway config path and bytes; native must bind explicit no-config',
       ));
     }
   }

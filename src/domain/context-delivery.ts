@@ -129,7 +129,7 @@ const bundleIdentity = (bundle: ContextBundle): BundleId => stableReceiptDigest(
 export interface ContextReceiptInput {
   readonly knownEvidenceIds?: readonly string[];
   readonly knownBundleId?: string;
-  /** Internal workspace scope; never serialized into the MCP response. */
+  /** Internal workspace scope; never serialized into the Gateway response. */
   readonly receiptScope?: string;
 }
 

@@ -79,7 +79,9 @@ export const validateFeedbackHarborJob = (
     return invalid(`${path}.agents[0].kwargs.version`, `Hermes version must be pinned to ${feedbackHermesVersion}`);
   }
   if (!isFeedbackReasoningEffort(effort)) return invalid(`${path}.agents[0].kwargs.reasoning_effort`, 'reasoning effort must be low, medium, high or xhigh');
-  if (agent?.mcp_servers !== undefined) return invalid(`${path}.agents[0].mcp_servers`, 'primary feedback jobs must not use MCP for ACE context injection');
+  if (Object.keys(agent ?? {}).some((key) => key.endsWith('_servers'))) {
+    return invalid(`${path}.agents[0]`, 'model-invoked server registry is not permitted in Gateway-only feedback jobs');
+  }
   const contextEngine = validateContextEngine(kwargs ?? {}, `${path}.agents[0].kwargs`);
   if (contextEngine._tag === 'Err') return contextEngine;
   if (root.n_concurrent_trials !== 1) return invalid(`${path}.n_concurrent_trials`, 'feedback jobs must be serial');

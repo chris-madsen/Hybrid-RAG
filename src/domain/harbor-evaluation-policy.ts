@@ -1,6 +1,6 @@
 /**
  * DBC-12 is a claim about naturally useful, attributable retrieval—not merely
- * correct arithmetic or a forced MCP invocation.
+ * correct arithmetic or a forced Gateway invocation.
  */
 export interface HarborAcceptanceEvidence {
   readonly paired: boolean;

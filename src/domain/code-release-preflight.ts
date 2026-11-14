@@ -70,7 +70,7 @@ const nonEmpty = (value: string): boolean => value.trim().length > 0;
 
 /**
  * DBC-10/11 are memory-only and DBC-14 requires the documentation capability.
- * Every other current DBC exercises the code retrieval/MCP/benchmark/security path.
+ * Every other current DBC exercises the code retrieval/Gateway/benchmark/security path.
  */
 export const codeOnlyRequiredDbcs: readonly DbcId[] = [
   'DBC-01',

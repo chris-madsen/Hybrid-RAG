@@ -87,7 +87,7 @@ export interface FeedbackTrialObservation {
   readonly observedAceCalls: number;
   /** ace_context calls only. Undefined preserves legacy observations where every ACE call was a context call. */
   readonly observedAceContextCalls?: number;
-  /** Request IDs observed in successful ace_context MCP tool events. */
+  /** Request IDs observed in successful ace_context Gateway receipts. */
   readonly observedAceRequestIds: readonly string[];
   /** Request IDs observed in successful Hermes ContextEngine transformations. */
   readonly contextTransformRequestIds?: readonly string[];
@@ -336,7 +336,7 @@ export const validateFeedbackExperimentManifest = (value: unknown): Result<Feedb
     || !(seed === 'unknown' || nonEmpty(seed))
     || (root.mode !== 'cold' && root.mode !== 'warm') || root.nConcurrentTrials !== 1 || root.nAttempts !== 1
     || !nonEmpty(root.authenticationRoute)) {
-    return invalid('experiment_manifest', 'experiment requires pinned Hermes/model/reasoning, agent/MCP digests and serial one-attempt limits');
+    return invalid('experiment_manifest', 'experiment requires pinned Hermes/model/reasoning, agent/Gateway digests and serial one-attempt limits');
   }
   if (/(?:bearer|api[_-]?key|access[_-]?token|password|secret)\s*[:=]/iu.test(root.authenticationRoute)) {
     return err(domainError('SECRET_DETECTED', 'experiment_manifest.authenticationRoute', 'authentication route must not contain credentials'));
@@ -409,7 +409,7 @@ const validateObservation = (observation: FeedbackTrialObservation, path: string
     return invalid(`${path}.hermesContextEvidence`, 'Hermes evidence count must match transformation request IDs');
   }
   if (observation.observedAceCalls < observedContextCalls + contextTransformIds.length) {
-    return invalid(`${path}.observedAceCalls`, 'total ACE calls must include MCP context calls and Hermes ContextEngine transformations');
+    return invalid(`${path}.observedAceCalls`, 'total ACE calls must include Gateway projection calls and Hermes ContextEngine transformations');
   }
   if (observation.hermesContextEvidence?.some((item) => item.requestId.trim().length === 0)) {
     return invalid(`${path}.hermesContextEvidence`, 'Hermes evidence request IDs must be non-empty');
@@ -596,11 +596,11 @@ export const reconcileFeedbackTrials = (input: {
     aceObservedCalls: input.ace.reduce((sum, item) => sum + item.observedAceCalls, 0),
     aceCorrelatedCalls: input.ace.reduce((sum, trial) => {
       const providerIds = new Set(trial.providerTraceRequestIds);
-      const mcpCorrelated = trial.observedAceRequestIds.filter((id) => providerIds.has(id)).length;
+      const gatewayCorrelated = trial.observedAceRequestIds.filter((id) => providerIds.has(id)).length;
       // A bridge providerRequestId is a retrieval trace ID, NOT an LLM egress ID.
-      // Count only verifiable MCP/backend calls; pending real provider-bound
+      // Count only verifiable Gateway/backend calls; pending real provider-bound
       // observation Hermes transforms must not be promoted to correlated.
-      return sum + mcpCorrelated;
+      return sum + gatewayCorrelated;
     }, 0),
     aceNotUsed,
   });
