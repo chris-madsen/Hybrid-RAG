@@ -80,8 +80,13 @@ const requestBodyIdentityValid = (
   return false;
 };
 
-const gatewayDataClass = (value: GatewayProjectionRequest['dataClass']): DataClass =>
-  value === 'private' ? 'private_source' : value;
+const gatewayDataClasses = (value: GatewayProjectionRequest['dataClass']): readonly DataClass[] => {
+  const declared: DataClass = value === 'private' ? 'private_source' : value;
+  // Gateway v1 currently retrieves code only. The caller's wire classification
+  // may add restrictions for the original request, but it can never downgrade
+  // the private_source classification of repository evidence that ACE injects.
+  return declared === 'private_source' ? ['private_source'] : [declared, 'private_source'];
+};
 
 const providerManagedContinuationPresent = (body: Record<string, unknown>): boolean =>
   ['previous_response_id', 'conversation', 'conversation_id', 'thread_id']
@@ -114,7 +119,7 @@ const authorizeGatewayEgress = (
         workspaceId: workspaceId.value,
         operation: 'gateway_llm_projection',
         destination: 'other_external',
-        dataClasses: [gatewayDataClass(request.dataClass)],
+        dataClasses: gatewayDataClasses(request.dataClass),
         paths: [],
         secretDetected,
       },
