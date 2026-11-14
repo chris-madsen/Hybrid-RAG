@@ -64,6 +64,16 @@ Gateway SHALL know and authorize the exact LLM provider before retrieving or inj
 - **WHEN** retrieved context matches the repository secret-content guard
 - **THEN** Gateway blocks before constructing the provider-bound projected body.
 
+#### Scenario: original agent request contains likely secret material
+- **WHEN** the Bifröst-visible provider request already contains likely secret material
+- **THEN** Gateway blocks before retrieval
+- **AND** the secret-bearing request is not authorized for external LLM egress by ACE.
+
+#### Scenario: request references hidden provider-managed continuation state
+- **WHEN** the provider body contains a known continuation/thread identifier such as `previous_response_id`, `conversation`, `conversation_id`, or `thread_id`
+- **THEN** Gateway returns `PROVIDER_MANAGED_STATE_UNKNOWN` before retrieval
+- **AND** the connector does not claim that the full context is visible.
+
 ### Requirement: Protected additive projection
 
 The currently certified Chat projection SHALL preserve the original provider body except for exactly one ACE verified-evidence system message.
