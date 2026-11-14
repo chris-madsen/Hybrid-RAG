@@ -1,6 +1,6 @@
 # Adaptive Context Engine (ACE) Harness
 
-ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler. LangGraph or another external orchestrator owns multi-agent workflows. ACE supplies verified context to model requests. For configurable-endpoint agents, **Bifrost is the selected, not-yet-implemented LLM context gateway** (ADR-017). **MCP is an explicit tool interface, not the primary route for model-bound context injection.** Hermes already has a native ContextEngine/JSONL bridge (ADR-016).
+ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler. LangGraph or another external orchestrator owns multi-agent workflows. ACE supplies verified context to model requests. For configurable-endpoint agents, **Bifröst is the sole LLM Gateway integration** (ADR-017 and explicit 2026-11-14 owner decision). Its local connector/contract tests exist; actual final-provider delivery and production approval remain unverified. The model does not select or invoke ACE tools.
 
 
 ## Architecture at a glance
@@ -22,9 +22,6 @@ LangGraph / other external orchestrator -> existing agents
            |-- memory: Graphiti/archive
            +-- verified context / receipts
 
-Existing separate integrations:
-  agent -- MCP explicit tool call --> ACE tools (search/expand/status)
-  Hermes -- native ContextEngine --> ACE direct JSONL bridge
 ```
 
 Private source and conversations remain local by default; Vertex is a
@@ -64,9 +61,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
   temporal memory search and confirmation-gated decision FSM;
 - deterministic multi-source routing with an explicit, opt-in Jev boundary and
   required-source quality comparison;
-- one existing **MCP tool facade** (not the LLM context gateway) using the maintained official MCP TypeScript SDK over stdio,
-  with `ace_context`, `ace_expand`, `ace_workspace_status` and
-  `ace_memory_search` tool contracts;
+- **Gateway-only automatic context injection** through the versioned HTTP projection endpoint; retrieval and exact expansion happen inside ACE, not via a model-invoked tool interface;
 - typed local context/memory provider wiring; `not_ready` is returned only when
   no provider is injected, while unverified external providers remain blocked.
 - deterministic comparison report artifacts in Markdown, JSONL and CSV with
@@ -78,7 +73,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
   isolated Go connector and a pinned Bifrost mock-provider wire proof; real
   external-provider, agent-E2E and production gates remain separate.
 
-For explicit MCP tool access, run the MCP stdio process with `ACE_WORKSPACE_ROOT=/path/to/repo npm run mcp:stdio`.
+For Gateway projection, run `ACE_WORKSPACE_ROOT=/path/to/repo npm run gateway:http` and configure the coding agent's model endpoint through Bifröst.
 Without the real retrieval provider it exposes an honest `not_ready` status,
 not a simulated production search. For the **experimental** local retrieval
 path, forward the local k3s Qdrant port and configure:
@@ -124,7 +119,7 @@ archive reference safety without requiring an inference model.
 `npm run test:real-same-name` verifies same-name structural spans, definitions,
 references and write locations through real Tree-sitter and TypeScript LS.
 `npm run test:container-provider` verifies the same retrieval composition through
-the official MCP client and a Docker stdio container.
+the Bifröst Gateway connector and an isolated Docker provider runtime.
 
 No production-approved embedding model/LSP, Graphiti extraction, Harbor quality
 gate or 5× improvement is claimed until the documented provider spikes and owner
@@ -133,7 +128,7 @@ claim.
 
 ## Configuration and readiness
 
-See [`docs/operations/ace-configuration-and-readiness-matrix.md`](docs/operations/ace-configuration-and-readiness-matrix.md) before enabling providers. In particular, `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` selects the real local Qdrant composition but does **not** constitute production approval. The current production MCP bootstrap does not silently replace unavailable Qdrant with a lexical provider; lexical fallback is a separate test/degraded capability, not a production readiness signal.
+See [`docs/operations/ace-configuration-and-readiness-matrix.md`](docs/operations/ace-configuration-and-readiness-matrix.md) before enabling providers. In particular, `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` selects the real local Qdrant composition but does **not** constitute production approval. The Gateway-only bootstrap does not silently replace unavailable Qdrant with a lexical provider; lexical fallback is a separate test/degraded capability, not a production readiness signal.
 
 Full code + documentation + memory release readiness is evaluated by `npm run release:preflight -- ...`; there is no environment flag that turns an unverified provider set into a production-approved system.
 

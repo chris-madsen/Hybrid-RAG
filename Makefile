@@ -61,7 +61,7 @@ qdrant-up: ## Start the local Qdrant container without exposing it beyond localh
 feedback-preflight: ## Record real feedback-loop provider readiness and provenance
 	npm run preflight:feedback-loop -- $(ARGS)
 
-feedback-stage0: ## Run the real ast-grep -> Qdrant -> MCP -> LSP stage-0 trace
+feedback-stage0: ## Run the real ast-grep -> Qdrant -> Gateway -> LSP stage-0 trace
 	npm run test:feedback-stage0
 
 acquire-repobench-r: ## Acquire and pin official RepoBench-R records and source identities

@@ -9,7 +9,7 @@ Read root \`AGENTS.md\`, the accepted OpenSpec change, ADR and [full codegen pla
 
 ## When to invoke
 - Adding/changing a public Gateway Projection operation or error.
-- Changing MCP or native Hermes JSON schema after evaluating TypeSpec compatibility.
+- Changing Gateway or native Hermes JSON schema after evaluating TypeSpec compatibility.
 - Adding generated SDK/server/validator, permission metadata or DTO mappers.
 - A PR changes generator/compiler, schema or output files.
 
@@ -27,7 +27,7 @@ Read root \`AGENTS.md\`, the accepted OpenSpec change, ADR and [full codegen pla
 
 ## Don't
 - Don't write business invariants into generated handlers or generated mapping templates.
-- Don't implement an alternate MCP transport in place of official SDK.
+- Don't implement an alternate Gateway transport in place of official SDK.
 - Don't add a handwritten duplicate public schema source.
 - Don't call uninstalled TypeSpec emitters or imagined plugins PASS.
 - Don't infer protocol compatibility from TypeScript compiler success alone.
