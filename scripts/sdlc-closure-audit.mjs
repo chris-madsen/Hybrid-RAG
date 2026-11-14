@@ -63,12 +63,12 @@ const requirements = [
   {
     id: 'GATEWAY_EGRESS_POLICY',
     file: 'src/application/gateway-projection-service.ts',
-    contains: ['authorizeOutbound', 'allowedProviders', "destination: 'other_external'", "return block(request, 'POLICY_DENIED')", 'containsLikelySecret'],
+    contains: ['authorizeAndAudit', 'allowedProviders', "destination: 'other_external'", 'security.audit.append', 'containsLikelySecret'],
   },
   {
     id: 'GATEWAY_EGRESS_CONFIG',
     file: 'src/bin/ace-runtime.ts',
-    contains: ['ACE_GATEWAY_EXTERNAL_LLM_OPT_IN', 'ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', 'allowedCloudDataClassesByProvider'],
+    contains: ['ACE_GATEWAY_EXTERNAL_LLM_OPT_IN', 'ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', 'allowedCloudDataClassesByProvider', 'gateway-policy-audit.jsonl'],
   },
   {
     id: 'OPENSPEC_STRICT_VALIDATION',
