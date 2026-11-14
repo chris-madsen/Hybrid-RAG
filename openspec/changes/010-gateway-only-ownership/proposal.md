@@ -12,15 +12,17 @@ This change is the current OpenSpec owner for that integration boundary. Superse
 
 - Bifröst is the sole agent-facing ACE context-delivery path.
 - ACE Core remains TypeScript + Effect and owns retrieval, source verification, policy, memory and context projection.
-- A thin pinned Go plugin binds a Bifröst request/session to `ace.gateway.v1`, authenticates to the local projection endpoint, and fails closed.
+- A thin pinned Go plugin binds Bifröst-visible request/session identity to `ace.gateway.v1`, authenticates to the local projection endpoint, and fails closed.
 - Only the currently certified OpenAI Chat Completions ingress route is projected. Unsupported generation routes are blocked rather than bypassing ACE.
 - Projection may add one verified evidence system message while preserving all other provider-body semantics.
 - The first provider attempt is bound to the projection receipt, normalized model/provider and exact inserted context. Retry/fallback reuse is blocked until per-attempt reauthorization is implemented.
+- The plugin does **not** claim visibility into the coding host's durable transcript or compaction state. Basic Gateway delivery may add verified ACE evidence to the exact visible request while preserving that uncertainty; exclusive-context/compaction ownership remains a separate host-attested G11/benchmark claim.
 - Provider/agent production acceptance remains a distinct G11 evidence stage.
 
 ## Out of scope
 
 - Reintroducing model-selected ACE tools or a native Hermes ACE delivery bridge.
 - Claiming hidden provider-held history is visible.
+- Claiming Bifröst can attest coding-host durable transcript or compaction state that it never observed.
 - Claiming token savings from additive context injection.
 - Certifying retry, fallback, streaming, external provider bytes or task economics without their real evidence.
