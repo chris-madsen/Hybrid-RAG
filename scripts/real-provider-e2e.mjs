@@ -63,6 +63,7 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_AST_GREP_COMMAND: process.env.ACE_AST_GREP_COMMAND ?? runtime.astGrepCommand,
     ACE_GATEWAY_HTTP_HOST: '127.0.0.1',
     ACE_GATEWAY_HTTP_PORT: String(gatewayPort),
+    ACE_GATEWAY_HTTP_SHARED_SECRET: 'real-provider-fixture-secret',
     ...(race ? { ACE_ENABLE_TEST_FAILPOINTS: 'true', ACE_EMBEDDING_DELAY_MS: '1000' } : {}),
   },
   stdio: ['ignore', 'ignore', 'pipe'],
@@ -104,7 +105,7 @@ try {
     attemptGroupId: 'turn-1', agentSessionId: sessionId, workspaceId,
     dataClass: 'private', protocol: 'openai.chat.completions', provider: 'mock', model: 'test-model',
     bodyBase64, bodySha256: digest(bodyBytes),
-    query: 'retryAfterTransientFailure',
+    query: 'Find retryAfterTransientFailure and its definition.',
     projectionMode: 'gateway', deadlineEpochMs: Date.now() + maxWait,
     attestation: {
       hostBuildDigest: digest('host'), sessionId, activeEngineId: 'gateway',
@@ -115,7 +116,7 @@ try {
     },
   };
   const responsePromise = fetch(endpoint + '/project', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
     body: JSON.stringify(payload), signal: timeout(maxWait),
   });
   if (race) {
