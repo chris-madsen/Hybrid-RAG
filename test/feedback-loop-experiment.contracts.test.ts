@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -394,119 +394,12 @@ test('feedback report validator rejects malformed rows and zero economic counter
 });
 
 
-test('Harbor preparation binds actual clean Git blobs and blocks dirty source', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'ace-feedback-frozen-'));
-  const source = join(root, 'source');
-  const ace = join(root, 'ace');
-  await mkdir(source);
-  await mkdir(join(ace, 'dist', 'bin'), { recursive: true });
-  await mkdir(join(ace, 'scripts'), { recursive: true });
-  await mkdir(join(ace, 'integrations', 'hermes', 'ace_context_engine'), { recursive: true });
-  const git = (cwd: string, ...args: string[]): string =>
-    execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
-  const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
-  for (const dir of [source, ace]) {
-    git(dir, 'init', '-q');
-    git(dir, 'config', 'user.name', 'ACE test');
-    git(dir, 'config', 'user.email', 'ace-test@example.invalid');
-  }
-  for (let i = 0; i < 20; i += 1) {
-    const taskDir = join(source, 'tasks', 'task-' + String(i));
-    await mkdir(taskDir, { recursive: true });
-    await writeFile(join(taskDir, 'test.txt'), 'content ' + String(i) + '\n');
-    await writeFile(join(taskDir, 'task.toml'), 'version = "1.0"\n[environment]\ndocker_image = "registry.example/feedback:1"\n');
-  }
-  git(source, 'add', '.');
-  git(source, 'commit', '-q', '-m', 'pin tasks');
-  const revisionValue = git(source, 'rev-parse', 'HEAD');
-  const entries = (prefix?: string) => {
-    const paths = execFileSync('git', [
-      '-C', source, 'ls-tree', '-r', '-z', '--name-only', revisionValue,
-      ...(prefix === undefined ? [] : [prefix + '/']),
-    ]).toString('utf8').split('\0').filter(Boolean).sort((a, b) => a.localeCompare(b));
-    return paths.map((path) => {
-      const bytes = execFileSync('git', ['-C', source, 'show', revisionValue + ':' + path]);
-      return { path, sizeBytes: bytes.byteLength, sha256: sha(bytes) };
-    });
-  };
-  const treeDigest = (id: string, items: ReturnType<typeof entries>) =>
-    sha(Buffer.from(JSON.stringify({ schemaVersion: 1, identity: id, revision: revisionValue, entries: items }, null, 2) + '\n'));
-  const sourceDigest = treeDigest('scale-ai/swe-atlas-qna', entries());
-  const tasks = Array.from({ length: 20 }, (_, i) => {
-    const taskPath = 'tasks/task-' + String(i);
-    const id = 'task-' + String(i);
-    return { id, taskPath, sourceRevision: revisionValue, sourceDigest, taskDigest: treeDigest(id, entries(taskPath)) };
-  });
-  const manifestPath = join(root, 'task-manifest.json');
-  await writeFile(manifestPath, JSON.stringify({
-    schemaVersion: 1, selection: 'main',
-    dataset: { id: 'scale-ai/swe-atlas-qna', revision: revisionValue, rawSha256: 'b'.repeat(64) },
-    tasks: tasks.slice(0, 10), holdout: tasks.slice(10),
-  }));
-  await writeFile(join(ace, 'scripts', 'harbor_hermes_codex_oauth.py'), '# pinned Hermes adapter\n');
-  await writeFile(join(ace, 'scripts', 'harbor-ace-context-bridge.sh'), '#!/usr/bin/env bash\nexec node /ace/dist/bin/ace-context-bridge.js\n');
-  await writeFile(join(ace, 'dist', 'bin', 'ace-context-bridge.js'), 'console.log("mock executable");\n');
-  await writeFile(join(ace, 'integrations', 'hermes', 'ace_context_engine', '__init__.py'), '# ContextEngine plugin\n');
-  await writeFile(join(ace, 'integrations', 'hermes', 'ace_context_engine', 'engine.py'), '# engine\n');
-  git(ace, 'add', '.');
-  git(ace, 'commit', '-q', '-m', 'pin ACE');
-  const dockerBin = join(root, 'bin');
-  await mkdir(dockerBin);
-  const fakeDocker = join(dockerBin, 'docker');
-  await writeFile(fakeDocker, `#!/usr/bin/env bash\nprintf '%s\\n' '{"Id":"sha256:${'a'.repeat(64)}","RepoDigests":[]}'\n`);
-  await chmod(fakeDocker, 0o755);
-  const fakeHarbor = join(dockerBin, 'harbor');
-  await writeFile(fakeHarbor, '#!/usr/bin/env bash\nif [[ "$1" == "--version" ]]; then echo "harbor 0.24.0"; exit 0; fi\nexit 2\n');
-  await chmod(fakeHarbor, 0o755);
-  const run = (output: string) => spawnSync(resolve('node_modules/.bin/tsx'), [
-    'scripts/prepare-harbor-feedback-jobs.ts',
-    '--task-manifest', manifestPath, '--source-root', source, '--ace-root', ace,
-    '--output', output, '--run-id', 'frozen-test', '--model', 'gpt-6-luna',
-    '--reasoning', 'xhigh', '--image-digest', 'sha256:' + 'a'.repeat(64),
-  ], { cwd: resolve('.'), encoding: 'utf8', timeout: 120_000, env: { ...process.env, PATH: `${dockerBin}:${process.env.PATH ?? ''}` } });
-  const firstOutput = join(root, 'first');
-  const first = run(firstOutput);
-  assert.equal(first.status, 0, first.stderr);
-  const prepared = JSON.parse(await readFile(join(firstOutput, 'job-manifest.json'), 'utf8'));
-  assert.equal(prepared.status, 'READY');
-  assert.equal(prepared.taskImages[0].reference, 'registry.example/feedback:1');
-  const job = JSON.parse(await readFile(join(firstOutput, 'ace-optional-job.json'), 'utf8'));
-  assert.equal('mounts' in job.environment, false);
-  assert.equal(job.agents[0].import_path, feedbackHermesAgentImportPath);
-  assert.equal(job.agents[0].model_name, 'openai-codex/gpt-6-luna');
-  assert.equal(job.agents[0].kwargs.version, feedbackHermesVersion);
-  assert.equal(job.agents[0].kwargs.reasoning_effort, 'xhigh');
-  assert.equal(job.agents[0].kwargs.ace_context_enabled, true);
-  assert.equal(String.fromCharCode(109, 99, 112) + '_servers' in job.agents[0], false);
-  const runner = await readFile(join(firstOutput, 'run-ace-optional.sh'), 'utf8');
-  const nativeRunner = await readFile(join(firstOutput, 'run-native.sh'), 'utf8');
-  assert.match(runner, /PYTHONPATH/u);
-  assert.match(runner, /--mounts/u);
-  assert.match(runner, /read_only/u);
-  assert.match(nativeRunner, /PYTHONPATH/u);
-  assert.match(nativeRunner, /--mounts/u);
-  assert.match(nativeRunner, /read_only/u);
-  assert.equal(prepared.agent, 'hermes');
-  assert.equal(prepared.agentVersion, feedbackHermesVersion);
-  assert.equal(prepared.aceContextBridge, feedbackAceContextBridgeCommand);
-  assert.equal(prepared.aceContextBridgeSha256, sha(Buffer.from('console.log("mock executable");\n')));
-  assert.equal(prepared.aceRuntimeSha256, prepared.aceContextBridgeSha256);
-  assert.equal(prepared.contextPlugin, feedbackHermesContextPluginPath);
-  assert.equal(prepared.verifiedSourceDigest, sourceDigest);
-  assert.equal(prepared.model, 'openai-codex/gpt-6-luna');
-  assert.equal(prepared.reasoningEffort, 'xhigh');
-  const experiment = JSON.parse(await readFile(join(firstOutput, 'experiment-manifest.json'), 'utf8'));
-  assert.equal(experiment.model, 'openai-codex/gpt-6-luna');
-  assert.equal(experiment.reasoningEffort, 'xhigh');
-  await writeFile(join(source, 'tasks', 'task-1', 'test.txt'), 'tampered task\n');
-  const secondOutput = join(root, 'second');
-  const second = run(secondOutput);
-  assert.equal(second.status, 2);
-  const blocked = JSON.parse(await readFile(join(secondOutput, 'job-manifest.json'), 'utf8'));
-  assert.equal(blocked.status, 'BLOCKED');
-  assert.match(blocked.reason, /dirty/u);
+test('Harbor agent preparation cannot silently restore retired direct ACE context injection', async () => {
+  const pkg = JSON.parse(await readFile('package.json', 'utf8')) as { scripts: Record<string, string> };
+  assert.equal(pkg.scripts['prepare:harbor-feedback'], undefined);
+  const runtime = await readFile('src/bin/ace-runtime.ts', 'utf8');
+  assert.match(runtime, /Direct agent context bridge mode is retired/u);
 });
-
 
 test('untrusted RepoBench pickle is rejected before Python can deserialize it', async (t) => {
   const python = spawnSync('python3', ['--version'], { encoding: 'utf8' });
