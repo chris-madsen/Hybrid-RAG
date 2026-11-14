@@ -137,3 +137,13 @@ test('Gateway-only composition cannot start an optional model tool transport', a
   const ports = await readFile(join(process.cwd(), 'src/application/ports.ts'), 'utf8');
   assert.match(ports, /export interface ContextProvider/u);
 });
+
+
+test('workspace persistence lives in adapters; application owns only the port', async () => {
+  const adapter = await readFile(join(process.cwd(), 'src/adapters/file-workspace-store.ts'), 'utf8');
+  const runtime = await readFile(join(process.cwd(), 'src/bin/ace-runtime.ts'), 'utf8');
+  assert.match(adapter, /makeFileWorkspaceStore/u);
+  assert.match(adapter, /application\/ports/u);
+  assert.match(runtime, /adapters\/file-workspace-store/u);
+  await assert.rejects(readFile(join(process.cwd(), 'src/application/file-workspace-store.ts'), 'utf8'), { code: 'ENOENT' });
+});
