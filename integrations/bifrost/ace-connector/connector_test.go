@@ -409,15 +409,15 @@ func TestProjectRejectsSchemaInvalidDecisionEnvelope(t *testing.T) {
 
 func TestGatewayApplyRejectsSemanticMutationsEvenWithMatchingDigests(t *testing.T) {
 	original := []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"user","content":"question"}]}`)
-	valid := []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
+	valid := []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
 	mutations := []struct {
 		name string
 		body []byte
 		rewrites []string
 	}{
-		{"model substitution", []byte(`{"model":"other","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
-		{"tool removal", []byte(`{"model":"test","stream":true,"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
-		{"user tampering", []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\\nverified source\\n[/ACE verified context]"},{"role":"user","content":"different"}]}`), []string{"append_verified_context_system_message"}},
+		{"model substitution", []byte(`{"model":"other","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
+		{"tool removal", []byte(`{"model":"test","stream":true,"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
+		{"user tampering", []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"different"}]}`), []string{"append_verified_context_system_message"}},
 		{"false rewrite claim", valid, []string{}},
 		{"unsupported pass-through", original, []string{"append_verified_context_system_message"}},
 	}
