@@ -29,7 +29,16 @@ For a supported Chat request the plugin uses Bifröst's own trusted context:
 - provider/model derived with the pinned Bifröst `ParseModelString` semantics;
 - SHA-256 of the exact inbound JSON body.
 
-Gateway v1 retains legacy fields named `durableActiveTranscriptRevision` and `durableActiveTranscriptDigest`. On this path they identify the **Bifröst-visible request snapshot**, not the agent's private durable transcript store. The plugin claims only that it observed those request bytes. It does not claim the agent never compacted its own history before producing them.
+Gateway v1 retains required legacy fields named `durableActiveTranscriptRevision` and `durableActiveTranscriptDigest`. Bifröst does **not** possess the evidence needed to populate them as durable-host facts. Therefore the connector sets `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, an explicit `bifrost-visible-request-only` engine marker, and an `unattested:<request-id>` revision marker. The digest is the exact visible request body only as a request-binding diagnostic; while `hostTranscriptAttested=false` it MUST NOT be interpreted as durable transcript proof.
+
+## Host-history honesty
+
+Two guarantees are deliberately separate:
+
+1. **Gateway delivery:** ACE may add verified source evidence to the exact Bifröst-visible Chat request. This does not require pretending that Bifröst saw the host's durable transcript.
+2. **Exclusive context/compaction ownership:** claims that ACE alone controlled the full host context, that upstream compaction was disabled, or that token savings are attributable to ACE require an authenticated host-side transcript/configuration attestor and G11/benchmark evidence.
+
+When a trusted host attestor is eventually present, `hostTranscriptAttested=true` activates the strict no-compaction check. If such an attestation claims compaction active or leaves its epoch unknown, Gateway blocks. Unattested host history is acceptable only for additive Gateway delivery and remains explicit in the receipt.
 
 ## Local process authentication
 
@@ -61,7 +70,7 @@ A second attempt therefore fails closed until request-local reauthorization is i
 
 ## Provenance
 
-Native plugin compilation is pinned to the exact Bifröst commit. The build requires a clean tracked ACE checkout and embeds the exact ACE source commit into the plugin; runtime initialization refuses missing source provenance. Host attestation therefore identifies both sides of the plugin ABI.
+Native plugin compilation is pinned to the exact Bifröst commit. The build requires a clean tracked ACE checkout and embeds the exact ACE source commit into the plugin; runtime initialization refuses missing source provenance. This proves connector/plugin build provenance only; it is not coding-host transcript attestation.
 
 ## Evidence boundary
 
