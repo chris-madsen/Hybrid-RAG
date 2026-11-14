@@ -57,8 +57,18 @@ const requirements = [
   {
     id: 'BIFROST_REQUEST_BOUND_HOST',
     file: 'integrations/bifrost/ace-connector/plugin/main.go',
-    contains: ['BifrostContextKeyRequestID', 'BifrostContextKeySessionID', 'durableActiveTranscriptDigest', 'bifrost:auto'],
-    excludes: ['ace.session_id', 'ace.attempt_group_id', 'ace.host_attestation'],
+    contains: ['BifrostContextKeyRequestID', 'BifrostContextKeySessionID', 'durableActiveTranscriptDigest', 'ACE Gateway requires an explicit Bifrost provider/model route'],
+    excludes: ['ace.session_id', 'ace.attempt_group_id', 'ace.host_attestation', 'bifrost:auto'],
+  },
+  {
+    id: 'GATEWAY_EGRESS_POLICY',
+    file: 'src/application/gateway-projection-service.ts',
+    contains: ['authorizeOutbound', 'allowedProviders', "destination: 'other_external'", "return block(request, 'POLICY_DENIED')", 'containsLikelySecret'],
+  },
+  {
+    id: 'GATEWAY_EGRESS_CONFIG',
+    file: 'src/bin/ace-runtime.ts',
+    contains: ['ACE_GATEWAY_EXTERNAL_LLM_OPT_IN', 'ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', 'allowedCloudDataClassesByProvider'],
   },
   {
     id: 'OPENSPEC_GATEWAY_AUTHORITY',
