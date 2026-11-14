@@ -33,3 +33,5 @@ GOWORK=off \
 The build script verifies the checkout revision before compiling and uses the
 `bifrost_plugin` build tag so ordinary connector tests do not import the
 external Bifrost module.
+
+The build also requires a clean tracked ACE checkout and embeds its exact Git commit into the native plugin. Runtime `Init` refuses a plugin whose ACE source provenance was not injected by this build path; request-bound host attestations therefore identify both the ACE plugin source and pinned Bifröst ABI source.
