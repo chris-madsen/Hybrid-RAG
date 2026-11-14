@@ -146,6 +146,15 @@ test('context application owns its retrieval port rather than importing MCP tran
   assert.match(ports, /export interface ContextProvider/u);
 });
 
+test('workspace persistence lives in adapters; application code owns its port', async () => {
+  const adapter = await readFile(join(process.cwd(), 'src/adapters/file-workspace-store.ts'), 'utf8');
+  const runtime = await readFile(join(process.cwd(), 'src/bin/ace-mcp.ts'), 'utf8');
+  assert.match(adapter, /makeFileWorkspaceStore/u);
+  assert.match(adapter, /application\/ports/u);
+  assert.match(runtime, /adapters\/file-workspace-store/u);
+  await assert.rejects(readFile(join(process.cwd(), 'src/application/file-workspace-store.ts'), 'utf8'), { code: 'ENOENT' });
+});
+
 test('Bifrost model projection and native context bridge never construct an MCP gateway', async () => {
   const runtime = await readFile(join(process.cwd(), 'src/bin/ace-mcp.ts'), 'utf8');
   const httpStart = runtime.indexOf("if (process.env.ACE_GATEWAY_HTTP_MODE === 'true') {");
