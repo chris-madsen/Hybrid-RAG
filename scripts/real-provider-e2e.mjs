@@ -64,6 +64,8 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_GATEWAY_HTTP_HOST: '127.0.0.1',
     ACE_GATEWAY_HTTP_PORT: String(gatewayPort),
     ACE_GATEWAY_HTTP_SHARED_SECRET: 'real-provider-fixture-secret',
+    ACE_GATEWAY_EXTERNAL_LLM_OPT_IN: 'true',
+    ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
     ...(race ? { ACE_ENABLE_TEST_FAILPOINTS: 'true', ACE_EMBEDDING_DELAY_MS: '1000' } : {}),
   },
   stdio: ['ignore', 'ignore', 'pipe'],
