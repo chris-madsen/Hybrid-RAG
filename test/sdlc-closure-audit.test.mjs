@@ -35,7 +35,7 @@ test('active OpenSpec guard rejects superseded integration changes and retired d
   try {
     const stale = join(root, 'openspec', 'changes', '009-bifrost-hermes-ownership');
     mkdirSync(stale, { recursive: true });
-    writeFileSync(join(stale, 'proposal.md'), '# stale\nretired optional tool-call protocol\n');
+    writeFileSync(join(stale, 'proposal.md'), '# stale\nretired optional tool-call protocol\nbifrost:auto\n');
     const run = spawnSync(process.execPath, [audit, '--root', root, '--openspec-only'], { encoding: 'utf8' });
     assert.equal(run.status, 1, run.stderr || run.stdout);
     const result = JSON.parse(run.stdout);
@@ -43,6 +43,7 @@ test('active OpenSpec guard rejects superseded integration changes and retired d
     assert.equal(guard?.status, 'FAIL');
     assert.ok(guard?.forbiddenActiveDirs?.includes('009-bifrost-hermes-ownership'));
     assert.ok(guard?.violations?.some((entry) => entry.forbidden.includes('retired optional tool-call protocol')));
+    assert.ok(guard?.violations?.some((entry) => entry.forbidden.includes('bifrost:auto')));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
