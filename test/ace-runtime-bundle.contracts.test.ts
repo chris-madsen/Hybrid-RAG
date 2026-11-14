@@ -60,7 +60,7 @@ test('reports missing runtime bundle paths instead of treating an incomplete mou
   const missing = missingAceRuntimeBundlePaths(root);
   assert.deepEqual(missing, requiredAceRuntimeBundlePaths);
   await mkdir(join(root, 'dist/bin'), { recursive: true });
-  await writeFile(join(root, 'dist/bin/ace-context-bridge.js'), '');
+  await writeFile(join(root, 'dist/bin/ace-gateway-http.js'), '');
   assert.ok(missingAceRuntimeBundlePaths(root).includes('node_modules/effect/package.json'));
 });
 
@@ -145,13 +145,9 @@ test('Docker runtime uses the pinned embedding versions from the Harbor bundle c
   }
 });
 
-test('Hermes runtime probe missing-Python guard executes under POSIX sh', async () => {
-  const script = await readFile('scripts/harbor-ace-runtime-probe.mjs', 'utf8');
-  const line = script.split('\n').find((candidate) => candidate.trimStart().startsWith("'if ") && candidate.includes('Hermes Python runtime is not beside'));
-  assert.ok(line, 'the missing-Hermes-Python guard is present');
-  const guard = line.trim().slice(1, -2); // Unquote the JavaScript string passed to sh -lc.
-  const result = spawnSync('sh', ['-c', `hermes_python=; ${guard}`], { encoding: 'utf8' });
-  assert.equal(result.status, 1, result.stderr);
+test('bundle requires compiled Gateway and no optional native context plugin', () => {
+  assert.ok(requiredAceRuntimeBundlePaths.includes('dist/bin/ace-gateway-http.js'));
+  assert.ok(requiredAceRuntimeBundlePaths.every((path) => !path.startsWith('integrations/hermes/')));
 });
 
 test('Harbor bundle builder refuses to delete the source checkout or a symlinked parent', async () => {
@@ -178,16 +174,15 @@ test('Harbor bundle builder refuses to delete the source checkout or a symlinked
   }
 });
 
-test('Harbor runtime scripts support verified local Docker image IDs', async () => {
+test('pinned Harbor builder and Gateway container probe remain explicit', async () => {
   const builder = await readFile('scripts/build-harbor-ace-runtime.mjs', 'utf8');
-  const probe = await readFile('scripts/harbor-ace-runtime-probe.mjs', 'utf8');
+  const probe = await readFile('scripts/ace-container-runtime-smoke.mjs', 'utf8');
   assert.match(builder, /const executionImage = \(image\)/u);
   assert.match(builder, /localId === image\.digest \? localId :/u);
   assert.match(builder, /const prefetchImage = executionImage\(imageRefs\[0\]\)/u);
-  assert.match(probe, /localId === imageDigest\) executionImage = localId/u);
-  assert.match(probe, /readlink -f.*command -v hermes/u);
-  assert.match(probe, /dirname.*hermes_bin.*python3/u);
-  assert.doesNotMatch(probe, /raw\.githubusercontent\.com.*install\.sh/u);
+  assert.match(probe, /gateway-projection-http\.js/u);
+  assert.match(probe, /gatewayHttpLiveness: true/u);
+  assert.match(probe, /providerWireCertified: false/u);
 });
 
 test('Harbor runtime builder bootstraps missing source dependencies before TypeScript build', async () => {
