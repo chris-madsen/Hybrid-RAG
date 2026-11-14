@@ -12,7 +12,7 @@ test('Graphiti tool-process bridge is retired, not misrepresented as native memo
 test('memory outbox and immutable originals remain independently implemented', async () => {
   const runtime = await readFile('src/bin/ace-memory.ts', 'utf8');
   assert.match(runtime, /makeFileProjectionOutbox/u);
-  assert.match(runtime, /Gateway-native Graphiti port is not configured/u);
+  assert.match(runtime, /Graphiti native projection provider is not configured/u);
   const archive = await readFile('src/adapters/file-memory-archive.ts', 'utf8');
   assert.match(archive, /importEpisode/u);
   assert.match(archive, /deleteEpisode/u);

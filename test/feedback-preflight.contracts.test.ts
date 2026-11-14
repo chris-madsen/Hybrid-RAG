@@ -319,7 +319,7 @@ test('exact-current feedback preflight does not certify retired Hermes bridge di
   const preflight = await readFile('scripts/feedback-loop-preflight.ts', 'utf8');
   assert.match(preflight, /status', '--porcelain=v1'/u);
   assert.match(preflight, /verifyCompiledRuntimeProvenance/u);
-  assert.match(preflight, /agentAdapterSha256/u);
+  assert.doesNotMatch(preflight, /agentAdapterSha256/u);
   assert.doesNotMatch(preflight, /aceContextBridgeSha256/u);
   assert.match(preflight, /Gateway final-send evidence must be collected independently/u);
   assert.doesNotMatch(preflight, /contextPluginSha256/u);
