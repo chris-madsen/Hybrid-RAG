@@ -1,5 +1,3 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # Design — Observable provider composition and Design by Contract
 
 **Status: Proposed.** Normative cases in `specs/production-retrieval/spec.md` and `specs/architecture-fitness/spec.md`. PRD/ADR source and proposed ADR-012 prevail over opportunistic adapter convenience.
