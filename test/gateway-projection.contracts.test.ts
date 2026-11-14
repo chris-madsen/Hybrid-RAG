@@ -143,3 +143,44 @@ test('gateway rejects mismatched host session and unverified transform results',
     }
   }
 });
+
+test('gateway blocks a forged model or retrieval query before asking ACE for context', async () => {
+  let transformations = 0;
+  const observing: ContextTransformService = {
+    transform: () => {
+      transformations += 1;
+      return Effect.succeed(ok(transformed));
+    },
+  };
+  const service = makeGatewayProjectionService(observing);
+  for (const override of [
+    { model: 'different-model' },
+    { query: 'find something unrelated' },
+  ]) {
+    const result = await Effect.runPromise(service.project(request(override)));
+    assert.equal(result._tag, 'Ok');
+    if (result._tag === 'Ok') {
+      assert.equal(result.value.kind, 'BLOCK');
+      assert.equal(result.value.receipt.reasonCode, 'BODY_IDENTITY_MISMATCH');
+    }
+  }
+  assert.equal(transformations, 0, 'unbound requests must not trigger retrieval');
+});
+
+test('gateway binds multimodal user content semantically, without JSON property-order dependence', async () => {
+  const multimodal = {
+    model: 'test-model',
+    messages: [
+      { role: 'user', content: [{ type: 'text', text: 'find handler' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } }] },
+    ],
+  };
+  const base64 = Buffer.from(JSON.stringify(multimodal), 'utf8').toString('base64');
+  const result = await Effect.runPromise(makeGatewayProjectionService(context).project(request({
+    bodyBase64: base64,
+    bodySha256: sha256Base64(base64),
+    query: JSON.stringify([{ text: 'find handler', type: 'text' }, { image_url: { url: 'data:image/png;base64,YQ==' }, type: 'image_url' }]),
+  })));
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Ok') assert.equal(result.value.kind, 'APPLY');
+});
+
