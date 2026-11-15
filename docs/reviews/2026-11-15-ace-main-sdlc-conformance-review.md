@@ -33,15 +33,15 @@
 | OpenSpec | Seven native skill files, active change 010, strict pinned OpenSpec workflow and deliberate invalid fixture | **ACTIVE** | Acceptance/implementation traceability for remaining provider gaps |
 | ADR decisions | Accepted ADR-019 and accepted Gateway-only owner authority | **ACTIVE** | Reconcile old provider/agent instructions that survive outside archived contexts |
 | TypeSpec contract-first | \`typespec/main.tsp\`, pinned TypeSpec 1.17.0 + Hey API 0.99.0, generated OpenAPI/JSON Schema/SDK; generation+drift+compat CI | **ACTIVE for Gateway v1** | Source-of-truth migration only for approved additional wire surfaces; legacy schema/Go DTO compatibility and real routing proof |
-| G02 pre-code Design Consistency | \`docs/plans/2026-11-14-{typespec-migration-g02,sdlc-finalization-g02}.md\`; preflight refuses missing T2 crosswalk but never approves human G02 | **ACTIVE procedural / PARTIAL adoption** | Real completed T2 agent trial + human decision evidence |
-| Implementation / RED-GREEN / worktree | \`ace-sdlc\` skill, \`sdlc-preflight.mjs\`, worktree lifecycle, \`test:affected\` | **ACTIVE tools / PARTIAL behavior proof** | Actual staged autonomous task evidence, not only source substring audit |
+| G02 pre-code Design Consistency | `docs/plans/2026-11-14-{typespec-migration-g02,sdlc-finalization-g02}.md`; preflight refuses missing T2 crosswalk but never approves human G02 | **ACTIVE; T2 process evidence exists** | Retain #246 / AC-SDLC-07 as the process record; provider/agent G11 remains separate |
+| Implementation / RED-GREEN / worktree | `ace-sdlc` skill, `sdlc-preflight.mjs`, worktree lifecycle, `test:affected` | **ACTIVE; T1/T2 process evidence exists** | Reconcile #223/#246 artifacts against the adoption plan; do not require a duplicate trial absent a specific evidence gap |
 | Deterministic tests / Meyer DbC | \`test/bertrand-contracts.test.ts\`, real contract suite, affected selection self-test, \`verify:pr\`, \`verify:full\` | **ACTIVE** | All 14 DBC production contracts still require scope-specific real evidence |
 | Architecture fitness | \`architecture/rules/\`; \`npm run test:arch-rules\`, \`npm run check:arch\` | **ACTIVE REPORT-ONLY** | Confirm false positives, resolve debt; blocking promotion only if owner explicitly authorizes |
 | Static docs/security gates | Lychee offline negative/positive; Betterleaks, actionlint, zizmor with pinned binaries; OpenSpec fixtures | **ACTIVE** | Maintain pins; independent CodeQL finding triage remains |
-| CodeQL | \`ace-code-health.yml\` + fail-closed SARIF checker | **ACTIVE, CURRENT RED** | Resolve eight high-severity findings or evidence-backed scoped triage; rerun CodeQL |
+| CodeQL | `ace-code-health.yml` + fail-closed SARIF checker | **ACTIVE; RED at audited SHA, current HEAD UNKNOWN** | Rerun on refreshed main and resolve or evidence-triage findings at that exact SHA |
 | Dependency security / Knip | \`knip@6.45.1\`, nightly \`analyze:dependencies\` and OSV | **ACTIVE REPORT-ONLY** | Review findings as debt, not falsely count green report job as no vulnerabilities |
 | Mutation quality | Three curated mutations in \`scripts/nightly-targeted-mutation.mjs\` + successful nightly job | **ACTIVE TARGETED** | Optional extension only when a new critical invariant has weak tests; Stryker not mandatory |
-| RAG evaluation | Deterministic retrieval quality/holdout scripts, RAG ranking/selection; **no Ragas** | **PARTIAL** | Add reproducible Ragas offline evaluation if approved, without replacing deterministic retrieval or Harbor |
+| RAG evaluation | Deterministic retrieval quality/holdout scripts, RAG ranking/selection; **no Ragas** | **ACTIVE for deterministic/Harbor scope; Ragas optional** | Ragas is an optional offline experiment, not an SDLC or release acceptance gap |
 | Real provider acceptance (G11) | Current nightly real Qdrant and non-TS LSP **PASS**; Bifröst plugin compiles | **PARTIAL / GATEWAY EGRESS BLOCKED** | Live Bifröst→Gateway→last PreLLM→final provider proof; selected memory/docs and failures by capability |
 | Agent-level Harbor | Harbor tasks, adapters, 3-/4-arm reports and evidence policies | **PARTIAL** | Natural real-agent trials, matched quality/usage/cost at exact source; no 5× claim |
 | Local k3s | ADR-008, k3s runner/manifests; older retained K3S-01..09 pass, K3S-10 blocked | **PARTIAL** | Recheck current actual helper containment; do not infer today's production status from October report |
@@ -96,11 +96,11 @@ The eight findings are **7 × \`js/file-system-race\` (7.7)** and **1 × \`js/us
 
 **Fix/acceptance:** inventory each **currently active** public Gateway-only protocol/schema owner; migrate only genuinely duplicated wire definitions to TypeSpec behind compatibility/roundtrip tests (missing/null, enum, unknown, errors, auth, mapping completeness). Keep generated routing/SDK/validators where maintained generators support them. Remove hand-written duplicate authority only after every active consumer test passes, with exact deletion trace. Do not resurrect retired optional tool-call or Hermes-native agent delivery merely to expand a generator. Keep pure domain ADTs/authorization decisions outside generated DTOs.
 
-### F-07 — P1 / G02 and single-agent SDLC require one real T2 process demonstration
+### F-07 — Status correction / existing T1 and T2 process evidence
 
-**Evidence:** \`sdlc-preflight.mjs\` plus \`test/sdlc-preflight.test.mjs\` detect missing plan/G02 and distinguish \`BLOCKED\` / \`REVIEW_REQUIRED\` from PASS; two accepted G02 plans exist. The local runbook is mainly an **operator trial procedure**. Automated preflight intentionally does **not** verify human approval, PR decision quality, or independent review.
+**Evidence:** the governing adoption plan records T1 dogfood in PR #223 (AC-SDLC-06) and a material T2/G02 process in PR #246 (AC-SDLC-07/08). PR #246's retained description and `docs/plans/2026-11-14-gateway-only-retirement-g02.md` document the pre-code owner decision, phase implementation, focused checks and the explicit boundary **READY FOR CODE REVIEW, NOT PRODUCTION CERTIFIED**. The same-agent reviews are not independent validation.
 
-**Fix/acceptance:** choose a real bounded T2 change (prefer a noncloud domain/contract fix). Execute full chain with one agent: \`grill-me\` only for unresolved requirements → fact-only source-linked Research → Event Storming (if domain semantics affected) → accepted OpenSpec/ADR/TypeSpec as applicable → G02 acceptance crosswalk + explicit owner decision → phased RED/GREEN → separate BUILD/ARCH/SEC/PLAN findings → actual tests/CI/PR. Keep before/after stage artifacts, exact branch/main/CI SHA and the deliberately failing negative test. Do not count a self-review as independent review. Compare prompt/document overhead and actual useful defects before requiring extra documents for T0/T1.
+**Disposition:** preserve and reconcile the existing #223/#246 artifacts at their exact SHAs; do not create another T1/T2 trial merely because this audit's earlier queue omitted them. This process evidence does not prove semantic conformance of every historical source file, final provider egress, real-agent E2E, or production readiness. G11 remains a separate capability gate.
 
 ### F-08 — P1 / Current operational guidance contains misleading retired agent-flow examples
 
@@ -129,9 +129,9 @@ The eight findings are **7 × \`js/file-system-race\` (7.7)** and **1 × \`js/us
 - **Ragas versus Harbor:** Ragas (planned offline LLM-judge retrieval/answer-quality analysis) must not be a substitute for deterministic retrieval, authorized source/current digest, provider receipt or Harbor's actual accepted-task success + token/cost reporting. Avoid privacy policy bypass by the judge.
 - **CI source SHA:** current main has passing nightly real Qdrant/non-TS LSP and mutation jobs, but a failing CodeQL job. The overall state is **not all-green**. PR checks, schedule checks and release approvals are separate evidence, not one boolean.
 
-## 5. Concrete PR sequence to reach defensible conformance
+## 5. Original proposed PR sequence — superseded by the active plan
 
-These are **implementation tasks**, not completed changes. Each PR should contain tests demonstrating the previous deficiency, the smallest repair, actual command results and exact CI-tested SHA; owner makes architecture/egress decisions.
+This was the initial task ordering drafted with the audit. Its observations remain useful, but its statuses and ordering are superseded by [`docs/plans/2026-11-15-ace-sdlc-conformance-security-rollout.md`](../plans/2026-11-15-ace-sdlc-conformance-security-rollout.md). In particular, use the existing QG6 CodeQL task rather than duplicate P0-A/P0-SEC-A; G11 is not an SDLC-adoption blocker; T1/T2 evidence already exists; the skill work is in PR #252; and Ragas is optional. Do not execute the table below as a current backlog without revalidating against that plan.
 
 | Order | Proposed PR / scope | Checkable acceptance |
 |---|---|---|
@@ -144,7 +144,13 @@ These are **implementation tasks**, not completed changes. Each PR should contai
 | **P1-G** | TypeSpec remaining active-wire migration | Each selected Gateway-only active schema has one canonical owner, complete mappings, generated drift and old-client compatibility; legacy source removed only when safe |
 | **P1-H** | Ragas offline evaluation pilot | Pinned public/synthetic holdout, scored metrics+uncertainty+cost, privacy-guarded judge, repeatable report; existing deterministic and Harbor gates unchanged |
 | **P1-I** | Provider/k3s/release evidence renewal | Owner-approved G11/K3S-10/Graphiti/Vertex/Harbor scope, actual SHA-bound outcomes; release preflight only when evidence complete |
-| **P2-J** | Optional architecture and mutation depth | Rule/test improvements driven by observed escapes; Knip/OSV triage; no blanket new toolchain |
+| **P0-SEC-A** | Reconcile existing red CodeQL report before adding another SAST | Eight original findings each have threat-model-informed disposition and targeted negative tests; rerun CodeQL on a new SHA; never suppress all high alerts |
+| **P1-SEC-B** | Dependabot for actual npm/Go/Python/Actions/Docker manifests | Committed and validated \`.github/dependabot.yml\`, correct directories and owner-reviewed update PR, no auto-merge |
+| **P1-SEC-C** | Checkov IaC gate for k3s manifests, Helm rendering and Dockerfile | Pinned offline scanner, intended manifests scanned, deliberately insecure fixture fails and secure fixture passes; PR scope + nightly full report |
+| **P1-SEC-D** | ZAP API DAST for **TypeSpec-generated Gateway v1** | Reproducible local disposable Gateway + approved OpenAPI, safe/passive nightly scan, active weekly/on security-relevant Gateway change only in isolated disposable environment; own-auth negative tests |
+| **P1-SEC-E** | Release image scan and security evidence binding | Select exactly one image vulnerability scanner after checking existing release tooling; scan built image digest and correlate findings, SBOM, provenance and release SHA |
+| **P1-SEC-F** | AI-specific security regression campaign | Explicit denied egress, injected repo content, cross-workspace isolation, secret output, source freshness and fail-closed exceptions covered by DbC/real selected provider tests; scanner PASS alone insufficient |
+| **P2-J** | Optional architecture and existing targeted-mutation upkeep | Rule/test improvements driven by observed escapes; Knip/OSV triage; retain the three targeted mutation checks; **no Stryker installation** and no generic new code-analysis platform |
 
 **Readiness declaration rules:**
 - “Structural/process SDLC conformance”: may be asserted **only for the explicit installed checks** and their tested SHA; docs and \`check:sdlc-closure\` cannot prove semantic behavior.
@@ -158,4 +164,159 @@ These are **implementation tasks**, not completed changes. Each PR should contai
 
 Do **not** introduce required branch protection or mandatory PR approvals against the owner's accepted choice. Do **not** add \`mise daemons\` beside local k3s, SQL-oriented dbcleaner to a non-relational core, generic rich OO aggregates, an extra AI orchestrator, parallel spec directories, automated Event Sourcing, a second model-invoked ACE route, non-provider-tested “Complete” successes, all-project mutation scanning, or a full observability stack contrary to ADR-010. Do not remove historical artifacts purely because newer architecture made their content obsolete; instead clearly distinguish archives from current operational instructions.
 
-**Final audited conclusion:** ACE is **well advanced in its structural/process SDLC implementation**, and many formerly planned gates are already real. It **does not fully conform to the complete evidence-driven SDLC yet** because CodeQL is failing at the audited commit, the live final provider/agent boundary is unverified, Ragas and pinned questioning skills are absent, functional-DDD/SDLC process adoption is not demonstrated across historical changes, and full release/benchmark gates remain intentionally unfulfilled. Fix observable security/runtime truth first; avoid overengineering the tooling layer.
+**Final audited conclusion:** ACE is **well advanced in its structural/process SDLC implementation**, and many formerly planned gates are already real. The audited SHA has a failing CodeQL run; final-provider/agent and full release/benchmark evidence are separate and remain unproven. The existing #223/#246 evidence demonstrates T1/T2 process adoption; it does not retroactively prove that every earlier code change followed the current process or that all current source conforms semantically. Ragas is optional, and skills were absent at the audited SHA but have a separate implementation PR in flight. See the active plan for current-main revalidation and the full-source conformance ledger.
+
+
+## 7. Approved DevSecOps extension — 2026-11-15 owner decision (scope; execution moved to the active plan)
+
+The detailed rollout order, current statuses, and per-PR acceptance now live in [`docs/plans/2026-11-15-ace-sdlc-conformance-security-rollout.md`](../plans/2026-11-15-ace-sdlc-conformance-security-rollout.md). This section preserves the original approved scope, not implementation evidence. The active plan supersedes the weekly active-ZAP proposal below: active scans remain manual/explicitly authorized until a safe pilot and separate cadence approval. “Blocking” below means a failing job or unsatisfied release gate; it never configures GitHub branch protection or required merge checks.
+
+**Decision:** Expand the existing ACE SDLC Security and Release quality gates using **Checkov** (IaC), **OWASP ZAP** (DAST against isolated Gateway), **Dependabot** (dependency update PRs), and a **single image vulnerability scanner only if the current release pipeline lacks equivalent coverage**. Keep **CodeQL, Betterleaks, actionlint, zizmor, OSV, existing security/DbC tests, existing targeted mutation script, SBOM/provenance**. **Do not install SonarQube or Stryker.** Do not add another SAST engine simply to accumulate scanners; new tools must address an uncovered threat boundary.
+
+This is a **post-audit approved plan**. The source/CI findings in sections 1–6 are immutable observations about \`main@6413e7d6...\`. At the extension decision, latest observed \`main\` was \`7f3fc5a0a91e48e9d2573f814dfae96d68415577\`; **recheck live HEAD and existing gates before each implementation PR**. The appearance of a tool in this table does **not** mean it has been installed, run or passed.
+
+### 7.1 Security is cross-cutting, not another SDLC step
+
+| SDLC stage | Security work and decisions | Evidence / hard stop |
+|---|---|---|
+| PRD/\`grill-me\` | Data classification, external provider, public exposure, identity/permissions, failure mode, sensitive data residency, abuse cases and non-goals | Unresolved permission/egress decision goes to human owner |
+| Research | Map trust boundaries, actual Gateway routes, HTTP request handling, Bifröst egress, workspace filesystem/provider ports, k3s deployment and existing scanner coverage **AS-IS only** | Source-linked threat inventory at current SHA; no invented controls |
+| Event Storming/DDD + design | Map commands/actors/policies to auth/authorization, denied states, immutable ADT error outcomes, replay/side effects; simple STRIDE-like threat review for new external boundary | G02 criterion → owner → threat → contract → negative oracle |
+| TypeSpec / API design | Authoritative public schema, exact error/status variants, input limits, runtime decoding, mapping and authorization plan; OpenAPI used by ZAP | Invalid/unknown payloads and denied operations fail closed |
+| Implement / TDD | RED tests for unauthorized use, injected input, secret leakage and failure-path handling; Effect send-time policy checks | \`test:affected\`, DbC and relevant focused checks |
+| PR gates | Existing SAST/secrets/workflow guards; **Checkov for applicable changed IaC**; Dependabot-generated PRs go through same tests | Actual check status at HEAD; no blanket security waiver |
+| Nightly / weekly | Full CodeQL/OSV/Knip evidence; full Checkov and **ZAP safe/passive nightly**, **ZAP active API scan weekly/on relevant Gateway security changes** in disposable environment | Findings report + owner triage, scanned artifact identity/time |
+| Release | Secure container config, built image digest vulnerability analysis, SBOM/license/provenance, selected real-provider and API security evidence | Production release not ready while required critical threat or approved gate unresolved |
+
+**Do not** add \`mise daemons\`, Testcontainers as a universal runner, SQL \`dbcleaner\`, systemd services or a second scheduler. Reuse **local k3s for production-like services**, in-process mock/fake servers for small deterministic tests, and the existing GitHub Actions runners. k3s itself is test infrastructure, **not an SDLC stage**.
+
+### 7.2 Exact tool coverage and ownership
+
+| Control | Current status at audited main | Approved implementation/change | Rule for rollout |
+|---|---|---|---|
+| **SAST / CodeQL** | **ACTIVE; last inspected nightly RED** (F-01) | Keep configured high/critical SARIF gate; triage old 8 separately; prioritize runtime source/route safety and fix/verify | **P0 first**; adding Checkov must not be used to claim CodeQL green |
+| **Secret scanning / Betterleaks** | **ACTIVE** PR diff; weekly history report | Retain pinned scanner, redaction and scoped fixture, never send credentials to untrusted network | New confirmed secrets block PR; legacy history tracked with owner |
+| **Actions analysis / actionlint + zizmor** | **ACTIVE**, workflow-change scoped | Keep same tools and pinned known-safe action references | Workflow defects remain blocking under current policy |
+| **SCA / OSV** | **ACTIVE REPORT-ONLY** nightly and release audit | Retain scanner; compare advisories with **Dependabot** update PRs and existing production npm audit | A green report job is not “zero vulnerabilities”; record findings and expiry |
+| **Dependabot** | **NOT INSTALLED** (no \`.github/dependabot.yml\`) | Add weekly grouped **version updates**, keep security advisories/security PRs high priority; cover actual manifests, no auto merge | Bot PR must run normal contract/security/type/codegen tests |
+| **IaC / Checkov** | **NOT INSTALLED** | Pin CLI/container digest; scan \`infra/k8s/ace-local/*.yaml\`, rendered Helm output for actual used chart/values, \`Dockerfile.ace\` and relevant Harbor Dockerfiles only when in deployment scope | Valid and intentionally insecure fixtures; scoped PR scan + full nightly; confirmed new dangerous policy failures block after rule calibration |
+| **DAST / OWASP ZAP** | **NOT INSTALLED** | \`typespec/generated/openapi.json\` → temporary isolated Gateway. ZAP safe mode at nightly; active API scan separately with approved network/auth policy | Never scan production, user-local host or external LLM providers; no secret/real code in traffic |
+| **Image vulnerability scan** | **NOT VERIFIED** as a standalone image-vulnerability gate (SBOM/digest/release checks exist) | First inspect \`release:preflight\` and existing scanner; if absent, pilot **one** pinned Trivy **or** Grype scanning actual built immutable image digest | Reuse existing SBOM/provenance; do not duplicate existing production scanner |
+| **AI-specific security/DbC** | **ACTIVE in part** through existing policy/secret/data-class tests | Expand negative cases for prompt-injection text, authorized source identity, cross-workspace, replay/fail-open and final-provider egress | Real result and exact output/no-egress evidence; SAST/DAST cannot certify these invariants |
+| **Mutation quality** | **ACTIVE TARGETED** (three curated nightlies) | Preserve \`scripts/nightly-targeted-mutation.mjs\` as-is; extend only if a newly escaped critical policy invariant justifies it | **NO Stryker**, no all-source mutation score mandate |
+| **Code quality aggregator** | Not required | **NO SonarQube**; use existing TS/ESLint/Knip/CodeQL/arch rules | No duplicate code-analysis stack |
+
+### 7.3 Proposed PRs and acceptance criteria (new SEC workstream)
+
+#### SEC-00 — reconcile CodeQL P0 first
+
+- **Files of interest:** original F-01 paths and \`scripts/check-codeql-sarif.mjs\`; compare latest changes with original SARIF source SHA before modifying code.
+- **RED:** preserve a specifically failing race/symlink and route/method/encoding fixture for every confirmed vulnerability; record why a false positive is not exploitable if triaged out.
+- **GREEN:** CodeQL run at repair HEAD, no unresolved confirmed high/critical finding, and all existing source/auth/DbC tests green.
+- Do **not** disable the security-extended query set, remove the SARIF gate, or globally suppress rule IDs. Historical scan at \`6413e7d6...\` remains a historical failure even if newer SHA passes.
+
+#### SEC-01 — Dependabot (SCA remediation workflow; P1)
+
+**Commit target:** \`.github/dependabot.yml\`. Inspect supported manifests before writing entries. Initial ecosystems/directories based on the real tree at review:
+
+| ecosystem | directory | rationale |
+|---|---|---|
+| \`npm\` | \`/\` | ACE TypeScript/Effect \`package-lock.json\` |
+| \`npm\` | \`/typespec\` | independent compiler/emitter/SDK generator \`package-lock.json\` |
+| \`gomod\` | \`/integrations/bifrost/ace-connector\` | Bifröst Go connector |
+| \`github-actions\` | \`/\` | workflow action versions and pins |
+| \`docker\` | \`/\` | \`Dockerfile.ace\` base images |
+| \`pip\` | \`/\` | existing root \`requirements-*.txt\`; verify supported parsing before enabling |
+| \`docker\` | real benchmark Dockerfile directories **only if needed** | avoid a monolithic directory that misses nested build contexts |
+
+- Weekly grouped **nonsecurity patch/minor** updates, small per-ecosystem open-PR limit, no autonomous merge; do not group away or delay urgently required **security** fixes.
+- Verify whether repository-level GitHub Dependabot alerts and security updates are enabled; Git-only config cannot certify account settings.
+- Do not assume Python requirements with unpinned constraints are fully reproducible; monitor/update but prefer an accepted pinned dependency workflow if necessary.
+- **Bad fixture / check:** invalid dependency directory or stale action update must be caught by config validation/PR tests; **good:** one representative bot PR contains expected manifest change, ordinary PR CI and version selection evidence.
+- Maintain existing OSV/advisory report and release vulnerability policy; Dependabot opens remediation PRs, it is **not a substitute for a nightly vulnerability scan**.
+
+References: [GitHub Dependabot options](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference), [supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-supported-ecosystems-and-repositories).
+
+#### SEC-02 — Checkov IaC gate (P1)
+
+- **Inputs:** Kubernetes YAML in \`infra/k8s/ace-local/\`, rendered Helm manifests using the **actual** \`qdrant-values.yaml\` and corresponding pinned chart/version, \`Dockerfile.ace\`, relevant deployed Harbor images only if in scope. A Helm values file alone is **not** final rendered Kubernetes state.
+- **Threats/invariants:** privilege escalation, privileged/root user and added capabilities, hostPath/service-account/RBAC excess, unbounded writable mounts, unsafe image pinning, missing/invalid securityContext and network restrictions. Treat resource/probe recommendations separately from confirmed access/egress vulnerabilities.
+- **Tooling:** maintained pinned Checkov release or immutable container digest; avoid optional vendor/cloud reporting or uploading private manifests.
+- **RED/GREEN fixture:** synthetic overprivileged Pod must fail on a specifically chosen policy; compliant Pod must pass. Verify the scan actually reads rendered resources, not just the empty chart directory.
+- **CI:** PR on changed IaC/Dockerfile/chart inputs (fast, scoped, local), nightly whole deployed configuration (initially report-only with auditable findings). Promote **confirmed new high-risk** policies to blocking after assessing false positives; suppressions only exact rule/resource with reason, owner and expiry.
+- **Evidence:** policy ID, manifest and resource location, severity, tool version, original/fully rendered input hash, result artifact tied to SHA, explicit N/A when no changed IaC.
+- **No production credentials or live cluster access** are needed to statically scan rendered manifests.
+
+Reference: [Checkov Helm scanner](https://www.checkov.io/7.Scan%20Examples/Helm.html).
+
+#### SEC-03 — OWASP ZAP against the TypeSpec Gateway (P1)
+
+- **Input schema:** \`typespec/generated/openapi.json\` produced by accepted TypeSpec source; preserve exact Gateway v1 contract and use explicit base-url/host override for the **isolated test service**.
+- **Target:** temporary **disposable** ACE Gateway and fake/in-process Bifröst/LLM interfaces with synthetic, nonprivate payloads. It may run in an isolated CI container network or a dedicated k3s namespace. Standard GitHub-hosted runners cannot reach a user's local k3s by magic.
+- **Nightly:** ZAP **API Scan in safe mode** (\`zap-api-scan.py -t <openapi> -f openapi -S\`) — active scan disabled, passive findings and malformed-response signals only. Store sanitized JSON/HTML/SARIF-compatible output as actual supported by pinned toolchain.
+- **Weekly / when a security-sensitive Gateway contract changes:** approved **active API scan**, *without* \`-S\`, against a fresh disposable environment, strict target allowlist and limited time/rate/corpus. Owner explicitly controls activation; no scanning against production or real external LLM/provider URLs.
+- **Authentication:** include intentionally authorized and unauthorized synthetic requests using ZAP context/config as appropriate; compare with domain negative tests covering missing/wrong token/scope, method/path variants, invalid JSON/oversized input, unsafe CORS/exposure, unexpected 5xx and information disclosure.
+- **Side effects:** do not run active scan against \`/record-delivery\` or other routes capable of irreversible changes unless an explicit safe fixture contract and harmless stub is present; current 501 NOT-CERTIFIED remains distinct from a vulnerability finding. DAST can send repeat/invalid bodies and trigger writes even against “test” APIs.
+- **RED/GREEN fixture:** deliberately misconfigured isolated route with no auth should produce the expected test finding; correct secured route and a clean baseline should pass accepted policy. ZAP baseline warnings initially triaged, with confirmed high-severity auth/data exposure blocking before release.
+- **Evidence:** scanner image digest/version, source SHA, generated OpenAPI digest, scanned deployment/service identity and readiness, auth mode, permitted target allowlist, report artifact, finding IDs, disposition, cleanup of namespace/fixtures and sanitized logs.
+
+Reference: [OWASP ZAP API Scan](https://www.zaproxy.org/docs/docker/api-scan/). Note: ZAP API Scan normally **actively** attacks API endpoints; \`-S\` is its documented safe/passive mode. Do not accidentally run the active version in the regular nightly job.
+
+#### SEC-04 — image vulnerability/SBOM/provenance connection (P1/release)
+
+- First inspect \`release:preflight\`, supply-chain evidence runbooks and any existing image scanning. SBOM, signature, digest and provenance checks **do not necessarily imply** package vulnerability analysis of the actual final container image.
+- If a gap exists, select **exactly one** maintained pinned image scanner (Trivy or Grype), with offline/controlled database freshness handling and a scoped exception policy. Avoid installing both for perceived coverage.
+- Test exact immutable built **image digest** (and approved base), not \`latest\`; link image digest, CodeQL/security status, manifest SHA, SBOM, license policy and runtime provenance to one release candidate.
+- Deliberately vulnerable synthetic image/package fixture should be detected; benign image should not be marked as containing a critical vulnerability purely due to a stale/unavailable advisory feed.
+- Required critical/high findings follow owner-approved release blocking/exception rules, with exploitability and fix availability triage; missing scanner/database produces UNKNOWN/NOT-RUN, never “clean”.
+
+#### SEC-05 — ACE-specific security verification (P1; no extra generic scanner)
+
+Build on **existing** \`test/bertrand-contracts.test.ts\`, \`test/data-class-policy.contracts.test.ts\`, \`test/outbound-secret-guards.contracts.test.ts\` and selected real-provider suites. Add only missing threat-oriented regressions:
+- Retrieved malicious README/source text contains forged agent/tool instructions — treat as inert data and do not widen external actions.
+- Private source or secret under denied data-class/provider policy — **no token lookup and no outbound request**.
+- Cross-workspace/context result contamination; provenance/digest mismatch, stale evidence and forbidden paths.
+- Technical provider failure → explicit unavailable/partial, never fabricated empty/complete success.
+- Replay, fallback and provider swap must re-check authorization at actual send time; no duplicate paid/external side effects.
+- Untrusted path/symlink and HTTP route/path/method edge cases based on SEC-00 alerts.
+
+**Acceptance:** negative tests demonstrate forbidden side effects **never happened**, with selected real Gateway/Bifröst egress proof where required. **CodeQL/Checkov/ZAP PASS is not proof** of these AI-specific contracts. Keep security traces redacted, source digests and provider evidence privacy-safe; do not add full OpenTelemetry/Grafana in contradiction to ADR-010.
+
+### 7.4 Execution and reporting policy
+
+| Trigger | Gate selection | Fail/triage behavior |
+|---|---|---|
+| **Every PR** | Existing Betterleaks, relevant actionlint/zizmor, current deterministic tests, existing CodeQL policies; **Checkov only for changed IaC** after SEC-02 is installed | New confirmed secret/policy/critical IaC failure blocks; unrelated docs PR does not start k3s or ZAP |
+| **Dependabot PR** | Same relevant existing PR checks plus impacted dependency/type/codegen contract tests | No auto-merge, security bump reviewed promptly, no skip because actor is a bot |
+| **Nightly** | Existing full CodeQL + OSV reports + curated mutation; new Checkov full and ZAP **safe** against disposable Gateway | Retain reports even when advisory/DAST warnings are not blocking; any tool failure distinct from “no findings” |
+| **Weekly / Gateway security change** | ZAP **active** within explicit approved disposable environment; Dependabot version-update schedule separately | Auth/routing high risk triaged; never run active DAST against production |
+| **Release** | Selected CodeQL disposition, actual Gateway/DbC/provider boundary results, Checkov rendered deployed config, image digest scan if not already covered, existing SBOM/provenance/license/signature | All release evidence attached to same SHA/image and owner acceptance; no inferred production READY |
+
+**Tool supply chain:** pin tool binaries, container images and GitHub actions to reviewed immutable versions/digests, verify expected hashes where the existing installer pattern applies; avoid \`latest\` in CI. Keep permissions least privileged, no repository write or cloud credentials in scanning jobs unless separately approved. For DAST, an authenticated scan must use disposable synthetic credentials in a segregated network and must not expose a self-hosted runner to untrusted fork PRs.
+
+**Finding state schema:** \`tool | version | gate | HEAD SHA | artifact/manifest/image digest | severity | file/resource/route | evidence | triage: confirmed/false-positive/accepted-risk | owner | expiry | remediation PR | recheck outcome\`. Deduplicate the same vulnerability reported by CodeQL/OSV/image scans; keep its independent evidence links rather than artificially inflating the count.
+
+**Status contract:** \`PASS / FAIL / UNKNOWN / NOT-RUN / N/A\` with exact command, exit and artifact. Report-only scans are **not blocking**, but reported findings still need triage; absence of a CI job does not prove absence of vulnerabilities. Stage owner decisions remain explicit; no required branch protection or mandatory GitHub approval rules are introduced.
+
+### 7.5 Definition of done for the approved extension
+
+1. Existing CodeQL P0 findings are individually triaged and current SHA has a successful applicable run, or any unresolved risk is explicitly documented as blocking the applicable readiness claim.
+2. Dependabot configuration is committed, validates against actual manifests, and at least one representative update PR and normal CI route are observed; repository-level alerts/security-update setting is verified.
+3. Checkov has a reviewed pinned invocation, real chart render coverage, positive/negative fixture, PR scoped wiring and nightly full wiring, with measured runtime/false positives.
+4. ZAP's pinned safe nightly and separately approved active scan run on an isolated Gateway loaded from the generated TypeSpec OpenAPI contract; negative auth fixture and sanitized evidence retained; no real secrets or external production scan.
+5. Any extra image scanner is present **only** if existing release checks do not already cover actual image vulnerabilities; a synthetic vulnerable artifact proves detection and release evidence binds the immutable image digest.
+6. Existing ACE policy/egress/secret/DbC checks and targeted mutation tests remain active, while **SonarQube and Stryker are absent**; no extra agent orchestrator or full observability stack is introduced.
+7. Security report describes the **actual** results at checked HEAD; a documentation-only plan update is never called completed DevSecOps deployment.
+
+**Interview summary once implemented and evidenced:** “ACE runs layered DevSecOps: CodeQL SAST, secret/CI-action checks, OSV + Dependabot dependency maintenance, Checkov IaC scanning, TypeSpec/OpenAPI-driven OWASP ZAP DAST against isolated Gateway, image/SBOM/provenance release gates, plus AI-specific fail-closed/privacy/egress contracts. We scope cheap checks to PRs, heavier tests to scheduled disposable environments, and bind findings to a commit and artifact. Static and dynamic scanners complement rather than replace real provider and DbC evidence.”
+
+## 8. Current-plan reconciliation — 2026-11-15
+
+This report's original AS-IS evidence remains bound to `main@6413e7d6e6c483c6d28525151038914ac943874e`. Current execution is governed by [`docs/plans/2026-11-15-ace-sdlc-conformance-security-rollout.md`](../plans/2026-11-15-ace-sdlc-conformance-security-rollout.md), not the superseded order in sections 5 and 7.
+
+- Current main observed for the plan is `7f3fc5a0a91e48e9d2573f814dfae96d68415577`. The historical CodeQL failure at `6413e7d` is not a current-main result; current status remains UNKNOWN until QG6 runs on the refreshed SHA. The QG6 plan is the single owner for this remediation.
+- Existing T1/T2 process evidence is in #223/#246 and the adoption plan's AC-SDLC-06..08. No duplicate trial is planned unless artifact reconciliation finds a specific gap.
+- PR #252 is the separate curated skill-import implementation (seven selected skills plus the required `grilling` dependency); it is not installed/complete until merged and verified at its exact head.
+- Ragas is optional and not a conformance gate. Current TypeSpec coverage is Gateway v1; retired delivery planes remain N/A, and internal contracts are not migration targets.
+- The approved Dependabot, Checkov, ZAP, conditional image-scan, and ACE-specific security scope is implemented only through separate focused PRs. G11/provider egress remains a separate owner-controlled production gate.
+- The owner decision against branch protection, required checks, and mandatory approvals remains in force.
