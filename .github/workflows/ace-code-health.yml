@@ -1,0 +1,118 @@
+name: ACE code health (QG6)
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "test/**"
+      - "scripts/nightly-targeted-mutation.mjs"
+      - "scripts/check-codeql-sarif.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ace-code-health.yml"
+      - ".github/codeql/codeql-config.yml"
+      - "docs/research/sdlc/**"
+      - "docs/plans/**"
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Initialize pinned CodeQL
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4 tag, 2026-11-04
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify CodeQL SARIF gate fixtures
+        run: node --test test/codeql-sarif-gate.test.mjs
+
+      - name: Analyze source
+        id: analyze
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4 tag, 2026-11-04
+        with:
+          category: "/language:javascript-typescript"
+          output: ${{ runner.temp }}/codeql-results
+
+      - name: Block extraction errors and high/critical CodeQL findings
+        env:
+          CODEQL_SARIF_DIR: ${{ runner.temp }}/codeql-results
+        run: node scripts/check-codeql-sarif.mjs --dir "$CODEQL_SARIF_DIR"
+
+  targeted-mutation:
+    name: Targeted critical mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove critical security mutants are killed
+        run: npm run test:mutation:critical
+
+  remote-links:
+    name: Scheduled remote Markdown links (signal only)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    continue-on-error: true
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check remote Markdown links without blocking delivery
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          lycheeVersion: v0.24.2
+          token: ""
+          args: >-
+            --no-progress
+            --max-retries 2
+            --timeout 20
+            "README.md"
+            "docs/**/*.md"
+          fail: false
+          failIfEmpty: false
+          jobSummary: true
+          output: lychee/qg6-remote-links.md

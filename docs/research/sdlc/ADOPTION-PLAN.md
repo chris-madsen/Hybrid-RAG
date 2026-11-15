@@ -47,7 +47,7 @@ Current implementation status:
 4. **QG3 / G02 — ACTIVE procedural gate:** T2 implementation requires a pre-code acceptance crosswalk and owner decisions; it is intentionally not an automatic architectural approval.
 5. **QG4 — ACTIVE report-only:** Knip dependency/unused-code reporting plus scheduled OSV advisory reporting.
 6. **QG5 — ACTIVE for accepted Gateway v1:** in-place compatibility guard plus TypeSpec regeneration/DTO/schema compatibility.
-7. **QG6 — PARTIAL ACTIVE:** nightly full deterministic/property verification and OSV reporting are installed; CodeQL and targeted mutation checks remain optional/planned until measured need justifies them.
+7. **QG6 — ACTIVE:** nightly/full deterministic-property verification and OSV reporting are complemented by pinned CodeQL and a targeted mutation gate for accepted security invariants; remote external links are scheduled nonblocking signal.
 8. **QG7/8 conditional:** typed SCIP/easement or additional toolchain managers are not required for SDLC closure unless a measured invariant cannot be proved with the existing graph/tests.
 
 Do not copy Sphericon's PostgreSQL/Go SQL testing, frontend bundle-size gate, worktree isolation daemon or TypeSpec generators as mandatory ACE checks. Existing ACE deterministic tests, real providers and release supply-chain proof remain independent authoritative checks.

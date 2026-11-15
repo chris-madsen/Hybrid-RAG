@@ -93,7 +93,8 @@
     "test:real-projection": "npm run build && node scripts/real-projection-e2e.mjs",
     "test:real-projection-race": "npm run build && ACE_REAL_PROJECTION_RACE=true node scripts/real-projection-e2e.mjs",
     "test:real-projection-outage": "npm run build && ACE_REAL_PROJECTION_OUTAGE=true node scripts/real-projection-e2e.mjs",
-    "test:real-projection-hard-outage": "npm run build && ACE_REAL_PROJECTION_HARD_OUTAGE=true node scripts/real-projection-e2e.mjs"
+    "test:real-projection-hard-outage": "npm run build && ACE_REAL_PROJECTION_HARD_OUTAGE=true node scripts/real-projection-e2e.mjs",
+    "test:mutation:critical": "node scripts/nightly-targeted-mutation.mjs"
   },
   "dependencies": {
     "@ast-grep/cli": "0.51.0",
