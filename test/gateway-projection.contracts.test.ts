@@ -279,6 +279,37 @@ test('gateway denies private source egress without explicit cloud opt-in', async
   }
 });
 
+test('gateway caller cannot downgrade retrieved code to public data', async () => {
+  let transformations = 0;
+  const observing: ContextTransformService = {
+    transform: () => {
+      transformations += 1;
+      return Effect.succeed(ok(transformed));
+    },
+  };
+  const publicOnlyPolicy: ProjectDataPolicy = {
+    ...defaultLocalPolicy(workspace.value),
+    cloudOptIn: true,
+    allowedCloudProviders: ['other_external'],
+    allowedCloudDataClassesByProvider: {
+      other_external: ['public'],
+    },
+  };
+  const service = makeGatewayProjectionService(observing, {
+    policy: publicOnlyPolicy,
+    allowedProviders: ['mock'],
+    clock: gatewaySecurity.clock,
+    audit: gatewaySecurity.audit,
+  });
+  const decision = await Effect.runPromise(service.project(request({ dataClass: 'public' })));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Ok') {
+    assert.equal(decision.value.kind, 'BLOCK');
+    assert.equal(decision.value.receipt.reasonCode, 'DATA_CLASS_DENIED');
+  }
+  assert.equal(transformations, 0, 'repository evidence classification must be authorized before retrieval');
+});
+
 test('gateway blocks likely secret material before appending retrieved context', async () => {
   const secretContext: ContextTransformService = {
     transform: () => Effect.succeed(ok({
@@ -291,6 +322,60 @@ test('gateway blocks likely secret material before appending retrieved context',
   if (decision._tag === 'Ok') {
     assert.equal(decision.value.kind, 'BLOCK');
     assert.equal(decision.value.receipt.reasonCode, 'SECRET_DETECTED');
+  }
+});
+
+test('gateway blocks secrets already present in the original agent request before retrieval', async () => {
+  let transformations = 0;
+  const observing: ContextTransformService = {
+    transform: () => {
+      transformations += 1;
+      return Effect.succeed(ok(transformed));
+    },
+  };
+  const secretBody = {
+    model: 'test-model',
+    messages: [{ role: 'user', content: 'deploy with api_key=abcd1234567890' }],
+  };
+  const encoded = Buffer.from(JSON.stringify(secretBody), 'utf8').toString('base64');
+  const decision = await Effect.runPromise(serviceFor(observing).project(request({
+    bodyBase64: encoded,
+    bodySha256: sha256Base64(encoded),
+    query: 'deploy with api_key=abcd1234567890',
+  })));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Ok') {
+    assert.equal(decision.value.kind, 'BLOCK');
+    assert.equal(decision.value.receipt.reasonCode, 'SECRET_DETECTED');
+  }
+  assert.equal(transformations, 0, 'original prompt secret must block before retrieval');
+});
+
+test('gateway blocks provider-managed continuation identifiers before retrieval', async () => {
+  for (const field of ['previous_response_id', 'conversation', 'conversation_id', 'thread_id'] as const) {
+    let transformations = 0;
+    const observing: ContextTransformService = {
+      transform: () => {
+        transformations += 1;
+        return Effect.succeed(ok(transformed));
+      },
+    };
+    const statefulBody = {
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'find handler' }],
+      [field]: 'hidden-state-1',
+    };
+    const encoded = Buffer.from(JSON.stringify(statefulBody), 'utf8').toString('base64');
+    const decision = await Effect.runPromise(serviceFor(observing).project(request({
+      bodyBase64: encoded,
+      bodySha256: sha256Base64(encoded),
+    })));
+    assert.equal(decision._tag, 'Ok');
+    if (decision._tag === 'Ok') {
+      assert.equal(decision.value.kind, 'BLOCK');
+      assert.equal(decision.value.receipt.reasonCode, 'PROVIDER_MANAGED_STATE_UNKNOWN');
+    }
+    assert.equal(transformations, 0, `${field} must block before retrieval`);
   }
 });
 

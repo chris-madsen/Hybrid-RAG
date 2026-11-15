@@ -4,7 +4,7 @@ context: |
   Source of truth: current explicit owner decisions, accepted ADRs, applicable OpenSpec capability contracts, then repository rules and current code/tests as implementation evidence.
   Core architecture: TypeScript + Effect modular monolith, Functional DDD, explicit ports/adapters and source-verified context.
   Agent-facing delivery: Bifröst LLM Gateway is the sole supported ACE context delivery path. Model-invoked ACE context tools and native Hermes ACE ContextEngine delivery are retired and may appear only in archived historical evidence.
-  Gateway ownership: active change 010-gateway-only-ownership. It binds Bifröst request/session identity, authenticated loopback projection, exact request-body identity, protected additive projection and fail-closed provider-attempt admission.
+  Gateway ownership: active change 010-gateway-only-ownership. It binds a server-minted physical request ID plus normalized caller session correlation to the exact post-auth Bifröst-visible body, authenticated loopback projection, protected additive projection and fail-closed provider-attempt admission.
   Retrieval: Qdrant local candidates; Tree-sitter/ast-grep structural evidence; evidence-selected language-service semantics; exact source reread and freshness validation.
   Documentation: explicitly authorized Vertex documentation only; source/private code stays local by default.
   Memory: immutable original session archive plus local-first Graphiti/FalkorDB derived memory; derived claims never outrank originals.

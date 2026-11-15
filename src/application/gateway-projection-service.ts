@@ -80,8 +80,17 @@ const requestBodyIdentityValid = (
   return false;
 };
 
-const gatewayDataClass = (value: GatewayProjectionRequest['dataClass']): DataClass =>
-  value === 'private' ? 'private_source' : value;
+const gatewayDataClasses = (value: GatewayProjectionRequest['dataClass']): readonly DataClass[] => {
+  const declared: DataClass = value === 'private' ? 'private_source' : value;
+  // Gateway v1 currently retrieves code only. The caller's wire classification
+  // may add restrictions for the original request, but it can never downgrade
+  // the private_source classification of repository evidence that ACE injects.
+  return declared === 'private_source' ? ['private_source'] : [declared, 'private_source'];
+};
+
+const providerManagedContinuationPresent = (body: Record<string, unknown>): boolean =>
+  ['previous_response_id', 'conversation', 'conversation_id', 'thread_id']
+    .some((field) => body[field] !== undefined && body[field] !== null && body[field] !== '');
 
 const authorizeGatewayEgress = (
   request: GatewayProjectionRequest,
@@ -110,7 +119,7 @@ const authorizeGatewayEgress = (
         workspaceId: workspaceId.value,
         operation: 'gateway_llm_projection',
         destination: 'other_external',
-        dataClasses: [gatewayDataClass(request.dataClass)],
+        dataClasses: gatewayDataClasses(request.dataClass),
         paths: [],
         secretDetected,
       },
@@ -175,12 +184,17 @@ export const makeGatewayProjectionService = (
       return block(request, 'HOST_COMPACTION_ACTIVE');
     }
     if (request.attestation.providerManagedHistoryCapability !== 'visible') return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
-    const authorized = yield* authorizeGatewayEgress(request, security);
-    if (authorized._tag === 'Err') return authorized;
-    if (!authorized.value.allowed) return block(request, authorized.value.reasonCode);
     const body = parseBody(request);
     if (body._tag === 'Err') return body;
     if (!requestBodyIdentityValid(body.value, request)) return block(request, 'BODY_IDENTITY_MISMATCH');
+    if (providerManagedContinuationPresent(body.value)) return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
+    // The original agent request is part of the external LLM egress too. Do
+    // not inspect only newly retrieved ACE context: a secret already present
+    // in the prompt/body must fail closed before retrieval or provider send.
+    const originalSecretDetected = containsLikelySecret(JSON.stringify(body.value));
+    const authorized = yield* authorizeGatewayEgress(request, security, originalSecretDetected);
+    if (authorized._tag === 'Err') return authorized;
+    if (!authorized.value.allowed) return block(request, authorized.value.reasonCode);
     const transformed = yield* context.transform(transformRequestFor(request));
     if (transformed._tag === 'Err') return block(request, transformed.error.code);
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');

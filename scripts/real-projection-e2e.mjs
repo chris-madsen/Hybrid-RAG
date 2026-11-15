@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Real Gateway HTTP -> ACE Core -> Qdrant/embedding/LSP E2E.
-// Unlike retired agent tools, this exercises the model-bound projection path.
+// Real ACE projection -> Core -> Qdrant/embedding/LSP E2E.
+// This deliberately does NOT traverse Bifröst or an LLM provider wire. It proves
+// real retrieval/projection behavior only; G11 provider-wire acceptance is separate.
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
@@ -21,7 +22,7 @@ const port = async () => new Promise((resolve, reject) => {
   });
 });
 const runtime = await resolveRealProviderRuntime(import.meta.dirname);
-const directory = await mkdtemp(join(tmpdir(), 'ace-gateway-real-provider-'));
+const directory = await mkdtemp(join(tmpdir(), 'ace-gateway-real-projection-'));
 const workspace = join(directory, 'workspace');
 await mkdir(workspace);
 const workspaceId = randomUUID();
@@ -40,9 +41,9 @@ const filler = Array.from({ length: 1991 }, (_, i) => 'export const filler_' + i
 const codePath = join(workspace, 'service.ts');
 await writeFile(codePath, code + filler + '\n');
 const qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
-const outage = process.env.ACE_REAL_PROVIDER_OUTAGE === 'true' || process.env.ACE_REAL_PROVIDER_HARD_OUTAGE === 'true';
-const race = process.env.ACE_REAL_PROVIDER_RACE === 'true';
-const maxWait = Number(process.env.ACE_REAL_PROVIDER_TIMEOUT_MS || '180000');
+const outage = process.env.ACE_REAL_PROJECTION_OUTAGE === 'true' || process.env.ACE_REAL_PROJECTION_HARD_OUTAGE === 'true';
+const race = process.env.ACE_REAL_PROJECTION_RACE === 'true';
+const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
 assert.ok(Number.isSafeInteger(maxWait) && maxWait >= 10000 && maxWait <= 600000);
 const gatewayPort = await port();
 const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
@@ -101,9 +102,9 @@ try {
   ], extra_field: { preserve: true } };
   const bodyBytes = Buffer.from(JSON.stringify(body), 'utf8');
   const bodyBase64 = bodyBytes.toString('base64');
-  const sessionId = 'real-provider-session';
+  const sessionId = 'real-projection-session';
   const payload = {
-    schemaVersion: 'ace.gateway.v1', requestId: 'gateway-real-' + randomUUID(),
+    schemaVersion: 'ace.gateway.v1', requestId: 'gateway-projection-' + randomUUID(),
     attemptGroupId: 'turn-1', agentSessionId: sessionId, workspaceId,
     dataClass: 'private', protocol: 'openai.chat.completions', provider: 'mock', model: 'test-model',
     bodyBase64, bodySha256: digest(bodyBytes),
@@ -113,7 +114,7 @@ try {
       hostBuildDigest: digest('host'), sessionId, activeEngineId: 'gateway',
       effectiveCompressionControlsDigest: digest('controls'),
       durableActiveTranscriptRevision: 'rev1', durableActiveTranscriptDigest: digest('transcript'),
-      hostCompactionEpoch: 0, attestorId: 'gateway-e2e',
+      hostCompactionEpoch: 0, attestorId: 'gateway-projection-e2e',
       providerManagedHistoryCapability: 'visible', hostTranscriptAttested: true, compactionEnabled: false,
     },
   };
@@ -135,7 +136,7 @@ try {
     assert.equal(decision.kind, 'BLOCK');
     assert.equal(decision.bodyBase64, undefined);
     assert.notEqual(decision.receipt.reasonCode, undefined);
-    console.log(JSON.stringify({ status: 'provider-honest-block', outage, race, reason: decision.receipt.reasonCode }));
+    console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.receipt.reasonCode }));
   } else {
     assert.equal(decision.kind, 'APPLY', JSON.stringify(decision));
     const projected = JSON.parse(Buffer.from(decision.bodyBase64, 'base64').toString('utf8'));
@@ -147,7 +148,7 @@ try {
     if (race) assert.match(contextMessage.content, /-changed/u, 'stale source must not masquerade as current');
     else assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
     console.log(JSON.stringify({
-      status: 'provider-pass', transport: 'gateway-http', qdrant: qdrantUrl,
+      status: 'projection-pass', transport: 'ace-internal-projection-http', qdrant: qdrantUrl,
       source: '2000-line TypeScript fixture', race,
       projectedBodySha256: decision.receipt.projectedBodySha256,
       providerWireCertified: false,

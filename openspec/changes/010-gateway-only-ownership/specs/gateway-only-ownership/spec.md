@@ -20,12 +20,21 @@ The ACE projection HTTP endpoint SHALL bind only to loopback and SHALL authentic
 - **THEN** projection is unavailable or unauthorized
 - **AND** private request/source context is not returned.
 
-### Requirement: Request-bound host identity
+### Requirement: Request-bound physical identity and session correlation
 
-For a supported request the plugin SHALL bind ACE projection to Bifröst's actual request ID, resolved coding-harness session ID, configured workspace, exact inbound body digest and provider/model identity.
+For a supported request the plugin SHALL bind ACE projection to a fresh server-minted physical
+request ID, normalized coding-harness session correlation, configured workspace, exact inbound
+body digest and provider/model identity. Caller-supplied request/session headers SHALL NOT be
+treated as authenticated identity.
 
-#### Scenario: missing Bifröst session or request ID
-- **WHEN** Bifröst cannot establish request or session identity
+#### Scenario: transport hook precedes Bifröst Core context population
+- **WHEN** the post-auth HTTP transport hook runs before `ConvertToBifrostContext`
+- **THEN** the plugin SHALL mint its physical request ID without depending on `BifrostContextKeyRequestID`
+- **AND** SHALL resolve session correlation from the supported request headers
+- **AND** PreLLM SHALL later cross-check that correlation against Bifröst Core's resolved session.
+
+#### Scenario: missing session correlation or physical-ID entropy
+- **WHEN** no valid supported coding-harness session correlation exists or the plugin cannot mint its physical request ID
 - **THEN** projection returns a fail-closed error
 - **AND** no provider attempt is authorized by ACE.
 
@@ -60,9 +69,24 @@ Gateway SHALL know and authorize the exact LLM provider before retrieving or inj
 - **THEN** Gateway returns a BLOCK decision before retrieval
 - **AND** no private ACE context is appended.
 
+#### Scenario: caller declares a lower data class
+- **WHEN** the request declares `public` or another class that is less restrictive than the repository code ACE will retrieve
+- **THEN** Gateway still authorizes `private_source` for the retrieved evidence
+- **AND** the caller declaration cannot downgrade repository evidence classification.
+
 #### Scenario: selected context contains likely secret material
 - **WHEN** retrieved context matches the repository secret-content guard
 - **THEN** Gateway blocks before constructing the provider-bound projected body.
+
+#### Scenario: original agent request contains likely secret material
+- **WHEN** the Bifröst-visible provider request already contains likely secret material
+- **THEN** Gateway blocks before retrieval
+- **AND** the secret-bearing request is not authorized for external LLM egress by ACE.
+
+#### Scenario: request references hidden provider-managed continuation state
+- **WHEN** the provider body contains a known continuation/thread identifier such as `previous_response_id`, `conversation`, `conversation_id`, or `thread_id`
+- **THEN** Gateway returns `PROVIDER_MANAGED_STATE_UNKNOWN` before retrieval
+- **AND** the connector does not claim that the full context is visible.
 
 ### Requirement: Protected additive projection
 
@@ -84,6 +108,18 @@ The first normalized Bifröst provider attempt SHALL match the ACE-authorized no
 #### Scenario: retry or fallback
 - **WHEN** PreLLM is invoked again for the same ingress projection
 - **THEN** the attempt is blocked pending fresh ACE authorization.
+
+### Requirement: Terminal custom provider guard
+
+A production-certified Bifröst deployment SHALL place the ACE plugin after every other custom
+plugin that can mutate the provider-bound request. Repository compile/contract checks SHALL NOT
+be treated as proof of live plugin ordering or final upstream bytes.
+
+#### Scenario: later custom mutator is not ruled out
+- **WHEN** the loaded Bifröst plugin order and final provider wire have not been observed
+- **THEN** structural Gateway checks may pass
+- **AND** final provider-wire G11 remains `NOT-RUN` or fails
+- **AND** no claim is made that ACE was the last mutating hook.
 
 ### Requirement: Honest evidence stages
 
