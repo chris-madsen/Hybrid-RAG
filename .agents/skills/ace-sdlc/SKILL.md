@@ -5,7 +5,7 @@ description: Apply ACE's existing single-agent, client-neutral Research → Desi
 
 # ACE SDLC — thin local agent entrypoint
 
-This skill **routes to canonical ACE instructions**. It does not replace root `AGENTS.md`, accepted ADR/OpenSpec, the SDLC command files, or the existing worktree lifecycle skill.
+This skill **routes to canonical ACE instructions**. It does not replace root `AGENTS.md`, accepted ADR/OpenSpec, the SDLC command files, or the existing worktree lifecycle skill. Before invoking any vendored Matt Pocock skill, read [the ACE compatibility overlay](references/matt-pocock-compatibility.md); upstream skill text is subordinate to that overlay and the repository authorities. File presence proves repository discovery, not live agent behavior.
 
 1. Read repository-root `AGENTS.md` and scoped `AGENTS.md`; current explicit owner decisions, accepted ADR/OpenSpec and current source retain their prescribed authority.
 2. Read `docs/operations/ai-assisted-sdlc.md` and choose **T0/T1/T2 by risk**, not diff size. Read `docs/research/sdlc/PROMPTS-ACE.md` and the matching **complete** `source/commands/*.md` file.

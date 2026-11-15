@@ -230,12 +230,13 @@ on a real PR head can the rule be marked ACTIVE.
 
 For public machine contracts **TypeSpec is chosen**, not a conditional pilot. Read [codegen coverage](TYPESPEC-CODEGEN-COVERAGE.md) and [TypeSpec Contract First](source/standards/TypeSpec%20Contract%20First.md). Use [ACE TypeSpec Codegen Skill](../../../.agents/skills/ace-typespec-codegen/SKILL.md) for generated API scaffolding, SDK, validators, mechanical mapping, permissions metadata and drift/compatibility. TypeSpec alone does not generate business decisions.
 
-## Matt Pocock skills — upstream selection reviewed, import pending
+## Matt Pocock skills — pinned ACE helper subset
 
-Read [upstream manifest and project override](MATT-POCOCK-SKILLS.md). The original MIT-licensed skills are **not yet committed to ACE**; the verified pinned selection can be installed separately. Do not claim a skill was loaded unless its file exists locally. Suggested auxiliary read:
-- Design and ubiquitous language: `domain-modeling`, `grill-with-docs`, `codebase-design`.
-- Work decomposition: `to-spec`, `to-tickets`; **map to existing OpenSpec**.
-- Implement: `tdd`, `diagnosing-bugs`, `code-review`.
-- Completion: `pr`, `handoff`, `writing-for-agents`.
+Read [the pinned source/vendor record](MATT-POCOCK-SKILLS.md) and [ACE compatibility overlay](../../../.agents/skills/ace-sdlc/references/matt-pocock-compatibility.md) before using any vendored helper. ACE vendors eight directories from exact upstream `v1.3.2`: `grill-me` plus its required `grilling` dependency, `grill-with-docs`, `domain-modeling`, `to-spec`, `to-tickets`, `tdd`, and `code-review`. The adjacent manifest records all 20 source blobs. File presence establishes repository discovery only, not live agent behavior.
+
+- Requirement discovery: `grill-me` / `grilling`; at most three independent questions per round and two rounds per scoped task, with no repeats.
+- Design and language: `domain-modeling`, `grill-with-docs`; use ACE's existing ADRs, bounded-context documentation, and functional DDD policy.
+- Work decomposition: `to-spec`, `to-tickets`; **map only to existing OpenSpec** and do not publish a parallel tracker.
+- Implementation and review: `tdd`, `code-review`; follow ACE test selection and perform review axes sequentially with one agent.
 
 Do NOT silently invoke the upstream `implement-spec` multi-agent/subagent procedure or `setup-matt-pocock-skills` repository reset. Use ACE's own single-agent stage commands and project authority. Matt skills supply techniques, not a second agent runner or a replacement for TypeSpec/OpenSpec.
