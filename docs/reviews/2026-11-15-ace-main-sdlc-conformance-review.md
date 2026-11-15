@@ -33,15 +33,15 @@
 | OpenSpec | Seven native skill files, active change 010, strict pinned OpenSpec workflow and deliberate invalid fixture | **ACTIVE** | Acceptance/implementation traceability for remaining provider gaps |
 | ADR decisions | Accepted ADR-019 and accepted Gateway-only owner authority | **ACTIVE** | Reconcile old provider/agent instructions that survive outside archived contexts |
 | TypeSpec contract-first | \`typespec/main.tsp\`, pinned TypeSpec 1.17.0 + Hey API 0.99.0, generated OpenAPI/JSON Schema/SDK; generation+drift+compat CI | **ACTIVE for Gateway v1** | Source-of-truth migration only for approved additional wire surfaces; legacy schema/Go DTO compatibility and real routing proof |
-| G02 pre-code Design Consistency | \`docs/plans/2026-11-14-{typespec-migration-g02,sdlc-finalization-g02}.md\`; preflight refuses missing T2 crosswalk but never approves human G02 | **ACTIVE procedural / PARTIAL adoption** | Real completed T2 agent trial + human decision evidence |
-| Implementation / RED-GREEN / worktree | \`ace-sdlc\` skill, \`sdlc-preflight.mjs\`, worktree lifecycle, \`test:affected\` | **ACTIVE tools / PARTIAL behavior proof** | Actual staged autonomous task evidence, not only source substring audit |
+| G02 pre-code Design Consistency | `docs/plans/2026-11-14-{typespec-migration-g02,sdlc-finalization-g02}.md`; preflight refuses missing T2 crosswalk but never approves human G02 | **ACTIVE; T2 process evidence exists** | Retain #246 / AC-SDLC-07 as the process record; provider/agent G11 remains separate |
+| Implementation / RED-GREEN / worktree | `ace-sdlc` skill, `sdlc-preflight.mjs`, worktree lifecycle, `test:affected` | **ACTIVE; T1/T2 process evidence exists** | Reconcile #223/#246 artifacts against the adoption plan; do not require a duplicate trial absent a specific evidence gap |
 | Deterministic tests / Meyer DbC | \`test/bertrand-contracts.test.ts\`, real contract suite, affected selection self-test, \`verify:pr\`, \`verify:full\` | **ACTIVE** | All 14 DBC production contracts still require scope-specific real evidence |
 | Architecture fitness | \`architecture/rules/\`; \`npm run test:arch-rules\`, \`npm run check:arch\` | **ACTIVE REPORT-ONLY** | Confirm false positives, resolve debt; blocking promotion only if owner explicitly authorizes |
 | Static docs/security gates | Lychee offline negative/positive; Betterleaks, actionlint, zizmor with pinned binaries; OpenSpec fixtures | **ACTIVE** | Maintain pins; independent CodeQL finding triage remains |
-| CodeQL | \`ace-code-health.yml\` + fail-closed SARIF checker | **ACTIVE, CURRENT RED** | Resolve eight high-severity findings or evidence-backed scoped triage; rerun CodeQL |
+| CodeQL | `ace-code-health.yml` + fail-closed SARIF checker | **ACTIVE; RED at audited SHA, current HEAD UNKNOWN** | Rerun on refreshed main and resolve or evidence-triage findings at that exact SHA |
 | Dependency security / Knip | \`knip@6.45.1\`, nightly \`analyze:dependencies\` and OSV | **ACTIVE REPORT-ONLY** | Review findings as debt, not falsely count green report job as no vulnerabilities |
 | Mutation quality | Three curated mutations in \`scripts/nightly-targeted-mutation.mjs\` + successful nightly job | **ACTIVE TARGETED** | Optional extension only when a new critical invariant has weak tests; Stryker not mandatory |
-| RAG evaluation | Deterministic retrieval quality/holdout scripts, RAG ranking/selection; **no Ragas** | **PARTIAL** | Add reproducible Ragas offline evaluation if approved, without replacing deterministic retrieval or Harbor |
+| RAG evaluation | Deterministic retrieval quality/holdout scripts, RAG ranking/selection; **no Ragas** | **ACTIVE for deterministic/Harbor scope; Ragas optional** | Ragas is an optional offline experiment, not an SDLC or release acceptance gap |
 | Real provider acceptance (G11) | Current nightly real Qdrant and non-TS LSP **PASS**; Bifröst plugin compiles | **PARTIAL / GATEWAY EGRESS BLOCKED** | Live Bifröst→Gateway→last PreLLM→final provider proof; selected memory/docs and failures by capability |
 | Agent-level Harbor | Harbor tasks, adapters, 3-/4-arm reports and evidence policies | **PARTIAL** | Natural real-agent trials, matched quality/usage/cost at exact source; no 5× claim |
 | Local k3s | ADR-008, k3s runner/manifests; older retained K3S-01..09 pass, K3S-10 blocked | **PARTIAL** | Recheck current actual helper containment; do not infer today's production status from October report |
@@ -96,11 +96,11 @@ The eight findings are **7 × \`js/file-system-race\` (7.7)** and **1 × \`js/us
 
 **Fix/acceptance:** inventory each **currently active** public Gateway-only protocol/schema owner; migrate only genuinely duplicated wire definitions to TypeSpec behind compatibility/roundtrip tests (missing/null, enum, unknown, errors, auth, mapping completeness). Keep generated routing/SDK/validators where maintained generators support them. Remove hand-written duplicate authority only after every active consumer test passes, with exact deletion trace. Do not resurrect retired optional tool-call or Hermes-native agent delivery merely to expand a generator. Keep pure domain ADTs/authorization decisions outside generated DTOs.
 
-### F-07 — P1 / G02 and single-agent SDLC require one real T2 process demonstration
+### F-07 — Status correction / existing T1 and T2 process evidence
 
-**Evidence:** \`sdlc-preflight.mjs\` plus \`test/sdlc-preflight.test.mjs\` detect missing plan/G02 and distinguish \`BLOCKED\` / \`REVIEW_REQUIRED\` from PASS; two accepted G02 plans exist. The local runbook is mainly an **operator trial procedure**. Automated preflight intentionally does **not** verify human approval, PR decision quality, or independent review.
+**Evidence:** the governing adoption plan records T1 dogfood in PR #223 (AC-SDLC-06) and a material T2/G02 process in PR #246 (AC-SDLC-07/08). PR #246's retained description and `docs/plans/2026-11-14-gateway-only-retirement-g02.md` document the pre-code owner decision, phase implementation, focused checks and the explicit boundary **READY FOR CODE REVIEW, NOT PRODUCTION CERTIFIED**. The same-agent reviews are not independent validation.
 
-**Fix/acceptance:** choose a real bounded T2 change (prefer a noncloud domain/contract fix). Execute full chain with one agent: \`grill-me\` only for unresolved requirements → fact-only source-linked Research → Event Storming (if domain semantics affected) → accepted OpenSpec/ADR/TypeSpec as applicable → G02 acceptance crosswalk + explicit owner decision → phased RED/GREEN → separate BUILD/ARCH/SEC/PLAN findings → actual tests/CI/PR. Keep before/after stage artifacts, exact branch/main/CI SHA and the deliberately failing negative test. Do not count a self-review as independent review. Compare prompt/document overhead and actual useful defects before requiring extra documents for T0/T1.
+**Disposition:** preserve and reconcile the existing #223/#246 artifacts at their exact SHAs; do not create another T1/T2 trial merely because this audit's earlier queue omitted them. This process evidence does not prove semantic conformance of every historical source file, final provider egress, real-agent E2E, or production readiness. G11 remains a separate capability gate.
 
 ### F-08 — P1 / Current operational guidance contains misleading retired agent-flow examples
 
@@ -129,9 +129,9 @@ The eight findings are **7 × \`js/file-system-race\` (7.7)** and **1 × \`js/us
 - **Ragas versus Harbor:** Ragas (planned offline LLM-judge retrieval/answer-quality analysis) must not be a substitute for deterministic retrieval, authorized source/current digest, provider receipt or Harbor's actual accepted-task success + token/cost reporting. Avoid privacy policy bypass by the judge.
 - **CI source SHA:** current main has passing nightly real Qdrant/non-TS LSP and mutation jobs, but a failing CodeQL job. The overall state is **not all-green**. PR checks, schedule checks and release approvals are separate evidence, not one boolean.
 
-## 5. Concrete PR sequence to reach defensible conformance
+## 5. Original proposed PR sequence — superseded by the active plan
 
-These are **implementation tasks**, not completed changes. Each PR should contain tests demonstrating the previous deficiency, the smallest repair, actual command results and exact CI-tested SHA; owner makes architecture/egress decisions.
+This was the initial task ordering drafted with the audit. Its observations remain useful, but its statuses and ordering are superseded by [`docs/plans/2026-11-15-ace-sdlc-conformance-security-rollout.md`](../plans/2026-11-15-ace-sdlc-conformance-security-rollout.md). In particular, use the existing QG6 CodeQL task rather than duplicate P0-A/P0-SEC-A; G11 is not an SDLC-adoption blocker; T1/T2 evidence already exists; the skill work is in PR #252; and Ragas is optional. Do not execute the table below as a current backlog without revalidating against that plan.
 
 | Order | Proposed PR / scope | Checkable acceptance |
 |---|---|---|
@@ -164,10 +164,12 @@ These are **implementation tasks**, not completed changes. Each PR should contai
 
 Do **not** introduce required branch protection or mandatory PR approvals against the owner's accepted choice. Do **not** add \`mise daemons\` beside local k3s, SQL-oriented dbcleaner to a non-relational core, generic rich OO aggregates, an extra AI orchestrator, parallel spec directories, automated Event Sourcing, a second model-invoked ACE route, non-provider-tested “Complete” successes, all-project mutation scanning, or a full observability stack contrary to ADR-010. Do not remove historical artifacts purely because newer architecture made their content obsolete; instead clearly distinguish archives from current operational instructions.
 
-**Final audited conclusion:** ACE is **well advanced in its structural/process SDLC implementation**, and many formerly planned gates are already real. It **does not fully conform to the complete evidence-driven SDLC yet** because CodeQL is failing at the audited commit, the live final provider/agent boundary is unverified, Ragas and pinned questioning skills are absent, functional-DDD/SDLC process adoption is not demonstrated across historical changes, and full release/benchmark gates remain intentionally unfulfilled. Fix observable security/runtime truth first; avoid overengineering the tooling layer.
+**Final audited conclusion:** ACE is **well advanced in its structural/process SDLC implementation**, and many formerly planned gates are already real. The audited SHA has a failing CodeQL run; final-provider/agent and full release/benchmark evidence are separate and remain unproven. The existing #223/#246 evidence demonstrates T1/T2 process adoption; it does not retroactively prove that every earlier code change followed the current process or that all current source conforms semantically. Ragas is optional, and skills were absent at the audited SHA but have a separate implementation PR in flight. See the active plan for current-main revalidation and the full-source conformance ledger.
 
 
-## 7. Approved DevSecOps extension — 2026-11-15 owner decision (implementation plan, not audit evidence)
+## 7. Approved DevSecOps extension — 2026-11-15 owner decision (scope; execution moved to the active plan)
+
+The detailed rollout order, current statuses, and per-PR acceptance now live in [`docs/plans/2026-11-15-ace-sdlc-conformance-security-rollout.md`](../plans/2026-11-15-ace-sdlc-conformance-security-rollout.md). This section preserves the original approved scope, not implementation evidence. The active plan supersedes the weekly active-ZAP proposal below: active scans remain manual/explicitly authorized until a safe pilot and separate cadence approval. “Blocking” below means a failing job or unsatisfied release gate; it never configures GitHub branch protection or required merge checks.
 
 **Decision:** Expand the existing ACE SDLC Security and Release quality gates using **Checkov** (IaC), **OWASP ZAP** (DAST against isolated Gateway), **Dependabot** (dependency update PRs), and a **single image vulnerability scanner only if the current release pipeline lacks equivalent coverage**. Keep **CodeQL, Betterleaks, actionlint, zizmor, OSV, existing security/DbC tests, existing targeted mutation script, SBOM/provenance**. **Do not install SonarQube or Stryker.** Do not add another SAST engine simply to accumulate scanners; new tools must address an uncovered threat boundary.
 
@@ -307,3 +309,14 @@ Build on **existing** \`test/bertrand-contracts.test.ts\`, \`test/data-class-pol
 7. Security report describes the **actual** results at checked HEAD; a documentation-only plan update is never called completed DevSecOps deployment.
 
 **Interview summary once implemented and evidenced:** “ACE runs layered DevSecOps: CodeQL SAST, secret/CI-action checks, OSV + Dependabot dependency maintenance, Checkov IaC scanning, TypeSpec/OpenAPI-driven OWASP ZAP DAST against isolated Gateway, image/SBOM/provenance release gates, plus AI-specific fail-closed/privacy/egress contracts. We scope cheap checks to PRs, heavier tests to scheduled disposable environments, and bind findings to a commit and artifact. Static and dynamic scanners complement rather than replace real provider and DbC evidence.”
+
+## 8. Current-plan reconciliation — 2026-11-15
+
+This report's original AS-IS evidence remains bound to `main@6413e7d6e6c483c6d28525151038914ac943874e`. Current execution is governed by [`docs/plans/2026-11-15-ace-sdlc-conformance-security-rollout.md`](../plans/2026-11-15-ace-sdlc-conformance-security-rollout.md), not the superseded order in sections 5 and 7.
+
+- Current main observed for the plan is `7f3fc5a0a91e48e9d2573f814dfae96d68415577`. The historical CodeQL failure at `6413e7d` is not a current-main result; current status remains UNKNOWN until QG6 runs on the refreshed SHA. The QG6 plan is the single owner for this remediation.
+- Existing T1/T2 process evidence is in #223/#246 and the adoption plan's AC-SDLC-06..08. No duplicate trial is planned unless artifact reconciliation finds a specific gap.
+- PR #252 is the separate curated skill-import implementation (seven selected skills plus the required `grilling` dependency); it is not installed/complete until merged and verified at its exact head.
+- Ragas is optional and not a conformance gate. Current TypeSpec coverage is Gateway v1; retired delivery planes remain N/A, and internal contracts are not migration targets.
+- The approved Dependabot, Checkov, ZAP, conditional image-scan, and ACE-specific security scope is implemented only through separate focused PRs. G11/provider egress remains a separate owner-controlled production gate.
+- The owner decision against branch protection, required checks, and mandatory approvals remains in force.
