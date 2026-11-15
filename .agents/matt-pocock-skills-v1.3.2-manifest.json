@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "https://github.com/mattpocock/skills",
+  "sourceTag": "v1.3.2",
+  "sourceCommit": "d1478fcb140db0b93c0c8df17bcfd311844749d0",
+  "sourceTree": "42b57b23ac2979fce601ce1d4b4d6c1d46471bbe",
+  "license": {
+    "path": ".agents/LICENSE-MATTPOCOCK-MIT.txt",
+    "sha256": "0e7ac423bf2c6e223b7c5b156f8cf72da49d748e56a1641402c31f22ad07dbb5"
+  },
+  "skills": [
+    { "name": "grill-me", "sourceDirectory": "skills/productivity/grill-me", "requiredDependency": false },
+    { "name": "grilling", "sourceDirectory": "skills/productivity/grilling", "requiredDependency": true },
+    { "name": "grill-with-docs", "sourceDirectory": "skills/engineering/grill-with-docs", "requiredDependency": false },
+    { "name": "domain-modeling", "sourceDirectory": "skills/engineering/domain-modeling", "requiredDependency": false },
+    { "name": "to-spec", "sourceDirectory": "skills/engineering/to-spec", "requiredDependency": false },
+    { "name": "to-tickets", "sourceDirectory": "skills/engineering/to-tickets", "requiredDependency": false },
+    { "name": "tdd", "sourceDirectory": "skills/engineering/tdd", "requiredDependency": false },
+    { "name": "code-review", "sourceDirectory": "skills/engineering/code-review", "requiredDependency": false }
+  ],
+  "files": [
+    { "skill": "code-review", "source": "skills/engineering/code-review/SKILL.md", "path": ".agents/skills/code-review/SKILL.md", "gitBlob": "83183e0ad36fd0eef25d37c7e483284b7e34c1f0", "sha256": "9c921a8d88138a41401d8897ca1bb852088ab1b7b605cdd04edc13e3e8aab6dd" },
+    { "skill": "code-review", "source": "skills/engineering/code-review/agents/openai.yaml", "path": ".agents/skills/code-review/agents/openai.yaml", "gitBlob": "9076774ba327f49068db9273feceda03bfe940fa", "sha256": "8229ca854e11dc8e6aef2131ee03f31fb1561cf905fab9ccc325180cf3331352" },
+    { "skill": "domain-modeling", "source": "skills/engineering/domain-modeling/ADR-FORMAT.md", "path": ".agents/skills/domain-modeling/ADR-FORMAT.md", "gitBlob": "d7e61f30a9fd8ca70d9ee68f019c2a9ebf2d13f7", "sha256": "944c92aa790e8fbdc9199640b170979abb8a34ba8d0fe18c2a01a63bce140ca0" },
+    { "skill": "domain-modeling", "source": "skills/engineering/domain-modeling/GLOSSARY-FORMAT.md", "path": ".agents/skills/domain-modeling/GLOSSARY-FORMAT.md", "gitBlob": "9c0b4c7a2e8507c23cbb5e0baa66d81699321cc6", "sha256": "21dcc40cdec8e151a829b98ab1517c1867bc444e3665134a98c6983411996801" },
+    { "skill": "domain-modeling", "source": "skills/engineering/domain-modeling/SKILL.md", "path": ".agents/skills/domain-modeling/SKILL.md", "gitBlob": "a4438c6879c517d1a08e2b5fbca049b632688dfe", "sha256": "7b925d7b1e341a2eeae33ad68a8a8c0ab889a38ddd22a7598e4c240e5a7556a3" },
+    { "skill": "domain-modeling", "source": "skills/engineering/domain-modeling/agents/openai.yaml", "path": ".agents/skills/domain-modeling/agents/openai.yaml", "gitBlob": "7f1522d2f11506ee205275ab7c282aa52366ecf6", "sha256": "f6bf2aa996c6e6f53fdd0708e18a0d16a56aed8322cca59fedbe3c0d2c75f06b" },
+    { "skill": "grill-me", "source": "skills/productivity/grill-me/SKILL.md", "path": ".agents/skills/grill-me/SKILL.md", "gitBlob": "3947ff9c4ad980d14fc07fccbf659d47c114e81d", "sha256": "caaf8b8de1684f96e26b28f3c29189db5c89cce4b73e1c93d86164f66ef88637" },
+    { "skill": "grill-me", "source": "skills/productivity/grill-me/agents/openai.yaml", "path": ".agents/skills/grill-me/agents/openai.yaml", "gitBlob": "4d6fb0c746c5d21364dce5d0cf8c51eab9712e7b", "sha256": "c061e39c3e0f9d865fb1b97556d485704af2a8a58f4b8221a8917a5c2074a32b" },
+    { "skill": "grill-with-docs", "source": "skills/engineering/grill-with-docs/SKILL.md", "path": ".agents/skills/grill-with-docs/SKILL.md", "gitBlob": "62b9efb6f991d1b229adee7506962f13ced0c499", "sha256": "7de372c13488f1ee96cc11cd8907b56b6809cc93eef776eeddd37de6b6cbe3fe" },
+    { "skill": "grill-with-docs", "source": "skills/engineering/grill-with-docs/agents/openai.yaml", "path": ".agents/skills/grill-with-docs/agents/openai.yaml", "gitBlob": "5dbe2780a51be3e9b118bd7758a73e54a9384e11", "sha256": "94cd0ab161fb468a836349f5ed482ba58ce8e709a05c57ce533d739dbd35cca9" },
+    { "skill": "grilling", "source": "skills/productivity/grilling/SKILL.md", "path": ".agents/skills/grilling/SKILL.md", "gitBlob": "d2f09a18e6a6c65c55f1271ba08dfeaf06f0bed3", "sha256": "a146842ed93ca43d833550fa9adf02e58cb63c83fea9d4b4522995b82242d4e2" },
+    { "skill": "grilling", "source": "skills/productivity/grilling/agents/openai.yaml", "path": ".agents/skills/grilling/agents/openai.yaml", "gitBlob": "ddbdb96139c0c1dfe6bca698f39d0465674b8a39", "sha256": "1411d7df7d99b7e621a1ff8283c8133cc2464be63d064e52d8ce169c6800ee9b" },
+    { "skill": "tdd", "source": "skills/engineering/tdd/SKILL.md", "path": ".agents/skills/tdd/SKILL.md", "gitBlob": "01eadaa34e7c9a63a67d6dc3cce1cc81b0e49985", "sha256": "5505d25bbaa8fc14a79e4d20163936958992a2995b7f1dd1d6197edc9ed722e0" },
+    { "skill": "tdd", "source": "skills/engineering/tdd/agents/openai.yaml", "path": ".agents/skills/tdd/agents/openai.yaml", "gitBlob": "651b838a7663e027b1b8884491e867f26bb9a021", "sha256": "ea6f01cf1b8c06a4b0f5b649d74b1b8ce8685e72af1b38d70d877693e092af0b" },
+    { "skill": "tdd", "source": "skills/engineering/tdd/mocking.md", "path": ".agents/skills/tdd/mocking.md", "gitBlob": "71cbfee674d93244ce81d1830b930ca9a69200bd", "sha256": "3ceb807fdf4a47d6a93d4d9a891e5ba6d362a6247bd08adc451feebfc17361ef" },
+    { "skill": "tdd", "source": "skills/engineering/tdd/tests.md", "path": ".agents/skills/tdd/tests.md", "gitBlob": "7ab86479f925a1f9e8ba680af33cb3b12e015381", "sha256": "859f9e592c188fda4fc7277dd180e4ce9c7a2e13f6efe1f6f29eccc9d28c106a" },
+    { "skill": "to-spec", "source": "skills/engineering/to-spec/SKILL.md", "path": ".agents/skills/to-spec/SKILL.md", "gitBlob": "3f52599ae2a4347aee5a07432c2707518e691a7f", "sha256": "43ad9cf318e5e7d3d1fa360253a37021796dc87a0c2e595ad262661a10f85088" },
+    { "skill": "to-spec", "source": "skills/engineering/to-spec/agents/openai.yaml", "path": ".agents/skills/to-spec/agents/openai.yaml", "gitBlob": "549e6f76f020a1b9ba65f52ccda336566ee6222a", "sha256": "1c5b4d1e3d8e52287ef19cc2742fdbbfae1914ac75d33af3e4c8174f08cc55bb" },
+    { "skill": "to-tickets", "source": "skills/engineering/to-tickets/SKILL.md", "path": ".agents/skills/to-tickets/SKILL.md", "gitBlob": "9b77a01db9460c99c22d03c910c349f890f12c0e", "sha256": "56ec23c5b2782785d4e65bff9e315b6d3aeb4ef977c174a219e99489fada1995" },
+    { "skill": "to-tickets", "source": "skills/engineering/to-tickets/agents/openai.yaml", "path": ".agents/skills/to-tickets/agents/openai.yaml", "gitBlob": "24605a5db64e4fc750b999aa94aea126bee814ee", "sha256": "21bc6215fffcd7614e9f772bb1760e87cc5fc7dcc707e7d282bc9414267a6090" }
+  ]
+}

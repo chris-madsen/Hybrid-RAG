@@ -200,14 +200,18 @@ No big-bang schema replacement and no deletion of handwritten authority before c
 
 Not required for SDLC adoption.
 
-If imported, use a dedicated vendor PR against pinned upstream v1.3.2:
+The original planning inventory covered a broader set of candidates. If importing, use a dedicated vendor PR against pinned upstream v1.3.2:
 
 - verified commit `d1478fcb140db0b93c0c8df17bcfd311844749d0`;
 - verified tree `42b57b23ac2979fce601ce1d4b4d6c1d46471bbe`;
-- only the reviewed 23 skill directories;
+- only the subset approved for ACE, not every previously reviewed candidate directory;
 - byte/source verification and retained MIT notice;
 - preserve ACE/OpenSpec skills;
 - test discovery and ensure no second runner/spec/issue authority is activated.
+
+### 2026-11-15 scope refinement
+
+The current conformance-review P1-D slice narrows the import to eight directories: `grill-me` plus its required `grilling` dependency, `grill-with-docs`, `domain-modeling`, `to-spec`, `to-tickets`, `tdd`, and `code-review`. The exact v1.3.2 source paths and file hashes are recorded in `.agents/matt-pocock-skills-v1.3.2-manifest.json`; the dedicated OpenSpec change is `openspec/changes/011-pinned-agent-skills/`. This does not activate upstream `implement-spec`, a tracker integration, or a second orchestrator.
 
 ## Recommended order
 

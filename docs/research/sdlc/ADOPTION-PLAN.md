@@ -60,5 +60,5 @@ Any future gate/tool extension must still show a clean fixture and deliberately 
 - For each material T2 design begin with Event Storming, derive readonly ADTs/pure invariants, and keep Effect use cases at I/O boundaries.
 - Codegen output target is wider than DTO types: client SDK, server handler/route interfaces, runtime validation, mechanical mappings, typed permission metadata, mocks/fixtures, docs and reproducibility.
 - Require fail-on-unmapped fields/enums, schema compatibility and actual wire roundtrip. No claim all targets are available from TypeSpec alone.
-- A curated selection from Sphericon's pinned Matt v1.3.2 release is documented in the [import plan](MATT-POCOCK-SKILLS.md). The upstream files are **not committed**; this document must not claim installation.
+- The ACE-selected subset from the pinned Matt v1.3.2 release is vendored and byte-manifested; see the [vendor record](MATT-POCOCK-SKILLS.md). Its compatibility overlay preserves the one-agent/OpenSpec process; file presence alone is not agent-use evidence.
 - Don't invoke upstream `implement-spec` as a multi-agent executor. The one-agent ACE process remains canonical.
