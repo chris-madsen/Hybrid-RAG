@@ -50,7 +50,12 @@ for (const file of files) {
       continue;
     }
     codeqlRuns += 1;
-    const rules = new Map((Array.isArray(run.tool?.driver?.rules) ? run.tool.driver.rules : []).map((rule) => [rule.id, rule]));
+    const ruleComponents = [
+      run.tool?.driver,
+      ...(Array.isArray(run.tool?.extensions) ? run.tool.extensions : []),
+    ];
+    const rules = ruleComponents.flatMap((component) =>
+      Array.isArray(component?.rules) ? component.rules : []);
     for (const result of run.results ?? []) {
       const ruleId = result.ruleId ?? 'unknown';
       const location = result.locations?.[0]?.physicalLocation;
@@ -61,8 +66,12 @@ for (const file of files) {
         extractionErrors.push({ ruleId, uri, line, message });
         continue;
       }
-      const rule = rules.get(ruleId);
-      const rawSeverity = result.properties?.['security-severity'] ?? rule?.properties?.['security-severity'];
+      const matchingRules = rules.filter((rule) => rule.id === ruleId);
+      const ruleSeverities = matchingRules.map((rule) => rule.properties?.['security-severity']);
+      const hasConsistentRuleSeverity = ruleSeverities.length > 0
+        && ruleSeverities.every((severity) => severity === ruleSeverities[0]);
+      const rawSeverity = result.properties?.['security-severity']
+        ?? (hasConsistentRuleSeverity ? ruleSeverities[0] : undefined);
       const hasNumericSeverity = typeof rawSeverity === 'number'
         || (typeof rawSeverity === 'string' && rawSeverity.trim().length > 0);
       const securitySeverity = hasNumericSeverity ? Number(rawSeverity) : null;

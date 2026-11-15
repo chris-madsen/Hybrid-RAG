@@ -54,6 +54,28 @@ test('CodeQL SARIF gate blocks high or critical security findings', () => {
   assert.equal(output.highOrCritical[0]?.line, 7);
 });
 
+test('CodeQL SARIF gate reads rule severity from tool extension components', () => {
+  const { run, output } = runFixture([], [], {
+    runs: [{
+      tool: {
+        driver: { name: 'CodeQL', rules: [] },
+        extensions: [{
+          name: 'codeql/javascript-queries',
+          rules: [{ id: 'js/example-extension-high', properties: { 'security-severity': '7.7' } }],
+        }],
+      },
+      results: [{
+        ruleId: 'js/example-extension-high',
+        message: { text: 'extension rule high security finding' },
+        locations: [],
+      }],
+    }],
+  });
+  assert.equal(run.status, 1);
+  assert.equal(output.verdict, 'HIGH_SECURITY_FINDINGS');
+  assert.equal(output.highOrCritical[0]?.securitySeverity, 7.7);
+});
+
 test('CodeQL SARIF gate rejects missing analysis runs', () => {
   const { run, output } = runFixture([], [], { runs: [] });
   assert.equal(run.status, 2);
