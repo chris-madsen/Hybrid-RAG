@@ -102,6 +102,8 @@ topics:
 
 **Observed behavior:** current plugin code has an HTTP request projection and a pre-provider guard; its `PostLLMHook` returns the response/error unchanged. The connector preserves the stream request field as part of its protected JSON object, but no current-code evidence observed here captures final upstream bytes after all Bifröst mutators or validates streaming response chunk order, cancellation, terminal events, midstream errors and usage.
 
+The pinned Bifröst `fasthttpToHTTPRequest` skips request-body copying when content length exceeds the configured threshold or is unknown/chunked (`transports/bifrost-http/handlers/middlewares.go:1125-1144`). The ACE hook then parses `req.Body`; empty/unavailable JSON fails `requestQuery` and returns HTTP 400 (`integrations/bifrost/ace-connector/plugin/main.go:147-156,232-244`). This source path appears fail-closed for such bodies rather than silently passing them through; no threshold-specific integration test was run.
+
 **Retained historical evidence:** the 2026-10-25 report is explicitly a mock-upstream pass for one OpenAI Chat route and names exact Bifröst/plugin artifacts and hashes (`2026-10-25-bifrost-gateway-wire-e2e.md:1-16`). It explicitly excludes external provider, real agent, streaming, retry/fallback and other provider routes (`:58-63`). The current connector README also states that agent E2E was not run and final-wire/retry evidence remains unrun (`integrations/bifrost/ace-connector/README.md:5-21`).
 
 **Test evidence:** local HTTP contracts assert `providerWire=not_certified` and `/record-delivery` 501. The retained 2026-10-25 mock result is not reclassified as current real-provider evidence.
