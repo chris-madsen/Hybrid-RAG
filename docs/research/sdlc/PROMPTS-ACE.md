@@ -93,8 +93,14 @@ Every slice must specify: goal, dependency, exact create/modify/delete paths,
 invariants and frame conditions, acceptance IDs, deterministic RED/GREEN test,
 negative and real-provider checks, command/expected result, rollback,
 review gates, and stop-for-owner-decision conditions.
-Prefer small coherent independently reviewable changes and removal of
-superseded paths. Produce a cross-slice dependency/compatibility check.
+Read and apply the full .agents/skills/ace-to-tickets/SKILL.md and its
+pinned to-tickets dependency and ACE overlay. Automatically target about
+1,000 predicted changed handwritten lines including tests per fresh-context
+vertical slice (soft planning band 700-1,200). Merge related too-small slices;
+split overlarge or risky ones, preserve ACs and exact dependency edges.
+Do not request a routine owner granularity/number-of-tickets interview.
+Report estimated code/test/other changed LOC for each slice, and exceptions.
+Produce a cross-slice dependency/compatibility check.
 Do not implement until material decisions are approved.
 ```
 
