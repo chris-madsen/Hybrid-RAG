@@ -28,6 +28,16 @@ One line in an authorization guard can be T2. Do not classify by diff size alone
 ### Stop when
 An owner decision or denied provider permission is mandatory. Record a blocker; do not silently invent a bypass.
 
+## Automated OpenSpec SDD preparation (planning-only)
+
+For a request to prepare an OpenSpec specification, follow .agents/skills/ace-sdlc/SKILL.md and its explicit .agents/skills/ace-sdd-prepare/SKILL.md route. This one-agent instruction workflow uses the already vendored Matt Pocock skill texts for conditional requirements discovery and synthesis and uses existing openspec-propose / openspec-update-change for canonical artifacts. It does not publish issue-tracker tickets, auto-run external model calls, approve G02, or start openspec-apply-change. An agent must verify actual source and reuse the existing OpenSpec change before creating one. For T0 skip unnecessary spec authoring.
+
+For a prepared T2 change, the structural checker can be invoked as:
+
+    npm run check:sdd-prepare -- --change <change-id> --tier T2 --json
+
+The checker validates Markdown artifact presence and acceptance-ID links, not design semantics. Only actual pinned OpenSpec strict validation and owner review can satisfy their respective gates. Structural success means READY_FOR_G02_REVIEW, never G02 PASS. Tests: npm run test:sdd-prepare. Keep unobserved live Hermes skill invocation marked NOT-RUN.
+
 ## 1. Research stage
 Full procedure: [research_codebase.md](../research/sdlc/source/commands/research_codebase.md).
 
