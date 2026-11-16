@@ -23,4 +23,8 @@ This skill **routes to canonical ACE instructions**. It does not replace root `A
 8. Push a focused PR against `main`, record **source branch HEAD and actual CI-tested checkout SHA separately**, report all PASS/FAIL/UNKNOWN/NOT-RUN evidence; leave merge and production acceptance to the owner.
 9. Before context handoff fill `docs/research/sdlc/source/templates/progress-checkpoint.md` and re-read live Git/source on resume.
 
+## SDD preparation route (explicit user request)
+
+When the owner asks for "prepare SDD", "ace-sdlc prepare", or conversion of a task into a canonical OpenSpec spec, read and follow **.agents/skills/ace-sdd-prepare/SKILL.md** in full. It routes fact-only Research → conditional Matt grill-with-docs/domain-modeling → to-spec synthesis → openspec-propose/update-change → structural acceptance checks and G02 owner-review handoff. Do not launch implementation while preparing SDD. Do not use this route for trivial T0 work or create duplicate OpenSpec changes. The read-only check:sdd-prepare never approves G02.
+
 Local dry-run procedure and explicit negative checks: `docs/operations/local-agent-sdlc-trial.md`.
