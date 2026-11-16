@@ -1,0 +1,5 @@
+interface:
+  display_name: "ACE Stage Handoff"
+  short_description: "Sequential skill stages with stacked Draft PR review overlap"
+policy:
+  allow_implicit_invocation: false
