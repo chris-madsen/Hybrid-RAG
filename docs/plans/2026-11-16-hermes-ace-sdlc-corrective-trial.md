@@ -1,112 +1,121 @@
-# Hermes: довести до конца интеграционное испытание ACE staged SDLC
+# Hermes: Complete the ACE Staged SDLC Integration Trial
 
-**Тип:** рабочий протокол тестирования самого SDLC, не второй G11 task tracker. **Статус:** planning-only, G02=REVIEW_REQUIRED, product implementation и external provider/agent/Harbor egress НЕ разрешены. **Язык:** русский. **Исполнитель:** один Hermes agent в активной сессии.
+**Type:** An execution plan for testing the SDLC pipeline itself, **not** a second G11 task tracker. **Status:** planning-only; G02 = `REVIEW_REQUIRED`. G11 product implementation and external provider/agent/Harbor egress are **NOT authorized**. **Executor:** one Hermes agent in an active session.
 
-## 1. Контекст проекта и состояние
+**Communication and repository language policy:** Communicate with the owner in **Russian**. Write **all content committed or posted to GitHub in English**: Markdown plans/reports, code and test comments, commit messages, PR titles/descriptions/comments, and other repository artifacts. The final conversational report to the owner should be in Russian; if the same report is committed to the repository, its committed version must be in English.
 
-ACE — modular monolith TypeScript + Effect с функциональным DDD, bounded contexts, pure/immutable domain state, Event Storming, TypeSpec как источником выбранных public wire, и Design by Contract Бертрана Мейера. Не проектировать с нуля: проверить фактическое состояние и минимальную AS-IS→TO-BE дельту, не дублировать доменных владельцев, сервисы, Gateway или benchmark runner.
+## 1. Project Context and Current State
 
-Пайплайн: Research → существующий OpenSpec Requirements → `ace-architecture-design` → human G02 decision → `ace-to-tickets` (~1000 handwritten changed lines в т.ч. tests, гибкий бюджет) → `ace-phase-plan` (подробные `phases/<ID>.md`) → только с отдельного разрешения один approved Apply phase → Verify. `ace-stage-handoff` допускает **неблокирующие stacked Draft PR на стадиях подготовки**, но не автоматические G02, merge или provider egress.
+ACE is a TypeScript + Effect modular monolith using Functional DDD, bounded contexts, pure/immutable domain state, Event Storming, TypeSpec as the source of truth for selected public wire contracts, and Bertrand Meyer's Design by Contract. **Do not redesign ACE from scratch.** Verify the current implementation and the smallest necessary AS-IS → TO-BE architecture delta. Do not duplicate domain owners, services, the Gateway, or benchmark runners.
 
-Читать **полностью в актуальном checkout**: `AGENTS.md`, `docs/operations/staged-sdlc-pipeline.md`, `docs/operations/ai-assisted-sdlc.md`, `.agents/skills/ace-sdlc/SKILL.md`, `.agents/skills/ace-stage-handoff/SKILL.md`, `.agents/skills/ace-architecture-design/SKILL.md`, `.agents/skills/ace-to-tickets/SKILL.md`, `.agents/skills/ace-phase-plan/SKILL.md`, `.agents/skills/domain-modeling/SKILL.md`, `.agents/skills/codebase-design/SKILL.md`, compatibility overlay, accepted ADR-007/009/012/015/017/019 и OpenSpec changes 002, 010, 013.
+The pipeline is: Research → existing OpenSpec Requirements → `ace-architecture-design` → owner-controlled G02 decision → `ace-to-tickets` (approximately 1,000 changed handwritten lines, including tests; flexible budget) → `ace-phase-plan` (detailed `phases/<ID>.md`) → one approved Apply phase only with separate authorization → Verify. `ace-stage-handoff` allows **nonblocking stacked Draft PRs during planning stages**, but does not grant automatic G02 approval, merging rights, or provider egress authorization.
 
-Изучить live GitHub SHA/state каждого PR:
-- [#259](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/259): базовый skill pipeline (пока Draft).
-- [#260](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/260): фактическое G11 Research; existing G11 Requirements из слитого #255 переиспользованы.
-- [#261](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/261): provisional G11 architecture и открытые G02 решения.
-- [#262](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/262): архитектурно обусловленный DAG из C01–C10 в canonical `tasks.md`.
-- [#263](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/263): phase checker + negative regression suite.
-- [#264](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/264): 10 linked executable phase briefs, X handoff; это НЕ продуктовая реализация.
-- Это поручение: отдельный Draft PR на исправленной ветке #264. **Не объединять** с альтернативными #256 (8 частей) и #258 (10 частей).
+Read the following **in full, from the current checkout**: `AGENTS.md`, `docs/operations/staged-sdlc-pipeline.md`, `docs/operations/ai-assisted-sdlc.md`, `.agents/skills/ace-sdlc/SKILL.md`, `.agents/skills/ace-stage-handoff/SKILL.md`, `.agents/skills/ace-architecture-design/SKILL.md`, `.agents/skills/ace-to-tickets/SKILL.md`, `.agents/skills/ace-phase-plan/SKILL.md`, `.agents/skills/domain-modeling/SKILL.md`, `.agents/skills/codebase-design/SKILL.md`, the compatibility overlay, accepted ADR-007/009/012/015/017/019, and OpenSpec changes 002, 010, and 013.
 
-Цель: доказать, что **реальный Hermes Skill runtime** может пройти pipeline, сохранять зависимости/версионность, получать настоящие проверки, без несанкционированной реализации G11.
+Inspect the **live GitHub state and SHA** of each PR:
 
-## 2. Твои недоработки в первом прогоне — что уже исправлено и что осталось
+- [#259](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/259): the initial skill pipeline infrastructure (previously Draft; verify current state).
+- [#260](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/260): source-grounded G11 Research; existing G11 Requirements from merged #255 were reused.
+- [#261](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/261): provisional G11 architecture and unresolved G02 decisions.
+- [#262](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/262): architecture-informed C01–C10 DAG in canonical `tasks.md`.
+- [#263](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/263): phase checker and negative regression tests.
+- [#264](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/264): ten linked executable phase briefs and X-stage handoff; **not** G11 product implementation.
+- [#265](https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/265): this corrective execution plan was merged **into the #264 branch, not directly into `main`**. Confirm current branch ancestry before proceeding.
 
-### H-01: Не было настоящего вызова Skills (главный блокер)
+Do **not** combine this stack with alternative #256 (eight slices) or #258 (ten slices).
 
-В твоём Research #260 указано: Hermes v2026.9.24 был запущен из `/media/ilja/DATA/soft/consillium/harness`, а новые `.agents/skills` лежали в другом checkout. Активный Skill index не содержал project skills; project trust не был подтверждён. Ты *читал Markdown и вручную применял инструкции*, что нельзя записывать как Skill invocation.
+**Goal:** Prove that the **actual Hermes Skills runtime** can execute this pipeline, preserve dependencies and versioned inputs, run real checks, and avoid unauthorized G11 implementation.
 
-**Задание:** определить реальный root процесса/TUI Hermes, открыть новую сессию из корректного worktree с #259 или его потомком, проверить документированные `hermes skills list` / `hermes skills trust` (сверить `--help` и версию); не менять глобальное доверие/config без решения владельца. Получить конкретный log/trace *фактического invocation* хотя бы одного нового ACE Skill и evidence перехода к следующему. Если host поддерживает только manual-read, честно отметить `NOT_OBSERVED` и описать отсутствующий механизм. Не подменять вызов чтением `SKILL.md`.
+## 2. Deficiencies in the First Trial: What Was Corrected and What Is Still Missing
 
-### H-02: Недостаточная валидация DAG и AC
+### H-01: No Actual Skills Invocation Was Observed (Main Blocker)
 
-Изначально #263 regex пропускал неизвестный ID `C100` и привязывал AC к наличию **где-либо** в `tasks.md`, а не к собственной фазе. Исправление в #263 усовершенствовано: generic phase IDs, CSV DAG, missing/self/cycle/duplicate dependencies, checkbox-to-link parity, **точное соответствие AC каждой фазы её DAG строке**, полное покрытие всех spec scenarios и input fingerprints.
+Your Research in #260 states that Hermes v2026.9.24 ran from `/media/ilja/DATA/soft/consillium/harness` while the new `.agents/skills` were in another checkout. The active Skills index did not include the project-local skills, and project trust was not confirmed. You **read Markdown files and manually applied the instructions**. This cannot be reported as an actual Skill invocation.
 
-**Задание:** выполнить настоящие позитивные и негативные тесты из исправленного `test/ace-sdlc-pipeline.test.mjs`, затем повторить их независимо в disposable fixture. Обязательно: `C100` неизвестный → BLOCKED; `P01` валидная альтернатива → PASS; malformed `C01; owner G02` → BLOCKED; циклы → BLOCKED; чужой/лишний AC в фазе → BLOCKED, даже когда AC встречается в другой строке; непокрытый AC → BLOCKED; missing checkbox/link → BLOCKED; design/spec изменены → STALE/BLOCKED; symlink → BLOCKED. Фиксировать exit code и SHA, а не только сообщение.
+**Required action:** Identify the real Hermes process/TUI root. Start a new session from the correct worktree containing #259 or its descendant. Check the documented `hermes skills list` / `hermes skills trust` commands against the installed version and `--help` before using them. Do not change global trust/configuration without the owner's decision. Obtain a concrete log/trace of **actual invocation** of at least one new ACE Skill, including evidence of handoff to the next stage. If the host only supports reading the Skill text, report `NOT_OBSERVED` and precisely identify the missing invocation mechanism. Reading `SKILL.md` is not sufficient evidence.
 
-### H-03: Исправлял архитектурный owner Harbor слишком поздно
+### H-02: Inadequate DAG and Acceptance-Criteria Validation
 
-В первоначальном #262 C08–C10 ссылались на исторический Codex `harbor-four-arm`, а в #264 ты переключился на существующий двухветочный Hermes feedback loop. Само обнаружение правильно, но **поменять owner в X без обновления P** нарушает stage ownership. Исправление перенесено в #262; #264 теперь должен содержать только собственные фазовые brief и ссылки, без «скрытого» изменения plan decisions.
+The initial #263 regex silently ignored unknown dependency ID `C100` and checked an acceptance ID's presence **anywhere** in `tasks.md` rather than in its own phase. The checker in #263 has since been extended with generic phase IDs, strict comma-separated DAG dependencies, missing/self/cyclic/duplicate dependency detection, checkbox-to-link parity, **exact AC equality between each phase and its own canonical DAG row**, complete specification scenario coverage, and input fingerprints.
 
-**Задание:** проверить раздельный three-dot diff, фактические tree blobs и parent ancestry #261→#262→#263→#264. Ожидание: #261 меняет только `design.md`; #262 только `tasks.md`; #263 только checker/test; #264 только 10 `phases/C*.md` + ссылки и cross-phase handoff в `tasks.md`. Ни один потомок не должен отменять исправленный родительский design/script. Проверить source/runtime и ADR, не считать GitHub Files API истинным, если он закешировал старую выдачу.
+**Required action:** Execute the positive and negative tests in the updated `test/ace-sdlc-pipeline.test.mjs`, then independently reproduce them in a disposable fixture. At minimum: unknown `C100` → BLOCKED; valid alternative `P01` → PASS; malformed `C01; owner G02` → BLOCKED; cycle → BLOCKED; foreign/extra phase AC → BLOCKED even if that AC appears in another task row; uncovered AC → BLOCKED; missing checkbox/link → BLOCKED; changed design/spec → STALE/BLOCKED; symlink → BLOCKED. Record the **actual exit code and source SHA**, not merely a status message.
 
-### H-04: У модели попытки терялась идентичность, у C02 не было доказательства безопасности retry
+### H-03: Harbor Architecture Ownership Was Corrected at the Wrong Stage
 
-В исходном `design.md` вариант `Authorized` терял body/provider/model binding из `Planned`. В #261 теперь предлагается неизменяемый `AttemptBinding` во всех фазах, с требованием реальной atomic consume/CAS/fencing для конкуренции и рестарта. Это только **proposal**, не принятый wire или state-store.
+The original #262 assigned C08–C10 to the historical Codex `harbor-four-arm` path, while #264 switched them to the existing two-arm Hermes feedback loop. The discovery itself was correct, but **changing architectural ownership in stage X without updating stage P** violated stage ownership. The correction was moved into #262; #264 should now contain only its own phase briefs, links, and cross-phase handoff material, without silently changing architectural or planning decisions.
 
-Pinned Bifröst вызывает ACE `PreLLMHook` выше своего внутреннего `executeRequestWithRetries`. **Один входящий Chat запрос может дать больше одной физической callback/send** даже при `MaxRetries=0` через `extraAttempts`. Запрет fallback сам по себе не запрещает inner retries.
+**Required action:** Compare the separate three-dot diffs, actual Git tree blobs, and parent ancestry for #261 → #262 → #263 → #264. Expected changes: #261 only `design.md`; #262 only `tasks.md`; #263 only checker/tests; #264 only ten `phases/C*.md` files plus links/cross-phase handoff in `tasks.md`. Descendants must not revert their corrected parents' design or checker changes. Inspect actual source/runtime and ADR evidence. Do not trust a stale GitHub Files API cache over a fresh commit/tree comparison.
 
-**Задание:** проверить C01/C02/ C04 и G02 варианты DEC-G11-01/02/03. До live C02 нужен pinned-runtime **mock proof** отсутствия любого неавторизованного second-send либо одобренный per-dispatch guard. Если нет — `C02 BLOCKED`, независимо от отдельных разрешений на provider. Доказанный single-dispatch режим **не есть** позитивный G11-009 retry-enabled acceptance. Не выдумывать второй proxy, новый hook, TypeSpec wire или CAS store. Представить владельцу архитектурные альтернативы, не принимать их за него.
+### H-04: The Attempt Model Lost Identity; C02 Had No Proven Retry Safety Boundary
 
-### H-05: Неверные метаданные X PR и непротестированный parent drift
+In the original `design.md`, the `Authorized` variant discarded the body/provider/model binding from `Planned`. The updated #261 design proposes one immutable `AttemptBinding` carried through the attempt states, with a requirement for **real atomic consumption/CAS/fencing** for concurrency and restart scenarios. This is still a **proposal**, not an approved wire contract or state store.
 
-Файлы #264 содержали `output X Draft PR not created` и старый worktree SHA после создания PR. Исправлено в фазовых файлах: immutable design/spec input hashes, mutable current PR HEAD запрашивать у GitHub. Теперь нужно протестировать настоящую реакцию на *изменение родительского входа*.
+In pinned Bifröst, ACE `PreLLMHook` executes above the internal `executeRequestWithRetries` loop. **One incoming Chat request may produce multiple physical callbacks/sends**, even with `MaxRetries=0`, through `extraAttempts`. Rejecting fallback alone does not disable inner retries.
 
-**Задание:** создать только одноразовые безопасные sandbox branch/PR для эксперимента, не переписывать настоящие G11 требования. Изменить fixture design/spec в родителе, записать Git blob before/after; child должен получить `STALE` / exit 2, потом адресно reconcile/refresh и вернуть PASS. Проверить правильный child-only three-dot diff, а после **имитации squash merge в disposable base ветку** — restack/retarget тестового child. Настоящие #259–264 не мержить и не закрывать; не оставлять бессмысленные временные PR без описания/отчёта. Если изолированный реальный PR-тест технически невозможен — `NOT_RUN`, не PASS.
+**Required action:** Review C01/C02/C04 and owner-controlled G02 alternatives DEC-G11-01/02/03. Before any live C02 egress, require pinned-runtime **mock proof** that no unauthorized second send is possible, or an owner-approved per-dispatch guard. If that proof is absent, **C02 is BLOCKED**, regardless of separate provider permission. A verified single-dispatch mode is **not** positive G11-009 acceptance for retry-enabled routing. Do not invent a second proxy, new hook, TypeSpec wire shape, or CAS store. Present architecture options to the owner without deciding for them.
 
-### H-06: Реальная совместимость Hermes ingress не определена
+### H-05: Stale X-PR Metadata and Untested Parent Drift
 
-Текущий `scripts/harbor_hermes_codex_oauth.py` настраивает `openai-codex`, но не доказан Bifröst endpoint; ACE Bifröst plugin поддерживает только `/v1/chat/completions`. **Нельзя предполагать**, что запросы Hermes OAuth Responses внезапно станут Chat Completions. C07 owner route remains `BLOCKED`. Проверить native documented protocol/API, предложить владельцу совместимые варианты с доказательствами, не переключая agent напрямую к provider и не создавая second ACE ingress.
+The #264 phase files originally said `output X Draft PR not created` and embedded an old worktree SHA after that PR had already been opened. The phase files were corrected to bind immutable design/spec hashes and instruct the reader to resolve the **current mutable PR HEAD from GitHub**. The actual behavior after a parent input change remains untested.
 
-## 3. Точная последовательность испытания
+**Required action:** Create only disposable, safe sandbox branches/PRs for the experiment, without rewriting the real G11 requirements. Change a fixture design/spec in the parent; capture the before/after Git blob SHAs. The child must become `STALE` with exit 2, then undergo targeted reconciliation/fingerprint refresh and return to PASS. Verify that the child's three-dot diff contains only its changes. Also simulate a **squash merge into a disposable base branch** and test child restack/retarget. Do not merge or close the real #259–264 PRs. Do not leave unnecessary temporary PRs without a clear report/cleanup decision. If a safe real PR experiment is impossible, report `NOT_RUN` rather than PASS.
 
-**S0 — remote и host preflight.** Повторно прочитать Git/branch/PR/state/HEAD, проверить clean worktrees и `sdlc:preflight`/`worktree:preflight`. Точная версия/путь процесса Hermes, trust policy, pinned OpenSpec 1.17.0, Node/npm, source SHA; не давать неподтверждённую информацию из старого Research. Не менять main/owner ветки ради удобства.
+### H-06: Hermes Ingress Compatibility Is Not Established
 
-**S1 — реальный Skills smoke.** Активный Hermes из корректного project checkout, подтверждение discovery/trust + реальный invocation. Отдельно отметить для каждого `ace-stage-handoff`, `ace-architecture-design`, `ace-to-tickets`, `ace-phase-plan`, `domain-modeling` и `codebase-design`: `DISCOVERED / INVOKED / MANUAL_READ / BLOCKED / NOT_OBSERVED`. Если active session не поддерживает это, дать точную инструкцию оператору и отчёт о блокере, не фальсифицировать.
+The current `scripts/harbor_hermes_codex_oauth.py` selects `openai-codex`, but a Bifröst endpoint has not been demonstrated. The current ACE Bifröst plugin only supports `/v1/chat/completions`. **Do not assume** that Hermes OAuth Responses requests can silently become Chat Completions. C07's agent route remains **BLOCKED**. Inspect the actual documented protocol/API and give the owner evidence-backed compatible alternatives. Do not bypass Bifröst by connecting the agent directly to the provider, and do not create a second ACE ingress.
 
-**S2 — dry-run фазовых планов.** Из последнего #264 HEAD:
+## 3. Required Execution Sequence
+
+**S0 — Remote and host preflight.** Recheck Git branches/PR states/HEADs, clean worktrees, and `sdlc:preflight` / `worktree:preflight`. Capture the exact Hermes process path/version, trust policy, pinned OpenSpec 1.17.0, Node/npm, and source SHA. Do not present unverified facts from the earlier Research as current observations. Do not modify `main` or owner branches merely for convenience.
+
+**S1 — Real Skills smoke test.** Run Hermes from the correct project checkout. Confirm discovery/trust and at least one actual invocation. For each of `ace-stage-handoff`, `ace-architecture-design`, `ace-to-tickets`, `ace-phase-plan`, `domain-modeling`, and `codebase-design`, distinguish `DISCOVERED / INVOKED / MANUAL_READ / BLOCKED / NOT_OBSERVED`. If the active host cannot invoke these skills, provide the exact operator steps and a blocker report; do not fabricate a PASS.
+
+**S2 — Phase-plan dry run.** From the latest #264 HEAD:
+
 ~~~bash
 npm run test:ace-sdlc-pipeline
 npm run test:matt-pocock-skill-vendor
 npm run test:sdd-prepare
 npm run check:ace-phase-plan -- --change 013-gateway-g11-production-acceptance --phase C01 --json
-# Повторить для C02…C10, каждый со своим exit и input SHA
+# Repeat separately for C02 through C10, recording each exit code and input SHA.
 npm run check:sdd-prepare -- --change 013-gateway-g11-production-acceptance --tier T2 --json
 npm run verify:pr
 ~~~
-Каждый из десяти должен дать `READY_FOR_PHASE_REVIEW` **только структурно**; пробелы в Git SHA/AC/checkbox/dependency должны блокировать. Отдельно OpenSpec strict в закреплённой версии (11 active changes historically passed, не переносить результат на новый SHA). Реальные тестовые команды в мини-планах помечены PLANNED/NOT_RUN, в частности будущий `scripts/bifrost-g11-wire-e2e.mjs`; не запускать файл, которого ещё нет.
 
-**S3 — negative fixture suite.** Выполнить H-02, сохранить `test name | source SHA | exit | observed | expected`, обязательно включая независимый AC drift и C100. Не изменять canonical G11 change ради отрицательного теста.
+Every phase should reach `READY_FOR_PHASE_REVIEW` **only in the structural sense**. Broken Git SHAs, AC mappings, checkboxes, and dependencies must fail closed. Run pinned OpenSpec strict validation separately (11 active changes passed historically; do not transfer that result to a new SHA). Actual implementation commands inside phase briefs are **PLANNED/NOT_RUN**, particularly the proposed future `scripts/bifrost-g11-wire-e2e.mjs`; do not invoke a file that does not yet exist.
 
-**S4 — реальные stage handoff/STALE/restack.** Выполнить H-05 на disposable repo branches. Отдельно проверить, что следующий этап **планирования** может открыться до merge родителя без автоматического owner approval; G02 и egress остаются жесткими STOP. Если host завершается после одного PR, записать реальную границу продолжения и checkpoint — не обещать фоновую работу от Markdown Skill.
+**S3 — Negative fixture suite.** Perform H-02 and retain `test name | source SHA | exit | observed | expected`, including an independent phase-AC drift test and C100. Do not mutate the canonical G11 change to construct a negative test.
 
-**S5 — семантическое архитектурное ревью** без реализации: точный Bifröst pin, две retry границы, C02 single-dispatch proof requirement, C04 owner alternatives, C07 Hermes ingress, C08–C10 настоящее Hermes feedback ownership, frame/exceptional условия, правильные TypeSpec owner и тестовые швы. Если обнаружено новое противоречие, менять **исходную стадию** и только затем ремонтировать descendants; не править архитектуру тайно в phase-файлах.
+**S4 — Actual stage handoff / STALE / restack test.** Perform H-05 on disposable repository branches. Confirm that the next **planning** stage may open before its parent merges, without granting automatic owner approval; G02 and egress remain hard STOP conditions. If the active host ends after one PR, record that actual continuity boundary and a checkpoint. A Markdown skill alone cannot promise background execution.
 
-**S6 — CI и handoff:** проверить все PR по **последнему exact HEAD и проверенному checkout/merge SHA**. Основной ACE verification, OpenSpec structural, Security и Gateway audit vs QG6/CodeQL учитывать раздельно. QG6 ранее RED: 8 HIGH findings в старых файлах (`node-workspace-port.ts`, Harbor holdout scripts, `gateway-projection-http.ts` и др.). Не подавлять и не объявлять полный зелёный результат. Создать отдельную scoped security-задачу/предложение без посторонних source изменений в SDLC PR.
+**S5 — Semantic architecture review**, with **no implementation**: inspect the exact pinned Bifröst revision, both retry boundaries, C02 single-dispatch proof requirement, C04 owner alternatives, C07 Hermes ingress, C08–C10 actual Hermes feedback ownership, frame/exceptional conditions, TypeSpec owners, and test seams. If a new genuine conflict is found, update the **owning upstream stage first**, then reconcile descendants. Do not silently revise architecture inside phase files.
 
-## 4. Acceptance matrix — доказательства, а не декларации
+**S6 — CI and handoff.** Verify every PR at its **latest exact HEAD and tested checkout/merge SHA**. Report ACE verification, OpenSpec structural validation, Security, and Gateway audit separately from QG6/CodeQL. QG6 previously failed with eight HIGH findings in pre-existing files (`node-workspace-port.ts`, Harbor holdout scripts, `gateway-projection-http.ts`, etc.). Do not suppress findings or claim an overall green status. Create a separate scoped security issue/proposal rather than modifying unrelated product files in an SDLC PR.
 
-| ID | Необходимое наблюдение |
+## 4. Acceptance Matrix — Evidence, Not Declarations
+
+| ID | Required observable evidence |
 | --- | --- |
-| HTEST-01 | Host Hermes в верном checkout, root/trust/skill index записаны |
-| HTEST-02 | Реальный Skill invocation зафиксирован, не только Markdown read |
-| HTEST-03 | Architecture-first с существующими DDD owners и G02 не нарушен |
-| HTEST-04 | DAG accepts P01 и rejects C100/cycles/malformed/unknown |
-| HTEST-05 | Per-phase AC exact mapping + complete spec AC coverage, invalid drift rejects |
-| HTEST-06 | G11 C01…C10 все проверены на одном source SHA с actual exit |
-| HTEST-07 | C02 no-second-send guard не подменён `MaxRetries=0` и не пропущен |
-| HTEST-08 | PR #261→#264 имеют правильных родителей и чистый stage diff |
-| HTEST-09 | Parent spec/design mutation даёт реальный STALE, child revalidates after repair |
-| HTEST-10 | Sandbox squash/restack/retarget сохраняет child-only diff |
-| HTEST-11 | One-phase Apply / G02 / provider egress реально блокируются без разрешения |
-| HTEST-12 | CI/CodeQL и skipped tests честно привязаны к конкретным SHA |
-| HTEST-13 | Session resume/checkpoint доказан или явно NOT_OBSERVED |
+| HTEST-01 | Hermes host is running in the correct checkout; root/trust/skill index recorded |
+| HTEST-02 | Actual Skill invocation captured, not merely Markdown reading |
+| HTEST-03 | Architecture-first and existing DDD ownership preserved; G02 not bypassed |
+| HTEST-04 | DAG accepts P01 and rejects C100, cycles, malformed syntax and unknown IDs |
+| HTEST-05 | Exact per-phase AC mapping and complete specification AC coverage; invalid drift rejected |
+| HTEST-06 | All G11 C01–C10 plans validated at a single source SHA with actual exits |
+| HTEST-07 | C02 no-second-send guard is not replaced by or omitted in favor of `MaxRetries=0` |
+| HTEST-08 | PRs #261–264 have correct parents and isolated stage diffs |
+| HTEST-09 | Parent spec/design mutation causes real STALE; child validates again after repair |
+| HTEST-10 | Sandbox squash/restack/retarget preserves a child-only diff |
+| HTEST-11 | One-phase Apply, G02 and provider egress are genuinely blocked without authorization |
+| HTEST-12 | CI/CodeQL and skipped tests are accurately bound to concrete SHA values |
+| HTEST-13 | Session resume/checkpoint is proven or explicitly `NOT_OBSERVED` |
 
-Для каждого: `PASS / FAIL / PARTIAL / BLOCKED / NOT_RUN` плюс настоящий log, команду, exit, SHA и ссылку. Структурный `READY_FOR_PHASE_REVIEW` ≠ G02 approval. Mock provider receipt ≠ actual provider-send proof. Skill file read ≠ Skill invocation. Нет автоматического merge, Bifröst-by-pass или исправления продукта.
+For each criterion record `PASS / FAIL / PARTIAL / BLOCKED / NOT_RUN`, with an actual log, command, exit code, SHA, and link. Structural `READY_FOR_PHASE_REVIEW` is **not** G02 approval. A mock provider receipt is **not** real final-send/provider proof. Reading a Skill file is **not** invocation. Do not auto-merge, bypass Bifröst, or perform product changes.
 
-## 5. Что предоставить владельцу
+## 5. Deliverables for the Owner
 
-Один итоговый отчёт на русском с: (1) актуальные Git branches/base/heads, (2) Skill invocation matrix, (3) 10 phase checker results, (4) negative fixture matrix, (5) реальные sandbox staged PR/STALE/rebase observations, (6) нерешённые решения C04/C07 и условие C02, (7) CI/QG6 на exact SHA, (8) минимальные bugfix PR + причины и ретест, (9) remaining owner's decisions и (10) честный verdict `READY_FOR_OWNER_REVIEW / PARTIALLY_VERIFIED / BLOCKED / FAILED`. Не считать выполненными G11 Acceptance IDs и не запускать G11 Apply.
+Provide one **Russian-language conversational summary to the owner** containing: (1) current Git branches/bases/heads, (2) Skill invocation matrix, (3) results for all ten phase checks, (4) negative fixture matrix, (5) actual sandbox stacked-PR/STALE/rebase observations, (6) unresolved C04/C07 decisions and the C02 prerequisite, (7) CI/QG6 at exact SHAs, (8) minimal bug-fix PRs with causes and retests, (9) remaining owner decisions, and (10) a justified final verdict of `READY_FOR_OWNER_REVIEW / PARTIALLY_VERIFIED / BLOCKED / FAILED`.
 
-**Основная задача:** доказать жизнеспособность *самого skill-based SDLC конвейера*. Исходное испытание дало важные документы и ошибку checker, но не наблюдаемый Skill invocation и не эксперимент с parent drift. Именно эти пробелы ты обязан закрыть или воспроизводимо отметить препятствие.
+**If this summary or any evidence is committed to GitHub, write that repository version entirely in English.** Do not mark the G11 acceptance IDs as completed or run G11 Apply.
+
+**Primary objective:** Demonstrate that the **skill-based SDLC pipeline itself** actually works. The first trial produced useful documents and exposed a checker defect, but did not observe Skill invocation or exercise parent drift. Close those gaps with real evidence, or report a reproducible blocker.
