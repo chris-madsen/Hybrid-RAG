@@ -84,7 +84,7 @@ Full procedure: [design_feature.md](../research/sdlc/source/commands/design_feat
 **Exit:** design with testable behavior and accepted material decisions.
 
 ## 3. Plan stage
-Use canonical `openspec/changes/<id>/tasks.md` or governing `docs/plans/*.md`. Phase template is [phase-template.md](../research/sdlc/source/templates/phase-template.md).
+Use canonical `openspec/changes/<id>/tasks.md` or governing `docs/plans/*.md`. The **default T1/T2 plan router** is [ACE To Tickets](../../.agents/skills/ace-to-tickets/SKILL.md), which reads the full pinned Matt Pocock `to-tickets` and ACE compatibility overlay. The owner-set default is **roughly 1,000 predicted added + deleted handwritten lines per one-context implementation slice, including tests** (flexible band ~700–1,200). It estimates, merges too-small related vertical slices, and splits too-large/risky ones without a routine owner interview about task count or granularity. Risk, actual provider/benchmark execution and trust-boundary review trump LOC; estimate is not a hard gate or proof a task fits the context. Do not modify vendored upstream skill files, spawn agents, publish tracker issues or duplicate OpenSpec. Phase template is [phase-template.md](../research/sdlc/source/templates/phase-template.md).
 
 Each phase describes:
 - behavior and acceptance IDs;
