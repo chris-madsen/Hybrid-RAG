@@ -15,6 +15,10 @@ Use when the owner asks to prepare SDD, turn a feature/bug request into an OpenS
 4. Classify risk T0/T1/T2 by behavior and trust boundaries, not LOC. T0 documentation-only changes may use the ordinary ace-sdlc T0 route instead of manufacturing an OpenSpec change. For T1/T2 run npm run sdlc:preflight with --stage research and the selected tier. Before writes run the existing worktree preflight and use an isolated task branch/worktree.
 5. Record current HEAD and current remote/main context; inspect overlapping PRs and current OpenSpec changes before editing. Never infer that absence from an old plan proves missing implementation.
 
+## Stage-scoped versus full SDD mode
+
+For a **staged Draft PR pipeline**, this entrypoint handles **Requirements R/S only**: source-backed facts, bounded `grill-with-docs`/`to-spec`, and current complete `proposal.md` plus `specs/**/spec.md`. **Hand off** to `ace-architecture-design` for `design.md`, then `ace-to-tickets` for `tasks.md` and `ace-phase-plan` for executable briefs. Do not architecture-design or auto-size before requirements are reconciled, and do not commit placeholder incomplete artifacts merely to satisfy an all-in-one scaffold. The standard `openspec-propose` skill produces *all* planning artifacts in one step, so for independently reviewable stage PRs use the pinned OpenSpec CLI (`context`, `status`, `new change` only for a genuinely new change, `instructions`) to author just schema-ready artifacts for that stage; otherwise use the full mode below. The full one-request SDD flow remains valid when separate stage PRs were not requested. Record partial stage checks as NOT_RUN rather than treating `check:sdd-prepare` (which requires all four artifacts) as a failure or PASS.
+
 ## Ordered process (no redundant interview)
 
 ### A. Fact-only Research
@@ -31,7 +35,7 @@ Read .agents/skills/to-spec/SKILL.md. Use its problem statement, user stories, i
 ### D. Canonical OpenSpec authoring
 Read the full openspec-propose / openspec-update-change skills and the project openspec/config.yaml. Run OpenSpec CLI to locate the canonical root and inspect existing changes. **Reuse/update an existing change** when it covers the same capability; do not create duplicate changes on resume. For new work use openspec-propose; for existing work use openspec-update-change. Preserve configured spec-driven schema and artifact dependency order; use the pinned OpenSpec CLI and its generated instructions, not a handwritten parallel spec system.
 
-Create or revise only these canonical artifacts as applicable:
+For the **full one-request SDD preparation** (not stage-scoped Requirements), create or revise only these canonical artifacts as applicable:
 - proposal.md — problem, scope, non-goals, affected capability
 - specs/<capability>/spec.md — testable requirement scenarios with stable acceptance IDs (e.g. SDD-001)
 - design.md — AS-IS/TO-BE, ownership, alternatives, trust/failure paths, oracles, decision statuses, and the G02 crosswalk for T2
@@ -42,7 +46,7 @@ For a T2 change, design.md MUST have a G02 crosswalk whose columns are: AC | Own
 ### E. Validate; never promote a structural check to approval
 Run pinned 'openspec validate --all --strict --no-interactive' and npm run check:sdd-prepare -- --change <change-id> --tier T1|T2 --json. The second command checks **structural linkage only**, including acceptance IDs in specs/design/tasks and G02 rows for T2. It reports READY_FOR_REVIEW or READY_FOR_G02_REVIEW, **not** G02 PASS, agent obedience, or implementation readiness. A missing artifact, duplicate acceptance ID, missing crosswalk, unsafe path, or explicit unresolved BLOCKED decision must remain BLOCKED. If OpenSpec CLI cannot run, report NOT-RUN.
 
-Finally report: task/tier, branch/HEAD, reused or new change ID, research evidence, owner questions and their status, generated artifact paths, validation commands and real results, G02 state, and next owner action. Stop. Do not proceed to implementation in the same task.
+Finally report: task/tier, branch/HEAD, reused or new change ID, research evidence, owner questions/status, artifact paths, actual checks, G02 state, and next allowed action. In **staged planning** create the Requirements Draft PR under `ace-stage-handoff` and allow the next planning-only Architecture stage to continue in the active authorized session while review is pending. In **full SDD** report and stop. **Neither mode begins product implementation in the same planning task.**
 
 ## Failure and resume contract
 
