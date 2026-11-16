@@ -31,7 +31,7 @@ topics:
 
 - OpenSpec change `013-gateway-g11-production-acceptance` contains four capability specs covering G11-001 through G11-020; strict validation with pinned OpenSpec 1.17.0 passed all 11 active changes. The structural SDD checker reports `READY_FOR_G02_REVIEW`, `G02=REVIEW_REQUIRED`, and owner approval `NOT_VERIFIED_BY_THIS_CHECK`.
 - The current production composition is an ACE TypeScript + Effect Gateway projection service behind the pinned Bifröst Go plugin. It authorizes the configured provider before retrieval and rejects unavailable context; health/capabilities still report provider wire `not_certified`, and `/record-delivery` returns 501.
-- The Go connector validates a single additive Chat projection, binds the initial projection to a request receipt, and blocks configured fallback/repeated `PreLLMHook` attempts. Pinned Bifröst also has an internal provider retry loop beneath `PreLLMHook`; each retry iteration calls the provider callback without rerunning the ACE hook. The mapping from callback to physical network send and the effective deployed retry configuration are not observed, so the plugin guard alone does not prove G11 per-send authorization.
+- The Go connector validates a single additive Chat projection and blocks configured fallback/repeated `PreLLMHook` attempts. Pinned Bifröst also has an internal provider retry loop beneath `PreLLMHook`; retry iterations invoke the provider callback without rerunning the ACE hook. This is a source-level gap against per-send authorization when internal retries are enabled; the effective deployed configuration and network-send count are not observed.
 - PR #259 is open Draft at `bf9907facabeb50c755cf94e272b4966874e24fb`; PR #256 (8 proposed blocks) and #258 (10 proposed blocks) are also open Drafts against `main`, neither approved as the canonical plan. PR #255, which added G11 requirements to main, is merged.
 - At the exact #259 head, focused TypeScript/contracts, targeted mutation, docs links, Gateway-only audit, secret scan and workflow-security checks passed; QG6 `CodeQL JavaScript/TypeScript` failed on eight high-severity findings in paths outside PR #259's changed-file set. Bifröst plugin build, connector, real Qdrant and real non-TS LSP jobs were skipped for this documentation/process PR.
 
@@ -167,6 +167,18 @@ The `ace-phase-plan` regression suite includes stale design/spec fingerprint, un
 None of those eight paths is in PR #259's changed-file list. This makes them unchanged-path findings relative to PR #259; it does **not** establish that they are false positives, remediated, or acceptable risk. The exact current SARIF job is red. The separate short `CodeQL` workflow check is green; that does not override the failing QG6 SARIF gate.
 
 At the same PR head, GitHub reports focused TypeScript/contracts, targeted critical mutation, docs-links, Gateway-only audit, secret scan, workflow security and affected-check selection as pass. Bifröst plugin build, Bifröst connector, real Qdrant and real non-TS LSP jobs are skipped. No local plugin compile, final-send/provider-wire test, real agent, or Harbor trial was run.
+
+### R-009: Bifröst's internal retry loop is below the ACE `PreLLMHook` gate
+
+**Source identity:** ACE `bf9907facabeb50c755cf94e272b4966874e24fb`; pinned Bifröst `fe7634a6c828927d05ffdd57c62be0aaab04193f`.
+
+**Where:**
+- ACE `integrations/bifrost/ace-connector/plugin/main.go:295-352`
+- Bifröst `core/bifrost.go:5910-5912,5945-5977,6287,7045-7129,7460-7461,8219-8220,8352-8380`
+
+**Observed call path:** the ACE `PreLLMHook` runs in `tryRequest` before the request is queued (`core/bifrost.go:6287`). In the request worker, Bifröst calls `executeRequestWithRetries`, whose loop invokes its provider callback once for each dispatched retry iteration (`:7129,:7460-7461`); the callback performs the provider handler call (`:8219-8220,:8352-8380`). The source comments state `NetworkConfig.MaxRetries` defaults to zero, but `extraAttempts` are also granted for some permanent per-key failures and encrypted-reasoning stripping (`:7114-7120,:7651-7663,:7674-7688`). Outer provider fallbacks separately call `tryRequest` again (`:5945-5977`), so `PreLLMHook` runs on those outer attempts.
+
+**Observed gap and limits:** the ACE request-local repeated-`PreLLMHook` marker cannot observe an inner retry because the Bifröst retry loop does not re-enter `RunLLMPreHooks`. Therefore the current plugin guard alone does not establish fresh ACE authorization for every Bifröst retry callback. This is a source-level gap relative to G11-009 when the internal retry path is enabled; the effective deployment configuration, mapping from each callback to physical network sends, and whether a specific retry condition occurred are not observed. No external provider request was made.
 
 ## 4. Runtime composition
 
