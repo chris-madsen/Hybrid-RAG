@@ -1,0 +1,5 @@
+interface:
+  display_name: "ACE Architecture Design"
+  short_description: "Integrate Functional DDD design into existing ACE modules"
+policy:
+  allow_implicit_invocation: false

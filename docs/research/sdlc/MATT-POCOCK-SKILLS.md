@@ -28,6 +28,12 @@ The exact path and content inventory is `.agents/matt-pocock-skills-v1.3.2-manif
 
 Not selected from Sphericon: `triage`, `wayfinder`, `wizard`, `teach`, `claude-handoff`, `loop-me`. The last two are especially ill-suited to a client-independent, one-agent workflow; issue-triage and wizard automation require a separate decision.
 
+## Separate pinned architecture add-on (not part of original 8-skill manifest)
+
+The owner-approved architecture pipeline adds only the `codebase-design` reference from the same upstream tagged source, maintained **separately** in `.agents/codebase-design-v1.3.2-manifest.json`. Exact original SKILL.md, DEEPENING.md, DESIGN-IT-TWICE.md and agents/openai.yaml bytes are pinned by their Git blob IDs; the existing Matt MIT license notice is reused. The original eight-skill `matt-pocock-skills-v1.3.2-manifest.json` and byte-for-byte vendored inventory remain unchanged. ACE reads the reference *within* `ace-architecture-design`, applying our one-agent, functional DDD, ADR and OpenSpec overlay. The parallel-subagent instructions in DESIGN-IT-TWICE.md are not activated.
+
+For detailed plans, `ace-phase-plan` adapts the **ideas**, not the runtime or installation procedure, from MIT-licensed Superpowers `writing-plans` (source at `obra/superpowers@22f0b463e7a5e579904dd6211a520321035526f7`, source blob `4cf0275d88d67aa4ef09f4bbca9970ed6ff74a00`, copyright Jesse Vincent). It uses ACE's existing `phase-template.md` and OpenSpec tracker instead of Superpowers plan paths, subagents or implementation executor.
+
 ## Reproducible import and future updates
 
 For future updates, review a dedicated vendor PR against a pinned upstream release. Matt's README may document convenience installers, but ACE must **not** use an unpinned `@latest` installer for this dependency, even interactively when preparing committed vendor content. Verify the annotated `v1.3.2` tag resolves to commit `d1478fcb140db0b93c0c8df17bcfd311844749d0` and tree `42b57b23ac2979fce601ce1d4b4d6c1d46471bbe`; copy only the approved directories, retain the MIT notice, and verify every path against the manifest before review. Sphericon uses pinned `mise` release archives; ACE is not required to add mise solely to import skills.
