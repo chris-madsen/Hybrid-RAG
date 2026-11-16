@@ -27,6 +27,8 @@ test('new pinned codebase-design files are byte-exact and original 8-skill vendo
   const overlay = file('.agents/skills/ace-sdlc/references/matt-pocock-compatibility.md');
   assert.match(overlay, /codebase-design/u);
   assert.match(overlay, /single.agent|one agent/iu);
+  assert.match(overlay, /one approved, unblocked canonical phase per implementation pass/iu);
+  assert.match(overlay, /loop until all tasks are done/iu);
 });
 
 test('one-agent ACE skills are discoverable, routed and keep G02 separate', () => {
