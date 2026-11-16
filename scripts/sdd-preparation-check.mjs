@@ -107,9 +107,23 @@ const main = () => {
       if (!matchId(tasks, id)) fail('tasks omit acceptance ID: ' + id);
     }
   });
+  attempt('OWNER_DECISIONS', () => {
+    if (!design) fail('design cannot be inspected for unresolved decisions');
+    // Only explicit, machine-readable status declarations are checked. A
+    // semantic owner approval can never be inferred from missing markers.
+    if (/^\s*(?:[-*]\s*)?(?:Owner decision|Decision status)\s*:\s*(?:BLOCKED|UNKNOWN|PENDING|PROPOSED)\b/imu.test(design)) {
+      fail('explicit unresolved owner decision');
+    }
+  });
   if (tier === 'T2') attempt('G02_CROSSWALK', () => {
     if (!scenarios.length || !design) fail('cannot inspect G02 before artifacts and specs');
     if (!/^## G02 crosswalk\s*$/mu.test(design)) fail('T2 design lacks G02 crosswalk heading');
+    const header = design.split('\n').find((line) => /^\|\s*AC\s*\|/u.test(line));
+    const expectedHeader = ['AC', 'Owner', 'Decision', 'Interface/state', 'Phase', 'Deterministic oracle', 'Provider/agent oracle'];
+    if (!header || JSON.stringify(header.split('|').slice(1, -1).map((cell) => cell.trim().toLowerCase()))
+      !== JSON.stringify(expectedHeader.map((cell) => cell.toLowerCase()))) {
+      fail('T2 G02 columns do not match the accepted crosswalk contract');
+    }
     const lines = design.split('\n').filter((line) => /^\|\s*[A-Z][A-Z0-9]*-\d{3}\s*\|/u.test(line));
     const rows = new Map();
     for (const line of lines) {

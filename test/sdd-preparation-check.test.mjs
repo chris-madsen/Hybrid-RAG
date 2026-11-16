@@ -79,6 +79,16 @@ test('explicit unresolved G02 decision is not treated as accepted', () => makeFi
   blocked(check(root), 'G02_CROSSWALK');
 }));
 
+test('explicit T1 owner decision blocker prevents review readiness', () => makeFixture((root, home) => {
+  write(root, home + '/design.md', '# Design\n## Decisions\nSDD-001 and SDD-002\nOwner decision: BLOCKED — insufficient scope\n');
+  blocked(check(root, 'T1'), 'OWNER_DECISIONS');
+}));
+
+test('T2 wrong G02 column order fails even when every row has seven cells', () => makeFixture((root, home) => {
+  write(root, home + '/design.md', '# Design\n## Decisions\nSDD-001 and SDD-002\n## G02 crosswalk\n| AC | Owner | Phase | Interface/state | Decision | Deterministic oracle | Provider/agent oracle |\n| SDD-001 | owner | ACCEPTED | API | phase 1 | oracle | N/A |\n| SDD-002 | owner | ACCEPTED | API | phase 2 | oracle | N/A |\n');
+  blocked(check(root), 'G02_CROSSWALK');
+}));
+
 test('path traversal and invalid tier are not accepted', () => makeFixture((root) => {
   blocked(check(root, 'T2', '../../hidden'), 'INPUT');
   blocked(check(root, 'T3'), 'INPUT');
