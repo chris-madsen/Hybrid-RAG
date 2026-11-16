@@ -127,3 +127,39 @@ test('ACE overlay bounds questions and prevents parallel-agent or tracker side e
   assert.match(example, /No follow-up owner question was asked/u);
   assert.match(example, /not a synthetic user transcript/u);
 });
+
+test('ACE To Tickets uses automatic ~1000-line sizing without changing pinned upstream', () => {
+  const skill = readRepoFile('.agents/skills/ace-to-tickets/SKILL.md').toString('utf8');
+  const alias = readRepoFile('.codex/skills/ace-to-tickets/SKILL.md').toString('utf8');
+  const metadata = readRepoFile('.agents/skills/ace-to-tickets/agents/openai.yaml').toString('utf8');
+  const overlay = readRepoFile('.agents/skills/ace-sdlc/references/matt-pocock-compatibility.md').toString('utf8');
+  const parent = readRepoFile('.agents/skills/ace-sdlc/SKILL.md').toString('utf8');
+  const sdd = readRepoFile('.agents/skills/ace-sdd-prepare/SKILL.md').toString('utf8');
+  const operations = readRepoFile('docs/operations/ai-assisted-sdlc.md').toString('utf8');
+  const prompts = readRepoFile('docs/research/sdlc/PROMPTS-ACE.md').toString('utf8');
+
+  assert.match(skill, /^name: ace-to-tickets$/mu);
+  assert.match(skill, /\.agents\/skills\/to-tickets\/SKILL\.md/u);
+  assert.match(skill, /1,000 changed lines/u);
+  assert.match(skill, /700–1,200/u);
+  assert.match(skill, /above \*\*~1,500\*\*/u);
+  assert.match(skill, /including tests/u);
+  assert.match(skill, /Do not ask the owner whether tasks are too large\/small/u);
+  assert.match(skill, /acceptance-ID/u);
+  assert.match(skill, /Blocked by/u);
+  assert.match(skill, /RED/u);
+  assert.match(skill, /GREEN/u);
+  assert.match(skill, /G02/u);
+  assert.match(skill, /Harbor/u);
+  assert.match(skill, /do not implement source code/iu);
+  assert.match(skill, /no fixed number of chunks is mandated/iu);
+  assert.match(alias, /\.agents\/skills\/ace-to-tickets\/SKILL\.md/u);
+  assert.match(metadata, /allow_implicit_invocation:\s*false/u);
+  assert.match(parent, /ace-to-tickets\/SKILL\.md/u);
+  assert.match(sdd, /ace-to-tickets\/SKILL\.md/u);
+  assert.match(operations, /ACE To Tickets/u);
+  assert.match(prompts, /ace-to-tickets\/SKILL\.md/u);
+  assert.match(overlay, /automatic ACE to-tickets sizing/iu);
+  assert.match(overlay, /Do not ask a routine question about granularity/u);
+  assert.match(overlay, /OpenSpec `tasks\.md`/u);
+});
