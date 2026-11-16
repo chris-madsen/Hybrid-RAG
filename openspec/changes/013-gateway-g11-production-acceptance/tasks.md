@@ -7,7 +7,7 @@
 - Owner G02 approval of the architecture and a separate implementation request are required before any product-code phase. A phase's structural checker or PR approval cannot substitute.
 - External provider/model/agent, data class, disposable input, budget and egress opt-in are selected separately before each live trial. Missing permission means `BLOCKED/NOT_RUN`, not a substitute mock PASS.
 - Current pinned Bifröst source shows `PreLLMHook` is above its internal `executeRequestWithRetries` loop. `C04` is hard-blocked until the owner approves a feasible per-send enforcement boundary or a runtime route configuration proves every inner attempt is disabled.
-- G11 Harbor work uses the existing Hermes native-vs-Gateway-optional feedback-loop contract and quality-first ADR-009 rules. Do not use the Codex-specific retired-tool four-arm jobs/gate as the G11 agent path; Codex remains a comparison client, not the selected primary baseline.
+- **C02 safe single-send prerequisite:** even one incoming request can cause multiple inner Bifröst provider callbacks. Before any live C02 provider egress, C01 must prove for the exact pin/config with a synthetic upstream that every `MaxRetries` and `extraAttempts` path is either disabled with a zero-second-send assertion or independently reauthorized at the actual dispatch seam; otherwise C02 is BLOCKED. This is not C04 retry acceptance.
 - Ten chunks were derived from distinct trust/evidence boundaries, not selected to match PR #258's count. Forecast added+deleted handwritten LOC (including tests; other includes scripts/config/hand-edited docs) is approximate, not measured. External evidence-only milestones below 700 LOC remain separate because they require distinct permission and verifiable evidence. Generated/vendor bulk is excluded.
 - Predicted total: **7,530 changed handwritten LOC** (source 2,610; tests 3,620; other 1,300). Re-estimate only the unfinished frontier after source inspection; do not pad or weaken tests to fit.
 
@@ -15,16 +15,18 @@
 
 | ID / title | Blocked by | Acceptance IDs | Source / tests / other = total forecast | Observable result |
 |---|---|---|---:|---|
-| C01 — Final-wire mock and retry-boundary inventory | G02 only | G11-001, 002, 004 | 430 / 520 / 140 = **1,090** | Exact protected request reaches a controlled synthetic upstream after the pinned Bifröst pipeline; route/hook/pin and internal retry behavior are truthfully classified. |
+| C01 — Final-wire mock and retry-boundary inventory | none | G11-001, 002, 004 | 430 / 520 / 140 = **1,090** | Exact protected request reaches a controlled synthetic upstream after the pinned Bifröst pipeline; route/hook/pin and internal retry behavior are truthfully classified. |
 | C02 — Authorized non-streaming real-provider route | C01 | G11-003, 004 | 80 / 160 / 110 = **350** | One explicitly authorized provider/model returns a correlated response on the certified non-stream Chat route. |
 | C03 — Streaming, cancellation and partial outcomes | C01, C02 | G11-005, G11-006, G11-007, G11-008 | 420 / 540 / 120 = **1,080** | One exact stream variant preserves projection and correctly distinguishes terminal, cancelled and partial runs. |
-| C04 — Per-dispatch same-provider retry authorization | C01; owner decision DEC-G11-01/02/03 | G11-009, 011, 012 | 470 / 590 / 120 = **1,180** | Every Bifröst inner retry callback is newly authorized, or the route is proven single-dispatch and denies retries. |
+| C04 — Per-dispatch same-provider retry authorization | C01 | G11-009, 011, 012 | 470 / 590 / 120 = **1,180** | Every Bifröst inner retry callback is newly authorized, or the route is proven single-dispatch and denies retries. |
 | C05 — Changed-destination fallback authorization | C04 | G11-010, G11-011, G11-012 | 380 / 470 / 100 = **950** | A changed provider/model/data-residency target gets a fresh destination-specific decision; denied targets receive zero sends. |
 | C06 — Real retry/fallback provider-wire evidence | C02, C04, C05 | G11-009, G11-010, G11-011, G11-012 | 80 / 170 / 130 = **380** | Separately authorized retry/fallback sends and no-send denials are correlated to unique attempt evidence. |
-| C07 — Real coding-agent Gateway task | C02; C03 only if agent requires streaming | G11-013, G11-014, G11-015, G11-016 | 160 / 250 / 140 = **550** | One nontrivial task is accepted through agent → Bifröst → ACE → authorized provider, with host-attestation limits explicit. |
+| C07 — Real coding-agent Gateway task | C02 | G11-013, G11-014, G11-015, G11-016 | 160 / 250 / 140 = **550** | One nontrivial task is accepted through agent → Bifröst → ACE → authorized provider, with host-attestation limits explicit. |
 | C08 — Harbor attribution and usage/quality contract | C01 | G11-017, G11-018, G11-019, G11-020 | 400 / 500 / 100 = **1,000** | Existing Harbor/evaluation paths require valid attempt evidence, matched arms, complete failures, quality and measured-or-unknown usage/cost. |
 | C09 — Exploratory paired real-agent Harbor pilot | C07, C08 | G11-017, G11-018, G11-019, G11-020 | 80 / 210 / 160 = **450** | One explicitly approved exploratory pair is retained with raw trials and independent quality; it is not a frozen-holdout result. |
 | C10 — Frozen holdout and route-level owner handoff | C03, C06, C09 | G11-004, G11-014, G11-017, G11-018, G11-019, G11-020 | 110 / 210 / 180 = **500** | Predeclared holdout runs are complete or visibly incomplete; route-specific evidence is handed to the owner without auto-promotion. |
+
+**DAG grammar:** the `Blocked by` column is **only** a comma-separated list of phase IDs or `none`. Owner G02, DEC-G11 decisions, permission and conditional streaming gates are independent prose constraints; never encode them as phantom DAG edges. The phase brief uses the machine-readable `**Phase dependencies:**` field with the same canonical hard edges.
 
 **Frontier after G02:** C01. After C01, C02 and C08 may proceed independently; C03 and C07 then require C02 (C07 also requires C03 only if the selected agent needs streaming). C04 additionally requires an owner decision on the per-dispatch boundary; C05 follows C04, C06 follows C02/C04/C05, C09 follows C07/C08, and C10 follows C03/C06/C09. A missing C03/C06/C07/C09 result blocks only the dependent full-route/holdout claim; it does not justify filtering failures or relabeling partial evidence.
 
@@ -46,7 +48,7 @@
 - **Candidate files:** reuse `scripts/real-provider-evidence.mjs`, `scripts/real-provider-process.mjs`, `scripts/real-provider-runtime.mjs`, `integrations/bifrost/ace-connector/README.md`; create runner/glue only if current helpers cannot drive the pinned Bifröst HTTP server and synthetic input safely.
 - **RED/GREEN:** RED if missing opt-in, provider/model mismatch, a fake upstream, absent final-send record or wrong response identity is accepted as real. GREEN is a real provider response correlated to a permitted final body and exact ACE/Bifröst/plugin identities.
 - **Oracles:** local deterministic evidence-classification test; separately authorized real provider wire. No provider/model/credential/budget is selected by this plan.
-- **STOP / rollback:** No call until the owner supplies provider/model, disposable data policy, credential route and spending/egress opt-in. If absent, record `BLOCKED/NOT_RUN` and preserve `not_certified`.
+- **STOP / rollback:** No call until the owner supplies provider/model, disposable data policy, credential route and spending/egress opt-in. If absent, record `BLOCKED/NOT_RUN` and preserve `not_certified`. Even with permission, no live C02 send may start unless C01 has proved the pinned Bifröst **single-dispatch** configuration or an owner-approved fresh per-dispatch guard across inner retry/extra-attempt cases; `MaxRetries=0` by itself is insufficient.
 
 ## C03 — Streaming, cancellation and partial outcomes
 
@@ -91,7 +93,7 @@
 ## C07 — Real coding-agent Gateway task
 
 - [ ] C07 — Real coding-agent Gateway task — [phase brief](phases/C07.md)
-- **Status / depends on:** PROPOSED; C02; C03 only if the chosen agent requires streaming. **AC:** G11-013, G11-014, G11-015, G11-016. **Budget:** 160 + 250 + 140 = 550.
+- **Status / depends on:** PROPOSED; hard DAG edge C02; conditional route gate C03 if the owner-selected agent actually requires streaming. **AC:** G11-013, G11-014, G11-015, G11-016. **Budget:** 160 + 250 + 140 = 550.
 - **Observable outcome:** One nontrivial retrieval-demanding task completes through the configured coding agent → Bifröst → authenticated ACE Projection → authorized real provider, with an independent quality oracle and honest host-history status.
 - **Candidate files:** existing `integrations/bifrost/ace-connector/README.md`, `scripts/real-provider-runtime.mjs`, `scripts/real-provider-process.mjs`, `scripts/real-provider-evidence.mjs`, `scripts/harbor_hermes_codex_oauth.py`, and `test/feedback-preflight.contracts.test.ts`; add only the minimal task invocation/evidence fixture after agent/route selection. The current Hermes adapter does not configure a Bifröst endpoint and the current plugin accepts Chat Completions only; do not assume this agent route is compatible or bypass Bifröst through a direct provider call.
 - **RED/GREEN:** RED for direct-provider bypass, hidden continuation, secret-bearing task, invalid session correlation, false host attestation or failed task labeled accepted. GREEN with exact agent/provider/build/route/source identities, bound receipt and passed independent task checks.
