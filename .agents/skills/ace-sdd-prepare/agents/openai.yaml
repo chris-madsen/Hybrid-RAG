@@ -1,0 +1,5 @@
+interface:
+  display_name: "ACE SDD Prepare"
+  short_description: "Prepare OpenSpec SDD with review-only G02 gate"
+policy:
+  allow_implicit_invocation: false

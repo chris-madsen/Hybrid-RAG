@@ -96,6 +96,10 @@ test('symlinked spec directory does not escape repository root', () => makeFixtu
 test('repository skill route is explicit and preserves planning boundary', () => {
   const parent = readFileSync(join(realRoot, '.agents/skills/ace-sdlc/SKILL.md'), 'utf8');
   const skill = readFileSync(join(realRoot, '.agents/skills/ace-sdd-prepare/SKILL.md'), 'utf8');
+  const alias = readFileSync(join(realRoot, '.codex/skills/ace-sdd-prepare/SKILL.md'), 'utf8');
+  const metadata = readFileSync(join(realRoot, '.agents/skills/ace-sdd-prepare/agents/openai.yaml'), 'utf8');
+  assert.match(alias, /\.agents\/skills\/ace-sdd-prepare\/SKILL\.md/u);
+  assert.match(metadata, /allow_implicit_invocation:\s*false/u);
   assert.match(parent, /ace-sdd-prepare\/SKILL\.md/u);
   assert.match(skill, /grill-with-docs/u);
   assert.match(skill, /to-spec/u);
