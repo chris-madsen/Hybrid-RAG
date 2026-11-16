@@ -70,12 +70,24 @@ const makeFixture = (mutate) => {
     const specPath = home + '/specs/gateway/spec.md';
     const spec = '# gateway\n## ADDED Requirements\n### Requirement: Example\n#### Scenario: DEMO-001 — valid\n- WHEN valid\n- THEN success\n';
     const design = '# Design\n## Decisions\nWe keep current adapter and DEMO-001.\n';
-    const tasks = '# Tasks\n- [ ] C01 handles DEMO-001; executable plan: [C01](phases/C01.md)\n';
+    const tasks = [
+      '# Tasks',
+      '',
+      '## Dependency DAG and LOC budget',
+      '',
+      '| ID / title | Blocked by | Acceptance IDs | Source / tests / other = total forecast | Observable result |',
+      '|---|---|---|---:|---|',
+      '| C01 — Example | none | DEMO-001 | 0 / 0 / 0 = **0** | fixture |',
+      '',
+      '- [ ] C01 — Example; executable plan: [C01](phases/C01.md)',
+      '',
+    ].join('\n');
     const headings = ['Identity', 'Objective', 'Requirements and invariants', 'Architecture contract',
       'File map', 'Task steps', 'Verification commands and expected proof', 'Gate review', 'Completion'];
     const content = [
       '# Executable phase C01',
       '**Phase ID:** C01',
+      '- Depends on: none',
       '**Acceptance IDs:** DEMO-001',
       '**Design blob SHA:** ' + gitBlob(design),
       '**Specs SHA-256:** ' + sha256(specPath + '\n' + spec + '\n'),
@@ -121,7 +133,7 @@ test('changed OpenSpec scenario body invalidates dependent phase', () => {
   blocked(makeFixture((root, ctx) => put(root, ctx.specPath, ctx.spec + '- AND additional requirement\n')), 'FRESH_INPUTS');
 });
 test('phase is rejected when not linked from canonical tasks', () => {
-  blocked(makeFixture((root) => put(root, home + '/tasks.md', '# Tasks\n- [ ] C01 handles DEMO-001\n')), 'GRAPH_LINK');
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md', ctx.tasks.replace('[C01](phases/C01.md)', 'C01'))), 'GRAPH_LINK');
 });
 test('unrecognized acceptance ID is rejected', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md', ctx.content.replace('**Acceptance IDs:** DEMO-001', '**Acceptance IDs:** FAKE-999'))), 'GRAPH_LINK');
@@ -135,6 +147,19 @@ test('phase without Meyer exceptional contract remains blocked', () => {
 });
 test('phase plan cannot become second OpenSpec checkbox tracker', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md', ctx.content + '- [ ] duplicate task\n')), 'EXECUTABLE_STRUCTURE');
+});
+test('phase is blocked when the canonical dependency graph references a missing phase', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md',
+    ctx.tasks.replace('| C01 — Example | none |', '| C01 — Example | C99 |'))), 'DEPENDENCIES');
+});
+test('phase is blocked when its declared dependencies disagree with canonical tasks', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md',
+    ctx.content.replace('- Depends on: none', '- Depends on: C99'))), 'DEPENDENCIES');
+});
+test('canonical dependency graph rejects cycles before a phase is reviewable', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md', ctx.tasks
+    .replace('| C01 — Example | none |', '| C01 — Example | C02 |')
+    .replace('\n\n- [ ] C01 — Example', '\n| C02 — Example | C01 | DEMO-001 | 0 / 0 / 0 = **0** | fixture |\n- [ ] C02 — Example; executable plan: [C02](phases/C02.md)\n\n- [ ] C01 — Example'))), 'DEPENDENCIES');
 });
 test('symlinked phase plan is rejected (no traversal through related locations)', () => {
   blocked(makeFixture((root, ctx) => {

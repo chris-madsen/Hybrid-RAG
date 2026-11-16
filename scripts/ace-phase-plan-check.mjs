@@ -56,6 +56,48 @@ const specFiles = (root, home) => {
   if (!files.length) fail('no spec.md sources');
   return files.sort();
 };
+const dependencyGraphFromTasks = (tasks) => {
+  const lines = tasks.split('\n');
+  const heading = lines.indexOf('## Dependency DAG and LOC budget');
+  if (heading < 0) fail('canonical task dependency DAG is missing');
+  const graph = new Map();
+  for (const line of lines.slice(heading + 1)) {
+    if (/^##\s/u.test(line)) break;
+    if (!/^\|\s*C\d{2}\s+—/u.test(line)) continue;
+    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim());
+    const match = /^(C\d{2})\s+—/u.exec(cells[0] || '');
+    if (!match || cells.length < 3) fail('malformed canonical dependency row');
+    const id = match[1];
+    if (graph.has(id)) fail('duplicate canonical phase ID: ' + id);
+    const dependencies = [...(cells[1] || '').matchAll(/\b(C\d{2})\b/gu)].map((item) => item[1]);
+    if (new Set(dependencies).size !== dependencies.length) fail('duplicate dependency for ' + id);
+    if (dependencies.includes(id)) fail('phase depends on itself: ' + id);
+    graph.set(id, dependencies);
+  }
+  if (graph.size === 0) fail('canonical dependency DAG has no phase rows');
+  const taskIds = [...tasks.matchAll(/^-\s+\[[ x]\]\s+(C\d{2})\s+—/gmu)].map((item) => item[1]);
+  if (new Set(taskIds).size !== taskIds.length
+    || taskIds.length !== graph.size || taskIds.some((id) => !graph.has(id))) {
+    fail('canonical task checkboxes and dependency DAG phase IDs differ');
+  }
+  for (const [id, dependencies] of graph) {
+    for (const dependency of dependencies) {
+      if (!graph.has(dependency)) fail(id + ' references an unknown dependency: ' + dependency);
+    }
+  }
+  const visited = new Set();
+  const active = new Set();
+  const visit = (id) => {
+    if (active.has(id)) fail('canonical dependency DAG contains a cycle at ' + id);
+    if (visited.has(id)) return;
+    active.add(id);
+    for (const dependency of graph.get(id) || []) visit(dependency);
+    active.delete(id);
+    visited.add(id);
+  };
+  for (const id of graph.keys()) visit(id);
+  return graph;
+};
 const extract = (content, label, digits) => {
   const matches = [...content.matchAll(new RegExp('^\\*\\*' + label + ':\\*\\*\\s*([a-f0-9]{' + digits + '})\\s*$', 'gmu'))];
   if (matches.length !== 1) fail('exactly one valid ' + label + ' required');
@@ -93,6 +135,19 @@ const main = () => {
     }
     if (!seen.size) fail('no spec AC scenario IDs');
     ids = [...seen];
+  });
+  attempt('DEPENDENCIES', () => {
+    if (!tasks || !plan) fail('tasks or phase file missing');
+    const graph = dependencyGraphFromTasks(tasks);
+    const canonicalDependencies = graph.get(phase);
+    if (canonicalDependencies === undefined) fail('phase missing from canonical dependency DAG: ' + phase);
+    const matches = [...plan.matchAll(/^-\s+Depends on:\s*(.+)$/gmu)];
+    if (matches.length !== 1) fail('exactly one Depends on declaration required');
+    const declaredDependencies = [...(matches[0][1] || '').matchAll(/\b(C\d{2})\b/gu)].map((item) => item[1]);
+    if (new Set(declaredDependencies).size !== declaredDependencies.length
+      || JSON.stringify([...declaredDependencies].sort()) !== JSON.stringify([...canonicalDependencies].sort())) {
+      fail('phase dependencies do not match canonical tasks');
+    }
   });
   attempt('GRAPH_LINK', () => {
     if (!tasks || !plan) fail('tasks or phase file missing');
