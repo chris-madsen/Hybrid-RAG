@@ -35,7 +35,7 @@ Create or revise only these canonical artifacts as applicable:
 - proposal.md — problem, scope, non-goals, affected capability
 - specs/<capability>/spec.md — testable requirement scenarios with stable acceptance IDs (e.g. SDD-001)
 - design.md — AS-IS/TO-BE, ownership, alternatives, trust/failure paths, oracles, decision statuses, and the G02 crosswalk for T2
-- tasks.md — phased dependencies, acceptance-ID links, RED/GREEN, evidence obligations and owner-controlled implementation boundary
+- tasks.md — **automatically sized implementation slices** with dependencies, acceptance-ID links, RED/GREEN, evidence obligations and owner-controlled implementation boundary. For this part read and apply **`.agents/skills/ace-to-tickets/SKILL.md`** and its complete pinned `to-tickets` instructions: target approximately 1,000 changed handwritten lines per slice including tests, select the slice count automatically and do not ask routine granularity questions. This remains planning-only.
 
 For a T2 change, design.md MUST have a G02 crosswalk whose columns are: AC | Owner | Decision | Interface/state | Phase | Deterministic oracle | Provider/agent oracle. Use each spec acceptance ID as an AC. State actual owner approval separately; no generated document can approve its own decisions.
 
