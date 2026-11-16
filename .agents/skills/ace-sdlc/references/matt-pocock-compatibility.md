@@ -32,6 +32,11 @@ The skills in this directory are optional techniques, not authorities. Apply thi
 - `code-review` may organize standards and specification checks as separate axes, but its upstream parallel-subagent procedure conflicts with ACE policy. Perform reviews sequentially in one agent; never claim independent review. Use the repository BUILD/ARCH/SEC/PLAN gates.
 - Do not invoke or install upstream `implement-spec`, `setup-matt-pocock-skills`, or any other unvendored skill. Do not execute scripts or installers from imported content without a separately reviewed, explicit authorization.
 
+## OpenSpec Apply one-phase limit
+
+- Upstream `openspec-apply-change` has a default **loop until all tasks are done**. In ACE, this is explicitly constrained by `ace-sdlc` / `implement_backend.md`: **select exactly one approved, unblocked canonical phase per implementation pass**, produce its RED/GREEN and four gates, update **only that phase's** `tasks.md` checkboxes, then **STOP** and hand off its PR/evidence. Never treat the upstream multi-task loop as authorization to implement the next phase or bypass G02, an unresolved parent PR, or the explicit implementation request.
+- Apply reads all OpenSpec context but obeys the currently approved phase's contract, including its linked executable brief and input-fingerprint check. If the executable plan is stale, reconcile planning rather than silently redesigning during code edits.
+
 ## Evidence boundary
 
 The pinned source manifest proves file provenance and integrity. The `.agents/skills` directory and local Codex prompt-input inspection can prove repository-level discovery only; they do not prove model behavior, independent review, provider delivery, agent E2E, or production readiness.
