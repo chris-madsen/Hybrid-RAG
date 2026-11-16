@@ -2,4 +2,4 @@
 
 ## Decisions
 
-Initial sandbox parent design revision. No product behavior is specified.
+Parent design revision 2 after a simulated review comment. No product behavior is specified.
