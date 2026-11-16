@@ -1,6 +1,6 @@
 # ACE staged SDLC — skill pipeline and review-overlap PR contract
 
-**Status:** proposed one-agent procedure for operator-initiated work. This is a **skill-led** stage handoff, not an autonomous daemon. It cannot execute across disconnected sessions unless the active agent host itself provides a continuing execution loop. Canonical authority remains root `AGENTS.md` → accepted ADR/OpenSpec and current owner decisions → current source and tests. **No automatic merge, branch protection or enforced GitHub approvals** (owner decision of 2026-11-12).
+**Route:** `.agents/skills/ace-stage-handoff/SKILL.md` orchestrates sequential skill handoffs within one active agent session. **Status:** proposed one-agent procedure for operator-initiated work. This is a **skill-led** stage handoff, not an autonomous daemon. It cannot execute across disconnected sessions unless the active agent host itself provides a continuing execution loop. Canonical authority remains root `AGENTS.md` → accepted ADR/OpenSpec and current owner decisions → current source and tests. **No automatic merge, branch protection or enforced GitHub approvals** (owner decision of 2026-11-12).
 
 ## One change, staged artifacts, existing architecture first
 
