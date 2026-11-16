@@ -59,6 +59,16 @@ test('a missing required artifact fails closed', () => makeFixture((root, home) 
   blocked(check(root), 'ARTIFACTS');
 }));
 
+test('a symlink replacing a required artifact cannot be read as SDD', () => makeFixture((root, home) => {
+  const outside = mkdtempSync(join(tmpdir(), 'ace-sdd-target-'));
+  try {
+    write(outside, 'proposal.md', '# Proposal\n## Why\nExternal\n## What Changes\nAnything\n');
+    rmSync(join(root, home, 'proposal.md'));
+    symlinkSync(join(outside, 'proposal.md'), join(root, home, 'proposal.md'));
+    blocked(check(root), 'ARTIFACTS');
+  } finally { rmSync(outside, { recursive: true, force: true }); }
+}));
+
 test('duplicate scenario IDs fail even when design and tasks mention them', () => makeFixture((root, home) => {
   write(root, home + '/specs/extra/spec.md', '# Spec Delta\n### Requirement: Duplicate\n#### Scenario: SDD-001 — repeated\n');
   blocked(check(root), 'SPEC_SCENARIOS');

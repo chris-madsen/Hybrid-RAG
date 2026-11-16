@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Structural SDD handoff verifier. Does not invoke an agent or approve G02.
-import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { constants, openSync, fstatSync, closeSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { resolve, join, sep } from 'node:path';
 
 const output = {
@@ -37,9 +37,17 @@ const allPathsAreSafe = (root, relative) => {
 };
 const read = (root, relative) => {
   const file = allPathsAreSafe(root, relative);
-  const info = lstatSync(file);
-  if (!info.isFile() || info.size > 524288) fail('not a regular text artifact or exceeds 512 KiB');
-  return readFileSync(file, 'utf8');
+  if (typeof constants.O_NOFOLLOW !== 'number') fail('O_NOFOLLOW is unavailable on this platform');
+  // Check the already-opened inode, not a separate stat of a pathname which
+  // could be replaced between check and read.
+  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const info = fstatSync(fd);
+    if (!info.isFile() || info.size > 524288) fail('not a regular text artifact or exceeds 512 KiB');
+    return readFileSync(fd, 'utf8');
+  } finally {
+    closeSync(fd);
+  }
 };
 const matchId = (text, id) => new RegExp('(^|[^A-Z0-9-])' + id + '(?![A-Z0-9-])', 'mu').test(text);
 const scenarioPattern = /^#### Scenario:\s+([A-Z][A-Z0-9]*-\d{3})(?:\s|$)/gmu;
