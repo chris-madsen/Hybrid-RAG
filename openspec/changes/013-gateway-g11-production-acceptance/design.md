@@ -83,7 +83,7 @@ The box `Actual provider dispatch boundary` is intentionally unresolved: the cur
 | Existing ACE Gateway Projection application/domain | v1 request validation, provider allowlist/data policy, source retrieval/projection, typed `APPLY`/`BLOCK` receipt | Candidate pure attempt-authorization transition and safe audit, only after G02 selects the actual send seam and any public-contract change. |
 | Trust & Data Policy | `ProjectDataPolicy`, `authorizeOutbound`, `authorizeAndAudit` | Re-evaluate provider/model, data class, secrets and current policy for every *actual* dispatch, not merely once per ingress. |
 | Workspace Truth / Code Discovery / Semantic Intelligence | Existing context provider, source verification, retrieval/AST/LSP evidence | No new retrieval owner; selected evidence remains source-verified and policy-authorized. |
-| Evaluation (existing domain/adapters) + Harbor runner | Frozen suites, byte binding, usage/quality accounting, run evidence | Bind every ACE claim to an actual Gateway attempt receipt and preserve every failed/unknown trial. No new benchmark runner. |
+| Evaluation (existing domain/adapters) + Harbor runner | Frozen suites, byte binding, usage/quality accounting, run evidence | Bind every ACE claim to a correlated actual Gateway attempt/final-send; retain failed/unknown trials. The **current G11 Hermes two-arm feedback owner** is `src/domain/feedback-loop-experiment.ts`, `src/adapters/harbor-feedback-trial-evidence.ts`, `scripts/collect-feedback-loop.ts`, `scripts/feedback-loop-preflight.ts`, and `scripts/render-feedback-summary.ts`. Historical `harbor-four-arm` Codex paths are not the G11 execution owner. No new runner. |
 | ACE owner | G02, external data/provider permission, promotion | Select material architecture alternatives, provider/model/agent, budget, and final route certification. |
 
 No new bounded context, remote service, store, event bus or deployment is currently justified. A new in-process port or aggregate is not automatic; add one only if the owner-approved dispatch seam establishes a real variation and consistency boundary.
@@ -117,17 +117,27 @@ The current domain owns readonly `GatewayProjectionRequest`, `GatewayProjectionR
 If G02 accepts an observable per-dispatch seam, extend the existing Gateway domain owner rather than create a new service:
 
 ```text
-AttemptState =
-  | Planned { requestGroupId, attemptId, provider, model, bodyDigest, dataClass, policyVersion }
-  | Authorized { receiptId, expiresAt }
-  | Dispatched { finalSendDigest }
-  | Denied { reasonCode }
-  | Partial { sentBytesKnown, failureClass }
+AttemptBinding = Readonly<{
+  requestGroupId, attemptId, sessionId, provider, model,
+  finalBodyDigest, dataClass, policyVersion, deadline
+}>
 
-decideAttempt(state, command) -> Result<{ nextState, facts }, DomainError>
+AttemptState =
+  | Planned { binding: AttemptBinding }
+  | Authorized { binding: AttemptBinding, receiptId, expiresAt, consumed: false }
+  | Dispatched { binding: AttemptBinding, receiptId, finalSendDigest }
+  | Denied { binding: AttemptBinding, reasonCode }
+  | Partial { binding: AttemptBinding, receiptId?, sentBytesKnown, failureClass }
+
+decideAttempt(state, command, currentPolicy) ->
+  Result<{ nextState, facts }, DomainError>
 ```
 
 Candidate rules: authorization may follow `Planned` only after destination/data-policy checks; dispatch consumes exactly one attempt decision; retry creates a new planned attempt; no attempt may dispatch from an expired, denied, mismatched or already-consumed authorization. The wire identity (request ID, group ID, ordinal/nonce) and any state persistence mechanism remain undecided until G02 reviews the inner Bifröst retry seam. Do not add shared mutable flags or a generic FSM framework.
+
+**Binding and one-use safety:** the example ADT deliberately retains the *same immutable* `AttemptBinding` across all transitions: authorization must never erase provider/model/body/policy/session identity before consumption. The `Authorized → Dispatched` transition must compare the actual final normalized body/destination against that binding and atomically consume the receipt at the real provider-send boundary; a pure `decideAttempt` function alone cannot enforce cross-process at-most-once. If concurrent/restarted requests are in scope, obtain G02 approval for an actual atomic transaction/CAS/fencing owner or fail closed. No state store, token format or Bifröst hook is silently selected here. A safety-preserving **single-dispatch route** is a different (possibly narrower) supported capability than a *retry-enabled* route: blocking retries must never count as positive G11-009 retry evidence. These are contract constraints pending verified runtime seam and G02.
+
+**C02 pre-egress gate:** one inbound request is *not* proof of one physical provider send. Before any authorized non-stream real-provider trial, prove using the exact pinned Bifröst runtime/config and synthetic mock-upstream that **all** inner `MaxRetries` and `extraAttempts` paths are either disabled/enforced no-send or separately authorized at the actual callback. If the operator cannot establish the safe one-send boundary, C02 remains `BLOCKED` even with G02/consent. This does not require implementing all C04 retry support first, but it does require a strict negative no-second-send test and immutable runtime/config provenance.
 
 **Effect shell:** existing `GatewayProjectionService` owns orchestration, ports, audit, cancellation and errors. The Go connector remains the serialization/transport adapter. The selected provider credentials stay in Bifröst. Policy/audit failure, missing body identity, unknown destination, deadline, secrets or stale receipt must yield an explicit typed denial/unavailable result before any unapproved send.
 
@@ -174,6 +184,8 @@ Every row is `PROPOSED / REVIEW_REQUIRED`; no row is self-approved by this docum
 | G11-018 | Harbor evaluation owner | Unreported counters remain absent; subsets are counted once | Usage ledger and external cost | Harbor accounting | Unknown/cached/reasoning/cost fixtures | Provider/agent usage manifest |
 | G11-019 | Harbor evaluation owner | Failed/aborted/cheap-wrong trials remain in denominator | BenchmarkRun quality state | Harbor accounting | Failed-run retention and quality gate | Repeated matched real trials |
 | G11-020 | ACE owner / G02 reviewer | No causal or release claim without attempt receipt, holdout and approval | Evidence-stage status | Holdout / owner review | Attribution gate rejects mock/partial evidence | Frozen holdout and explicit owner release decision |
+
+- **C07 agent ingress gate:** current Hermes Harbor adapter selects `openai-codex` but does not configure a Bifröst endpoint; the current ACE plugin only admits Chat Completions. The selected agent/protocol/endpoint must be proven compatible *before* implementing or running agent E2E. Do not assume OAuth Responses traffic traverses `/v1/chat/completions`; no second delivery route is permitted.
 
 ## Decisions
 

@@ -64,7 +64,7 @@ const put = (root, path, content) => {
   mkdirSync(dirname(where), { recursive: true });
   writeFileSync(where, content);
 };
-const makeFixture = (mutate) => {
+const makeFixture = (mutate, requestedPhase = phase) => {
   const root = mkdtempSync(join(tmpdir(), 'ace-phase-plan-'));
   try {
     const specPath = home + '/specs/gateway/spec.md';
@@ -107,7 +107,7 @@ const makeFixture = (mutate) => {
     put(root, home + '/phases/' + phase + '.md', content);
     mutate?.(root, { specPath, spec, design, tasks, content });
     const p = spawnSync(process.execPath,
-      [join(repo, 'scripts/ace-phase-plan-check.mjs'), '--root', root, '--change', 'check-fixture', '--phase', phase, '--json'],
+      [join(repo, 'scripts/ace-phase-plan-check.mjs'), '--root', root, '--change', 'check-fixture', '--phase', requestedPhase, '--json'],
       { encoding: 'utf8' });
     return { exit: p.status, data: JSON.parse(p.stdout), stderr: p.stderr };
   } finally {
@@ -186,9 +186,9 @@ test('alternate ID P01 works; no hard-coded Cxx phase namespace', () => {
     put(root, home + '/tasks.md', ctx.tasks.replaceAll('C01', alt));
     put(root, home + '/phases/' + alt + '.md',
       ctx.content.replaceAll('C01', alt));
-  });
-  // The caller requested C01, intentionally not P01: cannot report a false pass.
-  blocked(r, 'DEPENDENCIES');
+  }, 'P01');
+  assert.equal(r.exit, 0, JSON.stringify(r.data));
+  assert.equal(r.data.verdict, 'READY_FOR_PHASE_REVIEW');
 });
 test('DAG row containing unexpected natural-language gate is rejected', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md',
