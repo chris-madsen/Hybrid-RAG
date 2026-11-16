@@ -1,0 +1,5 @@
+interface:
+  display_name: "ACE Phase Plan"
+  short_description: "Write executable OpenSpec mini-plans and test oracles"
+policy:
+  allow_implicit_invocation: false

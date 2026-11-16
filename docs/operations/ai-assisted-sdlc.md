@@ -38,6 +38,10 @@ For a prepared T2 change, the structural checker can be invoked as:
 
 The checker validates Markdown artifact presence and acceptance-ID links, not design semantics. Only actual pinned OpenSpec strict validation and owner review can satisfy their respective gates. Structural success means READY_FOR_G02_REVIEW, never G02 PASS. Tests: npm run test:sdd-prepare. Keep unobserved live Hermes skill invocation marked NOT-RUN.
 
+## Staged skill pipeline and review-overlap Draft PRs
+
+For multi-stage T1/T2 tasks follow [ACE staged SDLC](staged-sdlc-pipeline.md) and the first-party `ace-stage-handoff` router. Separate Requirements from **Architecture** (`ace-architecture-design` integrates the change into existing DDD bounded contexts/immutable ADTs/Effect, applies Event Storming, optional FSM, TypeSpec and Meyer DbC), then G02 owner decision, then `ace-to-tickets` and **`ace-phase-plan`**. Use **stacked Draft PRs** to progress planning while the owner reviews; do not infer approval or begin dependent T2 code. Full one-pass SDD preparation remains supported when separate stage PRs were not requested.
+
 ## 1. Research stage
 Full procedure: [research_codebase.md](../research/sdlc/source/commands/research_codebase.md).
 
@@ -96,7 +100,7 @@ Each phase describes:
 - build/arch/security/plan gates;
 - rollback and an owner decision gate where needed.
 
-**Exit:** a reviewer can reject or accept each phase independently; cross-phase interfaces agree.
+**Exit:** the `ace-to-tickets` graph exists **and** `ace-phase-plan` has produced a detailed executable plan per ready chunk (`openspec/changes/<id>/phases/<phase>.md`, linked from the single canonical `tasks.md`). Validate each file with `npm run check:ace-phase-plan -- --change <id> --phase <phase> --json` for structural linkage/fresh input hashes; **then** a reviewer can independently assess each phase's semantic completeness, exact test oracles and cross-phase interfaces. Green structural status is not G02 approval, a command execution, or a real provider test.
 
 ## 4. Implement stage
 Full procedure: [implement_backend.md](../research/sdlc/source/commands/implement_backend.md). This is a **complete detailed prompt**, not merely a 4-step mnemonic.

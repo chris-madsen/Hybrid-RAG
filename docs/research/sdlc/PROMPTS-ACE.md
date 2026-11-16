@@ -20,7 +20,7 @@ These are **entrypoints into full instruction files**, not five short substitute
 |---|---|---|
 | Understand existing ACE code | `source/commands/research_codebase.md` | `source/agents/codebase-researcher.md` |
 | Design a feature | `source/commands/design_feature.md` | architect/blast-radius procedures |
-| Plan a change | `docs/operations/ai-assisted-sdlc.md` + approved OpenSpec tasks | phase template |
+| Plan a change | `ace-architecture-design` → `ace-to-tickets` → `ace-phase-plan` | phase template and staged pipeline |
 | Implement approved backend / ACE change | `source/commands/implement_backend.md` | standards applicable to changed layer |
 | Investigate a defect | `source/agents/bug-tracer.md` + researcher | blast-radius analyzer |
 | Design a backend correction | `source/commands/design_bugfix.md` | architect-reviewer |
@@ -59,6 +59,7 @@ Finish with code references, open factual questions, source SHA and report path.
 
 ```text
 Design the following requested behavior in ACE: <goal>.
+READ .agents/skills/ace-architecture-design/SKILL.md completely; start from the existing bounded contexts/modules and approved ADRs, model the smallest viable architecture delta, Event Storming, immutable ADT/FSM if needed, Effect, TypeSpec for public contracts and Meyer pre/post/invariant/frame/exceptional tests BEFORE To-tickets.
 First read AGENTS.md, relevant approved ADRs/OpenSpec and current code.
 Then READ the entire source/commands/design_feature.md. Use the required
 decision about whether additional research is necessary. Reuse a current
@@ -80,6 +81,24 @@ Do not implement code.
 - Error and trust-boundary sequences are included where needed.
 - Required actual runtime wiring is planned, not assumed completed.
 
+## Entrypoint S — full staged pipeline with overlapping Draft PR reviews
+
+```text
+Task: prepare the full T1/T2 SDLC pipeline for <change-id>.
+Read .agents/skills/ace-stage-handoff/SKILL.md and
+docs/operations/staged-sdlc-pipeline.md in full. In one authorized active
+agent session, perform R -> S Requirements -> A Architecture ->
+P auto-sized To-tickets -> X detailed phase plans sequentially.
+After a reviewable stage, create a new stacked Draft PR targeting the
+preceding stage branch and continue planning without waiting for merge.
+Store the parent HEAD and actual input artifact fingerprints; on upstream
+review change mark descendants STALE and reconcile before promoting.
+Never start T2 implementation without observed owner G02 and a separate
+explicit implementation request, or real egress without permission.
+If the host cannot continue work, preserve a progress-checkpoint handoff;
+do not promise background execution.
+```
+
 ## Entrypoint P — implementation plan
 
 ```text
@@ -93,6 +112,9 @@ Every slice must specify: goal, dependency, exact create/modify/delete paths,
 invariants and frame conditions, acceptance IDs, deterministic RED/GREEN test,
 negative and real-provider checks, command/expected result, rollback,
 review gates, and stop-for-owner-decision conditions.
+FIRST confirm design.md contains a reviewable architecture delta from
+ace-architecture-design. If material G02 decisions are missing, keep dependent
+implementation BLOCKED; provisional planning may continue with explicit labels.
 Read and apply the full .agents/skills/ace-to-tickets/SKILL.md and its
 pinned to-tickets dependency and ACE overlay. Automatically target about
 1,000 predicted changed handwritten lines including tests per fresh-context
@@ -101,7 +123,12 @@ split overlarge or risky ones, preserve ACs and exact dependency edges.
 Do not request a routine owner granularity/number-of-tickets interview.
 Report estimated code/test/other changed LOC for each slice, and exceptions.
 Produce a cross-slice dependency/compatibility check.
-Do not implement until material decisions are approved.
+THEN READ .agents/skills/ace-phase-plan/SKILL.md: for each chunk fill the
+phase-template as a linked non-tracking phases/<ID>.md executable brief,
+with exact code/test owners, command/expected result and material decisions.
+Run check:ace-phase-plan for each completed phase, reporting evidence limits.
+Publish planning Draft PR via ace-stage-handoff; do not implement until
+G02 and material decisions are actually approved.
 ```
 
 ### Success conditions
@@ -114,7 +141,10 @@ Do not implement until material decisions are approved.
 
 ```text
 Read root AGENTS.md, the entire approved plan/design and the FULL
-source/commands/implement_backend.md file. Implement only phase <ID>,
+source/commands/implement_backend.md file. Before any code, run
+check:ace-phase-plan for the selected linked mini-plan and verify actual
+owner G02 decision and provider egress permissions where needed.
+Implement only phase <ID>,
 after checking current branch/HEAD, active PRs, dependencies, current
 code and actual required test owner. Use ACE TypeScript + Effect rules,
 and only relevant standards from source/standards/.
