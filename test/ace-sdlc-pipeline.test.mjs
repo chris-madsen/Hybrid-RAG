@@ -87,6 +87,7 @@ const makeFixture = (mutate) => {
     const content = [
       '# Executable phase C01',
       '**Phase ID:** C01',
+      '**Phase dependencies:** none',
       '- Depends on: none',
       '**Acceptance IDs:** DEMO-001',
       '**Design blob SHA:** ' + gitBlob(design),
@@ -133,7 +134,7 @@ test('changed OpenSpec scenario body invalidates dependent phase', () => {
   blocked(makeFixture((root, ctx) => put(root, ctx.specPath, ctx.spec + '- AND additional requirement\n')), 'FRESH_INPUTS');
 });
 test('phase is rejected when not linked from canonical tasks', () => {
-  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md', ctx.tasks.replace('[C01](phases/C01.md)', 'C01'))), 'GRAPH_LINK');
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md', ctx.tasks.replace('[C01](phases/C01.md)', 'C01'))), 'DEPENDENCIES');
 });
 test('unrecognized acceptance ID is rejected', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md', ctx.content.replace('**Acceptance IDs:** DEMO-001', '**Acceptance IDs:** FAKE-999'))), 'GRAPH_LINK');
@@ -154,12 +155,44 @@ test('phase is blocked when the canonical dependency graph references a missing 
 });
 test('phase is blocked when its declared dependencies disagree with canonical tasks', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md',
-    ctx.content.replace('- Depends on: none', '- Depends on: C99'))), 'DEPENDENCIES');
+    ctx.content.replace('**Phase dependencies:** none', '**Phase dependencies:** C99'))), 'DEPENDENCIES');
 });
 test('canonical dependency graph rejects cycles before a phase is reviewable', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md', ctx.tasks
     .replace('| C01 — Example | none |', '| C01 — Example | C02 |')
     .replace('\n\n- [ ] C01 — Example', '\n| C02 — Example | C01 | DEMO-001 | 0 / 0 / 0 = **0** | fixture |\n- [ ] C02 — Example; executable plan: [C02](phases/C02.md)\n\n- [ ] C01 — Example'))), 'DEPENDENCIES');
+});
+test('malformed C100 dependency is not silently ignored', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md',
+    ctx.tasks.replace('| C01 — Example | none |', '| C01 — Example | C100 |'))), 'DEPENDENCIES');
+});
+test('DAG and brief agree on wrong acceptance ID but the spec rejects it', () => {
+  blocked(makeFixture((root, ctx) => {
+    put(root, home + '/tasks.md', ctx.tasks.replace('| DEMO-001 |', '| FAKE-999 |'));
+    put(root, home + '/phases/C01.md', ctx.content.replace('**Acceptance IDs:** DEMO-001', '**Acceptance IDs:** FAKE-999'));
+  }), 'GRAPH_LINK');
+});
+test('phase AC must belong to its own canonical DAG row, not anywhere in tasks', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md',
+    ctx.content.replace('**Acceptance IDs:** DEMO-001', '**Acceptance IDs:** DEMO-001, DEMO-002'))), 'GRAPH_LINK');
+});
+test('all spec scenario IDs must have a canonical phase owner', () => {
+  blocked(makeFixture((root, ctx) => put(root, ctx.specPath, ctx.spec +
+    '#### Scenario: DEMO-002 — uncovered\n- WHEN new\n- THEN denied\n')), 'GRAPH_LINK');
+});
+test('alternate ID P01 works; no hard-coded Cxx phase namespace', () => {
+  const r = makeFixture((root, ctx) => {
+    const alt = 'P01';
+    put(root, home + '/tasks.md', ctx.tasks.replaceAll('C01', alt));
+    put(root, home + '/phases/' + alt + '.md',
+      ctx.content.replaceAll('C01', alt));
+  });
+  // The caller requested C01, intentionally not P01: cannot report a false pass.
+  blocked(r, 'DEPENDENCIES');
+});
+test('DAG row containing unexpected natural-language gate is rejected', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md',
+    ctx.tasks.replace('| C01 — Example | none |', '| C01 — Example | C01; owner G02 |'))), 'DEPENDENCIES');
 });
 test('symlinked phase plan is rejected (no traversal through related locations)', () => {
   blocked(makeFixture((root, ctx) => {
