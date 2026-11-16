@@ -82,7 +82,7 @@ const makeFixture = (mutate) => {
           : heading === 'Task steps' ? '1. Write RED regression in test/a.ts; run node test/a.ts. 2. Implement GREEN in src/a.ts.'
             : heading === 'Verification commands and expected proof' ? 'Run: node test/a.ts; expected exit 0.'
               : heading === 'Gate review' ? 'BUILD/ARCH/SEC/PLAN checked separately. STOP on failure; rollback changes.'
-                : 'Existing invariant and evidence.')),
+                : 'Meyer require: valid input; ensure: matching output; invariant: no unauthorized egress; frame: user worktree unchanged; exceptional: typed denial.')),
       '',
     ].join('\n');
     put(root, home + '/.openspec.yaml', 'schema: spec-driven\n');
@@ -126,6 +126,10 @@ test('unrecognized acceptance ID is rejected', () => {
 });
 test('missing executable section is rejected', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md', ctx.content.replace('## Verification commands and expected proof', '## Wrong heading'))), 'EXECUTABLE_STRUCTURE');
+});
+test('phase without Meyer exceptional contract remains blocked', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md',
+    ctx.content.replaceAll('exceptional: typed denial.', 'missing failure contract.'))), 'EXECUTABLE_STRUCTURE');
 });
 test('phase plan cannot become second OpenSpec checkbox tracker', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md', ctx.content + '- [ ] duplicate task\n')), 'EXECUTABLE_STRUCTURE');
