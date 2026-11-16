@@ -8,6 +8,8 @@ Provide an ACE-owned, deterministic planning entrypoint without another agent ru
 
 ### Requirement: An ACE planning request uses the installed SDLC authorities
 
+An ACE coding agent SHALL prepare SDD through the existing repository authority, bounded requirement discovery and canonical OpenSpec change artifacts, without creating an alternative issue tracker or agent runner.
+
 #### Scenario: SDD-001 — Explicit preparation entrypoint
 - **WHEN** an owner requests SDD preparation
 - **THEN** ace-sdlc routes to ace-sdd-prepare after risk classification and current-source checks
@@ -25,6 +27,8 @@ Provide an ACE-owned, deterministic planning entrypoint without another agent ru
 - **AND** neither a second tracker nor a generic ADR/glossary tree is created.
 
 ### Requirement: Structural acceptance validation cannot impersonate approval
+
+The SDD preparation checker SHALL fail closed on incomplete or inconsistent planning artifacts and SHALL label passing structural checks as ready for owner review rather than granting G02 approval or implementation authority.
 
 #### Scenario: SDD-004 — Traceable artifacts
 - **WHEN** a completed SDD is checked
