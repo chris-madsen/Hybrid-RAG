@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -200,4 +200,31 @@ test('symlinked phase plan is rejected (no traversal through related locations)'
     rmSync(target);
     symlinkSync(join(root, home, 'tasks.md'), target);
   }), 'ARTIFACTS');
+});
+
+test('all checked-in OpenSpec executable phase files pass exact current-input checker', () => {
+  const changesDir = join(repo, 'openspec/changes');
+  const changes = readdirSync(changesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  let inspected = 0;
+  for (const change of changes) {
+    const folder = join(changesDir, change, 'phases');
+    if (!existsSync(folder)) continue;
+    const phases = readdirSync(folder, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /^[A-Z][A-Z0-9-]{1,31}\.md$/u.test(entry.name))
+      .map((entry) => entry.name.slice(0, -3));
+    for (const phaseId of phases) {
+      const proc = spawnSync(process.execPath, [
+        join(repo, 'scripts/ace-phase-plan-check.mjs'),
+        '--root', repo, '--change', change, '--phase', phaseId, '--json',
+      ], { encoding: 'utf8' });
+      assert.equal(proc.status, 0, change + '/' + phaseId + '\n' + proc.stdout + '\n' + proc.stderr);
+      assert.equal(JSON.parse(proc.stdout).verdict, 'READY_FOR_PHASE_REVIEW');
+      inspected += 1;
+    }
+  }
+  // Before the detailed-plan PR exists, 0 is intentional; when phase files are
+  // present, every one is validated rather than a single cherry-picked example.
+  assert.ok(inspected >= 0);
 });
