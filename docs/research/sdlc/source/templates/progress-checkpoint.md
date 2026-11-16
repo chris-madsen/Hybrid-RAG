@@ -13,6 +13,12 @@ Use this before compaction, session switch or when execution spans multiple inte
 - Date and agent/client:
 - Current execution environment:
 - Permission to perform external actions:
+- Current SDLC stage (R/S/A/P/X/I/V):
+- Parent stage PR / parent branch HEAD:
+- Input specs SHA-256 / design Git blob SHA:
+- Stage verdict: REVIEWABLE / PROVISIONAL / STALE / BLOCKED:
+- G02 owner signoff reference (or REVIEW_REQUIRED):
+- Which stage skill was actually invoked vs only read:
 
 ## Authoritative instructions
 - Root/nested AGENTS:

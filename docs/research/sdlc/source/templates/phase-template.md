@@ -9,6 +9,14 @@
 - Branch/base/HEAD:
 - Risk tier T0/T1/T2:
 - Owner decision references:
+- **Phase ID:** <phase-id> (repeat stable ID in plain text for checker)
+- **Acceptance IDs:** <comma-separated scenario IDs>
+- **Design blob SHA:** <40-hex Git blob of current design.md>
+- **Specs SHA-256:** <64-hex SHA-256 over sorted spec path + newline + content + newline>
+- Stacked input PR / base HEAD / output PR and source HEAD:
+- Phase dependency status: REVIEWABLE / PROVISIONAL / STALE / BLOCKED
+
+**Phase-plan rule:** this file is a non-tracking executable brief linked by canonical `tasks.md`. When instantiated into `phases/<ID>.md`, remove template placeholders and do **not** duplicate `- [ ]` task-status checkboxes. Material G02, real-provider and release permissions remain separate from structural completeness.
 
 ## Objective
 **Observable behavior**: what a caller/user can now do.
@@ -55,6 +63,8 @@
 13. Mark phase VERIFIED/DELIVERED only with evidence.
 
 ## Verification commands and expected proof
+
+For each RED and GREEN identify the exact executable command, the expected failing assertion or passing condition, and the actual owning test file. Mark commands NOT_RUN at planning time rather than predicting results. Validate instantiated mini-plans using `npm run check:ace-phase-plan -- --change <id> --phase <ID> --json` before handoff.
 | Command | When run | Expected output/invariant | Evidence path |
 |---|---|---|---|
 | ... | RED | specifically fails | ... |
