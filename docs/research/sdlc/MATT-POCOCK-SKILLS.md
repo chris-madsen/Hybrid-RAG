@@ -38,7 +38,7 @@ No automation should execute arbitrary scripts from a newly imported skill until
 
 - Root `AGENTS.md`, accepted ADR/OpenSpec and our [operational SDLC](../../operations/ai-assisted-sdlc.md) outrank optional skills.
 - `domain-modeling`: retain Event Storming, bounded contexts and ubiquitous language; implement passive immutable ADTs + cohesive pure domain functions, not mandatory rich OO entities.
-- `to-spec`/`to-tickets`: map to existing OpenSpec behavioral specs and task graphs rather than a second issue/spec source.
+- `to-spec`/`to-tickets`: map to existing OpenSpec behavioral specs and task graphs rather than a second issue/spec source. ACE's [`ace-to-tickets`](../../../.agents/skills/ace-to-tickets/SKILL.md) entrypoint keeps the upstream pin unchanged and automatically sizes end-to-end slices near 1,000 changed handwritten lines including tests; no routine granularity interview.
 - `tdd`/`diagnosing-bugs`/`code-review`: augment current ACE RED/GREEN and four quality checks; provider acceptance remains separate.
 - `implement-spec`: upstream multi-agent execution is incompatible with the **current one-agent** decision; treat as reading/reference only until explicitly changed.
 - `setup-matt-pocock-skills`: may write repo config, glossary and tracker; do not auto-run without reviewing impact on existing ACE governance.
