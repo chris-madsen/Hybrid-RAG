@@ -142,7 +142,7 @@ test('ACE To Tickets uses automatic ~1000-line sizing without changing pinned up
   assert.match(skill, /\.agents\/skills\/to-tickets\/SKILL\.md/u);
   assert.match(skill, /1,000 changed lines/u);
   assert.match(skill, /700–1,200/u);
-  assert.match(skill, /above \*\*~1,500\*\*/u);
+  assert.match(skill, /above \*\*~1,500\*\*/iu);
   assert.match(skill, /including tests/u);
   assert.match(skill, /Do not ask the owner whether tasks are too large\/small/u);
   assert.match(skill, /acceptance-ID/u);
