@@ -120,6 +120,9 @@ const main = () => {
     for (const heading of required) {
       if (!plan.split('\n').some((line) => line.trim() === '## ' + heading)) fail('missing section: ' + heading);
     }
+    for (const contract of ['require', 'ensure', 'invariant', 'frame', 'exceptional']) {
+      if (!new RegExp('\\b' + contract + '\\b', 'iu').test(plan)) fail('missing Meyer contract field: ' + contract);
+    }
     if (!/RED/iu.test(plan) || !/GREEN/iu.test(plan) || !/rollback|STOP/iu.test(plan)) fail('missing test or rollback obligations');
     if (!/npm run |node |go test |npx |tsx |pytest |openssl /iu.test(plan)) fail('no concrete test/validation command');
     if (!/\|\s*(?:Modify|Create|Delete)\s*\|/iu.test(plan)) fail('file map needs one concrete owned change');
