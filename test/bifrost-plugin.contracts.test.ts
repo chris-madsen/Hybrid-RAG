@@ -15,7 +15,8 @@ test('pinned Bifröst ACE plugin refuses every agent model route until native Re
   assert.match(plugin, /ace-bifrost-plugin:" \+ aceSourceCommit/u);
   assert.match(plugin, /func HTTPTransportPreHook\(/u);
   assert.match(plugin, /ACE Chat Completions route is retired/u);
-  assert.match(plugin, /ACE native Responses route is not yet certified/u);
+  assert.match(plugin, /func prepareNativeResponses\(/u);
+  assert.match(plugin, /ProjectNativeResponses/u);
   assert.match(plugin, /chatgpt_passthrough/u);
   assert.match(plugin, /ACE gateway model route is unsupported/u);
   assert.match(plugin, /func PreLLMHook\(/u);
