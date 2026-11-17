@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { Effect } from 'effect';
+import type { ResponsesProjectionService } from '../application/responses-projection-service.js';
 import { isIP } from 'node:net';
 import type {
   GatewayHealth as GeneratedGatewayHealth,
@@ -11,6 +13,7 @@ import type {
 // A new typed service will be introduced with the versioned native Responses wire.
 export interface GatewayProjectionHttpService {
   readonly project: (value: unknown) => unknown;
+  readonly projectResponses?: ResponsesProjectionService['projectResponses'];
 }
 
 export interface GatewayProjectionHttpOptions {
@@ -82,6 +85,17 @@ export const handleGatewayProjectionHttp = async (
     };
     return error(501, unavailable.error.code, unavailable.error.message);
   }
+  if (path === '/internal/ace-gateway/v2/project') {
+    if (!service.projectResponses) return error(503, 'RESPONSES_NOT_READY', 'native Responses projector is not configured');
+    let payload: unknown;
+    try { payload = JSON.parse(body) as unknown; }
+    catch { return error(400, 'INVALID_JSON', 'native Responses request must be JSON'); }
+    const response = await Effect.runPromise(service.projectResponses(payload));
+    if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
+    if (response.value.kind === 'BLOCK') return error(409, response.value.reasonCode, 'native Responses projection refused');
+    // Internal context transformation only. This result is NOT a provider-send permit.
+    return json(response.value);
+  }
   if (path !== '/internal/ace-gateway/v1/project') return error(404, 'NOT_FOUND', 'unknown gateway endpoint');
   void service;
   void body;
@@ -120,7 +134,9 @@ export const createGatewayProjectionServer = (
   const maxEnvelopeBytes = maxEnvelopeBytesFor(maxBodyBytes);
   return createServer(async (request, response) => {
     try {
-      if (request.method === 'POST' && request.url === '/internal/ace-gateway/v1/project') {
+      if (request.method === 'POST' && (
+        request.url === '/internal/ace-gateway/v1/project' || request.url === '/internal/ace-gateway/v2/project'
+      )) {
         const token = options.authToken ?? process.env.ACE_GATEWAY_HTTP_SHARED_SECRET;
         if (!token?.trim()) {
           writeResponse(response, error(503, 'NOT_READY', 'Gateway projection authentication is not configured'));
