@@ -39,7 +39,7 @@ namespace ACE.ResponsesV2 {
 
   @jsonSchema
   model ProjectionDecision {
-    kind: "APPLY" | "BLOCK";
+    kind: "PREPARED" | "BLOCK";
     @pattern("^[a-f0-9]{64}$") baseBodySha256: string;
     @pattern("^[a-f0-9]{64}$") projectedBodySha256?: string;
     bodyBase64?: string;
