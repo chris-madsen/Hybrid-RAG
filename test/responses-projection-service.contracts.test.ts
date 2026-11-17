@@ -66,8 +66,8 @@ const make = (x: Partial<AceTransformResult> = {}, deny = false) => {
 test('native policy/Effect produces additive context without mutating function/reasoning/tool items', async () => {
   const response = await Effect.runPromise(make().projectResponses(req()));
   assert.equal(response._tag, 'Ok');if (response._tag === 'Err') return;
-  assert.equal(response.value.kind, 'APPLY');
-  if (response.value.kind !== 'APPLY') return;
+  assert.equal(response.value.kind, 'PREPARED');
+  if (response.value.kind !== 'PREPARED') return;
   const decoded = JSON.parse(Buffer.from(response.value.bodyBase64, 'base64').toString('utf8')) as {
     input: unknown[]; tools: unknown; reasoning: unknown; stream: boolean; store: boolean;
   };
@@ -98,7 +98,7 @@ test('native gateway HTTP endpoint requires auth and never invokes legacy projec
   const payload = JSON.stringify(req());
   const direct = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v2/project', payload);
   assert.equal(direct.statusCode, 200);
-  assert.equal(direct.body.kind, 'APPLY');
+  assert.equal(direct.body.kind, 'PREPARED');
   assert.equal(legacyCalled, 0);
   const server = createGatewayProjectionServer(service, { authToken: 'local-secret' });
   await new Promise<void>((done, reject) => { server.once('error', reject);server.listen(0, '127.0.0.1', done); });
@@ -113,7 +113,7 @@ test('native gateway HTTP endpoint requires auth and never invokes legacy projec
     });
     assert.equal(authorized.status, 200);
     const decision = await authorized.json() as { kind: string };
-    assert.equal(decision.kind, 'APPLY');
+    assert.equal(decision.kind, 'PREPARED');
     assert.equal(legacyCalled, 0);
   } finally {
     await new Promise<void>((done) => server.close(done));
