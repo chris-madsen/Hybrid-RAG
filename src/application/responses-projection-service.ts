@@ -103,7 +103,7 @@ export const makeResponsesProjectionService = (
     if (injected._tag === 'Err') return block(request, injected.error.code);
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
     return ok({
-      kind: 'APPLY', reasonCode: 'VERIFIED_CONTEXT_ADDED',
+      kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED',
       bodyBase64: injected.value,
       baseBodySha256: request.bodySha256,
       projectedBodySha256: sha256Base64(injected.value),
