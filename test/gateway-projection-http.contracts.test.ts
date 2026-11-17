@@ -64,7 +64,7 @@ test('gateway HTTP exposes health and capability contracts', async () => {
 test('legacy Gateway projection is quarantined without invoking the old service', async () => {
   const projected = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v1/project', '{}');
   assert.equal(projected.statusCode, 503);
-  assert.equal((projected.body as {error: {code: string}}).error.code, 'RESPONSES_ONLY_NOT_READY');
+  assert.equal((projected.body as { error: { code: string } }).error.code, 'RESPONSES_ONLY_NOT_READY');
   const missing = await handleGatewayProjectionHttp(service, 'POST', '/unknown', '{}');
   assert.equal(missing.statusCode, 404);
 });
@@ -101,7 +101,7 @@ test('projection HTTP refuses local callers without the configured shared secret
       body: '{}',
     });
     assert.equal(authenticated.status, 503);
-    const result = await authenticated.json() as {error: {code: string}};
+    const result = await authenticated.json() as { error: { code: string } };
     assert.equal(result.error.code, 'RESPONSES_ONLY_NOT_READY');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
