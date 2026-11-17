@@ -2,9 +2,12 @@
 // Compiled emission is an explicit migration gate; the frozen v1 schema is not rewritten.
 import "@typespec/http";
 import "@typespec/json-schema";
-using TypeSpec.Http;
+import "@typespec/openapi";
+using Http;
+using JsonSchema;
 
-@service(#{ title: "ACE Native Responses Projection", version: "2.0.0" })
+@service(#{ title: "ACE Native Responses Projection" })
+@TypeSpec.OpenAPI.info(#{ version: "2.0.0" })
 namespace ACE.ResponsesV2 {
   @jsonSchema
   model ProjectionRequest {
