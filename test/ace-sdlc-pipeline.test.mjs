@@ -276,11 +276,29 @@ test('all declared OpenSpec executable phase files are present and pass exact cu
   // by ace-to-tickets and MUST NOT be hardcoded to the old Chat-first plan.
   const g11 = '013-gateway-g11-production-acceptance';
   const g11TasksPath = join(changesDir, g11, 'tasks.md');
-  if (existsSync(g11TasksPath) &&
-    readFileSync(g11TasksPath, 'utf8').includes('(phases/C01.md)')) {
+  if (existsSync(g11TasksPath)) {
+    const canonical = readFileSync(g11TasksPath, 'utf8');
+    const linked = [...canonical.matchAll(/\\]\\(phases\\/[A-Z][A-Z0-9-]{1,31}\\.md\\)/gmu)];
+    assert.ok(linked.length > 0, 'active G11 task ledger has no linked executable plans');
     assert.ok(existsSync(join(changesDir, g11, 'phases')), 'G11 phase directory missing');
     const actualPhaseCount = phaseInventory(repo, g11).length;
-    assert.ok(actualPhaseCount > 0, 'active G11 phase plans must not silently disappear');
+    assert.equal(actualPhaseCount, linked.length, 'the active G11 inventory must equal canonical links');
     assert.ok(inspected >= actualPhaseCount, 'not all linked G11 phase plans were inspected');
   }
+});
+
+test('G11 planning contract has native Responses acceptance and rejects a Chat-first target', () => {
+  const change = '013-gateway-g11-production-acceptance';
+  const design = file('openspec/changes/' + change + '/design.md');
+  const tasks = file('openspec/changes/' + change + '/tasks.md');
+  const newSpec = file('openspec/changes/' + change + '/specs/gateway-native-responses/spec.md');
+  assert.match(design, /Hermes[^\\n]*Bifröst[^\\n]*\\/v1\\/responses/u);
+  assert.match(design, /G02 status: REVIEW_REQUIRED/u);
+  assert.doesNotMatch(design, /First validate the existing[^\\n]*Chat Completions/iu);
+  assert.match(tasks, /## Dependency DAG and LOC budget/u);
+  assert.match(tasks, /provider-native Responses/iu);
+  assert.match(newSpec, /RESP-001 — Native Responses only, no Chat fallback/u);
+  assert.match(newSpec, /RESP-008 — Quality-gated Harbor and owner release/u);
+  const ids = [...newSpec.matchAll(/^#### Scenario: (RESP-\\d{3})/gmu)].map((match) => match[1]);
+  assert.deepEqual(ids, Array.from({ length: 8 }, (_, i) => 'RESP-' + String(i + 1).padStart(3, '0')));
 });
