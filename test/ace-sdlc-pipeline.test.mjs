@@ -202,7 +202,52 @@ test('symlinked phase plan is rejected (no traversal through related locations)'
   }), 'ARTIFACTS');
 });
 
-test('all checked-in OpenSpec executable phase files pass exact current-input checker', () => {
+
+const phaseInventory = (root, change) => {
+  const base = join(root, 'openspec/changes', change);
+  const tasks = readFileSync(join(base, 'tasks.md'), 'utf8');
+  const linked = [...tasks.matchAll(/^- \[[ x]\] ([A-Z][A-Z0-9-]{1,31}) — [^\n]*?\]\(phases\/([A-Z][A-Z0-9-]{1,31})\.md\)/gmu)];
+  assert.ok(linked.length > 0, change + ': phase directory exists without canonical task links');
+  for (const match of linked) {
+    assert.equal(match[1], match[2], change + ': checkbox and linked phase ID mismatch');
+  }
+  const expected = linked.map((match) => match[1]).sort();
+  assert.equal(new Set(expected).size, expected.length, change + ': duplicate phase task link');
+
+  const folder = join(base, 'phases');
+  const entries = readdirSync(folder, { withFileTypes: true });
+  for (const entry of entries) {
+    assert.ok(entry.isFile() && /^[A-Z][A-Z0-9-]{1,31}\.md$/u.test(entry.name),
+      change + ': orphan, invalid or non-file phase entry: ' + entry.name);
+  }
+  const actual = entries.map((entry) => entry.name.slice(0, -3)).sort();
+  assert.deepEqual(actual, expected, change + ': missing or orphan phase plan relative to canonical tasks');
+  return actual;
+};
+
+test('phase inventory detects missing and orphan linked briefs rather than passing on an empty scan', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-phase-inventory-negative-'));
+  const tempChange = 'negative-inventory';
+  const tasksPath = 'openspec/changes/' + tempChange + '/tasks.md';
+  try {
+    put(root, tasksPath, '# Tasks\n- [ ] C01 — first — [phase brief](phases/C01.md)\n- [ ] C02 — second — [phase brief](phases/C02.md)\n');
+    put(root, 'openspec/changes/' + tempChange + '/phases/C01.md', '# C01\n');
+    assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
+
+    put(root, 'openspec/changes/' + tempChange + '/phases/C02.md', '# C02\n');
+    assert.deepEqual(phaseInventory(root, tempChange), ['C01', 'C02']);
+    put(root, 'openspec/changes/' + tempChange + '/phases/C03.md', '# Orphan\n');
+    assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
+
+    rmSync(join(root, 'openspec/changes/' + tempChange + '/phases'), { recursive: true, force: true });
+    mkdirSync(join(root, 'openspec/changes/' + tempChange + '/phases'), { recursive: true });
+    assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('all declared OpenSpec executable phase files are present and pass exact current-input checker', () => {
   const changesDir = join(repo, 'openspec/changes');
   const changes = readdirSync(changesDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -211,9 +256,7 @@ test('all checked-in OpenSpec executable phase files pass exact current-input ch
   for (const change of changes) {
     const folder = join(changesDir, change, 'phases');
     if (!existsSync(folder)) continue;
-    const phases = readdirSync(folder, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && /^[A-Z][A-Z0-9-]{1,31}\.md$/u.test(entry.name))
-      .map((entry) => entry.name.slice(0, -3));
+    const phases = phaseInventory(repo, change);
     for (const phaseId of phases) {
       const proc = spawnSync(process.execPath, [
         join(repo, 'scripts/ace-phase-plan-check.mjs'),
@@ -224,7 +267,11 @@ test('all checked-in OpenSpec executable phase files pass exact current-input ch
       inspected += 1;
     }
   }
-  // Before the detailed-plan PR exists, 0 is intentional; when phase files are
-  // present, every one is validated rather than a single cherry-picked example.
-  assert.ok(inspected >= 0);
+  // G11 remains an active OpenSpec change in this stage PR. Its ten C01–C10
+  // files MUST all be present; after archival this conditional no longer applies.
+  const g11 = '013-gateway-g11-production-acceptance';
+  if (existsSync(join(changesDir, g11, 'phases'))) {
+    assert.equal(phaseInventory(repo, g11).length, 10, 'G11 stage X must deliver all ten phase briefs');
+    assert.ok(inspected >= 10, 'no complete G11 phase-plan checks were executed');
+  }
 });
