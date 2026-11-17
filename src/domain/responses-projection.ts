@@ -44,7 +44,7 @@ export const validateResponsesProjectionRequest = (value: unknown): Result<Respo
     return rejected('protocol', 'native Responses v2 only; no Chat fallback');
   }
   if (value.projectionMode !== 'gateway') return rejected('projectionMode', 'only automatic Gateway projection is supported');
-  for (const key of ['requestId','attemptGroupId','agentSessionId','workspaceId','provider','model','bodyBase64','bodySha256','query']) {
+  for (const key of ['requestId', 'attemptGroupId', 'agentSessionId', 'workspaceId', 'provider', 'model', 'bodyBase64', 'bodySha256', 'query']) {
     if (!nonempty(value[key])) return rejected(key, 'missing required Responses identity');
   }
   if (value.dataClass !== 'private' && value.dataClass !== 'project_document' && value.dataClass !== 'public') {
