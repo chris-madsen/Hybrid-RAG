@@ -86,7 +86,8 @@ test('text input is represented as user native input rather than Chat messages',
 });
 test('deny provider-stored hidden history and forbidden Chat-shaped input', ()=>{
   const cases = [
-    { ...input, previous_response_id:'resp_old' }, { ...input, conversation:'conv_old' },
+    { ...input, previous_response_id: 'resp_old' }, { ...input, conversation: 'conv_old' },
+    { ...input, conversation_id: 'old_conversation' }, { ...input, thread_id: 'old_thread' },
     { ...input, store:true }, { ...input, messages:[{ role:'user', content:'x' }] },
     { ...input, input:[] }, { ...input, model:'different' },
   ];
