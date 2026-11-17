@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 	"strings"
 
 	"github.com/chris-madsen/Mult-agent-AI-Orchestration/integrations/bifrost/ace-connector"
@@ -32,14 +34,14 @@ func Init(config any) error {
 	if len(aceSourceCommit) != 40 || strings.Trim(aceSourceCommit, "0123456789abcdef") != "" {
 		return errors.New("ACE plugin source commit provenance is unavailable")
 	}
-	endpoint := os.Getenv("ACE_GATEWAY_PROJECTION_URL")
+	endpoint := os.Getenv("ACE_GATEWAY_RESPONSES_URL")
 	if values, ok := config.(map[string]any); ok {
-		if configured, ok := values["projection_url"].(string); ok && configured != "" {
+		if configured, ok := values["responses_projection_url"].(string); ok && configured != "" {
 			endpoint = configured
 		}
 	}
 	if endpoint == "" {
-		return errors.New("ACE_GATEWAY_PROJECTION_URL is required")
+		return errors.New("ACE_GATEWAY_RESPONSES_URL is required")
 	}
 	token := os.Getenv("ACE_GATEWAY_PROJECTION_TOKEN")
 	if token == "" {
@@ -149,7 +151,7 @@ func errorResponse(status int, message string) *schemas.HTTPResponse {
  // NO agent generation route is eligible for ACE forwarding. This deliberate
  // quarantine prevents Chat transport or uncertified Responses from bypassing
  // policy. It is not a working Responses adapter.
-func HTTPTransportPreHook(_ *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
+func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
 	if req == nil {
 		return errorResponse(400, "ACE gateway request is missing"), nil
 	}
@@ -160,7 +162,7 @@ func HTTPTransportPreHook(_ *schemas.BifrostContext, req *schemas.HTTPRequest) (
 	case "/v1/chat/completions", "/chat/completions", "/openai/chat/completions":
 		return errorResponse(410, "ACE Chat Completions route is retired; only native Responses is eligible"), nil
 	case "/v1/responses", "/responses", "/openai/responses":
-		return errorResponse(503, "ACE native Responses route is not yet certified"), nil
+		return prepareNativeResponses(ctx, req)
 	default:
 		if strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/openai/") ||
 			strings.HasPrefix(path, "/chatgpt_passthrough/") ||
@@ -169,6 +171,96 @@ func HTTPTransportPreHook(_ *schemas.BifrostContext, req *schemas.HTTPRequest) (
 		}
 		return nil, nil // unrelated Bifrost administration; PreLLM always denies generation
 	}
+}
+
+// The native Responses ingress can prepare local ACE context, but the
+// PreLLMHook below STILL denies every provider dispatch. No PREPARED result is
+// a physical-send permit, and Bifröst's internal retry/fallback conversion is
+// not certified. This deliberately allows local projection tests without egress.
+func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
+	if req == nil || len(req.Body) == 0 || len(req.Body) > int(connector.DefaultMaxBodyBytes) {
+		return errorResponse(400, "native Responses body is missing or too large"), nil
+	}
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(req.Body, &body); err != nil || body == nil {
+		return errorResponse(400, "native Responses body must be valid JSON"), nil
+	}
+	var rawModel string
+	if err := json.Unmarshal(body["model"], &rawModel); err != nil || rawModel == "" {
+		return errorResponse(400, "native Responses model must be explicitly specified"), nil
+	}
+	query, ok := nativeResponsesQuery(body["input"])
+	if !ok {
+		return errorResponse(422, "native Responses input contains no visible query"), nil
+	}
+	if defaultWorkspaceID == "" {
+		return errorResponse(503, "ACE workspace identity is unavailable"), nil
+	}
+	requestID, session, provider, _, attestation, err := requestBoundIdentity(req, req.Body, rawModel)
+	if err != nil {
+		return errorResponse(409, "native Responses request identity is unavailable"), nil
+	}
+	requestCtx := context.Background()
+	if ctx != nil {
+		requestCtx = ctx
+	}
+	deadline := time.Now().Add(30 * time.Second).UnixMilli()
+	decision, err := projectionClient.ProjectNativeResponses(requestCtx, connector.ResponsesV2Request{
+		RequestID: requestID, AttemptGroupID: requestID, AgentSessionID: session,
+		WorkspaceID: defaultWorkspaceID, DataClass: "private",
+		Provider: provider, Model: rawModel, Query: query, DeadlineEpochMs: deadline,
+		Body: req.Body, Attestation: attestation,
+	})
+	if err != nil {
+		return errorResponse(503, "native Responses ACE projection is not ready"), nil
+	}
+	projected, err := connector.ApplyNativeResponses(req.Body, decision)
+	if err != nil {
+		return errorResponse(409, "native Responses projection violated protected fields"), nil
+	}
+	req.Body = projected
+	return nil, nil // PreLLMHook still blocks every physical model attempt
+}
+
+func nativeResponsesQuery(raw json.RawMessage) (string, bool) {
+	var direct string
+	if err := json.Unmarshal(raw, &direct); err == nil {
+		return direct, strings.TrimSpace(direct) != ""
+	}
+	var items []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &items); err != nil || len(items) == 0 {
+		return "", false
+	}
+	for i := len(items) - 1; i >= 0; i-- {
+		var kind string
+		_ = json.Unmarshal(items[i]["type"], &kind)
+		if kind == "function_call_output" {
+			var output string
+			if json.Unmarshal(items[i]["output"], &output) == nil && strings.TrimSpace(output) != "" {
+				return output, true
+			}
+		}
+		var role string
+		_ = json.Unmarshal(items[i]["role"], &role)
+		if role != "user" { continue }
+		var content string
+		if json.Unmarshal(items[i]["content"], &content) == nil && strings.TrimSpace(content) != "" {
+			return content, true
+		}
+		var blocks []map[string]json.RawMessage
+		if json.Unmarshal(items[i]["content"], &blocks) != nil { continue }
+		var visible []string
+		for _, block := range blocks {
+			var ty, text string
+			_ = json.Unmarshal(block["type"], &ty)
+			_ = json.Unmarshal(block["text"], &text)
+			if ty == "input_text" { visible = append(visible, text) }
+		}
+		if out := strings.Join(visible, "\n"); strings.TrimSpace(out) != "" {
+			return out, true
+		}
+	}
+	return "", false
 }
 
 func PreRequestHook(_ *schemas.BifrostContext, _ *schemas.BifrostRequest) error { return nil }
