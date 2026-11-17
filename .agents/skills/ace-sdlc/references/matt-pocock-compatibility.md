@@ -32,6 +32,10 @@ The skills in this directory are optional techniques, not authorities. Apply thi
 - `code-review` may organize standards and specification checks as separate axes, but its upstream parallel-subagent procedure conflicts with ACE policy. Perform reviews sequentially in one agent; never claim independent review. Use the repository BUILD/ARCH/SEC/PLAN gates.
 - Do not invoke or install upstream `implement-spec`, `setup-matt-pocock-skills`, or any other unvendored skill. Do not execute scripts or installers from imported content without a separately reviewed, explicit authorization.
 
+## Post-X plan refinement
+
+After `ace-phase-plan`, the first-party `ace-plan-refinement` coordinates one evidence-first critique and bounded correction/recheck, using `codebase-design` and `code-review` as sequential techniques; pinned parallel subagents remain forbidden. Material changes return to `ace-architecture-design`, `ace-to-tickets` or `ace-phase-plan`, with STALE descendant reconciliation. No secondary tracker, invented G02 approval or false independent-review claim.
+
 ## OpenSpec Apply one-phase limit
 
 - Upstream `openspec-apply-change` has a default **loop until all tasks are done**. In ACE, this is explicitly constrained by `ace-sdlc` / `implement_backend.md`: **select exactly one approved, unblocked canonical phase per implementation pass**, produce its RED/GREEN and four gates, update **only that phase's** `tasks.md` checkboxes, then **STOP** and hand off its PR/evidence. Never treat the upstream multi-task loop as authorization to implement the next phase or bypass G02, an unresolved parent PR, or the explicit implementation request.

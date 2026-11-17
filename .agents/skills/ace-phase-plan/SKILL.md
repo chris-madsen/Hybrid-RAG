@@ -28,6 +28,10 @@ Read root/scoped `AGENTS.md`, current `main` and active stage PRs, accepted ADRs
 3. Run `npm run check:ace-phase-plan -- --change <id> --phase <id> --json` once the canonical tasks link and phase file exist. A PASS proves **structure and input-fingerprint freshness only**, not semantic correctness, G02, executable tests, Skill execution or provider success. Run OpenSpec strict and `check:sdd-prepare` as applicable and report actual results.
 4. Open a **Draft phase-planning PR** (can depend on an unmerged upstream plan PR) and record input hashes and validation. Subsequent implementation requires an **actual approved phase and owner-authorized T2 design**, not merely a green structural checker. Do not start Apply here.
 
+## Post-X refinement handoff
+
+After all linked phase briefs exist and have been structurally checked, follow **`.agents/skills/ace-plan-refinement/SKILL.md`** before finalizing the X-stage review. It performs an evidence-led critique and routes fixes to owning skills, without authorizing G02 or production. Do not call a structure-checker PASS semantic plan quality.
+
 ## Correction contract
 
 If owner alters upstream requirements/design, treat affected phase plans as `STALE`, recalculate file/test owners and SHA fingerprints, re-run checks and update descendant PRs with an explicit reconciliation. Preserve unaffected accepted history. Do not silently claim a draft phase is approved.
