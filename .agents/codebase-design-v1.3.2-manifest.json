@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "mattpocock/skills",
+  "sourceTag": "v1.3.2",
+  "sourceCommit": "d1478fcb140db0b93c0c8df17bcfd311844749d0",
+  "sourceDirectory": "skills/engineering/codebase-design",
+  "license": {
+    "spdx": "MIT",
+    "path": ".agents/LICENSE-MATTPOCOCK-MIT.txt"
+  },
+  "files": [
+    {
+      "path": ".agents/skills/codebase-design/SKILL.md",
+      "gitBlob": "3f63c8146dd2604b419c929e9876b90c30d410e9"
+    },
+    {
+      "path": ".agents/skills/codebase-design/DEEPENING.md",
+      "gitBlob": "cd94075cfd754d147555c5d747a16431ed4c7dd8"
+    },
+    {
+      "path": ".agents/skills/codebase-design/DESIGN-IT-TWICE.md",
+      "gitBlob": "aebdc9f8c05b40d7832de38e2fd8380e1e5507ac"
+    },
+    {
+      "path": ".agents/skills/codebase-design/agents/openai.yaml",
+      "gitBlob": "3180715edb37f6e96bec42f92f00169faa8886ef"
+    }
+  ]
+}
