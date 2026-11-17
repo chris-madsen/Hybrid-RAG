@@ -73,11 +73,15 @@ attempt('HERMES_TRACE', () => {
   const users=events.filter(e=>e.kind==='user_request');
   assert(users.length===1 && typeof users[0].session==='string' && users[0].session.length>=12,'exactly one initial user request required');
   assert(events.every(e=>e.session===users[0].session),'session continuity broken');
-  const calls=events.filter(e=>e.kind==='tool_call' && e.tool==='skill_view' && e.success===true).map(e=>e.skill);
-  let k=0;for(const c of calls)if(c===SKILLS[k])k++;
-  assert(k===SKILLS.length,'skill_view chain not fully observed');
-  const handoffs=events.filter(e=>e.kind==='handoff').map(e=>e.from+'>'+e.to);
-  assert(JSON.stringify(handoffs)===JSON.stringify(['R>S','S>A','A>P','P>X']),'stage transfers missing/incorrect');
+  const steps=events.filter(e=>e.kind==='handoff'||(e.kind==='tool_call'&&e.tool==='skill_view'));
+  const expected=[];
+  for(let i=0;i<SKILLS.length;i++){
+    expected.push('skill:'+SKILLS[i]);
+    if(i<4)expected.push('handoff:'+ORDER[i]+'>'+ORDER[i+1]);
+  }
+  const observed=steps.map(e=>e.kind==='handoff' ? 'handoff:'+e.from+'>'+e.to :
+    e.success===true ? 'skill:'+e.skill : 'failed-skill:'+e.skill);
+  assert(JSON.stringify(observed)===JSON.stringify(expected),'missing/reordered skills or automatic handoffs');
   assert(!events.some(e=>e.kind==='implementation'||e.kind==='provider_egress'),'planning run performed prohibited action');
 });
 if(output.checks.every(c=>c.status==='PASS'))output.verdict='STRUCTURAL_REVIEW_ONLY';
