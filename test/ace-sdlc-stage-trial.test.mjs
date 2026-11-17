@@ -73,3 +73,25 @@ test('Chat-first design cannot hide behind Responses manifest',()=>trial(x=>{x.g
 test('omitted phase from tasks is blocked',()=>trial(x=>{x.git('checkout','-q','trial-x');x.write(x.home+'tasks.md','# Tasks\n- [ ] C01 — missing link\n');x.git('add','.');x.git('commit','-qm','bad phase link');x.scenario.stages[4].head=x.git('rev-parse','HEAD');blocked(x.verify(),'ARTIFACTS_AND_PROTOCOL','orphan phase');}));
 
 test('independent but non-interleaved skills/handoffs are not an automatic pipeline',()=>trial(x=>{const moves=x.events.filter(e=>e.kind==='handoff');for(let i=x.events.length-1;i>=0;i--)if(x.events[i].kind==='handoff')x.events.splice(i,1);x.events.push(...moves);x.saveTrace();blocked(x.verify(),'HERMES_TRACE','reordered');}));
+
+test('a changed parent can be reconciled by restacking all descendants and regenerating OIDs',()=>trial(x=>{
+  x.git('checkout','-q','trial-r');
+  x.write('docs/reviews/trial.md','Research refreshed after parent review\n');
+  x.git('add','.');x.git('commit','-qm','reviewed research update');
+  let nextParentHead=x.git('rev-parse','HEAD');
+  x.scenario.stages[0].head=nextParentHead;
+  x.scenario.stages[0].outputs[0].oid=x.git('rev-parse',nextParentHead+':docs/reviews/trial.md');
+  for(let i=1;i<x.scenario.stages.length;i++){
+    const stage=x.scenario.stages[i];
+    const oldParent=stage.parentHead;
+    x.git('checkout','-q',stage.branch);
+    x.git('rebase','-q','--onto',nextParentHead,oldParent,stage.branch);
+    stage.parentHead=nextParentHead;
+    stage.head=x.git('rev-parse','HEAD');
+    for(const item of stage.inputs)item.oid=x.git('rev-parse',stage.parentHead+':'+item.path);
+    for(const item of stage.outputs)item.oid=x.git('rev-parse',stage.head+':'+item.path);
+    nextParentHead=stage.head;
+  }
+  const result=x.verify();assert.equal(result.code,0,JSON.stringify(result.result));
+  assert.equal(result.result.verdict,'STRUCTURAL_REVIEW_ONLY');
+}));
