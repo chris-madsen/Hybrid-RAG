@@ -88,8 +88,9 @@ export const handleGatewayProjectionHttp = async (
   if (path === '/internal/ace-gateway/v2/project') {
     if (!service.projectResponses) return error(503, 'RESPONSES_NOT_READY', 'native Responses projector is not configured');
     let payload: unknown;
-    try { payload = JSON.parse(body) as unknown; }
-    catch { return error(400, 'INVALID_JSON', 'native Responses request must be JSON'); }
+    try { payload = JSON.parse(body) as unknown; } catch {
+      return error(400, 'INVALID_JSON', 'native Responses request must be JSON');
+    }
     const response = await Effect.runPromise(service.projectResponses(payload));
     if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
     if (response.value.kind === 'BLOCK') return error(409, response.value.reasonCode, 'native Responses projection refused');
