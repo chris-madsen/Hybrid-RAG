@@ -48,6 +48,8 @@ H-03 path and blob checks confirmed that #261 changes only `design.md`; #262 cha
 - `hermes skills list --help` and `hermes skills trust --help` were checked. After the latest owner instruction, `hermes skills trust` was run for the exact #264 worktree; it reported `Trusted` and 23 project Skills available to sessions started there. The command/list view still showed only 14 installed profile Skills, so the session tool trace below is the project-discovery evidence.
 - No other project root was trusted. The one model-backed smoke used only `--toolsets skills`, a synthetic prompt, and project Skill text; it did not call ACE/Bifröst/provider endpoints or Harbor.
 - `npm run sdlc:preflight -- --tier T2 --stage research --json` at #264: exit 0, verdict `REVIEW_REQUIRED`, `G02=REVIEW_REQUIRED`.
+- `npm run sdlc:preflight -- --tier T2 --stage implement --task-id ace-g11-c01 --plan openspec/changes/013-gateway-g11-production-acceptance/tasks.md --json` without `--g02`: exit 2, verdict `BLOCKED`, `G02=BLOCKED`.
+- The same implementation preflight with the provisional `design.md` supplied as `--g02`: exit 0 but verdict `REVIEW_REQUIRED`, `G02=REVIEW_REQUIRED`; a file/crosswalk is not owner approval. No Apply or provider egress was attempted.
 - `npm run worktree:preflight -- --task-id ace-sdlc-pipeline-phase-plans-g11-2026-11-16 --json`: `ok:true`, `action:reuse`, clean worktree, live PR #264.
 - Worktree preflight from dirty `/harness` refused sibling-worktree creation with `CURRENT_WORKTREE_NOT_CLEAN`; no creation was attempted there and no files were changed. Subsequent isolated worktrees were started from the clean `origin/main` worktree at e99.
 
@@ -192,7 +194,7 @@ HTEST results:
 | HTEST-08 | PASS | Exact parent ancestry and three-dot stage diffs verified; #265 squash is included in #264. |
 | HTEST-09 | PASS | Real sandbox parent design/spec mutation produced `STALE` with exit 2; refreshed inputs returned READY. |
 | HTEST-10 | PASS | Disposable parent squash, child restack/replacement PR, and child-only diff verified; sandbox PRs closed/merged as listed. |
-| HTEST-11 | PARTIAL / NOT_RUN | Implementation preflight returned `REVIEW_REQUIRED` (exit 0), with plan/G02 `PRESENT_NOT_APPROVED`; no Apply or egress command was run. |
+| HTEST-11 | PASS (G02 preflight gate) / NOT_RUN (Apply and egress) | Without `--g02`, T2 implementation preflight exited 2 with `BLOCKED`; with the provisional crosswalk it remained `REVIEW_REQUIRED`. No Apply or egress was run. |
 | HTEST-12 | PASS (reporting criterion) | Local tests, OpenSpec, CI passes/fails/skips are bound to exact SHAs; QG6 failure remains explicit. |
 | HTEST-13 | PASS (same-session CLI resume) | The local Hermes session was resumed in a separate CLI process and returned exit 0; host crash/restart recovery was not tested. |
 
