@@ -65,7 +65,10 @@ func validateNativeResponsesProjection(original, projected []byte) error {
     if before["store"] != false || after["store"] != false {
         return errors.New("Responses projection requires explicit store:false")
     }
-    if before["messages"] != nil || after["messages"] != nil {
+    if _, exists := before["messages"]; exists {
+        return errors.New("Chat payload is not a native Responses request")
+    }
+    if _, exists := after["messages"]; exists {
         return errors.New("Chat payload is not a native Responses request")
     }
     beforeInput, ok := before["input"]
