@@ -1,0 +1,5 @@
+interface:
+  display_name: "ACE Plan Refinement"
+  short_description: "Critique and refine canonical ACE phase plans"
+policy:
+  allow_implicit_invocation: false

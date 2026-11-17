@@ -102,6 +102,8 @@ Each phase describes:
 
 **Exit:** the `ace-to-tickets` graph exists **and** `ace-phase-plan` has produced a detailed executable plan per ready chunk (`openspec/changes/<id>/phases/<phase>.md`, linked from the single canonical `tasks.md`). Validate each file with `npm run check:ace-phase-plan -- --change <id> --phase <phase> --json` for structural linkage/fresh input hashes; **then** a reviewer can independently assess each phase's semantic completeness, exact test oracles and cross-phase interfaces. Green structural status is not G02 approval, a command execution, or a real provider test.
 
+**Post-X semantic quality pass:** use [ACE Plan Refinement](../../.agents/skills/ace-plan-refinement/SKILL.md) after `ace-phase-plan` and before presenting X as reviewable. Critique feasibility, reuse, DAG, test executability and OpenSpec consistency; return substantive changes to their original S/A/P/X owner, refresh stale fingerprints and retain G02 as an independent decision. NO_CHANGE may be the correct result; do not start code or create another task tracker.
+
 ## 4. Implement stage
 Full procedure: [implement_backend.md](../research/sdlc/source/commands/implement_backend.md). This is a **complete detailed prompt**, not merely a 4-step mnemonic.
 

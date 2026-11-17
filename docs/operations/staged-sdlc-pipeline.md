@@ -10,7 +10,7 @@
 | S: Requirements | `ace-sdd-prepare` Requirements mode + `to-spec`, OpenSpec CLI | Existing/new `proposal.md` and `specs/**/spec.md` with IDs and tests | Yes, once source facts reviewable | No new architecture assumptions |
 | A: Architecture | `ace-architecture-design` + pinned `codebase-design` / `domain-modeling` | `design.md` AS-IS/TO-BE, minimal delta, Event Storming, Functional DDD, optional FSM, Effect, DbC/TypeSpec and G02 crosswalk | Yes, as a **provisional** design if upstream Requirements is not approved | G02 owner approval required before T2 code |
 | P: To-tickets | `ace-to-tickets` | One canonical `tasks.md` DAG with ACs, RED/GREEN, ~1000 changed handwritten LOC including tests | Yes if A is coherent; mark unapproved decisions provisional | No source edits |
-| X: Executable plans | `ace-phase-plan` | `phases/<ID>.md` per chunk linked in `tasks.md`, using `phase-template.md` | Yes while A/P Draft PRs reviewed; SHA-checked | Phase is not executable if required choices not approved |
+| X: Executable plans | `ace-phase-plan` → `ace-plan-refinement` (post-X quality pass) | `phases/<ID>.md` per chunk linked in `tasks.md`, using `phase-template.md` | Yes while A/P Draft PRs reviewed; SHA-checked | Phase is not executable if required choices not approved |
 | I: Implementation | `openspec-apply-change` constrained to **one phase**, `tdd`, `implement_backend.md` | Source changes, actual RED/GREEN, 4 review gates, PR per chunk | Next **preparation** may stack; never implement dependent T2 change with missing G02 | Explicit implementation request + G02 + per-provider egress |
 | V: Verify/accept | `openspec-verify-change` + final cross-phase review | Complete AC/provider/agent/Harbor evidence; owner decision | Reviewable as findings arrive | Never claim production from mocks or CI alone |
 
@@ -24,6 +24,10 @@ For T0 use the short existing `ace-sdlc` path. For T1 use focused Research→Des
 - Architecture (T2) maps commands/events/policies/hot spots, strategic DDD ownership, immutable ADT and pure transition rules, FSM only when essential, Effect orchestration, TypeSpec where public, Meyer require/ensure/invariant/frame/exceptional, and real provider tests. `G02` is a separate **actual human review**, not an inferred status from an existing crosswalk.
 - `tasks.md` is the **single task graph and checkbox ledger**. `phases/<ID>.md` are executable briefs: no second phase completion checkboxes. Use existing `docs/research/sdlc/source/templates/phase-template.md` headings. Full plans must specify exact changed file/test owners, contract inputs/outputs, deterministic RED/GREEN commands and expected observable results, security negatives, rollback/STOP, runtime provider oracles and accepted architecture decisions.
 - The planned size of **~700–1,200 changed handwritten lines** incl. tests is a flexible forecast, not a hard refusal to handle a 200-line security seam. If architecture changes cost, automatically reslice the affected unfinished frontier without repeating the owner's granularity interview.
+
+## Post-X AI plan refinement
+
+Before X is called reviewable, apply [ACE Plan Refinement](../../.agents/skills/ace-plan-refinement/SKILL.md) after the full set of phase plans exists. Critique architecture/feasibility, upstream reuse, DAG ordering, executable RED/GREEN and OpenSpec consistency against actual current source; compare minimally changed alternatives and accept NO_CHANGE if appropriate. Findings and dispositions belong in the existing X-stage PR body/checkpoint, not a parallel tracker. Material S/A/P changes go back to the owning stage branch, make dependent stacked PRs STALE, require refreshed hashes/rechecks and preserve stage-only diffs. The pass does **not** become a sixth R→S→A→P→X stage, approve G02, or authorize provider egress.
 
 ## Stacked Draft PR handoff (not blocked on reviewer latency)
 
