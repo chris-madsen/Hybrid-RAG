@@ -25,7 +25,7 @@ test('same first-party skill is routed at shared-input preparation and post-X sy
 test('independent free and skills candidates use the same pinned inputs, without model context leakage', () => {
   assert.match(skill, /A — Free Planning/u);
   assert.match(skill, /B — Skills Planning/u);
-  assert.match(skill, /two sessions sequentially/u);
+  assert.match(skill, /two sessions \*\*sequentially\*\*/u);
   assert.match(skill, /Two passes in one continuing model context are NOT independent/u);
   assert.match(skill, /same neutral bundle/u);
   assert.match(skill, /Freeze A with an exact artifact digest/u);
@@ -57,7 +57,7 @@ test('only one canonical OpenSpec plan survives; owner gates and reconciliation 
   assert.match(skill, /ST[A]LE/u);
   assert.match(skill, /G02/u);
   assert.match(skill, /OWNER_DECISION/u);
-  assert.match(skill, /source path:line@SHA/u);
+  assert.match(skill, /path:line@SHA/u);
   assert.match(skill, /No evidence means UNKNOWN|distinguish proven defect, plausible risk and UNKNOWN/iu);
   assert.match(skill, /not an independent human review/u);
   assert.match(skill, /one bounded critique and correction\/recheck/u);
@@ -65,7 +65,7 @@ test('only one canonical OpenSpec plan survives; owner gates and reconciliation 
   assert.match(skill, /npm run check:sdd-prepare/u);
   assert.match(skill, /npm run check:ace-phase-plan/u);
   assert.match(skill, /for every linked phase/u);
-  assert.match(skill, /do not auto-merge/u);
+  assert.match(skill, /Do not auto-merge/u);
 });
 
 test('T0 stays lightweight and T1 dual-plan generation is not mandatory', () => {
