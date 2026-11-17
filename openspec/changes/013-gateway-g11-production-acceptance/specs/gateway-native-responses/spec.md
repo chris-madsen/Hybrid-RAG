@@ -23,12 +23,16 @@ ACE SHALL use Bifröst's certified provider-native Responses transport for its o
 
 ### Requirement: Preserve the real long agent loop without provider-held implicit state
 
+ACE SHALL preserve all original Responses input items, reasoning and tool-call relations during additive context projection; hidden provider-managed history MUST NOT be treated as verified agent history.
+
 #### Scenario: RESP-004 — Lossless Responses multi-turn input projection
 - **WHEN** Hermes submits stateless Responses input with function_call, function_call_output, matching call_id, reasoning/opaque content, multimodal blocks, streaming and vendor extensions
 - **THEN** ACE inserts only clearly marked untrusted verified source evidence while preserving the full original input-item order and protected provider parameters
 - **AND** does not rewrite into Chat messages, invent a truncated history, drop model controls or claim a real Hermes loop from synthetic replay alone.
 
 ### Requirement: Provider network sends require independent authorization
+
+ACE SHALL authorize every final physical outbound provider attempt independently, with single-use identity, protected payload binding, applicable privacy/egress policy and auditable denial on uncertainty.
 
 #### Scenario: RESP-005 — Final physical-send authority
 - **WHEN** the pinned Bifröst dispatches, retries, re-routes, internally falls back or applies another mutator
@@ -41,6 +45,8 @@ ACE SHALL use Bifröst's certified provider-native Responses transport for its o
 - **AND** fail closed on unsupported subscription routing, hidden continuation, secret content, unapproved destination or incomplete privacy evidence.
 
 ### Requirement: Acceptance requires full agent evidence and quality
+
+ACE SHALL certify Hermes integration and token-economics claims only from independently checked real agent/provider evidence, strong matched Harbor baselines and explicit owner approval.
 
 #### Scenario: RESP-007 — Real Hermes reasoning/tools/streaming loop
 - **WHEN** an owner-authorized disposable repository task runs through real Hermes and pinned Bifröst
