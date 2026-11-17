@@ -11,8 +11,8 @@ import {
 } from '../domain/responses-projection.js';
 import type { ContextTransformService } from './context-transform-service.js';
 import { authorizeAndAudit } from './policy-service.js';
-import type { GatewayProjectionSecurity } from './gateway-projection-service.js';
-import { sha256Base64 } from '../domain/gateway-projection.js';
+import type { GatewayProjectionSecurity } from './gateway-security-contract.js';
+import { sha256Base64 } from '../domain/gateway-request-binding.js';
 
 // This service prepares an additive native Responses input, not a provider
 // delivery receipt. Bifröst's per-physical-send guard is a separate hard gate.

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
-import { type DataClass, type ProjectDataPolicy } from '../domain/policy.js';
+import { type DataClass } from '../domain/policy.js';
 import { containsLikelySecret } from '../domain/sensitive-text.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
 import { err, ok, type Result } from '../domain/result.js';
@@ -14,19 +14,12 @@ import {
 } from '../domain/gateway-projection.js';
 import type { AceTransformResult, ContextTransformService } from './context-transform-service.js';
 import { authorizeAndAudit } from './policy-service.js';
-import type { AuditSink, ClockPort } from './ports.js';
+import type { GatewayProjectionSecurity } from './gateway-security-contract.js';
+export type { GatewayProjectionSecurity } from './gateway-security-contract.js';
 
 export interface GatewayProjectionService {
   readonly project: (value: unknown) => Effect.Effect<Result<GatewayProjectionDecision, DomainError>>;
 }
-export interface GatewayProjectionSecurity {
-  readonly policy: ProjectDataPolicy;
-  readonly allowedProviders: readonly string[];
-  readonly clock: ClockPort;
-  readonly audit: AuditSink;
-}
-
-
 const bodySha256 = (value: string): string => createHash('sha256').update(Buffer.from(value, 'base64')).digest('hex');
 const receiptFor = (request: GatewayProjectionRequest, decision: GatewayProjectionReceipt['decision'], extra: Partial<GatewayProjectionReceipt> = {}): GatewayProjectionReceipt => ({
   schemaVersion: 'ace.gateway.v1',

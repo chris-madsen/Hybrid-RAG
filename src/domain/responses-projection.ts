@@ -1,6 +1,6 @@
 import { domainError, type DomainError } from './errors.js';
 import { err, ok, type Result } from './result.js';
-import { sha256Base64, validateHostCompactionAttestation, type HostCompactionAttestation } from './gateway-projection.js';
+import { sha256Base64, validateHostCompactionAttestation, type HostCompactionAttestation } from './gateway-request-binding.js';
 
 // Versioned native Responses projection: never uses Chat messages/conversion.
 export interface ResponsesProjectionRequest {
