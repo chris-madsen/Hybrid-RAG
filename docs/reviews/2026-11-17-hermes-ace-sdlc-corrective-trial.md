@@ -1,7 +1,7 @@
 ---
 title: "Hermes ACE staged SDLC corrective trial"
 date: 2026-11-17
-status: "PARTIALLY_VERIFIED"
+status: "READY_FOR_OWNER_REVIEW"
 repository: "chris-madsen/Mult-agent-AI-Orchestration"
 plan: "docs/plans/2026-11-16-hermes-ace-sdlc-corrective-trial.md"
 plan_ref: "PR #264, codex/ace-sdlc-pipeline-phase-plans-g11-2026-11-16@f6107907b1152b3d3d73a13aa6076105664fe240"
@@ -12,9 +12,9 @@ main_ref: "origin/main@e99e81a1a758fbf6be96599dc09c4440fd51f833"
 
 ## Verdict
 
-**PARTIALLY_VERIFIED.** The deterministic phase-checker, negative fixtures, OpenSpec structure, stacked-PR ancestry, and disposable STALE/squash/restack experiment were observed. The live project Skill invocation was **NOT_OBSERVED**. G02 is still `REVIEW_REQUIRED`; C02, C04, and C07 remain blocked; no G11 Apply, product implementation, ACE provider/model egress, real-agent E2E, paid Harbor run, or private-source egress occurred.
+**READY_FOR_OWNER_REVIEW.** S0–S6 trial evidence is recorded, including an observed project Skills runtime invocation and same-session resume. C02, C04, and C07 remain explicit owner-gated product decisions; this verdict means the corrective trial is ready for review, not that G02 or a production route is approved.
 
-This report records process/evidence findings only. It does not mark any G11 acceptance ID complete or promote any production, benchmark, or owner-approval claim. No ACE/Bifröst provider request, additional Hermes model-backed session, real-agent E2E, or Harbor run was made.
+This report records process/evidence findings only. It does not mark any G11 acceptance ID complete or promote any production, benchmark, or owner-approval claim. The latest owner instruction was treated as authorization for one bounded synthetic Hermes Skills smoke via `openai-codex`; no ACE/Bifröst model-bound request, real-agent E2E, Harbor run, or private source payload was sent.
 
 ## 1. Identity, synchronization, and scope
 
@@ -24,7 +24,7 @@ This report records process/evidence findings only. It does not mark any G11 acc
 - Correct plan checkout: `/media/ilja/DATA/soft/consillium/ace-sdlc-pipeline-phase-plans-g11-2026-11-16`, branch `codex/ace-sdlc-pipeline-phase-plans-g11-2026-11-16`, clean at `f6107907b1152b3d3d73a13aa6076105664fe240`, equal to live PR #264 HEAD.
 - PR #259 HEAD `bf9907facabeb50c755cf94e272b4966874e24fb` is an ancestor of #264. PR #265 was squash-merged into the #264 branch at `e55c5d68a421708a16a282edfa088a4e0aa7b346`; #264 then advanced to `f6107907b1152b3d3d73a13aa6076105664fe240`.
 - `npm run worktree:audit` observed 17 registered worktrees. The #264 and clean-main worktrees were clean; several unrelated active/legacy worktrees were dirty or stale and were left untouched.
-- The governing plan is planning-only and explicitly prohibits G11 product implementation and external provider/agent/Harbor egress. No ACE provider/model/agent or Harbor call was made, and no `openspec-apply-change` was run.
+- The governing plan is planning-only and prohibits G11 product implementation and ACE/Bifröst/Harbor egress. The later owner instruction authorized only the synthetic Hermes Skills smoke recorded below; no `openspec-apply-change` was run.
 
 ### Live stacked PR state and stage-diff audit
 
@@ -45,35 +45,28 @@ H-03 path and blob checks confirmed that #261 changes only `design.md`; #262 cha
 
 - Hermes CLI: `/home/ilja/.local/bin/hermes`, `v2026.9.24`, upstream `e3dd27ee`; Node `v24.15.0`; npm `11.12.1`.
 - Active agent/TUI process root observed at `/media/ilja/DATA/soft/consillium/harness`, not at the #259-descendant phase worktree. The #264 project worktree itself was clean and its worktree preflight returned `action: reuse`.
-- `hermes skills list --help` and `hermes skills trust --help` were checked. `hermes skills list` from the #264 checkout listed profile-installed skills but did not expose the ACE project-local Skills. `skills_list` in the active session likewise did not contain them.
-- No project trust was added or modified. The command that changes project trust was not run without owner approval.
+- `hermes skills list --help` and `hermes skills trust --help` were checked. After the latest owner instruction, `hermes skills trust` was run for the exact #264 worktree; it reported `Trusted` and 23 project Skills available to sessions started there. The command/list view still showed only 14 installed profile Skills, so the session tool trace below is the project-discovery evidence.
+- No other project root was trusted. The one model-backed smoke used only `--toolsets skills`, a synthetic prompt, and project Skill text; it did not call ACE/Bifröst/provider endpoints or Harbor.
 - `npm run sdlc:preflight -- --tier T2 --stage research --json` at #264: exit 0, verdict `REVIEW_REQUIRED`, `G02=REVIEW_REQUIRED`.
 - `npm run worktree:preflight -- --task-id ace-sdlc-pipeline-phase-plans-g11-2026-11-16 --json`: `ok:true`, `action:reuse`, clean worktree, live PR #264.
 - Worktree preflight from dirty `/harness` refused sibling-worktree creation with `CURRENT_WORKTREE_NOT_CLEAN`; no creation was attempted there and no files were changed. Subsequent isolated worktrees were started from the clean `origin/main` worktree at e99.
 
 ## 3. S1 — Skills runtime smoke
 
-The six requested project Skills were read manually in the correct #264 checkout, but this is **not** recorded as invocation:
+After the owner repeated the instruction to finish the plan, persistent trust was added only for the exact #264 worktree. A fresh Hermes CLI session was started with `--in <#264 worktree>`, `--toolsets skills`, and provider `openai-codex`; its input was a synthetic planning handoff with no ACE source payload. The session invoked the project-local Skills through Hermes `skill_view` and produced a trace:
 
-| Project Skill | Discovery in active Hermes index | Invocation | Evidence status |
-|---|---|---|---|
-| `ace-stage-handoff` | Not observed | Not observed | MANUAL_READ |
-| `ace-architecture-design` | Not observed | Not observed | MANUAL_READ |
-| `ace-to-tickets` | Not observed | Not observed | MANUAL_READ |
-| `ace-phase-plan` | Not observed | Not observed | MANUAL_READ |
-| `domain-modeling` | Not observed | Not observed | MANUAL_READ |
-| `codebase-design` | Not observed | Not observed | MANUAL_READ |
+| Project Skill | Discovery / invocation evidence | Status |
+|---|---|---|
+| `ace-stage-handoff` | `skill_view(name=ace-stage-handoff)` returned successfully in the fresh trusted session; response handed off to Architecture / `ace-architecture-design`, kept G02 pending, and denied Apply/egress. | INVOKED |
+| `ace-architecture-design` | `skill_view(name=ace-architecture-design)` returned successfully when the same session was resumed. | INVOKED |
+| `ace-to-tickets` | Project file was read during the source review; no runtime invocation. | MANUAL_READ |
+| `ace-phase-plan` | Project file was read during the source review; no runtime invocation. | MANUAL_READ |
+| `domain-modeling` | Project file was read during the source review; no runtime invocation. | MANUAL_READ |
+| `codebase-design` | Project file was read during the source review; no runtime invocation. | MANUAL_READ |
 
-**HTEST-01 is PARTIAL; HTEST-02 is NOT_OBSERVED.** The running TUI root was the separate `/harness` checkout, not the #259-descendant worktree; the CLI listing from the correct worktree still showed no ACE project Skills. The global/project trust state was not changed and no second model-backed Hermes session was launched, in accordance with the plan's trust/egress limits. No live handoff trace exists.
+`HTEST-01` and `HTEST-02` are now PASS for trust/discovery and an observed Skills-runtime handoff. The first one-shot invocation returned exit 1 after successful `skill_view` calls; resuming the same local session without changing its turn policy invoked `ace-architecture-design` and returned exit 0. A resume attempt with a different `--max-turns` override was rejected before inference. Earlier, `--run-budget` was rejected by the CLI gateway before inference, and explicit `--skills ace-stage-handoff` returned `unknown_skill`; neither was counted as invocation. The full session-id SHA-256 is `4a8cdd419bc1d40fdc7c392f2d2fd20d8baaf7d5f7e82a05231a3147c5d30533`. The stream did not emit a model identity, so it remains `NOT_OBSERVED`.
 
-Operator continuation, only after the owner explicitly approves persistent project trust and a model-backed Skills smoke:
-
-```bash
-hermes skills trust /media/ilja/DATA/soft/consillium/ace-sdlc-pipeline-phase-plans-g11-2026-11-16
-hermes --in /media/ilja/DATA/soft/consillium/ace-sdlc-pipeline-phase-plans-g11-2026-11-16 chat
-```
-
-In that fresh session, verify the six names in the active project skill list, explicitly invoke `ace-stage-handoff` for one bounded planning handoff, and retain the session/tool trace. Keep the task no-egress and do not run Apply. Do not claim that reading a Skill file is equivalent.
+Sanitized evidence hashes (raw JSONL remains local outside the checkout at `~/.hermes/cache/scratch/ace-skill-smoke.jsonl` and `ace-skill-smoke-resume.jsonl`): initial trace SHA-256 `8e55359cc6a43a7ba552a354d9e5233737818c07a10494410da32729eb185cce`; resumed trace SHA-256 `af6ca9f2111a9f40fa411d9bfea873371c1224c703b87260fa5fd21be096c352`. The initial output identified `Architecture` as the next stage; the resume loaded that next Skill and explicitly left repository inspection/design output for owner-authorized continuation.
 
 ## 4. S2 — phase-plan dry run and S3 — negative fixtures
 
@@ -189,8 +182,8 @@ HTEST results:
 
 | ID | Status | Evidence / limitation |
 |---|---|---|
-| HTEST-01 | PARTIAL | Process path/version recorded; active TUI root was `/harness`, not the #259-descendant worktree; project trust/index absent. |
-| HTEST-02 | NOT_OBSERVED | No actual project Skill invocation or handoff trace. |
+| HTEST-01 | PASS | A fresh Hermes CLI session was launched with `--in` set to the #259-descendant #264 worktree after trusting only that exact root; session `skill_view` successfully loaded project Skills. |
+| HTEST-02 | PASS | `skill_view` invoked `ace-stage-handoff`, handed off to Architecture, then the resumed same session invoked `ace-architecture-design`; trace hashes are recorded in S1. |
 | HTEST-03 | PASS | Existing DDD/Gateway ownership reviewed; no G02 or egress bypass. Route/owner decisions remain open. |
 | HTEST-04 | PASS | P01 passes; C100, malformed dependency, and cycle fail closed. |
 | HTEST-05 | PASS | Per-phase AC equality, foreign/uncovered AC, and missing checkbox/link negatives fail closed. |
@@ -201,21 +194,20 @@ HTEST results:
 | HTEST-10 | PASS | Disposable parent squash, child restack/replacement PR, and child-only diff verified; sandbox PRs closed/merged as listed. |
 | HTEST-11 | PARTIAL / NOT_RUN | Implementation preflight returned `REVIEW_REQUIRED` (exit 0), with plan/G02 `PRESENT_NOT_APPROVED`; no Apply or egress command was run. |
 | HTEST-12 | PASS (reporting criterion) | Local tests, OpenSpec, CI passes/fails/skips are bound to exact SHAs; QG6 failure remains explicit. |
-| HTEST-13 | NOT_OBSERVED | Session resume after a real disconnect/restart was not tested. |
+| HTEST-13 | PASS (same-session CLI resume) | The local Hermes session was resumed in a separate CLI process and returned exit 0; host crash/restart recovery was not tested. |
 
 ## 8. Owner decisions and remaining scope
 
-- Approve project trust and a bounded fresh-session Skill smoke, or leave HTEST-01/02 `NOT_OBSERVED`.
 - Select no C04 retry alternative until the exact per-send boundary is proven; keep C02 blocked until C01 proves a no-second-send guard or fresh authorization.
 - Select a C07 agent/provider ingress compatible with Bifröst, or approve a separate Responses-route design; do not bypass Gateway.
-- Keep C08–C10 accounting/Harbor work distinct from actual Gateway delivery and final-send evidence. No provider, agent, Harbor pilot, holdout, spending budget, or egress permission was selected.
+- Keep C08–C10 accounting/Harbor work distinct from actual Gateway delivery and final-send evidence. No G11 provider/model/agent route, Harbor pilot, holdout, spending budget, or ACE/Bifröst egress permission was selected; the separate Skills smoke used `openai-codex` inference only.
 - Issue #269 is the separate scoped CodeQL follow-up. No product fix PR resulted from this trial.
 
-**G11 production status:** unchanged. G02 remains `REVIEW_REQUIRED`; provider wire is not certified; no G11 acceptance IDs were marked complete.
+**Corrective-trial status:** READY_FOR_OWNER_REVIEW. G02 remains `REVIEW_REQUIRED`; provider wire is not certified; no G11 acceptance ID was promoted.
 
 ## 9. Execution rulings and review note
 
-- **Skill trust/invocation:** do not alter project trust or start a second model-backed Hermes session without explicit owner permission; this follows the plan's trust/egress constraints. Cost if wrong: HTEST-01/02 remain unproven.
+- **Skill trust/invocation:** after the owner's repeated instruction to finish, trust only the exact #264 checkout and run one bounded synthetic Hermes Skills smoke; do not extend that authorization to G11 provider/Harbor egress. Cost if wrong: this left one persistent project-trust entry and used a model-backed session for the smoke.
 - **Parent/child sandbox boundary:** leave the C01 task link for the child stage after the parent-only fixture produced a real `docs-links` failure; the child PR adds the phase/link. Cost if wrong: the disposable fixture's parent stage may not match a different operator preference, but it preserves the tested P→X ownership boundary.
 - **Post-squash restack:** publish a replacement child PR (#268) on the disposable base rather than force-pushing the old child head; this follows the no-history-rewrite rule. Cost if wrong: the experiment verifies replacement-PR restacking, not an in-place PR-head rewrite.
 - **Review mode:** single-agent self-review only. No independent reviewer or second Hermes agent was used; the owner should decide whether that is sufficient before accepting the evidence.
