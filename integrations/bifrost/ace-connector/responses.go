@@ -114,7 +114,7 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
     if decision.Kind != "PREPARED" || decision.ReasonCode != "VERIFIED_CONTEXT_ADDED" {
         return nil, errors.New("native Responses projection is not prepared")
     }
-    if len(decision.BodyBase64) > 4*((DefaultMaxBodyBytes+2)/3) {
+    if int64(len(decision.BodyBase64)) > 4*((DefaultMaxBodyBytes+2)/3) {
         return nil, errors.New("native projected body exceeds bound")
     }
     body, err := base64.StdEncoding.DecodeString(decision.BodyBase64)
