@@ -1,6 +1,6 @@
 # Tasks — G11 native Responses-only executable implementation plan
 
-This is the **single canonical phase/checkbox ledger** for OpenSpec change 013. Prepared on source main `3b42fbee5168126eda046d47fb2286c633b21e17` with the explicitly selected Hermes → Bifröst /v1/responses → ACE Gateway v2 architecture. All stages are planning-only, owner G02 = REVIEW_REQUIRED, external provider egress = NOT_AUTHORIZED, live Hermes / Harbor = NOT_RUN. No status box here is complete.
+This is the **single canonical phase/checkbox ledger** for OpenSpec change 013. Prepared on source main `3b42fbee5168126eda046d47fb2286c633b21e17` with the explicitly selected provider-native Responses architecture: Hermes → Bifröst /v1/responses → ACE Gateway v2. All stages are planning-only, owner G02 = REVIEW_REQUIRED, external provider egress = NOT_AUTHORIZED, live Hermes / Harbor = NOT_RUN. No status box here is complete.
 
 ## Dependency DAG and LOC budget
 
