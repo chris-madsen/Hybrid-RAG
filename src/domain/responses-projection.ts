@@ -91,7 +91,7 @@ export const decodeNativeResponsesBody = (
   if (value.store !== false) return rejected('body.store', 'native Responses requires explicit store:false for private-source safety');
   // Built-in Responses conversation IDs refer to opaque provider-stored
   // history; until the exact privacy/trust contract is reviewed fail closed.
-  if (value.previous_response_id !== undefined || value.conversation !== undefined) {
+  if (['previous_response_id', 'conversation', 'conversation_id', 'thread_id'].some((field) => value[field] !== undefined)) {
     return rejected('body.previous_response_id', 'opaque provider-stored state is not certified');
   }
   // Reject paths that would bypass the native Responses contract.
