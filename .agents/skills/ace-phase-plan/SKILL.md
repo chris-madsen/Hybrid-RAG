@@ -30,7 +30,7 @@ Read root/scoped `AGENTS.md`, current `main` and active stage PRs, accepted ADRs
 
 ## Post-X refinement handoff
 
-After all linked phase briefs exist and have been structurally checked, follow **`.agents/skills/ace-plan-refinement/SKILL.md`** before finalizing the X-stage review. It performs an evidence-led critique and routes fixes to owning skills, without authorizing G02 or production. Do not call a structure-checker PASS semantic plan quality.
+After all linked phase briefs exist and have been structurally checked, follow **`.agents/skills/ace-plan-refinement/SKILL.md`** in SYNTHESIZE mode before finalizing the X-stage review. Compare candidate B against the frozen source-identical free-form candidate A prepared after R/S; synthesize C through owning S/A/P/X skills, then revalidate every C brief. If A/context isolation was unavailable, report SINGLE_PLAN_REVIEW / INDEPENDENCE_NOT_ATTESTED, never claim an independent dual-plan experiment. It cannot authorize G02 or production. Do not call a structure-checker PASS semantic plan quality.
 
 ## Correction contract
 
