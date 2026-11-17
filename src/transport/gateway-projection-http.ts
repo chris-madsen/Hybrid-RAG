@@ -12,7 +12,8 @@ import type {
 // Retain the constructor shape while retired v1 projection is quarantined.
 // A new typed service will be introduced with the versioned native Responses wire.
 export interface GatewayProjectionHttpService {
-  readonly project: (value: unknown) => unknown;
+  // Legacy v1 projection is retired; no runtime path invokes this method.
+  readonly project?: (value: unknown) => unknown;
   readonly projectResponses?: ResponsesProjectionService['projectResponses'];
 }
 

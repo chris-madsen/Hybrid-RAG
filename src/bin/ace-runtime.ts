@@ -83,7 +83,6 @@ import {
 } from '../application/lsp/server-registry.js';
 import { knownLspServers, selectInstalledLspServersForPaths } from '../application/lsp/claw-discovery.js';
 import { makeRoutedLspSession } from '../application/lsp/routed-semantic.js';
-import { makeGatewayProjectionService } from '../application/gateway-projection-service.js';
 import { makeResponsesProjectionService } from '../application/responses-projection-service.js';
 import { runGatewayProjectionHttp } from '../transport/gateway-projection-http.js';
 
@@ -1137,10 +1136,7 @@ const main = async (): Promise<void> => {
   };
   const contextProvider = contextBridge ?? unavailableContext;
   try {
-    await runGatewayProjectionHttp({
-      ...makeGatewayProjectionService(contextProvider, gatewaySecurity),
-      ...makeResponsesProjectionService(contextProvider, gatewaySecurity),
-    });
+    await runGatewayProjectionHttp(makeResponsesProjectionService(contextProvider, gatewaySecurity));
   } finally {
     let cleanupError: unknown;
     try {
