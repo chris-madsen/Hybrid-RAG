@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -64,18 +64,31 @@ const put = (root, path, content) => {
   mkdirSync(dirname(where), { recursive: true });
   writeFileSync(where, content);
 };
-const makeFixture = (mutate) => {
+const makeFixture = (mutate, requestedPhase = phase) => {
   const root = mkdtempSync(join(tmpdir(), 'ace-phase-plan-'));
   try {
     const specPath = home + '/specs/gateway/spec.md';
     const spec = '# gateway\n## ADDED Requirements\n### Requirement: Example\n#### Scenario: DEMO-001 — valid\n- WHEN valid\n- THEN success\n';
     const design = '# Design\n## Decisions\nWe keep current adapter and DEMO-001.\n';
-    const tasks = '# Tasks\n- [ ] C01 handles DEMO-001; executable plan: [C01](phases/C01.md)\n';
+    const tasks = [
+      '# Tasks',
+      '',
+      '## Dependency DAG and LOC budget',
+      '',
+      '| ID / title | Blocked by | Acceptance IDs | Source / tests / other = total forecast | Observable result |',
+      '|---|---|---|---:|---|',
+      '| C01 — Example | none | DEMO-001 | 0 / 0 / 0 = **0** | fixture |',
+      '',
+      '- [ ] C01 — Example; executable plan: [C01](phases/C01.md)',
+      '',
+    ].join('\n');
     const headings = ['Identity', 'Objective', 'Requirements and invariants', 'Architecture contract',
       'File map', 'Task steps', 'Verification commands and expected proof', 'Gate review', 'Completion'];
     const content = [
       '# Executable phase C01',
       '**Phase ID:** C01',
+      '**Phase dependencies:** none',
+      '- Depends on: none',
       '**Acceptance IDs:** DEMO-001',
       '**Design blob SHA:** ' + gitBlob(design),
       '**Specs SHA-256:** ' + sha256(specPath + '\n' + spec + '\n'),
@@ -94,7 +107,7 @@ const makeFixture = (mutate) => {
     put(root, home + '/phases/' + phase + '.md', content);
     mutate?.(root, { specPath, spec, design, tasks, content });
     const p = spawnSync(process.execPath,
-      [join(repo, 'scripts/ace-phase-plan-check.mjs'), '--root', root, '--change', 'check-fixture', '--phase', phase, '--json'],
+      [join(repo, 'scripts/ace-phase-plan-check.mjs'), '--root', root, '--change', 'check-fixture', '--phase', requestedPhase, '--json'],
       { encoding: 'utf8' });
     return { exit: p.status, data: JSON.parse(p.stdout), stderr: p.stderr };
   } finally {
@@ -121,7 +134,7 @@ test('changed OpenSpec scenario body invalidates dependent phase', () => {
   blocked(makeFixture((root, ctx) => put(root, ctx.specPath, ctx.spec + '- AND additional requirement\n')), 'FRESH_INPUTS');
 });
 test('phase is rejected when not linked from canonical tasks', () => {
-  blocked(makeFixture((root) => put(root, home + '/tasks.md', '# Tasks\n- [ ] C01 handles DEMO-001\n')), 'GRAPH_LINK');
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md', ctx.tasks.replace('[C01](phases/C01.md)', 'C01'))), 'DEPENDENCIES');
 });
 test('unrecognized acceptance ID is rejected', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md', ctx.content.replace('**Acceptance IDs:** DEMO-001', '**Acceptance IDs:** FAKE-999'))), 'GRAPH_LINK');
@@ -136,10 +149,137 @@ test('phase without Meyer exceptional contract remains blocked', () => {
 test('phase plan cannot become second OpenSpec checkbox tracker', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md', ctx.content + '- [ ] duplicate task\n')), 'EXECUTABLE_STRUCTURE');
 });
+test('phase is blocked when the canonical dependency graph references a missing phase', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md',
+    ctx.tasks.replace('| C01 — Example | none |', '| C01 — Example | C99 |'))), 'DEPENDENCIES');
+});
+test('phase is blocked when its declared dependencies disagree with canonical tasks', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md',
+    ctx.content.replace('**Phase dependencies:** none', '**Phase dependencies:** C99'))), 'DEPENDENCIES');
+});
+test('canonical dependency graph rejects cycles before a phase is reviewable', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md', ctx.tasks
+    .replace('| C01 — Example | none |', '| C01 — Example | C02 |')
+    .replace('\n\n- [ ] C01 — Example', '\n| C02 — Example | C01 | DEMO-001 | 0 / 0 / 0 = **0** | fixture |\n- [ ] C02 — Example; executable plan: [C02](phases/C02.md)\n\n- [ ] C01 — Example'))), 'DEPENDENCIES');
+});
+test('malformed C100 dependency is not silently ignored', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md',
+    ctx.tasks.replace('| C01 — Example | none |', '| C01 — Example | C100 |'))), 'DEPENDENCIES');
+});
+test('DAG and brief agree on wrong acceptance ID but the spec rejects it', () => {
+  blocked(makeFixture((root, ctx) => {
+    put(root, home + '/tasks.md', ctx.tasks.replace('| DEMO-001 |', '| FAKE-999 |'));
+    put(root, home + '/phases/C01.md', ctx.content.replace('**Acceptance IDs:** DEMO-001', '**Acceptance IDs:** FAKE-999'));
+  }), 'GRAPH_LINK');
+});
+test('phase AC must belong to its own canonical DAG row, not anywhere in tasks', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md',
+    ctx.content.replace('**Acceptance IDs:** DEMO-001', '**Acceptance IDs:** DEMO-001, DEMO-002'))), 'GRAPH_LINK');
+});
+test('all spec scenario IDs must have a canonical phase owner', () => {
+  blocked(makeFixture((root, ctx) => put(root, ctx.specPath, ctx.spec +
+    '#### Scenario: DEMO-002 — uncovered\n- WHEN new\n- THEN denied\n')), 'GRAPH_LINK');
+});
+test('alternate ID P01 works; no hard-coded Cxx phase namespace', () => {
+  const r = makeFixture((root, ctx) => {
+    const alt = 'P01';
+    put(root, home + '/tasks.md', ctx.tasks.replaceAll('C01', alt));
+    put(root, home + '/phases/' + alt + '.md',
+      ctx.content.replaceAll('C01', alt));
+  }, 'P01');
+  assert.equal(r.exit, 0, JSON.stringify(r.data));
+  assert.equal(r.data.verdict, 'READY_FOR_PHASE_REVIEW');
+});
+test('DAG row containing unexpected natural-language gate is rejected', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/tasks.md',
+    ctx.tasks.replace('| C01 — Example | none |', '| C01 — Example | C01; owner G02 |'))), 'DEPENDENCIES');
+});
 test('symlinked phase plan is rejected (no traversal through related locations)', () => {
   blocked(makeFixture((root, ctx) => {
     const target = join(root, home, 'phases', 'C01.md');
     rmSync(target);
     symlinkSync(join(root, home, 'tasks.md'), target);
   }), 'ARTIFACTS');
+});
+
+
+const phaseInventory = (root, change) => {
+  const base = join(root, 'openspec/changes', change);
+  const tasks = readFileSync(join(base, 'tasks.md'), 'utf8');
+  const linked = [...tasks.matchAll(/^- \[[ x]\] ([A-Z][A-Z0-9-]{1,31}) — [^\n]*?\]\(phases\/([A-Z][A-Z0-9-]{1,31})\.md\)/gmu)];
+  assert.ok(linked.length > 0, change + ': phase directory exists without canonical task links');
+  for (const match of linked) {
+    assert.equal(match[1], match[2], change + ': checkbox and linked phase ID mismatch');
+  }
+  const expected = linked.map((match) => match[1]).sort();
+  assert.equal(new Set(expected).size, expected.length, change + ': duplicate phase task link');
+
+  const folder = join(base, 'phases');
+  const entries = readdirSync(folder, { withFileTypes: true });
+  for (const entry of entries) {
+    assert.ok(entry.isFile() && /^[A-Z][A-Z0-9-]{1,31}\.md$/u.test(entry.name),
+      change + ': orphan, invalid or non-file phase entry: ' + entry.name);
+  }
+  const actual = entries.map((entry) => entry.name.slice(0, -3)).sort();
+  assert.deepEqual(actual, expected, change + ': missing or orphan phase plan relative to canonical tasks');
+  return actual;
+};
+
+test('phase inventory detects missing and orphan linked briefs rather than passing on an empty scan', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-phase-inventory-negative-'));
+  const tempChange = 'negative-inventory';
+  const tasksPath = 'openspec/changes/' + tempChange + '/tasks.md';
+  try {
+    put(root, tasksPath, '# Tasks\n- [ ] C01 — first — [phase brief](phases/C01.md)\n- [ ] C02 — second — [phase brief](phases/C02.md)\n');
+    put(root, 'openspec/changes/' + tempChange + '/phases/C01.md', '# C01\n');
+    assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
+
+    put(root, 'openspec/changes/' + tempChange + '/phases/C02.md', '# C02\n');
+    assert.deepEqual(phaseInventory(root, tempChange), ['C01', 'C02']);
+    put(root, 'openspec/changes/' + tempChange + '/phases/C03.md', '# Orphan\n');
+    assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
+
+    rmSync(join(root, 'openspec/changes/' + tempChange + '/phases'), { recursive: true, force: true });
+    assert.throws(() => phaseInventory(root, tempChange), /ENOENT/u);
+    mkdirSync(join(root, 'openspec/changes/' + tempChange + '/phases'), { recursive: true });
+    assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('all declared OpenSpec executable phase files are present and pass exact current-input checker', () => {
+  const changesDir = join(repo, 'openspec/changes');
+  const changes = readdirSync(changesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  let inspected = 0;
+  for (const change of changes) {
+    const folder = join(changesDir, change, 'phases');
+    const tasksPath = join(changesDir, change, 'tasks.md');
+    const hasPhaseLinks = existsSync(tasksPath)
+      && /\]\(phases\/[A-Z][A-Z0-9-]{1,31}\.md\)/u.test(readFileSync(tasksPath, 'utf8'));
+    if (!hasPhaseLinks && !existsSync(folder)) continue;
+    assert.ok(existsSync(folder), change + ': canonical tasks link phase briefs but directory is missing');
+    const phases = phaseInventory(repo, change);
+    for (const phaseId of phases) {
+      const proc = spawnSync(process.execPath, [
+        join(repo, 'scripts/ace-phase-plan-check.mjs'),
+        '--root', repo, '--change', change, '--phase', phaseId, '--json',
+      ], { encoding: 'utf8' });
+      assert.equal(proc.status, 0, change + '/' + phaseId + '\n' + proc.stdout + '\n' + proc.stderr);
+      assert.equal(JSON.parse(proc.stdout).verdict, 'READY_FOR_PHASE_REVIEW');
+      inspected += 1;
+    }
+  }
+  // G11 remains an active OpenSpec change in this stage PR. Its ten C01–C10
+  // files MUST all be present; after archival this conditional no longer applies.
+  const g11 = '013-gateway-g11-production-acceptance';
+  const g11TasksPath = join(changesDir, g11, 'tasks.md');
+  if (existsSync(g11TasksPath) &&
+    readFileSync(g11TasksPath, 'utf8').includes('(phases/C01.md)')) {
+    assert.ok(existsSync(join(changesDir, g11, 'phases')), 'G11 phase directory missing');
+    assert.equal(phaseInventory(repo, g11).length, 10, 'G11 stage X must deliver all ten phase briefs');
+    assert.ok(inspected >= 10, 'no complete G11 phase-plan checks were executed');
+  }
 });
