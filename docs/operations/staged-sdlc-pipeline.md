@@ -62,3 +62,7 @@ Start from approved/accepted G11 capability requirements. Architectural stage mu
 ## Rollout proof and known limitations
 
 Skill file presence + static contract tests prove **repository-level wiring** only. Before claiming fully operational end-to-end automation, run a **real local Hermes** dry-run through R→S→A→P→X creating actual stacked Draft PRs, then exercise a changed parent PR and verify dependent STALE/reconciliation. A separate explicit owner approval must still control I and production promotions. If no host can keep the session running, record `NOT_OBSERVED` rather than inventing background progression.
+
+## Continuous end-to-end stage-handoff trial
+
+The offline R→S→A→P→X Git/trace regression test and the real Hermes operator procedure live in [sdlc-e2e-trial.md](sdlc-e2e-trial.md). Run npm run test:sdlc-stage-trial in CI. A deterministic fixture or normalized trace never certifies a real agent session or G02; inspect original Hermes tool calls separately.
