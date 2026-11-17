@@ -1,3 +1,5 @@
+> **Owner-approved Responses-only migration in progress.** The former Chat-only route is retired and blocked in the Bifröst ACE plugin. Native Responses is **NOT READY** and also blocked, including custom passthrough aliases. The local Gateway v1 projection endpoint reports a 503 response and advertises no supported generation routes; v1 contracts remain immutable archival compatibility artifacts. This connector currently delivers **no agent context to a provider**. Do not run an inference or claim G11/agent E2E through it. See `openspec/changes/014-responses-native-agent-loop/` for the required native Responses work and gates. Earlier Chat mock-wire results below are historical evidence, not permission to restore the route.
+
 # ACE Bifrost connector
 
 This directory contains the thin, provider-neutral Go IPC client for the versioned `ace.gateway.v1` projection contract.

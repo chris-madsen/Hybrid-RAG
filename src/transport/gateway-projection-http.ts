@@ -1,26 +1,16 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
-import { Effect } from 'effect';
-import type { DomainError } from '../domain/errors.js';
-import type { Result } from '../domain/result.js';
-import type { GatewayProjectionDecision } from '../domain/gateway-projection.js';
 import type {
-  ProjectionDecision as GeneratedProjectionDecision,
   GatewayHealth as GeneratedGatewayHealth,
   GatewayCapabilities as GeneratedGatewayCapabilities,
   DeliveryNotCertified as GeneratedDeliveryNotCertified,
 } from '../generated/ace-gateway/v1/types.gen.js';
 
-// The functional domain deliberately exposes readonly arrays and ADTs.
-// Generated OpenAPI DTO shapes are checked at this boundary without cloning
-// or reordering the existing serialized HTTP response.
-type DeepReadonly<T> = T extends readonly (infer Item)[]
-  ? readonly DeepReadonly<Item>[]
-  : T extends object ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> } : T;
-
+// Retain the constructor shape while retired v1 projection is quarantined.
+// A new typed service will be introduced with the versioned native Responses wire.
 export interface GatewayProjectionHttpService {
-  readonly project: (value: unknown) => Effect.Effect<Result<GatewayProjectionDecision, DomainError>>;
+  readonly project: (value: unknown) => unknown;
 }
 
 export interface GatewayProjectionHttpOptions {
@@ -40,7 +30,7 @@ const schemaVersion = 'ace.gateway.v1';
 const defaultMaxBodyBytes = 4 * 1024 * 1024;
 // The HTTP request is a JSON envelope containing Base64, not raw provider bytes.
 // The query is repeated outside bodyBase64 and can occupy nearly all of the
-// original Chat body. Bound both representations, not just the encoded bytes.
+// original provider body. Bound both representations, not just encoded bytes.
 export const maxEnvelopeBytesFor = (bodyBytes: number): number => 4 * Math.ceil(bodyBytes / 3) + bodyBytes + 64 * 1024;
 export const isLoopbackGatewayHttpHost = (host: string): boolean => {
   const normalizedHost = host.toLowerCase();
@@ -76,7 +66,9 @@ export const handleGatewayProjectionHttp = async (
   if (method === 'GET' && path === '/internal/ace-gateway/v1/capabilities') {
     const wire: GeneratedGatewayCapabilities = {
       schemaVersion,
-      routes: [{ protocol: 'openai.chat.completions', mode: 'structured', capability: 'G2_GATEWAY_VISIBLE_ONLY' }],
+      // No supported provider route exists while native Responses is not certified.
+      // The legacy v1 schema remains immutable for migration evidence only.
+      routes: [],
       maxBodyBytes: defaultMaxBodyBytes,
       projectionModes: ['native', 'gateway', 'assist-only', 'observe-only', 'off'],
       providerWireCertification: 'not_certified',
@@ -91,22 +83,9 @@ export const handleGatewayProjectionHttp = async (
     return error(501, unavailable.error.code, unavailable.error.message);
   }
   if (path !== '/internal/ace-gateway/v1/project') return error(404, 'NOT_FOUND', 'unknown gateway endpoint');
-  let input: unknown;
-  try {
-    input = JSON.parse(body) as unknown;
-  } catch {
-    return error(400, 'INVALID_INPUT', 'request body is not valid JSON');
-  }
-  try {
-    const result = await Effect.runPromise(service.project(input));
-    if (result._tag === 'Err') return error(400, result.error.code, result.error.message);
-    // TS-06 incremental migration: generated wire type checks the *real*
-    // server success output, while semantic validation remains domain-owned.
-    const wire: DeepReadonly<GeneratedProjectionDecision> = result.value;
-    return json(wire as unknown as Readonly<Record<string, unknown>>);
-  } catch {
-    return error(503, 'NOT_READY', 'gateway projection service is unavailable');
-  }
+  void service;
+  void body;
+  return error(503, 'RESPONSES_ONLY_NOT_READY', 'legacy Gateway v1 projection is disabled until native Responses is certified');
 };
 
 const writeResponse = (response: ServerResponse, result: GatewayProjectionHttpResponse): void => {

@@ -67,3 +67,39 @@ func TestRequestBoundIdentityDoesNotDependOnLaterBifrostContextPopulation(t *tes
 		t.Fatalf("attestation must bind the minted physical request ID: %#v", attestation)
 	}
 }
+
+func TestResponsesOnlyQuarantineBlocksEveryGenerationRoute(t *testing.T) {
+	cases := []struct {
+		path string
+		status int
+	}{
+		{"/v1/chat/completions", 410},
+		{"/chat/completions", 410},
+		{"/openai/chat/completions", 410},
+		{"/v1/responses", 503},
+		{"/responses", 503},
+		{"/openai/responses", 503},
+		{"/chatgpt_passthrough/backend-api/codex/responses", 415},
+		{"/v1/completions", 415},
+		{"/v1/messages", 415},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			resp, err := HTTPTransportPreHook(nil, &schemas.HTTPRequest{Method: "POST", Path: tc.path, Body: []byte(`{"model":"openai/test","input":"text"}`)})
+			if err != nil || resp == nil || resp.StatusCode != tc.status {
+				t.Fatalf("expected fail-closed status %d, got %#v / %v", tc.status, resp, err)
+			}
+		})
+	}
+	allow, err := HTTPTransportPreHook(nil, &schemas.HTTPRequest{Method: "GET", Path: "/v1/models"})
+	if err != nil || allow != nil {
+		t.Fatalf("non-generation model catalog should remain available: %#v / %v", allow, err)
+	}
+}
+
+func TestPreLLMHookCannotForwardWithoutCertifiedNativeResponses(t *testing.T) {
+	_, short, err := PreLLMHook(nil, &schemas.BifrostRequest{})
+	if err != nil || short == nil || short.Error == nil || short.Error.AllowFallbacks == nil || *short.Error.AllowFallbacks {
+		t.Fatalf("uncertified provider dispatch must be short-circuited without fallback: %#v / %v", short, err)
+	}
+}

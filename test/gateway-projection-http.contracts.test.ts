@@ -58,12 +58,13 @@ test('gateway HTTP exposes health and capability contracts', async () => {
   const capabilities = await handleGatewayProjectionHttp(service, 'GET', '/internal/ace-gateway/v1/capabilities', '');
   assert.equal(capabilities.statusCode, 200);
   assert.equal(capabilities.body.schemaVersion, 'ace.gateway.v1');
+  assert.deepEqual(capabilities.body.routes, [], 'legacy generation must not be advertised as available');
 });
 
-test('gateway HTTP returns a typed projection decision and rejects unknown paths', async () => {
+test('legacy Gateway projection is quarantined without invoking the old service', async () => {
   const projected = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v1/project', '{}');
-  assert.equal(projected.statusCode, 200);
-  assert.equal((projected.body as { kind: string }).kind, 'BLOCK');
+  assert.equal(projected.statusCode, 503);
+  assert.equal((projected.body as {error: {code: string}}).error.code, 'RESPONSES_ONLY_NOT_READY');
   const missing = await handleGatewayProjectionHttp(service, 'POST', '/unknown', '{}');
   assert.equal(missing.statusCode, 404);
 });
@@ -99,9 +100,9 @@ test('projection HTTP refuses local callers without the configured shared secret
       headers: { Authorization: 'Bearer in-memory-test-token' },
       body: '{}',
     });
-    assert.equal(authenticated.status, 200);
-    const result = await authenticated.json() as { kind: string };
-    assert.equal(result.kind, 'BLOCK');
+    assert.equal(authenticated.status, 503);
+    const result = await authenticated.json() as {error: {code: string}};
+    assert.equal(result.error.code, 'RESPONSES_ONLY_NOT_READY');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -124,4 +125,14 @@ test('projection HTTP without a server credential is NOT_READY, not public', asy
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test('retired v1 project path never invokes legacy provider projection service', async () => {
+  let invoked = false;
+  const forbidden = { project: () => { invoked = true; throw new Error('unexpected legacy projection'); } };
+  const response = await handleGatewayProjectionHttp(forbidden, 'POST', '/internal/ace-gateway/v1/project', JSON.stringify({
+    protocol: 'openai.chat.completions', messages: [{ role: 'user', content: 'test' }],
+  }));
+  assert.equal(response.statusCode, 503);
+  assert.equal(invoked, false, 'legacy business service must not run or admit egress');
 });
