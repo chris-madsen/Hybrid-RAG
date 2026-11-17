@@ -240,6 +240,7 @@ test('phase inventory detects missing and orphan linked briefs rather than passi
     assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
 
     rmSync(join(root, 'openspec/changes/' + tempChange + '/phases'), { recursive: true, force: true });
+    assert.throws(() => phaseInventory(root, tempChange), /ENOENT/u);
     mkdirSync(join(root, 'openspec/changes/' + tempChange + '/phases'), { recursive: true });
     assert.throws(() => phaseInventory(root, tempChange), /missing or orphan phase plan/u);
   } finally {
@@ -255,7 +256,11 @@ test('all declared OpenSpec executable phase files are present and pass exact cu
   let inspected = 0;
   for (const change of changes) {
     const folder = join(changesDir, change, 'phases');
-    if (!existsSync(folder)) continue;
+    const tasksPath = join(changesDir, change, 'tasks.md');
+    const hasPhaseLinks = existsSync(tasksPath)
+      && /\]\(phases\/[A-Z][A-Z0-9-]{1,31}\.md\)/u.test(readFileSync(tasksPath, 'utf8'));
+    if (!hasPhaseLinks && !existsSync(folder)) continue;
+    assert.ok(existsSync(folder), change + ': canonical tasks link phase briefs but directory is missing');
     const phases = phaseInventory(repo, change);
     for (const phaseId of phases) {
       const proc = spawnSync(process.execPath, [
@@ -270,7 +275,10 @@ test('all declared OpenSpec executable phase files are present and pass exact cu
   // G11 remains an active OpenSpec change in this stage PR. Its ten C01–C10
   // files MUST all be present; after archival this conditional no longer applies.
   const g11 = '013-gateway-g11-production-acceptance';
-  if (existsSync(join(changesDir, g11, 'phases'))) {
+  const g11TasksPath = join(changesDir, g11, 'tasks.md');
+  if (existsSync(g11TasksPath) &&
+    readFileSync(g11TasksPath, 'utf8').includes('(phases/C01.md)')) {
+    assert.ok(existsSync(join(changesDir, g11, 'phases')), 'G11 phase directory missing');
     assert.equal(phaseInventory(repo, g11).length, 10, 'G11 stage X must deliver all ten phase briefs');
     assert.ok(inspected >= 10, 'no complete G11 phase-plan checks were executed');
   }
