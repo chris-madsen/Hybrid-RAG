@@ -272,14 +272,15 @@ test('all declared OpenSpec executable phase files are present and pass exact cu
       inspected += 1;
     }
   }
-  // G11 remains an active OpenSpec change in this stage PR. Its ten C01–C10
-  // files MUST all be present; after archival this conditional no longer applies.
+  // Active G11 must have every canonical brief; the number of chunks is chosen
+  // by ace-to-tickets and MUST NOT be hardcoded to the old Chat-first plan.
   const g11 = '013-gateway-g11-production-acceptance';
   const g11TasksPath = join(changesDir, g11, 'tasks.md');
   if (existsSync(g11TasksPath) &&
     readFileSync(g11TasksPath, 'utf8').includes('(phases/C01.md)')) {
     assert.ok(existsSync(join(changesDir, g11, 'phases')), 'G11 phase directory missing');
-    assert.equal(phaseInventory(repo, g11).length, 10, 'G11 stage X must deliver all ten phase briefs');
-    assert.ok(inspected >= 10, 'no complete G11 phase-plan checks were executed');
+    const actualPhaseCount = phaseInventory(repo, g11).length;
+    assert.ok(actualPhaseCount > 0, 'active G11 phase plans must not silently disappear');
+    assert.ok(inspected >= actualPhaseCount, 'not all linked G11 phase plans were inspected');
   }
 });
