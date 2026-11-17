@@ -7,8 +7,8 @@
 The ACE Gateway implementation SHALL satisfy the following observable G11 criteria before the named capability is certified. Repository-only and mock-only evidence MUST NOT count as external-provider or real-agent acceptance.
 
 #### Scenario: G11-005 — Complete streaming success
-- **WHEN** an authorized stream=true Chat request is sent through the exact pinned route after streaming support is explicitly enabled for that route
-- **THEN** prove the final request preserves ACE projection, provider/model, tools and original message semantics and the live provider stream completes with a valid terminal event
+- **WHEN** an authorized stream=true provider-native Responses request is sent through the exact pinned route after streaming support is explicitly enabled for that route
+- **THEN** prove the final request preserves ACE projection, provider/model, tools and original ordered input/reasoning/tool-result semantics and the live provider stream completes with a valid terminal event
 - **AND** retain correlated chunk ordering, terminal status, usage availability and final network-attempt identity without logging private chunk content
 
 #### Scenario: G11-006 — Unsupported streaming variant

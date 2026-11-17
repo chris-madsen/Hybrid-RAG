@@ -1,36 +1,27 @@
-# Proposal
+# Proposal — native Responses-only G11 implementation plan
 
 ## Why
 
-The merged Gateway-only migration (OpenSpec change 010, PR #246) and structural SDLC closure (PR #247) are not real coding-agent or production-provider acceptance. The Bifröst connector is pinned and compile-tested, but live terminal plugin order, final-send bytes, streaming, fresh retry/fallback authorization and paired real-agent Harbor economics remain uncertified. Treating repository checks or mock-wire tests as production proof would be misleading.
+ACE on \`main@3b42fbee5168126eda046d47fb2286c633b21e17\` still has a Chat-only Bifröst ACE plugin and Gateway v1 Chat projection. The owner has explicitly selected **Hermes → Bifröst standard /v1/responses → ACE additive context → authorized provider**, with **no Chat Completions translation or fallback**. The old G11 plan's Chat-first acceptance route is therefore superseded. Existing CI and a simulated stage handoff do not prove that a real autonomous Hermes loop or physical provider send works.
 
-This is a new **G11 acceptance** capability and staged future implementation, not a replacement for 010's accepted request-binding and fail-closed Gateway contracts or change 002's Harbor benchmark rules. Existing 010 tasks explicitly defer these obligations.
+## What changes in this planning-only revision
 
-## What Changes
+- Reconcile the existing change 013 to the accepted native Responses target instead of creating a parallel issue tracker or second OpenSpec change.
+- Retain G11-001…G11-020 acceptance IDs, rewrite Chat-specific premises to native Responses, and add RESP-001…RESP-008 for versioning, legacy-route retirement, native tool/reasoning fidelity, physical-send gate, privacy and agent evidence.
+- Replace the previous Chat-first \`design.md\` with an AS-IS verified on current main and a TO-BE functional DDD / TypeSpec v2 / Effect / pinned Bifröst design with G02 decision crosswalk.
+- Re-slice the 28 acceptance IDs into a minimal dependency DAG and executable source/test-owned \`phases/C01.md\`…\`phases/C08.md\` using the existing SDLC mechanism. Forecasts are estimates of handwritten changed LOC, not executed work.
+- Keep Gateway-only authority (010), Harbor baseline (002), accepted ADR-007/009/017/019 and historical v1 ABI compatibility. Stage replacement as expand-contract, not an in-place v1 rename.
 
-- Specify terminal custom-hook order, final provider-send verification, synthetic mock-upstream versus authorized real-provider evidence and per-protocol/route certification.
-- Specify streaming success, partial output, cancellation, hidden fields and unsupported-mode behavior.
-- Specify fresh single-use attempt authorization before enabling retry/fallback; the existing fail-closed behavior remains the default until evidence-backed implementation.
-- Specify one real coding-agent through the sole Bifröst → ACE → authorized provider path, preserving honest host-transcript limitations.
-- Specify Harbor quality, token, cached/reasoning usage, total cost and causal attribution under the existing strong-baseline/holdout rules.
-- Prepare phase dependencies, RED/GREEN and real-provider oracles and a pre-code G02 crosswalk; do not implement features or approve external egress in this change.
+## Boundaries
 
-## Capabilities
+**Planning only.** No production source, Go plugin, provider route, policy, credential, benchmark or model requests are changed by this proposal. Neither local mock tests nor structural phase checkers prove physical-send security, OAuth compatibility, live Hermes tool calls or owner approval. Legacy Chat compatibility source remains in main until a separately approved fail-closed cutover; it is **not** an acceptable target agent route.
 
-### New Capabilities
-- gateway-final-wire: Final provider wire and route certification.
-- gateway-streaming: Streaming request and response conformance.
-- gateway-attempt-reauthorization: Request-local retry and fallback authorization.
-- gateway-real-agent-and-economics: Real coding-agent acceptance and Harbor attribution.
+**Accepted architecture direction:** native Responses only; one Bifröst context delivery path; no model-invoked ACE tools or extra reverse proxy; no hidden Chat conversion; \`store:false\` enforced at final egress where private source is involved.
 
-### Modified Capabilities
+**Open G02/provider decisions:** a supported Bifröst final physical-dispatch hook across retries/extraAttempts, pinned OAuth/model/effort/window/counter, safe provider-held continuation rules and owner-authorized egress are unverified. Any dependent implementation phase MUST stop until resolved and reviewed. The prior #271/#273 heads were unmerged fail-closed prototypes, not accepted or currently active runtime.
 
-None in this planning-only PR. Existing 010 and 002 remain authoritative for their current ownership and accepted benchmarking invariants.
+## Capabilities and success
 
-## Impact
+Modified in-place: \`gateway-final-wire\`, \`gateway-streaming\`, \`gateway-attempt-reauthorization\`, \`gateway-real-agent-and-economics\`. Added within the same change: \`gateway-native-responses\`.
 
-Planning artifacts in this OpenSpec change only. Future implementation is expected in the existing Go Bifröst plugin/connector, TypeScript + Effect Gateway, tests, constrained provider evidence harness and Harbor adapters. No new Go ACE server, proxy, agent tool protocol, mandatory branch protection, token-admission gate or TypeSpec v1 edit is authorized here.
-
-## Success and boundary
-
-A strict OpenSpec + structural SDD review may make this change ready for **owner G02 review**, not production-ready. Production claims require an exact-delivered-SHA G11 evidence ledger, real provider/agent runs, and explicit owner approval. No provider/model, paid resources or access credentials are selected by this proposal.
+Success of this **planning PR** means: every G11 and RESP scenario mapped to exactly one canonical chunk, current design/spec fingerprints in every executable brief, no cycles or orphan files, strict OpenSpec and all eight phase structure checks passing, and independent G02 still marked REVIEW_REQUIRED. **No** real agent, provider, Harbor or production acceptance follows.
