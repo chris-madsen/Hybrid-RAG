@@ -37,7 +37,7 @@ ACE SHALL use Bifröst's certified provider-native Responses transport for its o
 
 #### Scenario: RESP-006 — OAuth, privacy and exact model invariants
 - **WHEN** the configured Hermes OAuth/native Responses route is selected for private or project source
-- **THEN** verify exact provider/model/reasoning, effective token counter/window, caller authorization and \`store:false\` on the actual final wire even across raw-body rewrites
+- **THEN** verify exact provider/model/reasoning, effective token counter/window, caller authorization and `store:false` on the actual final wire even across raw-body rewrites
 - **AND** fail closed on unsupported subscription routing, hidden continuation, secret content, unapproved destination or incomplete privacy evidence.
 
 ### Requirement: Acceptance requires full agent evidence and quality
