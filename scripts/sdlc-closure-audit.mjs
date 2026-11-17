@@ -76,7 +76,7 @@ const requirements = [
     contains: [
       'func HTTPTransportPreHook',
       'ACE Chat Completions route is retired',
-      'ACE native Responses route is not yet certified',
+      'func prepareNativeResponses',
       'ACE gateway model route is unsupported',
       'func PreLLMHook',
       'ACE provider dispatch disabled until native Responses is certified',
