@@ -22,7 +22,7 @@ export interface ResponsesProjectionRequest {
 }
 
 export type ResponsesProjectionDecision =
-  | { readonly kind: 'APPLY'; readonly bodyBase64: string; readonly baseBodySha256: string; readonly projectedBodySha256: string; readonly reasonCode: 'VERIFIED_CONTEXT_ADDED' }
+  | { readonly kind: 'PREPARED'; readonly bodyBase64: string; readonly baseBodySha256: string; readonly projectedBodySha256: string; readonly reasonCode: 'VERIFIED_CONTEXT_ADDED' }
   | { readonly kind: 'BLOCK'; readonly baseBodySha256: string; readonly reasonCode: string };
 
 const maxBytes = 4 * 1024 * 1024;
@@ -88,7 +88,7 @@ export const decodeNativeResponsesBody = (
   if (Array.isArray(value.input) && (value.input.length === 0 || value.input.some((i) => !object(i)))) {
     return rejected('body.input', 'native input items must be nonempty JSON objects');
   }
-  if (value.store === true) return rejected('body.store', 'provider-stored history is not allowed without owner authorization');
+  if (value.store !== false) return rejected('body.store', 'native Responses requires explicit store:false for private-source safety');
   // Built-in Responses conversation IDs refer to opaque provider-stored
   // history; until the exact privacy/trust contract is reviewed fail closed.
   if (value.previous_response_id !== undefined || value.conversation !== undefined) {
