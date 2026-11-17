@@ -19,7 +19,7 @@ namespace ACE.ResponsesV2 {
     @minLength(1) workspaceId: string;
     dataClass: "private" | "project_document" | "public";
     @minLength(1) provider: string;
-    @minLength(1) model: string;
+    @minLength(1) `model`: string;
     @minLength(1) bodyBase64: string;
     @pattern("^[a-f0-9]{64}$") bodySha256: string;
     @minLength(1) query: string;
