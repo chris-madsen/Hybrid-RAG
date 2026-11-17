@@ -95,7 +95,7 @@ export const decodeNativeResponsesBody = (
     return rejected('body.previous_response_id', 'opaque provider-stored state is not certified');
   }
   // Reject paths that would bypass the native Responses contract.
-  if (value.messages !== undefined || value.chat_completion !== undefined) {
+  if (Object.hasOwn(value, 'messages') || Object.hasOwn(value, 'chat_completion')) {
     return rejected('body', 'Chat-shaped request fields are not accepted');
   }
   return ok(value);

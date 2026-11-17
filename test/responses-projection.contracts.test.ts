@@ -88,7 +88,9 @@ test('deny provider-stored hidden history and forbidden Chat-shaped input', ()=>
   const cases = [
     { ...input, previous_response_id: 'resp_old' }, { ...input, conversation: 'conv_old' },
     { ...input, conversation_id: 'old_conversation' }, { ...input, thread_id: 'old_thread' },
-    { ...input, store:true }, { ...input, messages:[{ role:'user', content:'x' }] },
+    { ...input, store: true }, { ...input, messages: [{ role: 'user', content: 'x' }] },
+    { ...input, messages: null }, { ...input, chat_completion: null },
+    Object.fromEntries(Object.entries(input).filter(([key]) => key !== 'store')),
     { ...input, input:[] }, { ...input, model:'different' },
   ];
   for (const value of cases)assert.equal(decodeNativeResponsesBody(req({}, value))._tag, 'Err');

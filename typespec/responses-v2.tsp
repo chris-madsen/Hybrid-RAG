@@ -28,6 +28,7 @@ namespace ACE.ResponsesV2 {
     attestation: {
       @pattern("^[a-f0-9]{64}$") hostBuildDigest: string;
       @minLength(1) sessionId: string;
+      @minLength(1) parentSessionId?: string;
       @minLength(1) activeEngineId: string;
       @pattern("^[a-f0-9]{64}$") effectiveCompressionControlsDigest: string;
       @minLength(1) durableActiveTranscriptRevision: string;
