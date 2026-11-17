@@ -103,3 +103,38 @@ func TestPreLLMHookCannotForwardWithoutCertifiedNativeResponses(t *testing.T) {
 		t.Fatalf("uncertified provider dispatch must be short-circuited without fallback: %#v / %v", short, err)
 	}
 }
+
+func TestNativeResponsesQueryFromToolResultAndMultimodalUserInput(t *testing.T) {
+    fixtures := []struct { name, body, expected string } {
+        {"tool-result", `[{"type":"function_call","call_id":"c1","arguments":"{}"},{"type":"function_call_output","call_id":"c1","output":"tool returned entrypoint"}]`, "tool returned entrypoint"},
+        {"multimodal-user", `[{"role":"user","content":[{"type":"input_text","text":"find module"},{"type":"input_image","image_url":"data:image/png;base64,AA=="}]}]`, "find module"},
+        {"no-source", `[{"type":"reasoning","encrypted_content":"opaque"}]`, ""},
+    }
+    for _, tc := range fixtures {
+        t.Run(tc.name,func(t *testing.T){
+            got, ok := nativeResponsesQuery(json.RawMessage(tc.body))
+            if got != tc.expected || ok != (tc.expected != "") {
+                t.Fatalf("native query=%q ok=%v expected=%q",got,ok,tc.expected)
+            }
+        })
+    }
+}
+
+func TestNativeResponsesIngressWithoutContextOrWorkspaceNeverSends(t *testing.T) {
+    request := &schemas.HTTPRequest{
+        Method:"POST",Path:"/v1/responses",
+        Body:[]byte(`{"model":"openai/gpt-test","input":"find handler","store":false}`),
+        Headers:map[string]string{"session-id":"test-session"},
+    }
+    previousWorkspace := defaultWorkspaceID
+    defaultWorkspaceID = "test-workspace"
+    defer func(){defaultWorkspaceID=previousWorkspace}()
+    resp, err := HTTPTransportPreHook(nil,request)
+    if err!=nil || resp==nil || resp.StatusCode != 503 {
+        t.Fatalf("missing live transport context must be denied: %+v %v",resp,err)
+    }
+    _, stop, err := PreLLMHook(nil, &schemas.BifrostRequest{ResponsesRequest: &schemas.BifrostResponsesRequest{Model:"gpt-test"}})
+    if err!=nil || stop==nil || stop.Error==nil || stop.Error.AllowFallbacks==nil || *stop.Error.AllowFallbacks {
+        t.Fatal("no provider dispatch or fallback permitted before physical-send certification")
+    }
+}
