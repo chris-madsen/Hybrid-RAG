@@ -38,6 +38,6 @@ After R→X, amend a **tracked input** in parent R or S and advance its head. Ru
 
 ## Acceptance conditions
 
-- The fixture suite passes all ten positive/negative tests (missing stage, missing skill, second prompt, changed trace, real input drift, unrelated parent restack, Chat-first target/design and broken phase links).
+- The fixture suite passes all eleven positive/negative tests (missing stage, missing skill, second prompt, changed trace, real input drift, unrelated parent restack, Chat-first target/design and broken phase links, and reordered skill/handoff events).
 - Live R→X invocation and automatic transitions remain NOT_RUN until actual Hermes tools and one-session continuity are observed.
 - G02, final provider wire, Hermes agent/product E2E and implementation remain REVIEW_REQUIRED or NOT_RUN.
