@@ -200,10 +200,12 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	if err != nil {
 		return errorResponse(409, "native Responses request identity is unavailable"), nil
 	}
-	requestCtx := context.Background()
-	if ctx != nil {
-		requestCtx = ctx
+	// A caller's cancellation/deadline must reach the local projector.
+	// Do not substitute context.Background for missing live request identity.
+	if ctx == nil {
+		return errorResponse(503, "native Responses request context is unavailable"), nil
 	}
+	var requestCtx context.Context = ctx
 	deadline := time.Now().Add(30 * time.Second).UnixMilli()
 	decision, err := projectionClient.ProjectNativeResponses(requestCtx, connector.ResponsesV2Request{
 		RequestID: requestID, AttemptGroupID: requestID, AgentSessionID: session,
