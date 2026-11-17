@@ -7,8 +7,8 @@
 The ACE Gateway implementation SHALL satisfy the following observable G11 criteria before the named capability is certified. Repository-only and mock-only evidence MUST NOT count as external-provider or real-agent acceptance.
 
 #### Scenario: G11-001 — Exact allowed outbound projection
-- **WHEN** an authorized, non-streaming Chat request is projected and dispatched through pinned Bifröst
-- **THEN** capture the actual final provider-bound request after every mutating hook; compare its model, destination, original messages, tool payload, stream setting, unknown fields and exactly one permitted ACE context insertion to the authorized snapshot
+- **WHEN** an authorized provider-native, non-streaming Responses request with explicit store:false is projected and dispatched through pinned Bifröst
+- **THEN** capture the actual final provider-bound request after every mutating hook; compare its model, destination, original ordered input items (including function_call and function_call_output linkage), reasoning/opaque items, tool payload, stream setting, unknown fields and exactly one permitted ACE context insertion to the authorized snapshot
 - **AND** retain ingress/receipt/attempt/final-send digests and report a mismatch as failure; a PreLLM PASS alone is insufficient
 
 #### Scenario: G11-002 — Later mutation or unverified plugin ordering
