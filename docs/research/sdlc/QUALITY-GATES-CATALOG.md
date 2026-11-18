@@ -30,7 +30,7 @@
 | G06 | PR | architecture + dependency direction | T1/T2 | static + human | **ACTIVE** (test:arch-rules, check:arch, human review) |
 | G07 | PR | security/workflow/dependency hygiene | all relevant | automated + review | **ACTIVE** (Betterleaks, actionlint, zizmor; scheduled OSV report) |
 | G08 | PR | Markdown internal links / formatting | docs changed | automated | **ACTIVE** (offline Lychee + fixtures) |
-| G09 | PR | **TypeSpec contract-first** generation and public wire compatibility | new or migrated public contract | automated | **ACTIVE for Gateway v1**; wider migration remains staged |
+| G09 | PR | **TypeSpec contract-first** generation and public wire compatibility | new or migrated public contract | automated | **ACTIVE for native Responses v2**; wider migration remains staged |
 | G10 | PR | requirement↔code↔test↔provider proof | T1/T2 | review + tests | **ACTIVE process + closure audit** |
 | G11 | provider acceptance | real provider and restart/data safety | changed capability | integration | **ACTIVE selective; capability-specific evidence required** |
 | G12 | nightly | advisories, property/fuzz/mutation/security depth | selected packages | automated | **ACTIVE** (OSV report + deterministic/property suite + pinned CodeQL + targeted critical mutation; remote links are scheduled signal-only) |
@@ -116,7 +116,7 @@ Candidate typed dependency tooling: **dependency-cruiser** (TS imports) as cheap
 Keep \`git diff --check\`. New proposed gate: \`lychee --offline\` with pinned version, validating **local Markdown links and anchors** for changed documents or whole doc tree in CI. Remote links are scheduled/report-only to avoid random website failures blocking a PR. Optional typos scanner must allow identifiers, code terms and Cyrillic/English content; do not auto-rewrite citations.
 
 ### G09 — Contract compatibility / codegen ownership
-ACE currently has OpenSpec plus the Gateway Projection v1 public contract and typed internal boundaries. TypeSpec is the **owner-selected and installed authority for the live Gateway v1 public machine contract** and for future approved public contracts. Retired model-invoked tool/Hermes-native delivery shapes are not migration targets:
+ACE currently has OpenSpec plus the native Responses v2 Gateway Projection contract and typed internal boundaries. TypeSpec is the **owner-selected and installed authority for the live native Responses v2 public machine contract** and for future approved public contracts. Retired model-invoked tool/Hermes-native delivery shapes are not migration targets:
 - source contract owns endpoints and schemas once;
 - generated output never edited by hand;
 - generate then check clean diff;
@@ -124,7 +124,7 @@ ACE currently has OpenSpec plus the Gateway Projection v1 public contract and ty
 - client and server contract tests;
 - schema fuzz nightly, isolated disposable data.
 
-**Immediate ACE-specific check:** Gateway v1 schema/field compatibility, typed errors and DTO mappings under accepted specs. Expanded future codegen may add server interfaces/routes, validators, permission metadata, fixtures/docs where maintained tooling supports them. New field/enum without a valid mapping MUST fail. See [codegen coverage](TYPESPEC-CODEGEN-COVERAGE.md). A TypeSpec file by itself is not a gate.
+**Immediate ACE-specific check:** native Responses v2 generated schema/field compatibility, typed errors and adapter mappings under accepted specs. Expanded future codegen may add server interfaces/routes, validators, permission metadata, fixtures/docs where maintained tooling supports them. New field/enum without a valid mapping MUST fail. See [codegen coverage](TYPESPEC-CODEGEN-COVERAGE.md). A TypeSpec file by itself is not a gate.
 
 ### G10 — Evidence chain & plan compliance
 Gate D from original SDLC remains, but enforce a **machine-readable or markdown traceability matrix**:

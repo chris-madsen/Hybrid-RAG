@@ -350,7 +350,7 @@ coverage. P1 QG4–QG6 and TypeSpec TS-00..06 remain separately staged.
 
 **Risk tier:** T1 research/documentation; no runtime, provider-policy, or public API change.
 **Source tree:** `main@29c09a79c2d821bea926ae2de72df3ce5da55582`, tree `a4361517075afbe5f5dc51d6fa7b04e3acb71a3c`.
-**Report:** [`docs/reviews/2026-11-11-ace-current-main-architecture-inventory.md`](../reviews/2026-11-11-ace-current-main-architecture-inventory.md).
+**Current authority:** inspect the current source tree and canonical OpenSpec change for capability status; dated review reports are not implementation authority.
 **Scope:** inspect current runtime composition, contracts, SDLC gates, retained current-tree CI evidence, and stale plan/index statements. No implementation claim is inferred from an unchecked OpenSpec task or historical review.
 
 | ID | Acceptance | Evidence | State |

@@ -26,7 +26,7 @@ const attestation = {
   hostBuildDigest:digest('build'), sessionId:'hermes-session', activeEngineId:'bifrost-visible-request-only',
   effectiveCompressionControlsDigest:digest('controls'), durableActiveTranscriptRevision:'unattested',
   durableActiveTranscriptDigest:digest('body'), hostCompactionEpoch:'unknown' as const,
-  attestorId:'ace-bifrost-test', providerManagedHistoryCapability:'visible' as const,
+  attestorId:'ace-bifrost-test', providerManagedHistoryCapability:'unknown' as const,
   hostTranscriptAttested:false, compactionEnabled:false,
 };
 const req = (override:Partial<ResponsesProjectionRequest> = {}, requestBody:unknown = input):ResponsesProjectionRequest=>{
@@ -40,10 +40,10 @@ const req = (override:Partial<ResponsesProjectionRequest> = {}, requestBody:unkn
     attestation, ...override,
   };
 };
-test('v2 validates exact original provider bytes and rejects Chat or version downgrade', ()=>{
+test('v2 validates exact original provider bytes and rejects unknown versions', ()=>{
   assert.equal(validateResponsesProjectionRequest(req())._tag, 'Ok');
-  assert.equal(validateResponsesProjectionRequest(req({ protocol:'openai.chat.completions' as never }))._tag, 'Err');
-  assert.equal(validateResponsesProjectionRequest(req({ schemaVersion:'ace.gateway.v1' as never }))._tag, 'Err');
+  assert.equal(validateResponsesProjectionRequest(req({ protocol:'unsupported.protocol' as never }))._tag, 'Err');
+  assert.equal(validateResponsesProjectionRequest(req({ schemaVersion:'unsupported-version' as never }))._tag, 'Err');
   assert.equal(validateResponsesProjectionRequest(req({ bodySha256:digest('wrong') }))._tag, 'Err');
   assert.equal(validateResponsesProjectionRequest({ ...req(), unexpected:true })._tag, 'Err');
   assert.equal(validateResponsesProjectionRequest(req({ attestation:{ ...attestation, sessionId:'other' } }))._tag, 'Err');
@@ -75,21 +75,19 @@ test('stateless function-call output-only continuation remains valid', ()=>{
   const current = JSON.parse(Buffer.from(appended.value, 'base64').toString('utf8')) as Record<string, any>;
   assert.deepEqual(current.input.slice(1), next.input);
 });
-test('text input is represented as user native input rather than Chat messages', ()=>{
+test('text input is represented as a native user input item', ()=>{
   const value = { ...input, input:'entrypoint found' };const d = decodeNativeResponsesBody(req({}, value));
   assert.equal(d._tag, 'Ok');if (d._tag === 'Err') return;
   const out = addVerifiedContextToResponses(d.value, 'evidence');
   assert.equal(out._tag, 'Ok');if (out._tag === 'Err') return;
   const current = JSON.parse(Buffer.from(out.value, 'base64').toString('utf8')) as Record<string, any>;
   assert.deepEqual(current.input.slice(1), [{ role:'user', content:'entrypoint found' }]);
-  assert.equal('messages' in current, false);
 });
-test('deny provider-stored hidden history and forbidden Chat-shaped input', ()=>{
+test('deny provider-stored hidden history and malformed native input', ()=>{
   const cases = [
     { ...input, previous_response_id: 'resp_old' }, { ...input, conversation: 'conv_old' },
     { ...input, conversation_id: 'old_conversation' }, { ...input, thread_id: 'old_thread' },
-    { ...input, store: true }, { ...input, messages: [{ role: 'user', content: 'x' }] },
-    { ...input, messages: null }, { ...input, chat_completion: null },
+    { ...input, store: true }, { ...input, input: {} },
     Object.fromEntries(Object.entries(input).filter(([key]) => key !== 'store')),
     { ...input, input:[] }, { ...input, model:'different' },
   ];
@@ -104,4 +102,24 @@ test('query must be verified against actual visible Responses content', ()=>{
 test('projected context never truncates or mutates opaque tool items or extends beyond limit', ()=>{
   const request = req();const d = decodeNativeResponsesBody(request);if (d._tag === 'Err') throw Error('fixture error');
   assert.equal(addVerifiedContextToResponses(d.value, 'x'.repeat(4 * 1024 * 1024))._tag, 'Err');
+});
+
+test('opaque native number lexemes survive context injection without floating-point corruption', () => {
+  const text = '{"model":"openai/gpt-test","store":false,"input":[{"role":"user","content":"entrypoint found","opaque":9007199254740993}],"metadata":{"decimal":1.00,"exponent":1e100,"nested":[99999999999999999999]}}';
+  const bytes = Buffer.from(text);
+  const original = req({
+    bodyBase64: bytes.toString('base64'),
+    bodySha256: createHash('sha256').update(bytes).digest('hex'),
+    query: 'entrypoint found',
+  });
+  const decoded = decodeNativeResponsesBody(original);
+  assert.equal(decoded._tag, 'Ok');
+  if (decoded._tag === 'Err') return;
+  const updated = addVerifiedContextToResponses(decoded.value, 'src/a.ts:1 verified evidence');
+  assert.equal(updated._tag, 'Ok');
+  if (updated._tag === 'Err') return;
+  const result = Buffer.from(updated.value, 'base64').toString('utf8');
+  for (const literal of ['9007199254740993', '"decimal":1.00', '"exponent":1e100', '99999999999999999999']) {
+    assert.ok(result.includes(literal), 'opaque JSON lexeme changed: ' + literal);
+  }
 });

@@ -18,12 +18,12 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
 
-export const capabilities = <ThrowOnError extends boolean = false>(options?: Options<CapabilitiesData, ThrowOnError>): RequestResult<CapabilitiesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<CapabilitiesResponses, unknown, ThrowOnError>({ url: '/internal/ace-gateway/v1/capabilities', ...options });
+export const capabilities = <ThrowOnError extends boolean = false>(options?: Options<CapabilitiesData, ThrowOnError>): RequestResult<CapabilitiesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<CapabilitiesResponses, unknown, ThrowOnError>({ url: '/internal/ace-gateway/v2/capabilities', ...options });
 
-export const health = <ThrowOnError extends boolean = false>(options?: Options<HealthData, ThrowOnError>): RequestResult<HealthResponses, unknown, ThrowOnError> => (options?.client ?? client).get<HealthResponses, unknown, ThrowOnError>({ url: '/internal/ace-gateway/v1/health', ...options });
+export const health = <ThrowOnError extends boolean = false>(options?: Options<HealthData, ThrowOnError>): RequestResult<HealthResponses, unknown, ThrowOnError> => (options?.client ?? client).get<HealthResponses, unknown, ThrowOnError>({ url: '/internal/ace-gateway/v2/health', ...options });
 
 export const project = <ThrowOnError extends boolean = false>(options: Options<ProjectData, ThrowOnError>): RequestResult<ProjectResponses, ProjectErrors, ThrowOnError> => (options.client ?? client).post<ProjectResponses, ProjectErrors, ThrowOnError>({
-    url: '/internal/ace-gateway/v1/project',
+    url: '/internal/ace-gateway/v2/project',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -31,4 +31,4 @@ export const project = <ThrowOnError extends boolean = false>(options: Options<P
     }
 });
 
-export const recordDelivery = <ThrowOnError extends boolean = false>(options?: Options<RecordDeliveryData, ThrowOnError>): RequestResult<unknown, RecordDeliveryErrors, ThrowOnError> => (options?.client ?? client).post<unknown, RecordDeliveryErrors, ThrowOnError>({ url: '/internal/ace-gateway/v1/record-delivery', ...options });
+export const recordDelivery = <ThrowOnError extends boolean = false>(options?: Options<RecordDeliveryData, ThrowOnError>): RequestResult<unknown, RecordDeliveryErrors, ThrowOnError> => (options?.client ?? client).post<unknown, RecordDeliveryErrors, ThrowOnError>({ url: '/internal/ace-gateway/v2/record-delivery', ...options });

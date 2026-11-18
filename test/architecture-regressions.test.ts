@@ -131,8 +131,8 @@ test('RepoMap def/ref graph must not regain the old full-candidate LSP dependenc
 test('Gateway-only composition cannot start an optional model tool transport', async () => {
   const runtime = await readFile(join(process.cwd(), 'src/bin/ace-runtime.ts'), 'utf8');
   const gateway = await readFile(join(process.cwd(), 'src/transport/gateway-projection-http.ts'), 'utf8');
-  assert.match(runtime, /runGatewayProjectionHttp\(makeGatewayProjectionService/u);
-  assert.match(gateway, /\/internal\/ace-gateway\/v1\/project/u);
+  assert.match(runtime, /runGatewayProjectionHttp\(makeResponsesProjectionService/u);
+  assert.match(gateway, /\/internal\/ace-gateway\/v2\/project/u);
   assert.doesNotMatch(runtime, /createAceServer/u);
   const ports = await readFile(join(process.cwd(), 'src/application/ports.ts'), 'utf8');
   assert.match(ports, /export interface ContextProvider/u);

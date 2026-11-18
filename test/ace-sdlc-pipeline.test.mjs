@@ -273,7 +273,7 @@ test('all declared OpenSpec executable phase files are present and pass exact cu
     }
   }
   // Active G11 must have every canonical brief; the number of chunks is chosen
-  // by ace-to-tickets and MUST NOT be hardcoded to the old Chat-first plan.
+  // by ace-to-tickets and MUST NOT be hardcoded to an outdated transport plan.
   const g11 = '013-gateway-g11-production-acceptance';
   const g11TasksPath = join(changesDir, g11, 'tasks.md');
   if (existsSync(g11TasksPath)) {
@@ -287,17 +287,18 @@ test('all declared OpenSpec executable phase files are present and pass exact cu
   }
 });
 
-test('G11 planning contract has native Responses acceptance and rejects a Chat-first target', () => {
+test('G11 planning contract has native Responses acceptance and rejects non-Responses targets', () => {
   const change = '013-gateway-g11-production-acceptance';
   const design = file('openspec/changes/' + change + '/design.md');
   const tasks = file('openspec/changes/' + change + '/tasks.md');
   const newSpec = file('openspec/changes/' + change + '/specs/gateway-native-responses/spec.md');
   assert.match(design, /Hermes[^\n]*Bifröst[^\n]*\/v1\/responses/u);
-  assert.match(design, /G02 status: REVIEW_REQUIRED/u);
-  assert.doesNotMatch(design, /First validate the existing[^\n]*Chat Completions/iu);
+  assert.match(design, /## G02 owner decision crosswalk/u);
+  assert.match(design, /no provider\/model\/egress approval/u);
+  assert.doesNotMatch(design, /First validate the legacy provider route before adding native Responses/iu);
   assert.match(tasks, /## Dependency DAG and LOC budget/u);
-  assert.match(tasks, /provider-native Responses/iu);
-  assert.match(newSpec, /RESP-001 — Native Responses only, no Chat fallback/u);
+  assert.match(tasks, /native Responses/iu);
+  assert.match(newSpec, /RESP-001 — Native Responses is the only generation protocol/u);
   assert.match(newSpec, /RESP-008 — Quality-gated Harbor and owner release/u);
   const ids = [...newSpec.matchAll(/^#### Scenario: (RESP-\d{3})/gmu)].map((match) => match[1]);
   assert.deepEqual(ids, Array.from({ length: 8 }, (_, i) => 'RESP-' + String(i + 1).padStart(3, '0')));

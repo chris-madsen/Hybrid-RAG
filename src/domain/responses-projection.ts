@@ -1,29 +1,15 @@
 import { domainError, type DomainError } from './errors.js';
 import { err, ok, type Result } from './result.js';
-import { sha256Base64, validateHostCompactionAttestation, type HostCompactionAttestation } from './gateway-request-binding.js';
+import { sha256Base64, validateHostCompactionAttestation } from './gateway-request-binding.js';
+import type {
+  ProjectionRequest as GeneratedProjectionRequest,
+  ProjectionDecision as GeneratedProjectionDecision,
+} from '../generated/ace-gateway/v2/types.gen.js';
 
-// Versioned native Responses projection: never uses Chat messages/conversion.
-export interface ResponsesProjectionRequest {
-  readonly schemaVersion: 'ace.gateway.v2';
-  readonly protocol: 'openai.responses';
-  readonly requestId: string;
-  readonly attemptGroupId: string;
-  readonly agentSessionId: string;
-  readonly workspaceId: string;
-  readonly dataClass: 'private' | 'project_document' | 'public';
-  readonly provider: string;
-  readonly model: string;
-  readonly bodyBase64: string;
-  readonly bodySha256: string;
-  readonly query: string;
-  readonly projectionMode: 'gateway';
-  readonly deadlineEpochMs: number;
-  readonly attestation: HostCompactionAttestation;
-}
-
-export type ResponsesProjectionDecision =
-  | { readonly kind: 'PREPARED'; readonly bodyBase64: string; readonly baseBodySha256: string; readonly projectedBodySha256: string; readonly reasonCode: 'VERIFIED_CONTEXT_ADDED' }
-  | { readonly kind: 'BLOCK'; readonly baseBodySha256: string; readonly reasonCode: string };
+// The maintained TypeSpec-generated Responses DTOs own the public wire shape.
+// Keep semantic validation/policy in the domain, not a second handwritten DTO.
+export type ResponsesProjectionRequest = Readonly<GeneratedProjectionRequest>;
+export type ResponsesProjectionDecision = Readonly<GeneratedProjectionDecision>;
 
 const maxBytes = 4 * 1024 * 1024;
 const fields = new Set([
@@ -41,7 +27,7 @@ export const validateResponsesProjectionRequest = (value: unknown): Result<Respo
   const unknown = Object.keys(value).find((key) => !fields.has(key));
   if (unknown) return rejected(unknown, 'unrecognized v2 request field');
   if (value.schemaVersion !== 'ace.gateway.v2' || value.protocol !== 'openai.responses') {
-    return rejected('protocol', 'native Responses v2 only; no Chat fallback');
+    return rejected('protocol', 'native Responses v2 only; alternate provider protocols are rejected');
   }
   if (value.projectionMode !== 'gateway') return rejected('projectionMode', 'only automatic Gateway projection is supported');
   for (const key of ['requestId', 'attemptGroupId', 'agentSessionId', 'workspaceId', 'provider', 'model', 'bodyBase64', 'bodySha256', 'query']) {
@@ -68,7 +54,9 @@ export const validateResponsesProjectionRequest = (value: unknown): Result<Respo
   if (attestation.value.sessionId !== value.agentSessionId) {
     return rejected('attestation.sessionId', 'agent session and transport session differ');
   }
-  return ok({ ...(value as unknown as ResponsesProjectionRequest), attestation: attestation.value });
+  // The original field is now validated above. Preserve the TypeSpec-generated
+  // DTO without re-creating its nested attestation as a handwritten wire type.
+  return ok(value as unknown as ResponsesProjectionRequest);
 };
 
 // A native Responses body may contain arbitrary tool/reasoning/multimodal
@@ -79,8 +67,20 @@ export const decodeNativeResponsesBody = (
 ): Result<Record<string, unknown>, DomainError> => {
   let value: unknown;
   try {
-    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(request.bodyBase64, 'base64'))) as unknown;
-  } catch { return rejected('body', 'native Responses request must be valid UTF-8 JSON'); }
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(request.bodyBase64, 'base64'));
+    // Node 22 supplies the exact JSON number lexeme through the reviver's
+    // primitive context. JSON.rawJSON preserves it on reserialization, even
+    // inside opaque tool/reasoning/extension fields. A lossy native request
+    // must never be silently mutated by IEEE-754 number rounding.
+    const rawJSON = (JSON as typeof JSON & { rawJSON?: (text: string) => unknown }).rawJSON;
+    if (!rawJSON) return rejected('body', 'lossless native JSON number support is unavailable');
+    value = JSON.parse(source, function (_key: string, item: unknown): unknown {
+      const context = (arguments as IArguments)[2] as { readonly source?: unknown } | undefined;
+      return typeof item === 'number' && typeof context?.source === 'string'
+        ? rawJSON(context.source)
+        : item;
+    }) as unknown;
+  } catch { return rejected('body', 'native Responses request must be valid lossless UTF-8 JSON'); }
   if (!object(value) || value.model !== request.model) return rejected('body.model', 'provider model mismatch');
   if (typeof value.input !== 'string' && !Array.isArray(value.input)) {
     return rejected('body.input', 'native Responses input must be text or an item array');
@@ -93,10 +93,6 @@ export const decodeNativeResponsesBody = (
   // history; until the exact privacy/trust contract is reviewed fail closed.
   if (['previous_response_id', 'conversation', 'conversation_id', 'thread_id'].some((field) => value[field] !== undefined)) {
     return rejected('body.previous_response_id', 'opaque provider-stored state is not certified');
-  }
-  // Reject paths that would bypass the native Responses contract.
-  if (Object.hasOwn(value, 'messages') || Object.hasOwn(value, 'chat_completion')) {
-    return rejected('body', 'Chat-shaped request fields are not accepted');
   }
   return ok(value);
 };
@@ -125,7 +121,7 @@ export const bodyQueryMatches = (body: Record<string, unknown>, query: string): 
 
 // Preserve the entire input, reasoning, tool settings and opaque extension keys.
 // Inserting a developer item is supported by native Responses, including stateless
-// multi-turn function_call/function_call_output replay (no Chat adapter).
+// multi-turn function_call/function_call_output replay without protocol conversion.
 export const addVerifiedContextToResponses = (
   body: Record<string, unknown>,
   contextText: string,

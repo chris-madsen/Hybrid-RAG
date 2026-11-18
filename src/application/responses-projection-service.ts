@@ -64,7 +64,14 @@ export const makeResponsesProjectionService = (
       || request.attestation.hostCompactionEpoch === 'unknown')) {
       return block(request, 'HOST_COMPACTION_ACTIVE');
     }
-    if (request.attestation.providerManagedHistoryCapability !== 'visible') {
+    // Bifröst only attests the visible native request, not Hermes's durable
+    // transcript or provider-managed history. For local, stateless projection,
+    // an unknown capability is honest and permitted. The body validator below
+    // rejects opaque provider-stored continuation handles. An explicit hidden
+    // history or a purported host-attested but unknown provider history blocks.
+    if (request.attestation.providerManagedHistoryCapability === 'hidden'
+      || (request.attestation.hostTranscriptAttested
+        && request.attestation.providerManagedHistoryCapability === 'unknown')) {
       return block(request, 'PROVIDER_MANAGED_STATE_UNKNOWN');
     }
     const body = decodeNativeResponsesBody(request);

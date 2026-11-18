@@ -5,7 +5,11 @@
     "properties": {
         "schemaVersion": {
             "type": "string",
-            "const": "ace.gateway.v1"
+            "const": "ace.gateway.v2"
+        },
+        "protocol": {
+            "type": "string",
+            "const": "openai.responses"
         },
         "requestId": {
             "type": "string",
@@ -39,10 +43,6 @@
                 }
             ]
         },
-        "protocol": {
-            "type": "string",
-            "const": "openai.chat.completions"
-        },
         "provider": {
             "type": "string",
             "minLength": 1
@@ -65,28 +65,8 @@
             "minLength": 1
         },
         "projectionMode": {
-            "anyOf": [
-                {
-                    "type": "string",
-                    "const": "native"
-                },
-                {
-                    "type": "string",
-                    "const": "gateway"
-                },
-                {
-                    "type": "string",
-                    "const": "assist-only"
-                },
-                {
-                    "type": "string",
-                    "const": "observe-only"
-                },
-                {
-                    "type": "string",
-                    "const": "off"
-                }
-            ]
+            "type": "string",
+            "const": "gateway"
         },
         "deadlineEpochMs": {
             "type": "integer",
@@ -94,26 +74,16 @@
         },
         "attestation": {
             "$ref": "#/$defs/HostCompactionAttestation"
-        },
-        "nativeProjectionActive": {
-            "type": "boolean"
-        },
-        "requestedEvidenceIds": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/EvidenceId"
-            },
-            "uniqueItems": true
         }
     },
     "required": [
         "schemaVersion",
+        "protocol",
         "requestId",
         "attemptGroupId",
         "agentSessionId",
         "workspaceId",
         "dataClass",
-        "protocol",
         "provider",
         "model",
         "bodyBase64",
@@ -167,8 +137,7 @@
                             "type": "string",
                             "const": "unknown"
                         }
-                    ],
-                    "minimum": 0
+                    ]
                 },
                 "attestorId": {
                     "type": "string",
@@ -212,12 +181,7 @@
             ],
             "unevaluatedProperties": {
                 "not": {}
-            },
-            "description": "Checked by the existing application validator; string constraints are wire-only."
-        },
-        "EvidenceId": {
-            "type": "string",
-            "minLength": 1
+            }
         }
     }
 }

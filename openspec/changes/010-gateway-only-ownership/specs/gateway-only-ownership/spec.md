@@ -39,13 +39,13 @@ treated as authenticated identity.
 - **AND** no provider attempt is authorized by ACE.
 
 #### Scenario: Bifröst has no coding-host transcript proof
-- **WHEN** Gateway v1 requires durable-transcript fields but Bifröst observed only the provider-compatible HTTP request
+- **WHEN** Gateway v2 binds durable-transcript fields but Bifröst observed only the provider-compatible HTTP request
 - **THEN** the connector sets `hostTranscriptAttested=false` and `hostCompactionEpoch="unknown"`
 - **AND** any request digest/revision marker is non-authoritative for the coding agent's durable transcript
 - **AND** ACE SHALL NOT infer exclusive host-context or no-compaction ownership from those fields.
 
 #### Scenario: additive delivery with unattested host history
-- **WHEN** the exact Bifröst-visible Chat request is bound, provider-managed history is visible, and host transcript state is explicitly unattested
+- **WHEN** the exact Bifröst-visible Responses request is bound, provider-managed history is visible, and host transcript state is explicitly unattested
 - **THEN** Gateway MAY add the verified ACE evidence message
 - **AND** the receipt preserves the unknown host-compaction state
 - **AND** no token-savings or exclusive-context claim is implied.
@@ -60,7 +60,7 @@ treated as authenticated identity.
 Gateway SHALL know and authorize the exact LLM provider before retrieving or injecting private source context. Automatic provider routing SHALL NOT satisfy this requirement.
 
 #### Scenario: provider is not explicitly identified
-- **WHEN** a Gateway Chat request uses an unprefixed model whose provider would be selected later
+- **WHEN** a Gateway Responses request uses an unprefixed model whose provider would be selected later
 - **THEN** the connector rejects the request
 - **AND** ACE does not retrieve private source evidence for that request.
 
@@ -90,7 +90,7 @@ Gateway SHALL know and authorize the exact LLM provider before retrieving or inj
 
 ### Requirement: Protected additive projection
 
-The currently certified Chat projection SHALL preserve the original provider body except for exactly one ACE verified-evidence system message.
+The native Responses projection SHALL preserve the original provider body except for exactly one ACE verified-evidence developer item.
 
 #### Scenario: protected field mutation
 - **WHEN** a projected body changes the model, tools, stream setting, unknown field, or any original message

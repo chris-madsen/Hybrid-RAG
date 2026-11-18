@@ -1,0 +1,69 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "GatewayCapabilities.json",
+    "type": "object",
+    "properties": {
+        "schemaVersion": {
+            "type": "string",
+            "const": "ace.gateway.v2"
+        },
+        "routes": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/GatewayRouteCapability"
+            }
+        },
+        "maxBodyBytes": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "projectionModes": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "const": "gateway"
+            }
+        },
+        "providerWireCertification": {
+            "type": "string",
+            "const": "not_certified"
+        }
+    },
+    "required": [
+        "schemaVersion",
+        "routes",
+        "maxBodyBytes",
+        "projectionModes",
+        "providerWireCertification"
+    ],
+    "unevaluatedProperties": {
+        "not": {}
+    },
+    "$defs": {
+        "GatewayRouteCapability": {
+            "type": "object",
+            "properties": {
+                "protocol": {
+                    "type": "string",
+                    "const": "openai.responses"
+                },
+                "mode": {
+                    "type": "string",
+                    "const": "structured"
+                },
+                "capability": {
+                    "type": "string",
+                    "const": "NATIVE_RESPONSES_NOT_CERTIFIED"
+                }
+            },
+            "required": [
+                "protocol",
+                "mode",
+                "capability"
+            ],
+            "unevaluatedProperties": {
+                "not": {}
+            }
+        }
+    }
+}

@@ -14,7 +14,7 @@ Coding agent
   -> ACE Core (TypeScript + Effect)
        retrieval / source verification / policy / context projection
   -> validated additive projection
-  -> Bifröst normalized Chat request / Core context
+  -> Bifröst normalized Responses request / Core context
        - Bifröst resolves its session correlation
   -> PreLLM receipt/request/session/model/provider/context guard
   -> provider attempt
@@ -29,7 +29,7 @@ The pinned Bifröst `HTTPTransportPreHook` runs after transport authentication b
 `BifrostContextKeySessionID`. The ACE plugin therefore does not pretend those later
 Core values exist at projection time.
 
-For a supported Chat request the plugin binds:
+For a supported native Responses request the plugin binds:
 
 - a fresh 128-bit ACE physical request ID minted inside the post-auth transport hook; this is the projection request and initial attempt-group identity and is not caller-controlled;
 - a normalized coding-harness session correlation derived directly from the same supported header precedence Bifröst Core uses later. Session headers are caller-asserted correlation, **not authentication**;
@@ -42,13 +42,13 @@ the receipt must bind the minted physical ID and Bifröst Core's later-resolved
 `BifrostContextKeySessionID` must equal the correlation captured at ingress. A client-supplied
 `x-request-id` is never used as ACE's security identity.
 
-Gateway v1 retains required legacy fields named `durableActiveTranscriptRevision` and `durableActiveTranscriptDigest`. Bifröst does **not** possess the evidence needed to populate them as durable-host facts. Therefore the connector sets `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, an explicit `bifrost-visible-request-only` engine marker, and an `unattested:<request-id>` revision marker. The digest is the exact visible request body only as a request-binding diagnostic; while `hostTranscriptAttested=false` it MUST NOT be interpreted as durable transcript proof.
+Gateway v2 binds `durableActiveTranscriptRevision` and `durableActiveTranscriptDigest` as explicit attestation fields. Bifröst does **not** possess the evidence needed to populate them as durable-host facts. Therefore the connector sets `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, an explicit `bifrost-visible-request-only` engine marker, and an `unattested:<request-id>` revision marker. The digest is the exact visible request body only as a request-binding diagnostic; while `hostTranscriptAttested=false` it MUST NOT be interpreted as durable transcript proof.
 
 ## Host-history honesty
 
 Two guarantees are deliberately separate:
 
-1. **Gateway delivery:** ACE may add verified source evidence to the exact Bifröst-visible Chat request. This does not require pretending that Bifröst saw the host's durable transcript.
+1. **Gateway delivery:** ACE may add verified source evidence to the exact Bifröst-visible Responses request. This does not require pretending that Bifröst saw the host's durable transcript.
 2. **Exclusive context/compaction ownership:** claims that ACE alone controlled the full host context, that upstream compaction was disabled, or that token savings are attributable to ACE require an authenticated host-side transcript/configuration attestor and G11/benchmark evidence.
 
 When a trusted host attestor is eventually present, `hostTranscriptAttested=true` activates the strict no-compaction check. If such an attestation claims compaction active or leaves its epoch unknown, Gateway blocks. Unattested host history is acceptable only for additive Gateway delivery and remains explicit in the receipt.
@@ -59,14 +59,14 @@ The projection service remains loopback-only and additionally requires a high-en
 
 ## Projection semantics
 
-The accepted v1 wire remains backward compatible, but the Gateway-only runtime authorizes only:
+The native Responses runtime authorizes only:
 
-- `APPLY` with exactly one `append_verified_context_system_message` rewrite; or
+- `PREPARED` with exactly one additive developer evidence item; or
 - `BLOCK`.
 
-Legacy passthrough/degraded decision variants remain decodable only for v1 compatibility and do not authorize a provider call.
+No unmodified-forwarding or degraded decision authorizes a provider call.
 
-The connector checks semantic preservation, not merely hashes: model, stream flags, tools, unknown fields and all original messages remain identical; the single inserted message is a system message carrying the ACE verified-evidence envelope.
+The connector checks semantic preservation, not merely hashes: model, stream flags, tools, unknown fields and all original input items remain identical; the single inserted item is a developer message carrying the ACE verified-evidence envelope.
 
 ## Destination authorization
 

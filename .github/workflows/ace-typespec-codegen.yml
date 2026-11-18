@@ -1,4 +1,4 @@
-name: ACE TypeSpec codegen pilot
+name: ACE native Responses TypeSpec codegen
 
 on:
   pull_request:
@@ -8,7 +8,8 @@ on:
       - 'src/transport/gateway-projection-http.ts'
       - 'test/typespec-gateway-*.ts'
       - '.github/workflows/ace-typespec-codegen.yml'
-      - 'docs/plans/2026-11-14-typespec-migration-g02.md'
+      - 'docs/docs/references/ADR-020-native-responses-only.md'
+      - 'openspec/changes/013-gateway-g11-production-acceptance/**'
   workflow_dispatch:
 
 permissions:
@@ -54,11 +55,11 @@ jobs:
           git diff --exit-code -- typespec/generated/openapi.json
       - name: Typecheck the generated SDK
         run: npm --prefix typespec run check:sdk
-      - name: Prove strict Gateway v1 runtime schema compatibility
-        run: npm --prefix typespec run check:compat
+      - name: Verify native Responses v2 contract and generated artifacts
+        run: npm --prefix typespec run check:native-responses
       - name: Install locked ACE runtime type dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check exhaustive generated DTO to existing domain type mapping
         run: npm run check:public-contract-types
-      - name: Exercise real Gateway HTTP and domain v1 compatibility tests
-        run: ./node_modules/.bin/tsx --test test/gateway-projection-http.contracts.test.ts test/gateway-projection.contracts.test.ts test/gateway-schema.contracts.test.ts test/data-class-policy.contracts.test.ts test/bifrost-plugin.contracts.test.ts
+      - name: Exercise native projection and fail-closed contract tests
+        run: ./node_modules/.bin/tsx --test test/gateway-projection-http.contracts.test.ts test/responses-projection.contracts.test.ts test/responses-projection-service.contracts.test.ts test/gateway-schema.contracts.test.ts test/data-class-policy.contracts.test.ts test/bifrost-plugin.contracts.test.ts

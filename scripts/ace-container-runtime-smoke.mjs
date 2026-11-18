@@ -48,7 +48,7 @@ try {
   const qdrantProbe = run('docker', ['run', '--rm', '--network', 'host', '--entrypoint', 'node', '-v', mount, image,
     '-e', `fetch(${JSON.stringify(`${qdrantUrl.replace(/\/$/u, '')}/collections`)}).then((response) => { if (!response.ok) process.exit(2); })`,
   ]);
-  const healthCheck = `fetch("http://127.0.0.1:8765/internal/ace-gateway/v1/health").then(async (r) => {
+  const healthCheck = `fetch("http://127.0.0.1:8765/internal/ace-gateway/v2/health", { headers: { authorization: "Bearer ace-container-smoke-secret" } }).then(async (r) => {
     const body = await r.json();
     if (r.status !== 200 || body.providerWire !== "not_certified") process.exit(1);
     process.stdout.write("gateway_health=READY\\n");
@@ -66,6 +66,7 @@ try {
     '-e', 'ACE_ALLOWED_ROOTS=/tmp/ace-gateway-smoke',
     '-e', 'ACE_STATE_DIR=/tmp/ace-gateway-state',
     '-e', 'ACE_RUNTIME_ROOT=/ace',
+    '-e', 'ACE_GATEWAY_HTTP_SHARED_SECRET=ace-container-smoke-secret',
     '-e', 'ACE_ENABLE_EXPERIMENTAL_QDRANT=false',
     '--entrypoint', 'sh', image, '-lc', shell,
   ]);

@@ -4,7 +4,7 @@ Status: PREPARED; LIVE HERMES TRIAL NOT RUN. The checked-in test fixture uses sy
 
 ## Scope and safety
 
-Use one disposable, no-network T2 planning-only OpenSpec change; no product source modifications, provider egress, Harbor, Apply, model authorization or G02 approval. Target native Responses only. Chat Completions translation/fallback is prohibited. Read root AGENTS.md, the full ace-sdlc and ace-stage-handoff skills, accepted OpenSpec and current source SHA. Use isolated worktrees. The actual Hermes CLI, project skill trust and session-resume syntax MUST be discovered with the locally installed --help; do not assume undocumented options. The existing November 17 trial proved only two skill_view calls, not R→X automation.
+Use one disposable, no-network T2 planning-only OpenSpec change; no product source modifications, provider egress, Harbor, Apply, model authorization or G02 approval. Target native Responses only. Alternate provider protocols, request translation and fallback are prohibited. Read root AGENTS.md, the full ace-sdlc and ace-stage-handoff skills, accepted OpenSpec and current source SHA. Use isolated worktrees. The actual Hermes CLI, project skill trust and session-resume syntax MUST be discovered with the locally installed --help; do not assume undocumented options. The existing November 17 trial proved only two skill_view calls, not R→X automation.
 
 ## One real operator-authorized session
 
@@ -21,7 +21,7 @@ Each stage object contains id, branch (local branch name), head (40-hex commit),
 
 Design must contain the exact declarations:
 - Target agent transport: openai.responses
-- Legacy Chat route: RETIRED_NOT_SUPPORTED
+- Legacy provider route: RETIRED_NOT_SUPPORTED
 
 Sample normalized event sequence for one observed session: user_request; tool_call(skill_view, ace-stage-handoff, success:true); handoff(R,S); tool_call(skill_view, ace-sdd-prepare, success:true); handoff(S,A); tool_call(skill_view, ace-architecture-design, success:true); handoff(A,P); tool_call(skill_view, ace-to-tickets, success:true); handoff(P,X); tool_call(skill_view, ace-phase-plan, success:true). Every JSONL object must use the same session field. This is an audit index, **not** independently authenticated host evidence.
 
@@ -49,6 +49,6 @@ After R→X, amend a **tracked input** in parent R or S and advance its head. Ru
 
 ## Acceptance conditions
 
-- The fixture suite passes all twelve positive/negative tests (missing stage, missing skill, second prompt, changed trace, real input drift, unrelated parent restack, Chat-first target/design and broken phase links, reordered skill/handoff events, and successful restack/revalidation after a changed parent).
+- The fixture suite passes all twelve positive/negative tests (missing stage, missing skill, second prompt, changed trace, real input drift, unrelated parent restack, unsupported route/design and broken phase links, reordered skill/handoff events, and successful restack/revalidation after a changed parent).
 - Live R→X invocation and automatic transitions remain NOT_RUN until actual Hermes tools and one-session continuity are observed.
 - G02, final provider wire, Hermes agent/product E2E and implementation remain REVIEW_REQUIRED or NOT_RUN.

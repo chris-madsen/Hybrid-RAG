@@ -1,0 +1,131 @@
+{
+  "sourceCommit": "dea19cd3fa84d6a794d2b7c4e11094f534d86a65",
+  "context": {
+    "completeType": "boolean",
+    "candidateFreshness": [
+      "current",
+      "stale",
+      "changed_during_request",
+      "unknown"
+    ],
+    "sourceCoverageStatuses": [
+      "satisfied",
+      "partial",
+      "empty",
+      "unavailable",
+      "denied",
+      "not_requested"
+    ],
+    "sourceKinds": [
+      "code",
+      "structural",
+      "lsp",
+      "documentation",
+      "memory",
+      "history"
+    ]
+  },
+  "domainErrorCodes": [
+    "INVALID_INPUT",
+    "WORKSPACE_NOT_FOUND",
+    "WORKSPACE_ROOT_NOT_ALLOWED",
+    "PATH_ESCAPE",
+    "FILE_NOT_FOUND",
+    "DIGEST_MISMATCH",
+    "WORKTREE_RACED",
+    "SNAPSHOT_FAILED",
+    "PERSISTENCE_FAILED",
+    "POLICY_DENIED",
+    "AUTH_REQUIRED",
+    "SECRET_DETECTED",
+    "AUDIT_FAILED",
+    "ARTIFACT_NOT_FOUND",
+    "INVALID_HANDLE",
+    "NOT_READY",
+    "INVALID_BENCHMARK",
+    "INVALID_USAGE",
+    "USAGE_UNAVAILABLE",
+    "UNSUPPORTED_PROVIDER",
+    "QUALITY_GATE_FAILED",
+    "INVALID_RETRIEVAL",
+    "INVALID_MEMORY",
+    "INVALID_ROUTING",
+    "ARCHIVE_TOMBSTONED",
+    "EXTERNAL_UNAVAILABLE",
+    "INVALID_EXTERNAL_RESPONSE",
+    "INVALID_ATTESTATION",
+    "UNSUPPORTED_PROTOCOL",
+    "PROTECTED_GROUP_INVALID",
+    "HOST_CONTEXT_UNATTESTED",
+    "HOST_COMPACTION_ACTIVE",
+    "PROVIDER_MANAGED_STATE_UNKNOWN",
+    "DUAL_PROJECTION_OWNER",
+    "DEADLINE_EXCEEDED"
+  ],
+  "hermes": {
+    "bridgeHandshake": {
+      "type": "bridge_ready",
+      "schemaVersion": 1,
+      "runtimeId": "ace-harbor-runtime-v1"
+    },
+    "bridgeReadyRequired": [
+      "type",
+      "schemaVersion",
+      "runtimeId",
+      "node",
+      "providerIdentities"
+    ],
+    "transformRequestRequired": [
+      "type",
+      "schemaVersion",
+      "requestId",
+      "sessionId",
+      "turnId",
+      "workspaceId",
+      "query",
+      "budgetTokens",
+      "sourceObligations"
+    ],
+    "transformRequestProperties": [
+      "type",
+      "schemaVersion",
+      "requestId",
+      "sessionId",
+      "turnId",
+      "workspaceId",
+      "query",
+      "budgetTokens",
+      "sourceObligations",
+      "intent",
+      "workingContext",
+      "knownBundleId",
+      "knownEvidenceIds"
+    ],
+    "sourceObligationsRequired": [
+      "code"
+    ],
+    "responseTypes": [
+      "bridge_ready",
+      "transform_result",
+      "transform_error"
+    ],
+    "transformResultStatuses": [
+      "ready",
+      "partial",
+      "not_ready",
+      "blocked"
+    ],
+    "evidenceStatuses": [
+      "ready",
+      "partial",
+      "not_ready",
+      "blocked",
+      "not_beneficial"
+    ],
+    "deliveryModes": [
+      "augmentation",
+      "replacement",
+      "no_op"
+    ]
+  }
+}

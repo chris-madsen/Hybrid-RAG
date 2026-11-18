@@ -1,99 +1,52 @@
 import type {
-  ProjectionRequest as GatewayWireRequest,
-  ProjectionReceipt as GatewayWireReceipt,
-  ProjectionDecision as GatewayWireDecision,
-  HostCompactionAttestation as GatewayWireAttestation,
+  ProjectionRequest as GeneratedProjectionRequest,
+  ProjectionDecision as GeneratedProjectionDecision,
+  HostCompactionAttestation as GeneratedHostAttestation,
 } from '../typespec/generated/sdk/types.gen.js';
 import type {
-  GatewayProjectionRequest,
-  GatewayProjectionReceipt,
-  GatewayProjectionDecision,
-  HostCompactionAttestation,
-} from '../src/domain/gateway-projection.js';
+  ResponsesProjectionRequest,
+  ResponsesProjectionDecision,
+} from '../src/domain/responses-projection.js';
+import type { HostCompactionAttestation } from '../src/domain/gateway-request-binding.js';
 
-// TSP-04: a new TypeSpec field or a removed field must fail this gate. No
-// unsafe casts or omitted properties conceal protocol drift.
-type SameKeys<A, B> = [Exclude<keyof A, keyof B>, Exclude<keyof B, keyof A>] extends [never, never]
-  ? true : false;
-const sameRequestFields: SameKeys<GatewayWireRequest, GatewayProjectionRequest> = true;
-const sameReceiptFields: SameKeys<GatewayWireReceipt, GatewayProjectionReceipt> = true;
-const sameAttestationFields: SameKeys<GatewayWireAttestation, HostCompactionAttestation> = true;
-type DomainDecisionWireShape = {
-  kind: GatewayProjectionDecision['kind'];
-  bodyBase64?: string;
-  receipt: GatewayProjectionReceipt;
-};
-const sameDecisionFields: SameKeys<GatewayWireDecision, DomainDecisionWireShape> = true;
-void [sameRequestFields, sameReceiptFields, sameAttestationFields, sameDecisionFields];
+type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
+(<Value>() => Value extends Right ? 1 : 2) ? true : false;
+type Expect<Value extends true> = Value;
+type RequestVersionMatches = Expect<Equal<GeneratedProjectionRequest['schemaVersion'], ResponsesProjectionRequest['schemaVersion']>>;
+type RequestProtocolMatches = Expect<Equal<GeneratedProjectionRequest['protocol'], ResponsesProjectionRequest['protocol']>>;
+type RequestFieldsMatch = Expect<Equal<
+GeneratedProjectionRequest['bodySha256' | 'bodyBase64' | 'query' | 'deadlineEpochMs'],
+ResponsesProjectionRequest['bodySha256' | 'bodyBase64' | 'query' | 'deadlineEpochMs']
+>>;
+type AttestationSessionMatches = Expect<Equal<GeneratedHostAttestation['sessionId'], HostCompactionAttestation['sessionId']>>;
+type AttestationHistoryMatches = Expect<Equal<GeneratedHostAttestation['providerManagedHistoryCapability'], HostCompactionAttestation['providerManagedHistoryCapability']>>;
+type DecisionKindsMatch = Expect<Equal<GeneratedProjectionDecision['kind'], ResponsesProjectionDecision['kind']>>;
+type GeneratedRequestCoversDomain = Expect<GeneratedProjectionRequest extends ResponsesProjectionRequest ? true : false>;
+type DomainRequestCoversGenerated = Expect<ResponsesProjectionRequest extends GeneratedProjectionRequest ? true : false>;
+type GeneratedDecisionCoversDomain = Expect<GeneratedProjectionDecision extends ResponsesProjectionDecision ? true : false>;
+type DomainDecisionCoversGenerated = Expect<ResponsesProjectionDecision extends GeneratedProjectionDecision ? true : false>;
 
-// The adapter does mechanical DTO field mapping only. The existing domain
-// validator remains authoritative for SHA-256, base64, session and trust.
-export const mapGatewayWireRequest = (dto: GatewayWireRequest): GatewayProjectionRequest => ({
-  schemaVersion: dto.schemaVersion,
-  requestId: dto.requestId,
-  attemptGroupId: dto.attemptGroupId,
-  agentSessionId: dto.agentSessionId,
-  workspaceId: dto.workspaceId,
-  dataClass: dto.dataClass,
-  protocol: dto.protocol,
-  provider: dto.provider,
-  model: dto.model,
-  bodyBase64: dto.bodyBase64,
-  bodySha256: dto.bodySha256,
-  query: dto.query,
-  projectionMode: dto.projectionMode,
-  deadlineEpochMs: dto.deadlineEpochMs,
-  attestation: {
-    hostBuildDigest: dto.attestation.hostBuildDigest,
-    sessionId: dto.attestation.sessionId,
-    ...(dto.attestation.parentSessionId === undefined ? {} : { parentSessionId: dto.attestation.parentSessionId }),
-    activeEngineId: dto.attestation.activeEngineId,
-    effectiveCompressionControlsDigest: dto.attestation.effectiveCompressionControlsDigest,
-    durableActiveTranscriptRevision: dto.attestation.durableActiveTranscriptRevision,
-    durableActiveTranscriptDigest: dto.attestation.durableActiveTranscriptDigest,
-    hostCompactionEpoch: dto.attestation.hostCompactionEpoch,
-    attestorId: dto.attestation.attestorId,
-    providerManagedHistoryCapability: dto.attestation.providerManagedHistoryCapability,
-    hostTranscriptAttested: dto.attestation.hostTranscriptAttested,
-    compactionEnabled: dto.attestation.compactionEnabled,
+const request: GeneratedProjectionRequest = {
+  schemaVersion: 'ace.gateway.v2', protocol: 'openai.responses', requestId: 'r1', attemptGroupId: 'a1',
+  agentSessionId: 's1', workspaceId: 'ws1', dataClass: 'private', provider: 'openai', model: 'openai/model',
+  bodyBase64: 'e30=', bodySha256: 'a'.repeat(64), query: 'query', projectionMode: 'gateway',
+  deadlineEpochMs: 1, attestation: {
+    hostBuildDigest: 'a'.repeat(64), sessionId: 's1', activeEngineId: 'bifrost-visible-request-only',
+    effectiveCompressionControlsDigest: 'b'.repeat(64), durableActiveTranscriptRevision: 'unattested',
+    durableActiveTranscriptDigest: 'c'.repeat(64), hostCompactionEpoch: 'unknown', attestorId: 'test',
+    providerManagedHistoryCapability: 'visible', hostTranscriptAttested: false, compactionEnabled: false,
   },
-  ...(dto.nativeProjectionActive === undefined ? {} : { nativeProjectionActive: dto.nativeProjectionActive }),
-  ...(dto.requestedEvidenceIds === undefined ? {} : { requestedEvidenceIds: dto.requestedEvidenceIds }),
-});
-
-export const mapGatewayDomainReceipt = (receipt: GatewayProjectionReceipt): GatewayWireReceipt => ({
-  schemaVersion: receipt.schemaVersion,
-  requestId: receipt.requestId,
-  attemptGroupId: receipt.attemptGroupId,
-  attemptIndex: receipt.attemptIndex,
-  ...(receipt.projectionId === undefined ? {} : { projectionId: receipt.projectionId }),
-  receiptId: receipt.receiptId,
-  decision: receipt.decision,
-  ...(receipt.reasonCode === undefined ? {} : { reasonCode: receipt.reasonCode }),
-  baseBodySha256: receipt.baseBodySha256,
-  ...(receipt.projectedBodySha256 === undefined ? {} : { projectedBodySha256: receipt.projectedBodySha256 }),
-  hostCompactionEpoch: receipt.hostCompactionEpoch,
-  activeEngineId: receipt.activeEngineId,
-  permittedWireRewrites: [...receipt.permittedWireRewrites],
-});
-
-export const mapGatewayDomainDecision = (decision: GatewayProjectionDecision): GatewayWireDecision => {
-  switch (decision.kind) {
-    case 'APPLY':
-      return { kind: decision.kind, bodyBase64: decision.bodyBase64, receipt: mapGatewayDomainReceipt(decision.receipt) };
-    case 'UNCHANGED_AUTHORIZED':
-      return { kind: decision.kind, receipt: mapGatewayDomainReceipt(decision.receipt) };
-    case 'DEGRADED_AUTHORIZED':
-      return {
-        kind: decision.kind,
-        ...(decision.bodyBase64 === undefined ? {} : { bodyBase64: decision.bodyBase64 }),
-        receipt: mapGatewayDomainReceipt(decision.receipt),
-      };
-    case 'BLOCK':
-      return { kind: decision.kind, receipt: mapGatewayDomainReceipt(decision.receipt) };
-    default: {
-      const exhaustive: never = decision;
-      return exhaustive;
-    }
-  }
 };
+const prepared: GeneratedProjectionDecision = {
+  kind: 'PREPARED', baseBodySha256: 'a'.repeat(64), projectedBodySha256: 'b'.repeat(64),
+  bodyBase64: 'e30=', reasonCode: 'VERIFIED_CONTEXT_ADDED',
+};
+const blocked: GeneratedProjectionDecision = { kind: 'BLOCK', baseBodySha256: 'a'.repeat(64), reasonCode: 'NOT_READY' };
+const samples: readonly [GeneratedProjectionRequest, GeneratedProjectionDecision, GeneratedProjectionDecision] = [request, prepared, blocked];
+type ContractChecks = readonly [
+  RequestVersionMatches, RequestProtocolMatches, RequestFieldsMatch,
+  AttestationSessionMatches, AttestationHistoryMatches, DecisionKindsMatch,
+  GeneratedRequestCoversDomain, DomainRequestCoversGenerated,
+  GeneratedDecisionCoversDomain, DomainDecisionCoversGenerated,
+];
+void [samples, null as unknown as ContractChecks];

@@ -4,55 +4,55 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
-/**
- * This public endpoint deliberately has no successful delivery response.
- */
+export type BlockedProjection = {
+    kind: 'BLOCK';
+    baseBodySha256: string;
+    reasonCode: string;
+    [key: string]: unknown;
+};
+
 export type DeliveryNotCertified = {
     error: {
         code: 'PROVIDER_WIRE_NOT_CERTIFIED';
         message: string;
+        [key: string]: unknown;
     };
+    [key: string]: unknown;
 };
-
-export type EvidenceId = string;
 
 export type GatewayCapabilities = {
-    schemaVersion: 'ace.gateway.v1';
+    schemaVersion: 'ace.gateway.v2';
     routes: Array<GatewayRouteCapability>;
     maxBodyBytes: number;
-    projectionModes: Array<'native' | 'gateway' | 'assist-only' | 'observe-only' | 'off'>;
+    projectionModes: Array<'gateway'>;
     providerWireCertification: 'not_certified';
+    [key: string]: unknown;
 };
 
-/**
- * Existing HTTP failure envelope; errors are not fabricated success results.
- */
 export type GatewayError = {
     error: {
         code: string;
         message: string;
+        [key: string]: unknown;
     };
+    [key: string]: unknown;
 };
 
-/**
- * Real informational routes; statuses are local adapter facts, not provider-wire approval.
- */
 export type GatewayHealth = {
-    schemaVersion: 'ace.gateway.v1';
+    schemaVersion: 'ace.gateway.v2';
     liveness: 'ready';
     readiness: 'adapter_implemented';
     providerWire: 'not_certified';
+    [key: string]: unknown;
 };
 
 export type GatewayRouteCapability = {
-    protocol: 'openai.chat.completions';
+    protocol: 'openai.responses';
     mode: 'structured';
-    capability: 'G2_GATEWAY_VISIBLE_ONLY';
+    capability: 'NATIVE_RESPONSES_NOT_CERTIFIED';
+    [key: string]: unknown;
 };
 
-/**
- * Checked by the existing application validator; string constraints are wire-only.
- */
 export type HostCompactionAttestation = {
     hostBuildDigest: string;
     sessionId: string;
@@ -66,55 +66,48 @@ export type HostCompactionAttestation = {
     providerManagedHistoryCapability: 'visible' | 'hidden' | 'unknown';
     hostTranscriptAttested: boolean;
     compactionEnabled: boolean;
+    [key: string]: unknown;
 };
 
-export type ProjectionDecision = {
-    kind: 'APPLY' | 'UNCHANGED_AUTHORIZED' | 'DEGRADED_AUTHORIZED' | 'BLOCK';
-    bodyBase64?: string;
-    receipt: ProjectionReceipt;
-};
-
-export type ProjectionReceipt = {
-    schemaVersion: 'ace.gateway.v1';
-    requestId: string;
-    attemptGroupId: string;
-    attemptIndex: number;
-    projectionId?: string;
-    receiptId: string;
-    decision: 'APPLY' | 'UNCHANGED_AUTHORIZED' | 'DEGRADED_AUTHORIZED' | 'BLOCK';
-    reasonCode?: string;
+export type PreparedProjection = {
+    kind: 'PREPARED';
     baseBodySha256: string;
-    projectedBodySha256?: string;
-    hostCompactionEpoch: number | 'unknown';
-    activeEngineId: string;
-    permittedWireRewrites: Array<string>;
+    projectedBodySha256: string;
+    bodyBase64: string;
+    reasonCode: 'VERIFIED_CONTEXT_ADDED';
+    [key: string]: unknown;
 };
+
+export type ProjectionDecision = ({
+    kind: 'PREPARED';
+} & PreparedProjection) | ({
+    kind: 'BLOCK';
+} & BlockedProjection);
 
 export type ProjectionRequest = {
-    schemaVersion: 'ace.gateway.v1';
+    schemaVersion: 'ace.gateway.v2';
+    protocol: 'openai.responses';
     requestId: string;
     attemptGroupId: string;
     agentSessionId: string;
     workspaceId: string;
     dataClass: 'private' | 'project_document' | 'public';
-    protocol: 'openai.chat.completions';
     provider: string;
     model: string;
     bodyBase64: string;
     bodySha256: string;
     query: string;
-    projectionMode: 'native' | 'gateway' | 'assist-only' | 'observe-only' | 'off';
+    projectionMode: 'gateway';
     deadlineEpochMs: number;
     attestation: HostCompactionAttestation;
-    nativeProjectionActive?: boolean;
-    requestedEvidenceIds?: Array<EvidenceId>;
+    [key: string]: unknown;
 };
 
 export type CapabilitiesData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v1/capabilities';
+    url: '/internal/ace-gateway/v2/capabilities';
 };
 
 export type CapabilitiesResponses = {
@@ -130,7 +123,7 @@ export type HealthData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v1/health';
+    url: '/internal/ace-gateway/v2/health';
 };
 
 export type HealthResponses = {
@@ -146,16 +139,40 @@ export type ProjectData = {
     body: ProjectionRequest;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v1/project';
+    url: '/internal/ace-gateway/v2/project';
 };
 
 export type ProjectErrors = {
     /**
-     * Existing HTTP failure envelope; errors are not fabricated success results.
+     * The server could not understand the request due to invalid syntax.
      */
     400: GatewayError;
     /**
-     * Existing HTTP failure envelope; errors are not fabricated success results.
+     * Access is unauthorized.
+     */
+    401: GatewayError;
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: GatewayError;
+    /**
+     * Client error
+     */
+    405: GatewayError;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: GatewayError;
+    /**
+     * Client error
+     */
+    413: GatewayError;
+    /**
+     * Server error
+     */
+    501: GatewayError;
+    /**
+     * Service unavailable.
      */
     503: GatewayError;
 };
@@ -175,12 +192,12 @@ export type RecordDeliveryData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v1/record-delivery';
+    url: '/internal/ace-gateway/v2/record-delivery';
 };
 
 export type RecordDeliveryErrors = {
     /**
-     * This public endpoint deliberately has no successful delivery response.
+     * Server error
      */
     501: DeliveryNotCertified;
 };

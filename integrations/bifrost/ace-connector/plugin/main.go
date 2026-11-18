@@ -11,22 +11,23 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/chris-madsen/Mult-agent-AI-Orchestration/integrations/bifrost/ace-connector"
 	"github.com/maximhq/bifrost/core/schemas"
 )
 
 const (
-	workspaceKey             schemas.BifrostContextKey = "ace.workspace_id"
-	physicalRequestIDKey     schemas.BifrostContextKey = "ace.projection.physical_request_id"
-	sessionCorrelationKey    schemas.BifrostContextKey = "ace.projection.session_correlation"
-	pinnedBifrostCommit                               = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
+	workspaceKey          schemas.BifrostContextKey = "ace.workspace_id"
+	physicalRequestIDKey  schemas.BifrostContextKey = "ace.projection.physical_request_id"
+	sessionCorrelationKey schemas.BifrostContextKey = "ace.projection.session_correlation"
+	pinnedBifrostCommit                             = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
 )
 
 var projectionClient connector.Client
 var defaultWorkspaceID string
+
 // Set only by scripts/build-bifrost-ace-plugin.sh from the exact clean ACE checkout.
 var aceSourceCommit = "unknown"
 
@@ -48,7 +49,16 @@ func Init(config any) error {
 		return errors.New("ACE_GATEWAY_PROJECTION_TOKEN is required")
 	}
 	projectionClient = connector.Client{Endpoint: endpoint, AuthToken: token, MaxBodyBytes: connector.DefaultMaxBodyBytes}
-	defaultWorkspaceID = os.Getenv("ACE_BIFROST_WORKSPACE_ID")
+	// The Bifröst transport hook authenticates its connector, not a per-user
+	// workspace principal. Permit only an explicitly isolated one-workspace
+	// deployment until an authenticated tenant binding is available.
+	if os.Getenv("ACE_BIFROST_TENANCY_MODE") != "single-workspace" {
+		return errors.New("ACE Bifröst requires ACE_BIFROST_TENANCY_MODE=single-workspace")
+	}
+	defaultWorkspaceID = strings.TrimSpace(os.Getenv("ACE_BIFROST_WORKSPACE_ID"))
+	if defaultWorkspaceID == "" {
+		return errors.New("ACE_BIFROST_WORKSPACE_ID is required for single-workspace mode")
+	}
 	return nil
 }
 
@@ -90,6 +100,21 @@ func sessionCorrelationFromRequest(req *schemas.HTTPRequest) (string, bool) {
 	return "", false
 }
 
+// A caller-supplied workspace header cannot select another tenant; the only
+// authorized workspace is the one isolated at plugin startup. This is a
+// single-workspace safety boundary, NOT multi-tenant identity authentication.
+func singleWorkspaceAllowed(req *schemas.HTTPRequest) bool {
+	if req == nil || defaultWorkspaceID == "" {
+		return false
+	}
+	for _, name := range []string{"x-ace-workspace-id", "x-workspace-id", "x-bf-workspace-id"} {
+		if candidate := strings.TrimSpace(req.CaseInsensitiveHeaderLookup(name)); candidate != "" && candidate != defaultWorkspaceID {
+			return false
+		}
+	}
+	return true
+}
+
 func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string) (string, string, string, string, json.RawMessage, error) {
 	requestID, err := newPhysicalRequestID()
 	if err != nil {
@@ -111,17 +136,17 @@ func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string
 	// request/session context is populated only later by ConvertToBifrostContext.
 	// The coding-harness session value remains correlation, not authentication.
 	attestationValue := map[string]any{
-		"hostBuildDigest": sha256Hex([]byte("ace-bifrost-plugin:" + aceSourceCommit + ":" + pinnedBifrostCommit)),
-		"sessionId": sessionID,
-		"activeEngineId": "bifrost-visible-request-only",
+		"hostBuildDigest":                    sha256Hex([]byte("ace-bifrost-plugin:" + aceSourceCommit + ":" + pinnedBifrostCommit)),
+		"sessionId":                          sessionID,
+		"activeEngineId":                     "bifrost-visible-request-only",
 		"effectiveCompressionControlsDigest": sha256Hex([]byte("host-compression-controls:unattested")),
-		"durableActiveTranscriptRevision": "unattested:" + requestID,
-		"durableActiveTranscriptDigest": sha256Hex(body),
-		"hostCompactionEpoch": "unknown",
-		"attestorId": "ace-bifrost-plugin@" + aceSourceCommit,
-		"providerManagedHistoryCapability": "visible",
-		"hostTranscriptAttested": false,
-		"compactionEnabled": false,
+		"durableActiveTranscriptRevision":    "unattested:" + requestID,
+		"durableActiveTranscriptDigest":      sha256Hex(body),
+		"hostCompactionEpoch":                "unknown",
+		"attestorId":                         "ace-bifrost-plugin@" + aceSourceCommit,
+		"providerManagedHistoryCapability":   "unknown",
+		"hostTranscriptAttested":             false,
+		"compactionEnabled":                  false, // uninterpretable while hostTranscriptAttested=false; never assert host is uncompacted
 	}
 	attestation, err := json.Marshal(attestationValue)
 	if err != nil {
@@ -147,10 +172,9 @@ func errorResponse(status int, message string) *schemas.HTTPResponse {
 	return &schemas.HTTPResponse{StatusCode: status, Headers: map[string]string{"Content-Type": "application/json"}, Body: body}
 }
 
-// Until Responses-native projection and exact per-dispatch authorization exist,
- // NO agent generation route is eligible for ACE forwarding. This deliberate
- // quarantine prevents Chat transport or uncertified Responses from bypassing
- // policy. It is not a working Responses adapter.
+// Only native Responses ingress is admitted to local projection. The provider
+// attempt hook below still blocks every physical dispatch until final-send
+// authorization is independently certified.
 func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
 	if req == nil {
 		return errorResponse(400, "ACE gateway request is missing"), nil
@@ -159,17 +183,10 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	switch path {
 	case "/v1/models", "/health", "/healthz", "/readyz":
 		return nil, nil // administrative endpoints, never provider generation
-	case "/v1/chat/completions", "/chat/completions", "/openai/chat/completions":
-		return errorResponse(410, "ACE Chat Completions route is retired; only native Responses is eligible"), nil
-	case "/v1/responses", "/responses", "/openai/responses":
+	case "/v1/responses":
 		return prepareNativeResponses(ctx, req)
 	default:
-		if strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/openai/") ||
-			strings.HasPrefix(path, "/chatgpt_passthrough/") ||
-			strings.Contains(path, "completions") || strings.Contains(path, "/responses") {
-			return errorResponse(415, "ACE gateway model route is unsupported"), nil
-		}
-		return nil, nil // unrelated Bifrost administration; PreLLM always denies generation
+		return errorResponse(404, "ACE Gateway endpoint is unsupported"), nil
 	}
 }
 
@@ -195,6 +212,9 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	}
 	if defaultWorkspaceID == "" {
 		return errorResponse(503, "ACE workspace identity is unavailable"), nil
+	}
+	if !singleWorkspaceAllowed(req) {
+		return errorResponse(403, "ACE workspace binding differs from the isolated connector workspace"), nil
 	}
 	requestID, session, provider, _, attestation, err := requestBoundIdentity(req, req.Body, rawModel)
 	if err != nil {
@@ -244,19 +264,25 @@ func nativeResponsesQuery(raw json.RawMessage) (string, bool) {
 		}
 		var role string
 		_ = json.Unmarshal(items[i]["role"], &role)
-		if role != "user" { continue }
+		if role != "user" {
+			continue
+		}
 		var content string
 		if json.Unmarshal(items[i]["content"], &content) == nil && strings.TrimSpace(content) != "" {
 			return content, true
 		}
 		var blocks []map[string]json.RawMessage
-		if json.Unmarshal(items[i]["content"], &blocks) != nil { continue }
+		if json.Unmarshal(items[i]["content"], &blocks) != nil {
+			continue
+		}
 		var visible []string
 		for _, block := range blocks {
 			var ty, text string
 			_ = json.Unmarshal(block["type"], &ty)
 			_ = json.Unmarshal(block["text"], &text)
-			if ty == "input_text" { visible = append(visible, text) }
+			if ty == "input_text" {
+				visible = append(visible, text)
+			}
 		}
 		if out := strings.Join(visible, "\n"); strings.TrimSpace(out) != "" {
 			return out, true
@@ -275,16 +301,16 @@ func blockProviderAttempt(req *schemas.BifrostRequest, reason string) (*schemas.
 	return req, &schemas.LLMPluginShortCircuit{
 		Error: &schemas.BifrostError{
 			IsBifrostError: true,
-			StatusCode: &status,
-			Error: &schemas.ErrorField{Message: reason},
+			StatusCode:     &status,
+			Error:          &schemas.ErrorField{Message: reason},
 			AllowFallbacks: &allowFallbacks,
 		},
 	}, nil
 }
 
 // Defense in depth: the HTTP hook is not an authorization receipt.
- // Every normalized model attempt must be blocked until the native Responses
- // per-physical-send guard is implemented and proved on a pinned Bifrost.
+// Every normalized model attempt must be blocked until the native Responses
+// per-physical-send guard is implemented and proved on a pinned Bifrost.
 func PreLLMHook(_ *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
 	return blockProviderAttempt(req, "ACE provider dispatch disabled until native Responses is certified")
 }

@@ -72,7 +72,7 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 let startupLog = '';
-const endpoint = `http://127.0.0.1:${gatewayPort}/internal/ace-gateway/v1`;
+const endpoint = `http://127.0.0.1:${gatewayPort}/internal/ace-gateway/v2`;
 const timeout = (ms) => AbortSignal.timeout(ms);
 try {
   await new Promise((resolve, reject) => {
@@ -96,26 +96,27 @@ try {
   const healthBody = await health.json();
   assert.equal(healthBody.providerWire, 'not_certified');
 
-  const body = { model: 'test-model', messages: [
-    { role: 'system', content: 'Retain provider-safe control messages.' },
-    { role: 'user', content: 'Find retryAfterTransientFailure and its definition.' },
-  ], extra_field: { preserve: true } };
+  const body = {
+    model: 'test-model', store: false,
+    input: 'Find retryAfterTransientFailure and its definition.',
+    extra_field: { preserve: true },
+  };
   const bodyBytes = Buffer.from(JSON.stringify(body), 'utf8');
   const bodyBase64 = bodyBytes.toString('base64');
   const sessionId = 'real-projection-session';
   const payload = {
-    schemaVersion: 'ace.gateway.v1', requestId: 'gateway-projection-' + randomUUID(),
+    schemaVersion: 'ace.gateway.v2', protocol: 'openai.responses', requestId: 'responses-projection-' + randomUUID(),
     attemptGroupId: 'turn-1', agentSessionId: sessionId, workspaceId,
-    dataClass: 'private', protocol: 'openai.chat.completions', provider: 'mock', model: 'test-model',
+    dataClass: 'private', provider: 'mock', model: 'test-model',
     bodyBase64, bodySha256: digest(bodyBytes),
     query: 'Find retryAfterTransientFailure and its definition.',
     projectionMode: 'gateway', deadlineEpochMs: Date.now() + maxWait,
     attestation: {
-      hostBuildDigest: digest('host'), sessionId, activeEngineId: 'gateway',
+      hostBuildDigest: digest('host'), sessionId, activeEngineId: 'bifrost-visible-request-only',
       effectiveCompressionControlsDigest: digest('controls'),
       durableActiveTranscriptRevision: 'rev1', durableActiveTranscriptDigest: digest('transcript'),
-      hostCompactionEpoch: 0, attestorId: 'gateway-projection-e2e',
-      providerManagedHistoryCapability: 'visible', hostTranscriptAttested: true, compactionEnabled: false,
+      hostCompactionEpoch: 'unknown', attestorId: 'responses-projection-e2e',
+      providerManagedHistoryCapability: 'visible', hostTranscriptAttested: false, compactionEnabled: false,
     },
   };
   const responsePromise = fetch(endpoint + '/project', {
@@ -127,22 +128,19 @@ try {
     await writeFile(codePath, code.replace('return value;', "return value + '-changed';") + filler + '\n');
   }
   const response = await responsePromise;
-  assert.equal(response.status, 200);
   const decision = await response.json();
-  assert.equal(decision.receipt?.schemaVersion, 'ace.gateway.v1');
-  assert.equal(decision.receipt?.requestId, payload.requestId);
-  assert.equal(decision.receipt?.baseBodySha256, payload.bodySha256);
-  if (outage || race && decision.kind === 'BLOCK') {
-    assert.equal(decision.kind, 'BLOCK');
-    assert.equal(decision.bodyBase64, undefined);
-    assert.notEqual(decision.receipt.reasonCode, undefined);
-    console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.receipt.reasonCode }));
+  if (response.status === 409) {
+    assert.equal(response.status, 409);
+    assert.equal(typeof decision.error?.code, 'string');
+    console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.error.code }));
   } else {
-    assert.equal(decision.kind, 'APPLY', JSON.stringify(decision));
+    assert.equal(response.status, 200);
+    assert.equal(decision.kind, 'PREPARED', JSON.stringify(decision));
+    assert.equal(decision.baseBodySha256, payload.bodySha256);
     const projected = JSON.parse(Buffer.from(decision.bodyBase64, 'base64').toString('utf8'));
     assert.deepEqual(projected.extra_field, body.extra_field);
-    assert.equal(projected.messages[0].content, body.messages[0].content);
-    const contextMessage = projected.messages.find((m) => m.role === 'system' && String(m.content).includes('[ACE verified context]'));
+    assert.equal(projected.input[1].content, body.input);
+    const contextMessage = projected.input.find((item) => item.role === 'developer' && String(item.content).includes('[ACE verified context]'));
     assert.ok(contextMessage, 'real gateway projection must visibly add verified ACE context');
     assert.match(contextMessage.content, /retryAfterTransientFailure/u);
     if (race) assert.match(contextMessage.content, /-changed/u, 'stale source must not masquerade as current');
@@ -150,7 +148,7 @@ try {
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http', qdrant: qdrantUrl,
       source: '2000-line TypeScript fixture', race,
-      projectedBodySha256: decision.receipt.projectedBodySha256,
+      projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
   }

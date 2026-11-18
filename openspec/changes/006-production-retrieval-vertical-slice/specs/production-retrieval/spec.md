@@ -64,7 +64,7 @@ The system SHALL prove end-to-end behavior with official SDK/client conformance 
 #### Scenario: DBC-09 Gateway/connector conformance
 
 - **WHEN** a supported coding-agent request reaches Bifröst and ACE Gateway under valid, malformed, cancelled or concurrent conditions
-- **THEN** Gateway v1 plus the pinned connector remain interoperable, preserve typed failure semantics and never authorize an unbound provider attempt
+- **THEN** native Responses Gateway v2 plus the pinned connector remain interoperable, preserve typed failure semantics and never authorize an unbound provider attempt
 
 #### Scenario: DBC-12 agent benchmark attribution
 

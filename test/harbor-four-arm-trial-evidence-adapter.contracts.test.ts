@@ -36,17 +36,18 @@ test('native Harbor baseline has no Gateway requests or fabricated telemetry', a
 
 test('Gateway arm without request-bound receipts is blocked, not counted as success', async () => {
   await withTrial(async (_, __, aggregate) => {
-    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /missing Gateway projection receipts/u);
+    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /missing native Responses projection evidence/u);
   });
 });
 
 test('authenticated projection is not silently promoted to final-provider delivery evidence', async () => {
   await withTrial(async (_, dir, aggregate) => {
-    const receipt = {
-      kind: 'APPLY',
-      receipt: { schemaVersion: 'ace.gateway.v1', receiptId: 'rc1', requestId: 'req1', decision: 'APPLY' },
+    const projection = {
+      schemaVersion: 'ace.gateway.v2', requestId: 'req1',
+      kind: 'PREPARED', baseBodySha256: 'a'.repeat(64),
+      projectedBodySha256: 'b'.repeat(64), bodyBase64: 'e30=', reasonCode: 'VERIFIED_CONTEXT_ADDED',
     };
-    await writeFile(join(dir, 'agent', 'ace-gateway-projection.jsonl'), JSON.stringify(receipt) + '\n');
+    await writeFile(join(dir, 'agent', 'ace-responses-projection.jsonl'), JSON.stringify(projection) + '\n');
     const [result] = await readHarborFourArmTrialObservations('hybrid', aggregate);
     assert.equal(result?.observedAceCalls, 1);
     assert.equal(result?.successfulAceCalls, 0);
@@ -57,14 +58,14 @@ test('authenticated projection is not silently promoted to final-provider delive
 
 test('malformed, duplicate and native-contaminating projection receipts fail closed', async () => {
   await withTrial(async (_, dir, aggregate) => {
-    const path = join(dir, 'agent', 'ace-gateway-projection.jsonl');
+    const path = join(dir, 'agent', 'ace-responses-projection.jsonl');
     await writeFile(path, '{"kind":"FAKE_SUCCESS"}\n');
-    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /malformed Gateway projection/u);
-    const record = { kind: 'BLOCK',
-      receipt: { schemaVersion: 'ace.gateway.v1', requestId: 'x', receiptId: 'r1', decision: 'BLOCK' },
+    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /malformed native Responses projection evidence/u);
+    const record = { schemaVersion: 'ace.gateway.v2', requestId: 'x', kind: 'BLOCK',
+      baseBodySha256: 'a'.repeat(64), reasonCode: 'NOT_READY',
     };
     await writeFile(path, JSON.stringify(record) + '\n' + JSON.stringify(record) + '\n');
-    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /duplicate Gateway projection/u);
+    await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /duplicate native Responses projection/u);
     await assert.rejects(readHarborFourArmTrialObservations('native', aggregate), /native baseline contains/u);
   });
 });

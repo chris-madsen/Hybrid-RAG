@@ -10,7 +10,7 @@ Vertex docs / Graphiti memory join only if task and policy request them. Each re
 
 ## API and source representation
 
-Use the TypeSpec-owned Gateway v1 contract and the thin Bifröst connector compiled against its exact pinned upstream revision. Runtime-wired providers expose provenance receipts in **safe test diagnostics** (provider id/version, operation, input class, output source digest and duration), never raw secrets. AST symbol span is distinct from full-file exact expansion; never identify code symbols using regex alone in the production path. Do not silently limit exact artifacts.
+Use the TypeSpec-owned native Responses Gateway v2 contract and the thin Bifröst connector compiled against its exact pinned upstream revision. Runtime-wired providers expose provenance evidence in **safe test diagnostics** (provider id/version, operation, input class, output source digest and duration), never raw secrets. AST symbol span is distinct from full-file exact expansion; never identify code symbols using regex alone in the production path. Do not silently limit exact artifacts.
 
 ## Contract test doubles vs real dependencies
 

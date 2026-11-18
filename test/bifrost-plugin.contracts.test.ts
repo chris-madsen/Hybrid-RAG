@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-test('pinned Bifröst ACE plugin refuses every agent model route until native Responses is certified', async () => {
+test('pinned Bifröst ACE plugin only accepts native Responses ingress before provider certification', async () => {
   const script = await readFile('scripts/build-bifrost-ace-plugin.sh', 'utf8');
   const plugin = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
   assert.match(script, /BIFROST_COMMIT:=fe7634a6c828927d05ffdd57c62be0aaab04193f/u);
@@ -14,21 +14,16 @@ test('pinned Bifröst ACE plugin refuses every agent model route until native Re
   assert.match(plugin, /ACE plugin source commit provenance is unavailable/u);
   assert.match(plugin, /ace-bifrost-plugin:" \+ aceSourceCommit/u);
   assert.match(plugin, /func HTTPTransportPreHook\(/u);
-  assert.match(plugin, /ACE Chat Completions route is retired/u);
+  assert.match(plugin, /case "\/v1\/responses":/u);
   assert.match(plugin, /func prepareNativeResponses\(/u);
   assert.match(plugin, /ProjectNativeResponses/u);
-  assert.match(plugin, /chatgpt_passthrough/u);
-  assert.match(plugin, /ACE gateway model route is unsupported/u);
+  assert.match(plugin, /ACE Gateway endpoint is unsupported/u);
   assert.match(plugin, /func PreLLMHook\(/u);
   assert.match(plugin, /LLMPluginShortCircuit/u);
   assert.match(plugin, /AllowFallbacks:\s*&allowFallbacks/u);
   assert.match(plugin, /return blockProviderAttempt\(req, "ACE provider dispatch disabled until native Responses is certified"\)/u);
 
-  // Old Chat wire must not be projected or accepted under the owner's decision.
-  assert.doesNotMatch(plugin, /req\.ChatRequest/u);
-  assert.doesNotMatch(plugin, /func requestQuery\(/u);
   assert.doesNotMatch(plugin, /projectionClient\.Project\(/u);
-  assert.doesNotMatch(plugin, /openai\.chat\.completions/u);
   assert.doesNotMatch(plugin, /context\.Background\(\)/u);
   assert.doesNotMatch(plugin, /ACE_GATEWAY_STRICT/u);
 });
@@ -42,7 +37,14 @@ test('quarantined plugin retains truthful request-bound identity helpers for nat
   assert.match(plugin, /schemas\.NormalizeSessionID/u);
   assert.match(plugin, /schemas\.ParseModelString\(rawModel, ""\)/u);
   assert.match(plugin, /durableActiveTranscriptDigest/u);
-  assert.match(plugin, /"hostTranscriptAttested": false/u);
-  assert.match(plugin, /"hostCompactionEpoch": "unknown"/u);
+  assert.match(plugin, /"hostTranscriptAttested"\s*:\s*false/u);
+  assert.match(plugin, /"hostCompactionEpoch"\s*:\s*"unknown"/u);
   assert.match(plugin, /bifrost-visible-request-only/u);
+});
+
+test('native Bifröst metadata never claims authenticated multi-tenant workspace or known provider history', async () => {
+  const source = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
+  assert.match(source, /ACE_BIFROST_TENANCY_MODE/u);
+  assert.match(source, /singleWorkspaceAllowed/u);
+  assert.match(source, /"providerManagedHistoryCapability"\s*:\s*"unknown"/u);
 });
