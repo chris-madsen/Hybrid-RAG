@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { constants, existsSync } from 'node:fs';
-import { open, readFile, readdir, lstat } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { open, readFile, readdir, type FileHandle } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { requiredAceRuntimeBundlePaths, validateAceRuntimeBundleManifest } from '../domain/ace-runtime-bundle.js';
 
 export const missingAceRuntimeBundlePaths = (runtimeRoot: string): readonly string[] =>
@@ -15,39 +15,61 @@ interface BundleEntry {
   readonly sizeBytes: number;
 }
 
+// Keep each directory FD open until all its descendants are scanned.
+// /proc/self/fd (Linux) or /dev/fd (Darwin) refers to the opened directory
+// inode rather than a pathname that could be replaced after an earlier check.
+const descriptorPath = (fd: number): string =>
+  process.platform === 'linux' ? `/proc/self/fd/${fd}` : `/dev/fd/${fd}`;
+
+const stableStat = async (descriptor: FileHandle): Promise<import('node:fs').Stats> =>
+  descriptor.stat();
+
+const assertStable = (before: import('node:fs').Stats, after: import('node:fs').Stats): void => {
+  if (before.ino !== after.ino || before.dev !== after.dev
+    || before.size !== after.size || before.ctimeMs !== after.ctimeMs
+    || before.mtimeMs !== after.mtimeMs) {
+    throw new Error('ACE runtime bundle bytes or directory changed while hashing');
+  }
+};
+
 // Deliberately uses the same stable ordering and exclusions as the release builder.
 // The provenance file contains bundleSha256 (circular) and is checked separately.
-const bundleEntries = async (root: string, current = root): Promise<readonly BundleEntry[]> => {
+const scanBundleDirectory = async (directory: FileHandle, prefix: string): Promise<readonly BundleEntry[]> => {
+  const beforeDirectory = await stableStat(directory);
+  if (!beforeDirectory.isDirectory()) throw new Error('ACE runtime bundle entry is not a directory');
   const entries: BundleEntry[] = [];
-  for (const name of (await readdir(current)).sort()) {
-    const path = join(current, name);
-    const info = await lstat(path);
-    if (info.isSymbolicLink()) throw new Error('ACE runtime bundle must not contain symbolic links');
-    if (info.isDirectory()) {
-      entries.push(...await bundleEntries(root, path));
-    } else if (info.isFile()) {
-      const relPath = relative(root, path).split('\\').join('/');
-      if (relPath === 'runtime-manifest.json' || relPath === 'dist/runtime-provenance.json') continue;
-      const descriptor = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-      try {
-        const before = await descriptor.stat();
-        if (!before.isFile() || before.ino !== info.ino || before.dev !== info.dev) {
-          throw new Error('ACE runtime bundle file changed before read');
-        }
-        const bytes = await descriptor.readFile();
-        const after = await descriptor.stat();
-        if (before.ino !== after.ino || before.dev !== after.dev
-          || before.size !== after.size || before.mtimeMs !== after.mtimeMs
-          || before.ctimeMs !== after.ctimeMs || bytes.byteLength !== after.size) {
-          throw new Error('ACE runtime bundle file changed while hashing');
-        }
+  const directoryPath = descriptorPath(directory.fd);
+  for (const name of (await readdir(directoryPath)).sort()) {
+    const relPath = prefix === '' ? name : prefix + '/' + name;
+    if (relPath === 'runtime-manifest.json' || relPath === 'dist/runtime-provenance.json') continue;
+    const child = await open(join(directoryPath, name), constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    try {
+      const info = await stableStat(child);
+      if (info.isDirectory()) {
+        entries.push(...await scanBundleDirectory(child, relPath));
+      } else if (info.isFile()) {
+        const bytes = await child.readFile();
+        assertStable(info, await stableStat(child));
+        if (bytes.byteLength !== info.size) throw new Error('ACE runtime bundle short file read');
         entries.push({ path: relPath, sha256: sha256(bytes), sizeBytes: bytes.byteLength });
-      } finally {
-        await descriptor.close();
+      } else {
+        throw new Error('ACE runtime bundle contains an unsupported entry');
       }
+    } finally {
+      await child.close();
     }
   }
+  assertStable(beforeDirectory, await stableStat(directory));
   return entries;
+};
+
+const bundleEntries = async (root: string): Promise<readonly BundleEntry[]> => {
+  const directory = await open(root, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_DIRECTORY ?? 0));
+  try {
+    return await scanBundleDirectory(directory, '');
+  } finally {
+    await directory.close();
+  }
 };
 
 export const computeAceRuntimeBundleDigest = async (runtimeRoot: string): Promise<string> =>
