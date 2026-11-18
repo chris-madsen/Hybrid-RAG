@@ -9,10 +9,10 @@ This skill **routes to canonical ACE instructions**. It does not replace root `A
 
 1. Read repository-root `AGENTS.md` and scoped `AGENTS.md`; current explicit owner decisions, accepted ADR/OpenSpec and current source retain their prescribed authority.
 2. Read `docs/operations/ai-assisted-sdlc.md` and choose **T0/T1/T2 by risk**, not diff size. Read `docs/research/sdlc/PROMPTS-ACE.md` and the matching **complete** `source/commands/*.md` file.
-3. Run the **read-only** preflight with an explicit stage and tier:
+3. Run the **read-only** preflight with the **selected** stage/tier (below is a Research example only; for direct implementation use `--stage implement --task-id <task-id> --plan <canonical-tasks.md>` and `--g02 <reviewed-crosswalk>` for T2, after routing by the owner's intent):
 
    ```bash
-   npm run sdlc:preflight -- --tier T1 --stage <selected-stage> --json
+   npm run sdlc:preflight -- --tier T1 --stage research --json
    ```
 
    `READY_FOR_AGENT` means only that local preflight has no blockers; it is **not** G02, CI, provider or production acceptance. `REVIEW_REQUIRED` means unresolved human/agent decisions. `BLOCKED` means stop and repair the stated condition.
