@@ -54,7 +54,9 @@ export const validateResponsesProjectionRequest = (value: unknown): Result<Respo
   if (attestation.value.sessionId !== value.agentSessionId) {
     return rejected('attestation.sessionId', 'agent session and transport session differ');
   }
-  return ok({ ...(value as unknown as ResponsesProjectionRequest), attestation: attestation.value });
+  // The original field is now validated above. Preserve the TypeSpec-generated
+  // DTO without re-creating its nested attestation as a handwritten wire type.
+  return ok(value as unknown as ResponsesProjectionRequest);
 };
 
 // A native Responses body may contain arbitrary tool/reasoning/multimodal
