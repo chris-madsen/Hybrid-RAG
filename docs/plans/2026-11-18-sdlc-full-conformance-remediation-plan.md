@@ -235,7 +235,7 @@ runGatewayProjectionHttp(makeResponsesProjectionService(...))
 
 ### Stale v1 readiness / real-projection fixture
 
-`test/gateway-runtime-readiness.test.ts` and `scripts/real-projection-e2e.mjs` still exercise an old Gateway v1 Chat-Completions-shaped route and expect success. The current Responses-only architecture correctly disables that legacy path, producing 503/BLOCK.
+`test/gateway-runtime-readiness.test.ts` and `scripts/real-projection-e2e.mjs` still exercise an retired Gateway v1 generation route and expect success. The current Responses-only architecture correctly disables that legacy path, producing 503/BLOCK.
 
 The real Qdrant service itself starts successfully; the observed failure is an acceptance-fixture migration problem, not evidence that Qdrant is unavailable.
 
@@ -246,19 +246,19 @@ The real Qdrant service itself starts successfully; the observed failure is an a
 Replace implementation-string coupling with the intended invariant:
 
 - runtime composition must use the supported Responses projector;
-- no retired Chat projection service is reachable;
+- no retired generation-protocol service is reachable;
 - no optional model-tool transport is started;
 - Gateway-only ownership remains enforced.
 
 Prefer testing an architectural property over one brittle exact constructor string.
 
-### 7.2 Legacy Chat negative fixture
+### 7.2 Retired generation-protocol negative fixture
 
-Keep a deliberate old v1/Chat request and assert:
+Keep a deliberate unsupported legacy-protocol request and assert:
 
 - explicit unsupported/not-ready/BLOCK status;
 - zero provider send;
-- no fallback to Chat;
+- no fallback or automatic protocol conversion;
 - no silent v1 compatibility path becomes agent-facing again.
 
 ### 7.3 Native Responses real projection
