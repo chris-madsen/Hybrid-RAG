@@ -111,9 +111,10 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       headers: { 'content-type': 'application/json', authorization: 'Bearer readiness-fixture-secret' },
       body: JSON.stringify(request),
     });
-    assert.equal(response.status, 409);
-    const result = await response.json() as { error: { code: string } };
-    assert.equal(result.error.code, 'NOT_READY');
+    assert.equal(response.status, 200);
+    const result = await response.json() as { kind: string; reasonCode: string };
+    assert.equal(result.kind, 'BLOCK');
+    assert.equal(result.reasonCode, 'NOT_READY');
   } finally {
     child.kill('SIGTERM');
     await new Promise<void>((resolve) => {
