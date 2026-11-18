@@ -128,16 +128,14 @@ export const createGatewayProjectionServer = (
   const maxEnvelopeBytes = maxEnvelopeBytesFor(maxBodyBytes);
   return createServer(async (request, response) => {
     try {
-      if (request.method === 'POST' && request.url === '/internal/ace-gateway/v2/project') {
-        const token = options.authToken ?? process.env.ACE_GATEWAY_HTTP_SHARED_SECRET;
-        if (!token?.trim()) {
-          writeResponse(response, error(503, 'NOT_READY', 'Gateway projection authentication is not configured'));
-          return;
-        }
-        if (!authorizedProjectionRequest(request.headers.authorization, token)) {
-          writeResponse(response, error(401, 'UNAUTHORIZED', 'Gateway projection authentication failed'));
-          return;
-        }
+      const token = options.authToken ?? process.env.ACE_GATEWAY_HTTP_SHARED_SECRET;
+      if (!token?.trim()) {
+        writeResponse(response, error(503, 'NOT_READY', 'Gateway projection authentication is not configured'));
+        return;
+      }
+      if (!authorizedProjectionRequest(request.headers.authorization, token)) {
+        writeResponse(response, error(401, 'UNAUTHORIZED', 'Gateway projection authentication failed'));
+        return;
       }
       const body = await readRequestBody(request, maxEnvelopeBytes);
       writeResponse(response, await handleGatewayProjectionHttp(service, request.method ?? 'GET', request.url ?? '/', body));

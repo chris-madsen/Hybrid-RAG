@@ -88,6 +88,8 @@ test('native projection HTTP refuses local callers without the configured shared
     assert.equal(anonymous.status, 401);
     const wrong = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer wrong' }, body: '{}' });
     assert.equal(wrong.status, 401);
+    const anonymousHealth = await fetch(url.replace('/project', '/health'));
+    assert.equal(anonymousHealth.status, 401);
     const authenticated = await fetch(url, {
       method: 'POST',
       headers: { Authorization: 'Bearer in-memory-test-token' },
@@ -96,6 +98,10 @@ test('native projection HTTP refuses local callers without the configured shared
     assert.equal(authenticated.status, 409);
     const result = await authenticated.json() as { error: { code: string } };
     assert.equal(result.error.code, 'ROUTE_NOT_CERTIFIED');
+    const authorizedHealth = await fetch(url.replace('/project', '/health'), {
+      headers: { Authorization: 'Bearer in-memory-test-token' },
+    });
+    assert.equal(authorizedHealth.status, 200);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -115,6 +121,8 @@ test('native projection HTTP without a server credential is NOT_READY, not publi
       body: '{}',
     });
     assert.equal(reply.status, 503);
+    const health = await fetch(`http://127.0.0.1:${address.port}/internal/ace-gateway/v2/health`);
+    assert.equal(health.status, 503);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

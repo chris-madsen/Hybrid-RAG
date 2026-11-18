@@ -71,7 +71,9 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       child.once('exit', (code) => finish(new Error('Gateway exited before ready: ' + code + ' ' + stderr.slice(-1000))));
     });
     const base = `http://127.0.0.1:${port}/internal/ace-gateway/v2`;
-    const health = await fetch(base + '/health');
+    const health = await fetch(base + '/health', {
+      headers: { authorization: 'Bearer readiness-fixture-secret' },
+    });
     assert.equal(health.status, 200);
     const readiness = await health.json() as { providerWire: string };
     assert.equal(readiness.providerWire, 'not_certified');
