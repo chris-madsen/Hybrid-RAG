@@ -1,6 +1,6 @@
 ---
 name: ace-sdlc
-description: Apply ACE's existing single-agent, client-neutral Research → Design → Plan → Implement workflow, G02 owner decisions and evidence-backed quality gates. Use before investigating, planning, modifying or reviewing ACE code; never run a second orchestration framework.
+description: Route ACE coding-agent requests by intent and current artifacts; implement or resume an existing approved phase directly without restarting Research/Design/Plan, or run full staged SDLC for genuinely new work. Enforce G02, source checks and evidence gates.
 ---
 
 # ACE SDLC — thin local agent entrypoint
