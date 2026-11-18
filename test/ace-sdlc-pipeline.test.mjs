@@ -303,7 +303,7 @@ test('G11 planning contract has native Responses acceptance and rejects a Chat-f
   assert.deepEqual(ids, Array.from({ length: 8 }, (_, i) => 'RESP-' + String(i + 1).padStart(3, '0')));
 });
 
-test('Hermes implementation intent starts from existing phase without rerunning planning or bypassing gates', () => {
+test('Harness-neutral SDLC enters any selected stage and reuses prepared phase without bypassing gates', () => {
   const rules = file('AGENTS.md');
   const router = file('.agents/skills/ace-sdlc/SKILL.md');
   const handoff = file('.agents/skills/ace-stage-handoff/SKILL.md');
@@ -316,12 +316,12 @@ test('Hermes implementation intent starts from existing phase without rerunning 
     assert.match(content, /do not (automatically |start at |restart |rerun |replay |regenerate )|не /iu);
     assert.match(content, /G02/u);
   }
-  assert.match(router, /## Intent-first entry[\s\S]*## Staged pipeline route/u, 'intent route must precede default staged planning');
-  assert.match(router, /DIRECT_IMPLEMENT/u);
-  assert.ok(router.indexOf('## Intent-first entry') < router.indexOf('1. Read repository-root'), 'intent routing must precede numbered Research-first steps');
-  assert.match(procedure, /RESUME_PHASE/u);
+  assert.match(router, /## Harness-neutral intent-first stage entry[\s\S]*## Staged pipeline route/u, 'intent route must precede default staged planning');
+  assert.match(router, /Harness-neutral intent-first stage entry/u);
+  assert.ok(router.indexOf('## Harness-neutral intent-first stage entry') < router.indexOf('1. Read repository-root'), 'intent routing must precede numbered Research-first steps');
+  assert.match(procedure, /RESUME_STAGE/u);
   assert.match(procedure, /BLOCKED_G02/u);
-  assert.match(procedure, /PLAN_REPAIR_SCOPED/u);
+  assert.match(procedure, /REPAIR_OWNING_STAGE/u);
   assert.match(procedure, /check:ace-phase-plan/u);
   assert.match(procedure, /--stage implement/u);
   assert.match(procedure, /openspec instructions apply/u);
@@ -331,4 +331,27 @@ test('Hermes implementation intent starts from existing phase without rerunning 
   assert.match(implement, /not a new R stage/u);
   assert.match(trial, /Live result: NOT RUN/u);
   assert.match(trial, /zero source edits/u);
+});
+
+test('all seven SDLC stages can be selected or resumed by a compatible coding harness', () => {
+  const source = file('docs/operations/implementation-entry-resume.md');
+  const router = file('.agents/skills/ace-sdlc/SKILL.md');
+  const staged = file('.agents/skills/ace-stage-handoff/SKILL.md');
+  const root = file('AGENTS.md');
+  const checkpoint = file('docs/research/sdlc/source/templates/progress-checkpoint.md');
+  for (const stage of ['R', 'S', 'A', 'P', 'X', 'I', 'V']) {
+    assert.match(source, new RegExp('\\*\\*' + stage + ' — ', 'u'), 'missing stage ' + stage);
+    assert.match(source, new RegExp('ENTER_STAGE\\(R\\|S\\|A\\|P\\|X\\|I\\|V\\)', 'u'));
+    assert.match(router, new RegExp('\\b' + stage + '\\b', 'u'));
+  }
+  assert.match(source, /RESUME_STAGE\(R\|S\|A\|P\|X\|I\|V\)/u);
+  assert.match(source, /Resume any stage/u);
+  assert.match(source, /G02 is \*\*not a blanket prerequisite/u);
+  assert.match(source, /R → research, S\/A → design, P\/X → plan, I → implement, V → review/u);
+  assert.match(source, /not a Hermes-specific adapter/u);
+  assert.match(staged, /any requested stage/u);
+  assert.match(root, /Harness-neutral intent-first entry/u);
+  assert.match(checkpoint, /RESUME_STAGE/u);
+  assert.match(file('docs/operations/sdlc-e2e-trial.md'), /Resume matrix/u);
+  assert.match(file('.codex/skills/ace-sdlc/SKILL.md'), /R\/S\/A\/P\/X\/I\/V/u);
 });

@@ -1,15 +1,15 @@
 ---
 name: ace-stage-handoff
-description: Advance the one-agent ACE SDLC across independently reviewable stacked Draft PRs, preserving exact upstream input SHAs, provisional planning and G02/egress owner gates.
+description: Harness-neutral ACE stage entry, resume and handoff for any R/S/A/P/X/I/V stage; reuse existing Draft PRs and immutable upstream inputs, preserving G02/egress owner gates.
 ---
 
 # ACE Stage Handoff — review can overlap preparation
 
 **Mode:** explicit one-agent stage transitions, not a daemon, subagent orchestrator or background runner. The active coding agent applies this after every completed stage when the owner's request authorizes continued planning. **Creating a Draft PR is not merge, approval, production acceptance or permission to implement T2.**
 
-## Enter an existing stage without replaying the pipeline
+## Enter or resume any requested stage (not always R)
 
-When the owner says "implement the existing plan", "имплементируй C01" or "continue this PR", **do not start at R** and do not reopen A/B dual planning. Apply the intent-first [implementation entry/resume procedure](../../../docs/operations/implementation-entry-resume.md), select the canonical existing `tasks.md` + linked `phases/<ID>.md` and route **directly to I** (or resume the active I phase). R/S/A/P/X handoff rules below apply only to missing, explicitly requested or *scoped stale* planning artifacts. A resumed implementation is not a sixth planning stage and does not need five new Draft PRs. Actual G02/egress/dependency/branch gates still apply; fail BLOCKED at I rather than pretending the owner requested re-research. Review-only requests go to V.
+For any compatible coding harness, apply [universal stage entry/resume](../../../docs/operations/implementation-entry-resume.md) **before** the default R→S→A→P→X chain. Stage-specific owner intent selects R, S, A, P, X, I or V. "Continue/продолжай" resumes the **verified current stage**, including an unfinished S/A/P/X Draft PR, not automatically I. Reuse completed fresh input artifacts and existing stage branch/PR; **do not start at R** or regenerate A/B/C simply because the agent has a new context. A requested R stage does research, S updates OpenSpec requirements, A design, P tickets, X phase briefs, I one approved chunk, V verification; each loads only its own skill and necessary inputs. Missing/stale inputs require scoped predecessor repair and restack only affected descendants. Material T2 G02/egress/dependency gates block corresponding implementation actions, **not provisional earlier stages**. A resumed stage is not an extra stage or duplicate PR.
 ## Stage DAG and exit artifacts
 
 1. **Research:** fact-only current-source evidence memo at exact SHA → Draft PR; may run separately when existing verified research can be reused.

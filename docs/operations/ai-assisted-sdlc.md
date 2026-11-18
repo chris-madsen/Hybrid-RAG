@@ -15,9 +15,9 @@ This is a **single-agent, client-independent** development process for the ACE r
 
 One line in an authorization guard can be T2. Do not classify by diff size alone.
 
-## Start at the requested stage (including a prepared plan)
+## Start at the owner-requested stage (including any existing artifact)
 
-Before selecting a stage, read [intent-first entry and implementation resume](implementation-entry-resume.md). **A new Hermes session is not a new SDLC project.** An explicit "implement the existing plan / имплементируй" with a canonical `tasks.md` and `phases/<ID>.md` starts at **I** after bounded current-source verification, G02/permission/dependency checks and `sdlc:preflight --stage implement`. It must **not** rerun Research, SDD, architecture, dual-plan A/B/C synthesis, or phase generation by default. "Continue" resumes the active verified phase/PR. "Review" selects V, and "plan" selects only the needed P/X steps. If the plan is absent/stale, identify precisely the affected artifact and repair only its owning stage; absent T2 G02 blocks implementation without forcing replanning. The full R/S/A/P/X cycle is the fallback for genuinely new work or an explicit owner restart.
+Before selecting a stage, read [universal harness-neutral stage entry/resume](implementation-entry-resume.md). **A new harness session is not a new SDLC project.** Select the current owner-requested R/S/A/P/X/I/V stage, reuse verified prior-stage artifacts and enter that stage directly. "Requirements" enters S, "architecture" enters A, "tickets" P, "phase details" X, "implement" I, "review" V, and "continue" resumes whichever stage the actual branch/PR/checkpoint confirms. Do **not** rerun Research, Requirements, Architecture or dual-plan A/B/C synthesis for already fresh outputs. If something is stale or absent, correct *only that owning stage and affected descendants*. Material T2 G02 blocks dependent implementation, not provisional planning. Full R→X is the fallback for truly new scope or an explicitly requested restart.
 ## 0. Universal preflight
 1. Confirm repository, current branch, base and HEAD SHA.
 2. Check dirty worktree; preserve all unrelated files.
