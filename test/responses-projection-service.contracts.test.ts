@@ -37,7 +37,7 @@ const req = (override: Partial<ResponsesProjectionRequest> = {}, bodyValue: unkn
       effectiveCompressionControlsDigest: hash('controls'),
       durableActiveTranscriptRevision: 'unattested', durableActiveTranscriptDigest: hash('input'),
       hostCompactionEpoch: 'unknown', attestorId: 'ace-bifrost',
-      providerManagedHistoryCapability: 'visible', hostTranscriptAttested: false, compactionEnabled: false,
+      providerManagedHistoryCapability: 'unknown', hostTranscriptAttested: false, compactionEnabled: false,
     },
     ...override,
   };
@@ -110,8 +110,8 @@ test('hidden provider state and active host compaction block before retrieval', 
     return Effect.succeed(ok(example));
   } };
   for (const attestation of [
-    { ...req().attestation, providerManagedHistoryCapability: 'unknown' as const },
     { ...req().attestation, providerManagedHistoryCapability: 'hidden' as const },
+    { ...req().attestation, hostTranscriptAttested: true, providerManagedHistoryCapability: 'unknown' as const },
     { ...req().attestation, hostTranscriptAttested: true, compactionEnabled: true },
     { ...req().attestation, hostTranscriptAttested: true, hostCompactionEpoch: 'unknown' as const },
   ]) {
@@ -120,6 +120,12 @@ test('hidden provider state and active host compaction block before retrieval', 
     if (response._tag === 'Ok') assert.equal(response.value.kind, 'BLOCK');
   }
   assert.equal(transforms, 0);
+});
+
+test('unattested but explicitly stateless native input may prepare context without fabricated provider history evidence', async () => {
+  const response = await Effect.runPromise(make().projectResponses(req()));
+  assert.equal(response._tag, 'Ok');
+  if (response._tag === 'Ok') assert.equal(response.value.kind, 'PREPARED');
 });
 
 test('provider allowlist, cloud opt-in, and private-source policy deny before retrieval', async () => {

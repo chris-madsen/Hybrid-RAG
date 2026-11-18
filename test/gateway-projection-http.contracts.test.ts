@@ -54,8 +54,9 @@ test('gateway HTTP exposes native Responses v2 health and capability contracts',
 test('native Responses projection returns a typed denial until dispatch is certified', async () => {
   projectCalls = 0;
   const projected = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v2/project', '{}');
-  assert.equal(projected.statusCode, 409);
-  assert.equal((projected.body as { error: { code: string } }).error.code, 'ROUTE_NOT_CERTIFIED');
+  assert.equal(projected.statusCode, 200);
+  assert.equal(projected.body.kind, 'BLOCK');
+  assert.equal(projected.body.reasonCode, 'ROUTE_NOT_CERTIFIED');
   assert.equal(projectCalls, 1);
   const missing = await handleGatewayProjectionHttp(service, 'POST', '/unknown', '{}');
   assert.equal(missing.statusCode, 404);
@@ -95,8 +96,10 @@ test('native projection HTTP refuses local callers without the configured shared
       headers: { Authorization: 'Bearer in-memory-test-token' },
       body: '{}',
     });
-    assert.equal(authenticated.status, 409);
-    const result = await authenticated.json() as { error: { code: string } };
+    assert.equal(authenticated.status, 200);
+    const result = await authenticated.json() as { kind: string; reasonCode: string };
+    assert.equal(result.kind, 'BLOCK');
+    assert.equal(result.reasonCode, 'ROUTE_NOT_CERTIFIED');
     assert.equal(result.error.code, 'ROUTE_NOT_CERTIFIED');
     const authorizedHealth = await fetch(url.replace('/project', '/health'), {
       headers: { Authorization: 'Bearer in-memory-test-token' },

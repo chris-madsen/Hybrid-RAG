@@ -41,3 +41,10 @@ test('quarantined plugin retains truthful request-bound identity helpers for nat
   assert.match(plugin, /"hostCompactionEpoch"\s*:\s*"unknown"/u);
   assert.match(plugin, /bifrost-visible-request-only/u);
 });
+
+test('native Bifröst metadata never claims authenticated multi-tenant workspace or known provider history', async () => {
+  const source = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
+  assert.match(source, /ACE_BIFROST_TENANCY_MODE/u);
+  assert.match(source, /singleWorkspaceAllowed/u);
+  assert.match(source, /"providerManagedHistoryCapability"\s*:\s*"unknown"/u);
+});

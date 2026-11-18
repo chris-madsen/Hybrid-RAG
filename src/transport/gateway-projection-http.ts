@@ -89,7 +89,9 @@ export const handleGatewayProjectionHttp = async (
     }
     const response = await Effect.runPromise(service.projectResponses(payload));
     if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
-    if (response.value.kind === 'BLOCK') return error(409, response.value.reasonCode, 'native Responses projection refused');
+    // A policy denial is a typed projection decision, not an out-of-schema
+    // error. The Go connector must still refuse BLOCK and never dispatch.
+    if (response.value.kind === 'BLOCK') return json(response.value);
     // Internal context transformation only. This result is not a provider-send permit.
     return json(response.value);
   }

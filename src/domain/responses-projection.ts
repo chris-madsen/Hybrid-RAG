@@ -79,8 +79,20 @@ export const decodeNativeResponsesBody = (
 ): Result<Record<string, unknown>, DomainError> => {
   let value: unknown;
   try {
-    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(request.bodyBase64, 'base64'))) as unknown;
-  } catch { return rejected('body', 'native Responses request must be valid UTF-8 JSON'); }
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(request.bodyBase64, 'base64'));
+    // Node 22 supplies the exact JSON number lexeme through the reviver's
+    // primitive context. JSON.rawJSON preserves it on reserialization, even
+    // inside opaque tool/reasoning/extension fields. A lossy native request
+    // must never be silently mutated by IEEE-754 number rounding.
+    const rawJSON = (JSON as typeof JSON & { rawJSON?: (text: string) => unknown }).rawJSON;
+    if (!rawJSON) return rejected('body', 'lossless native JSON number support is unavailable');
+    value = JSON.parse(source, function (_key: string, item: unknown): unknown {
+      const context = (arguments as IArguments)[2] as { readonly source?: unknown } | undefined;
+      return typeof item === 'number' && typeof context?.source === 'string'
+        ? rawJSON(context.source)
+        : item;
+    }) as unknown;
+  } catch { return rejected('body', 'native Responses request must be valid lossless UTF-8 JSON'); }
   if (!object(value) || value.model !== request.model) return rejected('body.model', 'provider model mismatch');
   if (typeof value.input !== 'string' && !Array.isArray(value.input)) {
     return rejected('body.input', 'native Responses input must be text or an item array');

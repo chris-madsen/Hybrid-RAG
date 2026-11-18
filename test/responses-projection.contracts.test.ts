@@ -26,7 +26,7 @@ const attestation = {
   hostBuildDigest:digest('build'), sessionId:'hermes-session', activeEngineId:'bifrost-visible-request-only',
   effectiveCompressionControlsDigest:digest('controls'), durableActiveTranscriptRevision:'unattested',
   durableActiveTranscriptDigest:digest('body'), hostCompactionEpoch:'unknown' as const,
-  attestorId:'ace-bifrost-test', providerManagedHistoryCapability:'visible' as const,
+  attestorId:'ace-bifrost-test', providerManagedHistoryCapability:'unknown' as const,
   hostTranscriptAttested:false, compactionEnabled:false,
 };
 const req = (override:Partial<ResponsesProjectionRequest> = {}, requestBody:unknown = input):ResponsesProjectionRequest=>{
@@ -102,4 +102,24 @@ test('query must be verified against actual visible Responses content', ()=>{
 test('projected context never truncates or mutates opaque tool items or extends beyond limit', ()=>{
   const request = req();const d = decodeNativeResponsesBody(request);if (d._tag === 'Err') throw Error('fixture error');
   assert.equal(addVerifiedContextToResponses(d.value, 'x'.repeat(4 * 1024 * 1024))._tag, 'Err');
+});
+
+test('opaque native number lexemes survive context injection without floating-point corruption', () => {
+  const text = '{"model":"openai/gpt-test","store":false,"input":[{"role":"user","content":"entrypoint found","opaque":9007199254740993}],"metadata":{"decimal":1.00,"exponent":1e100,"nested":[99999999999999999999]}}';
+  const bytes = Buffer.from(text);
+  const original = req({
+    bodyBase64: bytes.toString('base64'),
+    bodySha256: createHash('sha256').update(bytes).digest('hex'),
+    query: 'entrypoint found',
+  });
+  const decoded = decodeNativeResponsesBody(original);
+  assert.equal(decoded._tag, 'Ok');
+  if (decoded._tag === 'Err') return;
+  const updated = addVerifiedContextToResponses(decoded.value, 'src/a.ts:1 verified evidence');
+  assert.equal(updated._tag, 'Ok');
+  if (updated._tag === 'Err') return;
+  const result = Buffer.from(updated.value, 'base64').toString('utf8');
+  for (const literal of ['9007199254740993', '"decimal":1.00', '"exponent":1e100', '99999999999999999999']) {
+    assert.ok(result.includes(literal), 'opaque JSON lexeme changed: ' + literal);
+  }
 });

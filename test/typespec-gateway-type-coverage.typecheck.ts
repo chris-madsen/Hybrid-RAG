@@ -21,6 +21,10 @@ ResponsesProjectionRequest['bodySha256' | 'bodyBase64' | 'query' | 'deadlineEpoc
 type AttestationSessionMatches = Expect<Equal<GeneratedHostAttestation['sessionId'], HostCompactionAttestation['sessionId']>>;
 type AttestationHistoryMatches = Expect<Equal<GeneratedHostAttestation['providerManagedHistoryCapability'], HostCompactionAttestation['providerManagedHistoryCapability']>>;
 type DecisionKindsMatch = Expect<Equal<GeneratedProjectionDecision['kind'], ResponsesProjectionDecision['kind']>>;
+type GeneratedRequestCoversDomain = Expect<GeneratedProjectionRequest extends ResponsesProjectionRequest ? true : false>;
+type DomainRequestCoversGenerated = Expect<ResponsesProjectionRequest extends GeneratedProjectionRequest ? true : false>;
+type GeneratedDecisionCoversDomain = Expect<GeneratedProjectionDecision extends ResponsesProjectionDecision ? true : false>;
+type DomainDecisionCoversGenerated = Expect<ResponsesProjectionDecision extends GeneratedProjectionDecision ? true : false>;
 
 const request: GeneratedProjectionRequest = {
   schemaVersion: 'ace.gateway.v2', protocol: 'openai.responses', requestId: 'r1', attemptGroupId: 'a1',
@@ -39,5 +43,10 @@ const prepared: GeneratedProjectionDecision = {
 };
 const blocked: GeneratedProjectionDecision = { kind: 'BLOCK', baseBodySha256: 'a'.repeat(64), reasonCode: 'NOT_READY' };
 const samples: readonly [GeneratedProjectionRequest, GeneratedProjectionDecision, GeneratedProjectionDecision] = [request, prepared, blocked];
-type ContractChecks = readonly [RequestVersionMatches, RequestProtocolMatches, RequestFieldsMatch, AttestationSessionMatches, AttestationHistoryMatches, DecisionKindsMatch];
+type ContractChecks = readonly [
+  RequestVersionMatches, RequestProtocolMatches, RequestFieldsMatch,
+  AttestationSessionMatches, AttestationHistoryMatches, DecisionKindsMatch,
+  GeneratedRequestCoversDomain, DomainRequestCoversGenerated,
+  GeneratedDecisionCoversDomain, DomainDecisionCoversGenerated,
+];
 void [samples, null as unknown as ContractChecks];

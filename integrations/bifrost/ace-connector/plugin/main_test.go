@@ -63,6 +63,9 @@ func TestRequestBoundIdentityDoesNotDependOnLaterBifrostContextPopulation(t *tes
 	if attestation["sessionId"] != sessionID || attestation["hostTranscriptAttested"] != false || attestation["hostCompactionEpoch"] != "unknown" {
 		t.Fatalf("unexpected lower-assurance attestation: %#v", attestation)
 	}
+	if attestation["providerManagedHistoryCapability"] != "unknown" {
+		t.Fatalf("unattested Bifröst ingress must not claim visible provider history: %#v", attestation)
+	}
 	if attestation["durableActiveTranscriptRevision"] != "unattested:"+firstID {
 		t.Fatalf("attestation must bind the minted physical request ID: %#v", attestation)
 	}
@@ -131,5 +134,28 @@ func TestNativeResponsesIngressWithoutContextOrWorkspaceNeverSends(t *testing.T)
 	_, stop, err := PreLLMHook(nil, &schemas.BifrostRequest{ResponsesRequest: &schemas.BifrostResponsesRequest{Model: "gpt-test"}})
 	if err != nil || stop == nil || stop.Error == nil || stop.Error.AllowFallbacks == nil || *stop.Error.AllowFallbacks {
 		t.Fatal("no provider dispatch or fallback permitted before physical-send certification")
+	}
+}
+
+func TestSingleWorkspaceRejectsCallerWorkspaceSelection(t *testing.T) {
+	before := defaultWorkspaceID
+	defaultWorkspaceID = "workspace-isolated"
+	t.Cleanup(func() { defaultWorkspaceID = before })
+	cases := []struct{
+		header string
+		want bool
+	}{
+		{"", true},
+		{"workspace-isolated", true},
+		{"workspace-other", false},
+	}
+	for _, tc := range cases {
+		req := &schemas.HTTPRequest{Headers: map[string]string{"x-ace-workspace-id": tc.header}}
+		if got := singleWorkspaceAllowed(req); got != tc.want {
+			t.Fatalf("workspace header %q accepted=%v want=%v", tc.header, got, tc.want)
+		}
+	}
+	if singleWorkspaceAllowed(nil) {
+		t.Fatal("missing ingress must not select a workspace")
 	}
 }

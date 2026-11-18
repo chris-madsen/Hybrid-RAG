@@ -49,7 +49,16 @@ func Init(config any) error {
 		return errors.New("ACE_GATEWAY_PROJECTION_TOKEN is required")
 	}
 	projectionClient = connector.Client{Endpoint: endpoint, AuthToken: token, MaxBodyBytes: connector.DefaultMaxBodyBytes}
-	defaultWorkspaceID = os.Getenv("ACE_BIFROST_WORKSPACE_ID")
+	// The Bifröst transport hook authenticates its connector, not a per-user
+	// workspace principal. Permit only an explicitly isolated one-workspace
+	// deployment until an authenticated tenant binding is available.
+	if os.Getenv("ACE_BIFROST_TENANCY_MODE") != "single-workspace" {
+		return errors.New("ACE Bifröst requires ACE_BIFROST_TENANCY_MODE=single-workspace")
+	}
+	defaultWorkspaceID = strings.TrimSpace(os.Getenv("ACE_BIFROST_WORKSPACE_ID"))
+	if defaultWorkspaceID == "" {
+		return errors.New("ACE_BIFROST_WORKSPACE_ID is required for single-workspace mode")
+	}
 	return nil
 }
 
@@ -91,6 +100,21 @@ func sessionCorrelationFromRequest(req *schemas.HTTPRequest) (string, bool) {
 	return "", false
 }
 
+// A caller-supplied workspace header cannot select another tenant; the only
+// authorized workspace is the one isolated at plugin startup. This is a
+// single-workspace safety boundary, NOT multi-tenant identity authentication.
+func singleWorkspaceAllowed(req *schemas.HTTPRequest) bool {
+	if req == nil || defaultWorkspaceID == "" {
+		return false
+	}
+	for _, name := range []string{"x-ace-workspace-id", "x-workspace-id", "x-bf-workspace-id"} {
+		if candidate := strings.TrimSpace(req.CaseInsensitiveHeaderLookup(name)); candidate != "" && candidate != defaultWorkspaceID {
+			return false
+		}
+	}
+	return true
+}
+
 func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string) (string, string, string, string, json.RawMessage, error) {
 	requestID, err := newPhysicalRequestID()
 	if err != nil {
@@ -120,9 +144,9 @@ func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string
 		"durableActiveTranscriptDigest":      sha256Hex(body),
 		"hostCompactionEpoch":                "unknown",
 		"attestorId":                         "ace-bifrost-plugin@" + aceSourceCommit,
-		"providerManagedHistoryCapability":   "visible",
+		"providerManagedHistoryCapability":   "unknown",
 		"hostTranscriptAttested":             false,
-		"compactionEnabled":                  false,
+		"compactionEnabled":                  false, // uninterpretable while hostTranscriptAttested=false; never assert host is uncompacted
 	}
 	attestation, err := json.Marshal(attestationValue)
 	if err != nil {
@@ -188,6 +212,9 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	}
 	if defaultWorkspaceID == "" {
 		return errorResponse(503, "ACE workspace identity is unavailable"), nil
+	}
+	if !singleWorkspaceAllowed(req) {
+		return errorResponse(403, "ACE workspace binding differs from the isolated connector workspace"), nil
 	}
 	requestID, session, provider, _, attestation, err := requestBoundIdentity(req, req.Body, rawModel)
 	if err != nil {

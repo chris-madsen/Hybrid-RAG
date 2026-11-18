@@ -19,7 +19,7 @@ Eight automatically chosen vertical implementation chunks, estimated **handwritt
 
 ## Canonical phase tracker
 
-- [x] C01 — Native contract and fail-closed route; executable plan: [C01](phases/C01.md)
+- [x] C01 — Implemented in PR #282 (OPEN); deterministic phase checks reported PASS, inherited CodeQL high findings remain; delivery/merge and full release acceptance are separate. Executable plan: [C01](phases/C01.md)
 - [ ] C02 — Lossless native context projection; executable plan: [C02](phases/C02.md)
 - [ ] C03 — Single-use physical send guard; executable plan: [C03](phases/C03.md)
 - [ ] C04 — Privacy-safe OAuth and fallback decisions; executable plan: [C04](phases/C04.md)
