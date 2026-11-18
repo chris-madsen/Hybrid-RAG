@@ -100,7 +100,6 @@ test('native projection HTTP refuses local callers without the configured shared
     const result = await authenticated.json() as { kind: string; reasonCode: string };
     assert.equal(result.kind, 'BLOCK');
     assert.equal(result.reasonCode, 'ROUTE_NOT_CERTIFIED');
-    assert.equal(result.error.code, 'ROUTE_NOT_CERTIFIED');
     const authorizedHealth = await fetch(url.replace('/project', '/health'), {
       headers: { Authorization: 'Bearer in-memory-test-token' },
     });
