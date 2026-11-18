@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { constants, existsSync } from 'node:fs';
+import { open, readFile, readdir, lstat } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { requiredAceRuntimeBundlePaths, validateAceRuntimeBundleManifest } from '../domain/ace-runtime-bundle.js';
 
@@ -21,14 +21,30 @@ const bundleEntries = async (root: string, current = root): Promise<readonly Bun
   const entries: BundleEntry[] = [];
   for (const name of (await readdir(current)).sort()) {
     const path = join(current, name);
-    const info = await stat(path);
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) throw new Error('ACE runtime bundle must not contain symbolic links');
     if (info.isDirectory()) {
       entries.push(...await bundleEntries(root, path));
     } else if (info.isFile()) {
       const relPath = relative(root, path).split('\\').join('/');
       if (relPath === 'runtime-manifest.json' || relPath === 'dist/runtime-provenance.json') continue;
-      const bytes = await readFile(path);
-      entries.push({ path: relPath, sha256: sha256(bytes), sizeBytes: info.size });
+      const descriptor = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+      try {
+        const before = await descriptor.stat();
+        if (!before.isFile() || before.ino !== info.ino || before.dev !== info.dev) {
+          throw new Error('ACE runtime bundle file changed before read');
+        }
+        const bytes = await descriptor.readFile();
+        const after = await descriptor.stat();
+        if (before.ino !== after.ino || before.dev !== after.dev
+          || before.size !== after.size || before.mtimeMs !== after.mtimeMs
+          || before.ctimeMs !== after.ctimeMs || bytes.byteLength !== after.size) {
+          throw new Error('ACE runtime bundle file changed while hashing');
+        }
+        entries.push({ path: relPath, sha256: sha256(bytes), sizeBytes: bytes.byteLength });
+      } finally {
+        await descriptor.close();
+      }
     }
   }
   return entries;

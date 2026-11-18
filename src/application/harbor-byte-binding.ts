@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, readdir } from 'node:fs/promises';
+import { lstat, open, readdir } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { domainError, type DomainError } from '../domain/errors.js';
 import {
@@ -53,7 +54,25 @@ const resolveBoundPath = (workspaceRoot: string, boundPath: string): string => {
 const hashPathBytes = async (path: string): Promise<string> => {
   const metadata = await lstat(path);
   if (metadata.isSymbolicLink()) throw new HarborBindingError(domainError('PATH_ESCAPE', 'binding.path', 'Harbor binding does not follow symbolic links'));
-  if (metadata.isFile()) return sha256(await readFile(path));
+  if (metadata.isFile()) {
+    const descriptor = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    try {
+      const before = await descriptor.stat();
+      if (!before.isFile() || before.dev !== metadata.dev || before.ino !== metadata.ino) {
+        throw new HarborBindingError(domainError('WORKTREE_RACED', 'binding.path', 'Harbor file identity changed before binding'));
+      }
+      const bytes = await descriptor.readFile();
+      const after = await descriptor.stat();
+      if (before.dev !== after.dev || before.ino !== after.ino
+        || before.size !== after.size || before.ctimeMs !== after.ctimeMs
+        || before.mtimeMs !== after.mtimeMs || bytes.byteLength !== after.size) {
+        throw new HarborBindingError(domainError('WORKTREE_RACED', 'binding.path', 'Harbor file changed while binding'));
+      }
+      return sha256(bytes);
+    } finally {
+      await descriptor.close();
+    }
+  }
   if (!metadata.isDirectory()) throw new HarborBindingError(domainError('INVALID_BENCHMARK', 'binding.path', 'Harbor binding path must be a regular file or directory'));
   const entries = (await readdir(path, { withFileTypes: true }))
     .sort((left, right) => left.name.localeCompare(right.name));
