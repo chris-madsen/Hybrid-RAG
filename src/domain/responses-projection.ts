@@ -4,7 +4,7 @@ import { sha256Base64, validateHostCompactionAttestation } from './gateway-reque
 import type {
   ProjectionRequest as GeneratedProjectionRequest,
   ProjectionDecision as GeneratedProjectionDecision,
-} from '../../typespec/generated/sdk/types.gen.js';
+} from '../generated/ace-gateway/v2/types.gen.js';
 
 // The maintained TypeSpec-generated Responses DTOs own the public wire shape.
 // Keep semantic validation/policy in the domain, not a second handwritten DTO.
