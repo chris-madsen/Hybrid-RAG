@@ -1,27 +1,28 @@
-# ACE plan-refinement evidence checklist
+# ACE plan-refinement semantic evidence checklist
 
-This checklist improves semantic review; it is **not** a second source of requirements, acceptance or task status.
+This is a **decision checklist**, not a new OpenSpec acceptance authority or task tracker. Apply it to **A, B and synthesized C**. Every asserted code fact needs a source path:line@SHA; absent evidence means UNKNOWN.
 
 ## Architecture / feasibility
-- Trace ingress, authentication, context projection, policy and final physical provider send. Include retries, mutations, stream cancellation, raw-body alternatives and zero-send on fail-closed paths.
-- Check pinned Bifröst/upstream source, hook order, version, license and provider-native support. A mandatory unknown feasibility prerequisite should be tested before dependent implementation.
-- Verify security, concurrency/crash, Effect orchestration, immutable domain transitions, TypeSpec wire and compatibility decisions. UNKNOWN is not an observed defect.
+- Trace real ingress → authentication → projection → authorization → last physical provider send; include internal retries, mutations, stream cancellation and raw-body paths.
+- Check exact pinned Bifröst/upstream source, hook order, models, credentials, license and native support. Put mandatory feasibility probes before dependent implementation, but do not block safe independent no-send preparation.
+- Preserve accepted bounded contexts, Effect application boundary, immutable domain rules, TypeSpec public wire and historic compatibility. No hidden extra proxy or unapproved Chat fallback.
 
-## Existing/upstream reuse
-- Search current modules and named maintained library/provider primitives before proposing a new adapter, parser, retry loop, state machine or proxy.
-- Record exact version, file/function, tests, behavior, license, suitability, cost of wrapping/porting and deprecated-code removal. A wrapper that retains the shadow old path is not replacement.
+## Reuse and replacement
+- Inventory existing ACE modules and named maintained library/provider-native primitives before proposing an adapter, parser, retry scheduler, token counter or custom persistence.
+- Record version, exact function/test, license, compatibility, reason for reuse/rejection and negative diff deleting superseded code.
+- A wrapper with still-reachable shadow behavior is not replacement.
 
-## Canonical vertical plan
-- All spec IDs map to an owning G02 row, a canonical DAG task, an executable phase and positive/negative deterministic oracles.
-- Check missing/cyclic/excessive dependencies, phases containing multiple incompatible trust boundaries, delayed feasibility and realistic source/test/other added+deleted LOC.
-- New phases need vertical observable outcomes, not just horizontal "write types/tests" tasks.
+## Vertical slices / prerequisites
+- Match every spec scenario to one canonical phase owner and G02/proof crosswalk; allow cross-phase invariants without duplicate ownership.
+- Detect DAG cycles, missing edges and unnecessary serialization; separate independent fail-closed work from uncertain external feasibility, and isolate policy/egress risk.
+- Forecast added+deleted handwritten code/tests/other (~700–1,200 is flexible), never pad or treat a larger plan as inherently better.
 
-## Executability / proof
-- Identify confirmed paths/functions and proposed files separately. Give RED command + expected failure and GREEN command + expected success.
-- Specify require/ensure/invariant/frame/exceptional outcomes; rollback/STOP, policy denial, replay/races/secret failure and real-provider/agent/Harbor conditions.
-- Never promote mocks, a pinned library, generated SDK or test harness to real-provider/E2E certification.
+## Executable briefs
+- Identify verified existing files/functions versus proposed new ones; use exact RED failure assertion, GREEN pass command, negative cases, typed exceptions, rollback and STOP.
+- Cover Meyer require/ensure/invariant/frame/exceptional; provider, agent and Harbor evidence remain separate.
+- Never call a mock, pinned library, generated SDK or self-review actual final-wire/provider certification.
 
-## Cross-artifact and evidence
-- Read all OpenSpec scenarios/design/tasks/phases, compare G02 statuses, transport compatibility, AC ownership, task dependencies, signatures and file maps.
-- Recompute input hashes when design or specs change; mark descendants STALE. Do not create a second plan tracker.
-- Every finding has source path:line@commit and a reproducible oracle or UNKNOWN. Document alternative trade-offs and a justified NO_CHANGE when appropriate.
+## Cross-artifact synthesis
+- Compare A and B by **engineering decision**, not by file or paragraph; identify shared incorrect assumptions and allow THIRD/UNRESOLVED.
+- Only C is canonical. Reconcile proposal/specs/design/tasks/phases, G02 decisions, TypeSpec versions, dependency edges, files and input fingerprints.
+- Return corrections to S/A/P/X owner; mark descendants STALE when upstream changes. A justified NO_CHANGE is valid.
