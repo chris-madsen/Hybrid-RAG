@@ -1,29 +1,15 @@
 import { domainError, type DomainError } from './errors.js';
 import { err, ok, type Result } from './result.js';
-import { sha256Base64, validateHostCompactionAttestation, type HostCompactionAttestation } from './gateway-request-binding.js';
+import { sha256Base64, validateHostCompactionAttestation } from './gateway-request-binding.js';
+import type {
+  ProjectionRequest as GeneratedProjectionRequest,
+  ProjectionDecision as GeneratedProjectionDecision,
+} from '../../typespec/generated/sdk/types.gen.js';
 
-// Versioned native Responses projection preserves the request's original input items.
-export interface ResponsesProjectionRequest {
-  readonly schemaVersion: 'ace.gateway.v2';
-  readonly protocol: 'openai.responses';
-  readonly requestId: string;
-  readonly attemptGroupId: string;
-  readonly agentSessionId: string;
-  readonly workspaceId: string;
-  readonly dataClass: 'private' | 'project_document' | 'public';
-  readonly provider: string;
-  readonly model: string;
-  readonly bodyBase64: string;
-  readonly bodySha256: string;
-  readonly query: string;
-  readonly projectionMode: 'gateway';
-  readonly deadlineEpochMs: number;
-  readonly attestation: HostCompactionAttestation;
-}
-
-export type ResponsesProjectionDecision =
-  | { readonly kind: 'PREPARED'; readonly bodyBase64: string; readonly baseBodySha256: string; readonly projectedBodySha256: string; readonly reasonCode: 'VERIFIED_CONTEXT_ADDED' }
-  | { readonly kind: 'BLOCK'; readonly baseBodySha256: string; readonly reasonCode: string };
+// The maintained TypeSpec-generated Responses DTOs own the public wire shape.
+// Keep semantic validation/policy in the domain, not a second handwritten DTO.
+export type ResponsesProjectionRequest = Readonly<GeneratedProjectionRequest>;
+export type ResponsesProjectionDecision = Readonly<GeneratedProjectionDecision>;
 
 const maxBytes = 4 * 1024 * 1024;
 const fields = new Set([
