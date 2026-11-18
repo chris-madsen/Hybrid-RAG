@@ -6,6 +6,7 @@ options:
     emitter-output-dir: "{project-root}/generated"
     output-file: "openapi.json"
     file-type: "json"
+    seal-object-schemas: true
   "@typespec/json-schema":
     emitter-output-dir: "{project-root}/generated/schema"
     file-type: "json"

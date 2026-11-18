@@ -48,7 +48,7 @@ try {
   const qdrantProbe = run('docker', ['run', '--rm', '--network', 'host', '--entrypoint', 'node', '-v', mount, image,
     '-e', `fetch(${JSON.stringify(`${qdrantUrl.replace(/\/$/u, '')}/collections`)}).then((response) => { if (!response.ok) process.exit(2); })`,
   ]);
-  const healthCheck = `fetch("http://127.0.0.1:8765/internal/ace-gateway/v1/health").then(async (r) => {
+  const healthCheck = `fetch("http://127.0.0.1:8765/internal/ace-gateway/v2/health").then(async (r) => {
     const body = await r.json();
     if (r.status !== 200 || body.providerWire !== "not_certified") process.exit(1);
     process.stdout.write("gateway_health=READY\\n");

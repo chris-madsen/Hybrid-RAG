@@ -2,7 +2,7 @@ import { domainError, type DomainError } from './errors.js';
 import { err, ok, type Result } from './result.js';
 import { sha256Base64, validateHostCompactionAttestation, type HostCompactionAttestation } from './gateway-request-binding.js';
 
-// Versioned native Responses projection: never uses Chat messages/conversion.
+// Versioned native Responses projection preserves the request's original input items.
 export interface ResponsesProjectionRequest {
   readonly schemaVersion: 'ace.gateway.v2';
   readonly protocol: 'openai.responses';
@@ -41,7 +41,7 @@ export const validateResponsesProjectionRequest = (value: unknown): Result<Respo
   const unknown = Object.keys(value).find((key) => !fields.has(key));
   if (unknown) return rejected(unknown, 'unrecognized v2 request field');
   if (value.schemaVersion !== 'ace.gateway.v2' || value.protocol !== 'openai.responses') {
-    return rejected('protocol', 'native Responses v2 only; no Chat fallback');
+    return rejected('protocol', 'native Responses v2 only; alternate provider protocols are rejected');
   }
   if (value.projectionMode !== 'gateway') return rejected('projectionMode', 'only automatic Gateway projection is supported');
   for (const key of ['requestId', 'attemptGroupId', 'agentSessionId', 'workspaceId', 'provider', 'model', 'bodyBase64', 'bodySha256', 'query']) {
@@ -94,10 +94,6 @@ export const decodeNativeResponsesBody = (
   if (['previous_response_id', 'conversation', 'conversation_id', 'thread_id'].some((field) => value[field] !== undefined)) {
     return rejected('body.previous_response_id', 'opaque provider-stored state is not certified');
   }
-  // Reject paths that would bypass the native Responses contract.
-  if (Object.hasOwn(value, 'messages') || Object.hasOwn(value, 'chat_completion')) {
-    return rejected('body', 'Chat-shaped request fields are not accepted');
-  }
   return ok(value);
 };
 
@@ -125,7 +121,7 @@ export const bodyQueryMatches = (body: Record<string, unknown>, query: string): 
 
 // Preserve the entire input, reasoning, tool settings and opaque extension keys.
 // Inserting a developer item is supported by native Responses, including stateless
-// multi-turn function_call/function_call_output replay (no Chat adapter).
+// multi-turn function_call/function_call_output replay without protocol conversion.
 export const addVerifiedContextToResponses = (
   body: Record<string, unknown>,
   contextText: string,

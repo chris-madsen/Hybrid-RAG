@@ -7,8 +7,11 @@ import { handleGatewayProjectionHttp, createGatewayProjectionServer } from '../s
 import type { ContextTransformService, AceTransformResult } from '../src/application/context-transform-service.js';
 import type { ResponsesProjectionRequest } from '../src/domain/responses-projection.js';
 import { defaultLocalPolicy } from '../src/domain/policy.js';
+import type { DataClass } from '../src/domain/policy.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
-import { ok } from '../src/domain/result.js';
+import { domainError } from '../src/domain/errors.js';
+import { err, ok } from '../src/domain/result.js';
+import type { GatewayProjectionSecurity } from '../src/application/gateway-security-contract.js';
 
 const hash = (x: string): string => createHash('sha256').update(x).digest('hex');
 const native = {
@@ -21,8 +24,8 @@ const native = {
     { type: 'function_call_output', call_id: 'call-1', output: 'entrypoint here' },
   ],
 };
-const req = (override: Partial<ResponsesProjectionRequest> = {}): ResponsesProjectionRequest => {
-  const bodyBase64 = Buffer.from(JSON.stringify(native)).toString('base64');
+const req = (override: Partial<ResponsesProjectionRequest> = {}, bodyValue: unknown = native): ResponsesProjectionRequest => {
+  const bodyBase64 = Buffer.from(JSON.stringify(bodyValue)).toString('base64');
   return {
     schemaVersion: 'ace.gateway.v2', protocol: 'openai.responses',
     requestId: 'r1', attemptGroupId: 'g1', agentSessionId: 's1',
@@ -48,20 +51,27 @@ const example: AceTransformResult = {
   receiptId: 'r', providerRequestId: 'p',
   limitations: ['character token estimate only'],
 };
-const make = (x: Partial<AceTransformResult> = {}, deny = false) => {
+interface MakeOptions {
+  readonly result?: Partial<AceTransformResult>;
+  readonly deny?: boolean;
+  readonly allowedProviders?: readonly string[];
+  readonly allowedDataClasses?: readonly Exclude<DataClass, 'secret'>[];
+  readonly context?: ContextTransformService;
+  readonly audit?: GatewayProjectionSecurity['audit'];
+}
+const make = (options: MakeOptions = {}) => {
   const workspace = makeWorkspaceId('ws1');
   if (workspace._tag === 'Err') throw Error(workspace.error.message);
   const policy = {
-    ...defaultLocalPolicy(workspace.value), cloudOptIn: !deny,
+    ...defaultLocalPolicy(workspace.value), cloudOptIn: options.deny !== true,
     allowedCloudProviders: ['other_external'],
-    allowedCloudDataClassesByProvider: { other_external: ['private_source' as const] },
+    allowedCloudDataClassesByProvider: { other_external: options.allowedDataClasses ?? ['private_source'] },
   };
-  const context: ContextTransformService = { transform: () => Effect.succeed(ok({ ...example, ...x })) };
-  const service = makeResponsesProjectionService(context, {
-    policy, allowedProviders: ['openai'], clock: { nowMs: () => Date.now() },
-    audit: { append: () => Effect.succeed(ok(undefined)) },
+  const context = options.context ?? { transform: () => Effect.succeed(ok({ ...example, ...(options.result ?? {}) })) };
+  return makeResponsesProjectionService(context, {
+    policy, allowedProviders: options.allowedProviders ?? ['openai'], clock: { nowMs: () => Date.now() },
+    audit: options.audit ?? { append: () => Effect.succeed(ok(undefined)) },
   });
-  return service;
 };
 test('native policy/Effect produces additive context without mutating function/reasoning/tool items', async () => {
   const response = await Effect.runPromise(make().projectResponses(req()));
@@ -79,7 +89,7 @@ test('native policy/Effect produces additive context without mutating function/r
   assert.equal(response.value.baseBodySha256, req().bodySha256);
 });
 test('no policy opt-in means BLOCK, not fallthrough', async () => {
-  const response = await Effect.runPromise(make({}, true).projectResponses(req()));
+  const response = await Effect.runPromise(make({ deny: true }).projectResponses(req()));
   assert.equal(response._tag, 'Ok');
   if (response._tag === 'Ok') assert.equal(response.value.kind, 'BLOCK');
 });
@@ -87,19 +97,108 @@ test('identity mismatch or no retrieved evidence blocks transformation', async (
   for (const changed of [
     { requestId: 'wrong' }, { selectedEvidenceIds: [] }, { contextText: '' },
   ]) {
-    const response = await Effect.runPromise(make(changed).projectResponses(req()));
+    const response = await Effect.runPromise(make({ result: changed }).projectResponses(req()));
     assert.equal(response._tag, 'Ok');
     if (response._tag === 'Ok') assert.equal(response.value.kind, 'BLOCK');
   }
 });
-test('native gateway HTTP endpoint requires auth and never invokes legacy project', async () => {
-  let legacyCalled = 0;
-  const service = { ...make(), project: () => { legacyCalled++; throw Error('legacy service must not be called'); } };
+
+test('hidden provider state and active host compaction block before retrieval', async () => {
+  let transforms = 0;
+  const context: ContextTransformService = { transform: () => {
+    transforms += 1;
+    return Effect.succeed(ok(example));
+  } };
+  for (const attestation of [
+    { ...req().attestation, providerManagedHistoryCapability: 'unknown' as const },
+    { ...req().attestation, providerManagedHistoryCapability: 'hidden' as const },
+    { ...req().attestation, hostTranscriptAttested: true, compactionEnabled: true },
+    { ...req().attestation, hostTranscriptAttested: true, hostCompactionEpoch: 'unknown' as const },
+  ]) {
+    const response = await Effect.runPromise(make({ context }).projectResponses(req({ attestation })));
+    assert.equal(response._tag, 'Ok');
+    if (response._tag === 'Ok') assert.equal(response.value.kind, 'BLOCK');
+  }
+  assert.equal(transforms, 0);
+});
+
+test('provider allowlist, cloud opt-in, and private-source policy deny before retrieval', async () => {
+  let transforms = 0;
+  const context: ContextTransformService = { transform: () => {
+    transforms += 1;
+    return Effect.succeed(ok(example));
+  } };
+  for (const service of [
+    make({ context, allowedProviders: ['another-provider'] }),
+    make({ context, deny: true }),
+    make({ context, allowedDataClasses: ['public'] }),
+  ]) {
+    const response = await Effect.runPromise(service.projectResponses(req()));
+    assert.equal(response._tag, 'Ok');
+    if (response._tag === 'Ok') assert.equal(response.value.kind, 'BLOCK');
+  }
+  assert.equal(transforms, 0);
+});
+
+test('secret material in the original request or selected evidence blocks projection', async () => {
+  let transforms = 0;
+  const context: ContextTransformService = { transform: () => {
+    transforms += 1;
+    return Effect.succeed(ok(example));
+  } };
+  const secretInput = {
+    ...native,
+    input: [{ role: 'user', content: 'deploy with api_key=abcd1234567890' }],
+  };
+  const originalSecret = await Effect.runPromise(make({ context }).projectResponses(
+    req({ query: 'deploy with api_key=abcd1234567890' }, secretInput),
+  ));
+  assert.equal(originalSecret._tag, 'Ok');
+  if (originalSecret._tag === 'Ok') assert.equal(originalSecret.value.kind, 'BLOCK');
+  assert.equal(transforms, 0);
+
+  const selectedSecret = await Effect.runPromise(make({
+    result: { contextText: 'deployment api_key=abcd1234567890' },
+  }).projectResponses(req()));
+  assert.equal(selectedSecret._tag, 'Ok');
+  if (selectedSecret._tag === 'Ok') assert.equal(selectedSecret.value.kind, 'BLOCK');
+});
+
+test('body/model/query mismatch and transform failure never become empty success', async () => {
+  let transforms = 0;
+  const context: ContextTransformService = { transform: () => {
+    transforms += 1;
+    return Effect.succeed(ok(example));
+  } };
+  for (const request of [req({ model: 'different-model' }), req({ query: 'unbound query' })]) {
+    const response = await Effect.runPromise(make({ context }).projectResponses(request));
+    assert.ok(response._tag === 'Err' || response.value.kind === 'BLOCK');
+  }
+  assert.equal(transforms, 0);
+
+  const failing: ContextTransformService = {
+    transform: () => Effect.succeed(err(domainError('NOT_READY', 'context', 'fixture unavailable'))),
+  };
+  const response = await Effect.runPromise(make({ context: failing }).projectResponses(req()));
+  assert.equal(response._tag, 'Ok');
+  if (response._tag === 'Ok') assert.equal(response.value.kind, 'BLOCK');
+});
+
+test('audit failure is explicit and blocks native projection', async () => {
+  const audit: GatewayProjectionSecurity['audit'] = {
+    append: () => Effect.succeed(err(domainError('AUDIT_FAILED', 'audit', 'fixture audit unavailable'))),
+  };
+  const response = await Effect.runPromise(make({ audit }).projectResponses(req()));
+  assert.equal(response._tag, 'Err');
+  if (response._tag === 'Err') assert.equal(response.error.code, 'AUDIT_FAILED');
+});
+
+test('native gateway HTTP endpoint requires auth and returns local preparation only', async () => {
+  const service = make();
   const payload = JSON.stringify(req());
   const direct = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v2/project', payload);
   assert.equal(direct.statusCode, 200);
   assert.equal(direct.body.kind, 'PREPARED');
-  assert.equal(legacyCalled, 0);
   const server = createGatewayProjectionServer(service, { authToken: 'local-secret' });
   await new Promise<void>((done, reject) => { server.once('error', reject);server.listen(0, '127.0.0.1', done); });
   try {
@@ -114,7 +213,6 @@ test('native gateway HTTP endpoint requires auth and never invokes legacy projec
     assert.equal(authorized.status, 200);
     const decision = await authorized.json() as { kind: string };
     assert.equal(decision.kind, 'PREPARED');
-    assert.equal(legacyCalled, 0);
   } finally {
     await new Promise<void>((done) => server.close(done));
   }

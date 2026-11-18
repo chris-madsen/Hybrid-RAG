@@ -7,13 +7,9 @@ import type {
   GatewayHealth as GeneratedGatewayHealth,
   GatewayCapabilities as GeneratedGatewayCapabilities,
   DeliveryNotCertified as GeneratedDeliveryNotCertified,
-} from '../generated/ace-gateway/v1/types.gen.js';
+} from '../generated/ace-gateway/v2/types.gen.js';
 
-// Retain the constructor shape while retired v1 projection is quarantined.
-// A new typed service will be introduced with the versioned native Responses wire.
 export interface GatewayProjectionHttpService {
-  // Legacy v1 projection is retired; no runtime path invokes this method.
-  readonly project?: (value: unknown) => unknown;
   readonly projectResponses?: ResponsesProjectionService['projectResponses'];
 }
 
@@ -30,7 +26,7 @@ export interface GatewayProjectionHttpResponse {
   readonly body: Readonly<Record<string, unknown>>;
 }
 
-const schemaVersion = 'ace.gateway.v1';
+const schemaVersion = 'ace.gateway.v2';
 const defaultMaxBodyBytes = 4 * 1024 * 1024;
 // The HTTP request is a JSON envelope containing Base64, not raw provider bytes.
 // The query is repeated outside bodyBase64 and can occupy nearly all of the
@@ -61,26 +57,25 @@ export const handleGatewayProjectionHttp = async (
   path: string,
   body: string,
 ): Promise<GatewayProjectionHttpResponse> => {
-  if (method === 'GET' && path === '/internal/ace-gateway/v1/health') {
+  if (method === 'GET' && path === '/internal/ace-gateway/v2/health') {
     const wire: GeneratedGatewayHealth = {
       schemaVersion, liveness: 'ready', readiness: 'adapter_implemented', providerWire: 'not_certified',
     };
     return json(wire as unknown as Readonly<Record<string, unknown>>);
   }
-  if (method === 'GET' && path === '/internal/ace-gateway/v1/capabilities') {
+  if (method === 'GET' && path === '/internal/ace-gateway/v2/capabilities') {
     const wire: GeneratedGatewayCapabilities = {
       schemaVersion,
-      // No supported provider route exists while native Responses is not certified.
-      // The legacy v1 schema remains immutable for migration evidence only.
+      // No provider generation route is advertised until final-wire certification.
       routes: [],
       maxBodyBytes: defaultMaxBodyBytes,
-      projectionModes: ['native', 'gateway', 'assist-only', 'observe-only', 'off'],
+      projectionModes: ['gateway'],
       providerWireCertification: 'not_certified',
     };
     return json(wire as unknown as Readonly<Record<string, unknown>>);
   }
   if (method !== 'POST') return error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method');
-  if (path === '/internal/ace-gateway/v1/record-delivery') {
+  if (path === '/internal/ace-gateway/v2/record-delivery') {
     const unavailable: GeneratedDeliveryNotCertified = {
       error: { code: 'PROVIDER_WIRE_NOT_CERTIFIED', message: 'delivery recording requires a verified final-send integration' },
     };
@@ -95,13 +90,10 @@ export const handleGatewayProjectionHttp = async (
     const response = await Effect.runPromise(service.projectResponses(payload));
     if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
     if (response.value.kind === 'BLOCK') return error(409, response.value.reasonCode, 'native Responses projection refused');
-    // Internal context transformation only. This result is NOT a provider-send permit.
+    // Internal context transformation only. This result is not a provider-send permit.
     return json(response.value);
   }
-  if (path !== '/internal/ace-gateway/v1/project') return error(404, 'NOT_FOUND', 'unknown gateway endpoint');
-  void service;
-  void body;
-  return error(503, 'RESPONSES_ONLY_NOT_READY', 'legacy Gateway v1 projection is disabled until native Responses is certified');
+  return error(404, 'NOT_FOUND', 'unknown Gateway v2 endpoint');
 };
 
 const writeResponse = (response: ServerResponse, result: GatewayProjectionHttpResponse): void => {
@@ -136,9 +128,7 @@ export const createGatewayProjectionServer = (
   const maxEnvelopeBytes = maxEnvelopeBytesFor(maxBodyBytes);
   return createServer(async (request, response) => {
     try {
-      if (request.method === 'POST' && (
-        request.url === '/internal/ace-gateway/v1/project' || request.url === '/internal/ace-gateway/v2/project'
-      )) {
+      if (request.method === 'POST' && request.url === '/internal/ace-gateway/v2/project') {
         const token = options.authToken ?? process.env.ACE_GATEWAY_HTTP_SHARED_SECRET;
         if (!token?.trim()) {
           writeResponse(response, error(503, 'NOT_READY', 'Gateway projection authentication is not configured'));

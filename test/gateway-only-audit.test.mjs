@@ -25,6 +25,14 @@ test('Gateway-only audit rejects old protocol in content and filenames', () => {
     assert.equal(clean.status, 0, clean.stderr || clean.stdout);
     assert.equal(JSON.parse(clean.stdout).matchingFiles, 0);
 
+    const removed = join(root, 'docs', 'removed.md');
+    writeFileSync(removed, 'unrelated historical note\n');
+    assert.equal(exec('git', ['add', '.'], root).status, 0);
+    rmSync(removed);
+    const deletedTracked = exec(process.execPath, [script], root);
+    assert.equal(deletedTracked.status, 0, deletedTracked.stderr || deletedTracked.stdout);
+    assert.equal(JSON.parse(deletedTracked.stdout).matchingFiles, 0);
+
     const violation = join(root, 'src', 'unwanted-tool.ts');
     writeFileSync(violation, "export const rejected = '"+retiredToken+"';\n");
     assert.equal(exec('git', ['add', '.'], root).status, 0);

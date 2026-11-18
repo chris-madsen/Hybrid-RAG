@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -33,7 +34,7 @@ const requirements = [
   {
     id: 'QG5_CONTRACT_COMPAT',
     file: '.github/workflows/ace-contracts.yml',
-    contains: ['Reject in-place rewrite of accepted public v1 contracts', '[qg5] BLOCKED'],
+    contains: ['Verify native Responses v2 is the sole active contract', '[qg5] only TypeSpec-native Responses v2 contract remains active'],
   },
   {
     id: 'QG6_NIGHTLY',
@@ -61,9 +62,9 @@ const requirements = [
     contains: ['"test:gateway-only-audit"', '"check:gateway-only"'],
   },
   {
-    id: 'TYPESPEC_GATEWAY_V1',
+    id: 'TYPESPEC_NATIVE_RESPONSES',
     file: '.github/workflows/ace-typespec-codegen.yml',
-    contains: ['Compile TypeSpec and generate maintained TypeScript SDK', 'Prove strict Gateway v1 runtime schema compatibility'],
+    contains: ['Compile TypeSpec and generate maintained TypeScript SDK', 'Verify native Responses v2 contract and generated artifacts'],
   },
   {
     id: 'BIFROST_PLUGIN_BUILD',
@@ -75,9 +76,9 @@ const requirements = [
     file: 'integrations/bifrost/ace-connector/plugin/main.go',
     contains: [
       'func HTTPTransportPreHook',
-      'ACE Chat Completions route is retired',
+      'case "/v1/responses":',
       'func prepareNativeResponses',
-      'ACE gateway model route is unsupported',
+      'ACE Gateway endpoint is unsupported',
       'func PreLLMHook',
       'ACE provider dispatch disabled until native Responses is certified',
       'AllowFallbacks: &allowFallbacks',
@@ -86,22 +87,19 @@ const requirements = [
       'hostTranscriptAttested',
       'bifrost-visible-request-only',
     ],
-    excludes: [
-      'req.ChatRequest', 'openai.chat.completions',
-      'ctx.Value(schemas.BifrostContextKeyRequestID)',
-    ],
+    excludes: ['ctx.Value(schemas.BifrostContextKeyRequestID)'],
   },
   {
     id: 'GATEWAY_EGRESS_POLICY',
-    file: 'src/application/gateway-projection-service.ts',
+    file: 'src/application/responses-projection-service.ts',
     contains: [
       'authorizeAndAudit',
       'allowedProviders',
       "destination: 'other_external'",
       'security.audit.append',
       'containsLikelySecret(JSON.stringify(body.value))',
-      'providerManagedContinuationPresent',
-      'gatewayDataClasses',
+      'decodeNativeResponsesBody',
+      'classify(req)',
       "'private_source'",
     ],
   },
@@ -118,7 +116,7 @@ const requirements = [
   {
     id: 'OPENSPEC_GATEWAY_AUTHORITY',
     file: 'openspec/config.yaml',
-    contains: ['Bifröst LLM Gateway is the sole supported ACE context delivery path', 'active change 010-gateway-only-ownership'],
+    contains: ['Bifröst LLM Gateway is the sole supported ACE context delivery path', 'active change 010-gateway-only-ownership with production acceptance in 013-gateway-g11-production-acceptance'],
     excludes: ['Hermes ContextEngine request-time transformation', 'retired optional tool-call protocol facade'],
   },
 ];
@@ -202,30 +200,21 @@ const publicContractAuthorityGuard = async () => {
       }
     }
   };
-  try {
-    await walk(contractsRoot);
-  } catch {
-    return { id: 'PUBLIC_CONTRACT_TYPESPEC_AUTHORITY', status: 'FAIL', reason: 'missing_contracts_tree' };
-  }
-  const unexpected = files.filter((file) => !file.startsWith('contracts/ace-gateway/v1/'));
-  const required = [
-    'contracts/ace-gateway/v1/projection-request.schema.json',
-    'contracts/ace-gateway/v1/projection-decision.schema.json',
-  ].filter((file) => !files.includes(file));
+  if (existsSync(contractsRoot)) await walk(contractsRoot);
+  const unexpected = files;
   let typeSpecMissing = [];
   try {
-    const source = await readFile(resolve(root, 'typespec/main.tsp'), 'utf8');
-    for (const needle of ['namespace AceGatewayV1', 'model ProjectionRequest', 'model ProjectionDecision', '@route("/internal/ace-gateway/v1/project")']) {
+    const source = await readFile(resolve(root, 'typespec/responses-v2.tsp'), 'utf8');
+    for (const needle of ['namespace ACE.ResponsesV2', 'model ProjectionRequest', 'union ProjectionDecision', 'protocol: "openai.responses"', '@route("/internal/ace-gateway/v2/project")']) {
       if (!source.includes(needle)) typeSpecMissing.push(needle);
     }
   } catch {
-    typeSpecMissing = ['typespec/main.tsp'];
+    typeSpecMissing = ['typespec/responses-v2.tsp'];
   }
   return {
     id: 'PUBLIC_CONTRACT_TYPESPEC_AUTHORITY',
-    status: unexpected.length === 0 && required.length === 0 && typeSpecMissing.length === 0 ? 'PASS' : 'FAIL',
+    status: unexpected.length === 0 && typeSpecMissing.length === 0 ? 'PASS' : 'FAIL',
     ...(unexpected.length ? { unexpected } : {}),
-    ...(required.length ? { missing: required } : {}),
     ...(typeSpecMissing.length ? { typeSpecMissing } : {}),
   };
 };

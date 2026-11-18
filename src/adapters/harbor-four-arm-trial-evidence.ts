@@ -4,7 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import type { HarborFourArmName } from '../domain/harbor-four-arm.js';
 import type { HarborFourArmTrialObservation } from '../domain/harbor-four-arm-evidence.js';
 
-// The Gateway-only adapter intentionally reads request-bound projection receipts,
+// The Gateway-only adapter intentionally reads native projection decisions,
 // not optional model-selected tool events. Projection is NOT proof of final model
 // egress; successfulAceCalls stays zero until a separately verified final-send
 // correlation schema is supported. No fake acceptance metrics are generated.
@@ -47,32 +47,30 @@ const trialDirs = async (aggregatePath: string): Promise<readonly string[]> => {
   return dirs;
 };
 
-const readGatewayProjections = async (
+const readResponsesProjections = async (
   arm: HarborFourArmName,
   directory: string,
 ): Promise<readonly JsonRecord[]> => {
-  const path = join(directory, 'agent', 'ace-gateway-projection.jsonl');
+  const path = join(directory, 'agent', 'ace-responses-projection.jsonl');
   if (!existsSync(path)) {
     if (arm === 'native') return [];
-    throw new Error(`BLOCKED: missing Gateway projection receipts at ${path}; do not infer ACE delivery`);
+    throw new Error(`BLOCKED: missing native Responses projection evidence at ${path}; do not infer ACE delivery`);
   }
   const lines = (await readFile(path, 'utf8')).split(/\r?\n/u).filter((line) => line.trim().length > 0);
   if (arm === 'native' && lines.length > 0) {
-    throw new Error('BLOCKED: native baseline contains ACE Gateway projection receipts');
+    throw new Error('BLOCKED: native baseline contains ACE projection evidence');
   }
   const requests = new Set<string>();
   return lines.map((line, index) => {
     const parsed = object(JSON.parse(line) as unknown);
-    const receipt = object(parsed?.receipt);
-    const kind = parsed?.kind;
-    const requestId = nonEmpty(receipt?.requestId);
-    const receiptId = nonEmpty(receipt?.receiptId);
-    if (!parsed || !receipt || receipt.schemaVersion !== 'ace.gateway.v1'
-      || !['APPLY', 'UNCHANGED_AUTHORIZED', 'DEGRADED_AUTHORIZED', 'BLOCK'].includes(String(kind))
-      || kind !== receipt.decision || requestId === undefined || receiptId === undefined) {
-      throw new Error(`BLOCKED: malformed Gateway projection receipt ${index + 1}`);
+    const decision = object(parsed?.decision) ?? parsed;
+    const kind = decision?.kind;
+    const requestId = nonEmpty(parsed?.requestId);
+    if (!parsed || parsed.schemaVersion !== 'ace.gateway.v2'
+      || !decision || !['PREPARED', 'BLOCK'].includes(String(kind)) || requestId === undefined) {
+      throw new Error(`BLOCKED: malformed native Responses projection evidence ${index + 1}`);
     }
-    if (requests.has(requestId)) throw new Error('BLOCKED: duplicate Gateway projection request identity');
+    if (requests.has(requestId)) throw new Error('BLOCKED: duplicate native Responses projection request identity');
     requests.add(requestId);
     return parsed;
   });
@@ -99,14 +97,14 @@ const readTrial = async (
   const agent = object(record.agent_result);
   const began = typeof record.started_at === 'string' ? Date.parse(record.started_at) : NaN;
   const finished = typeof record.finished_at === 'string' ? Date.parse(record.finished_at) : NaN;
-  const receipts = await readGatewayProjections(arm, directory);
+  const projections = await readResponsesProjections(arm, directory);
   return {
     arm,
     trialId: nonEmpty(record.trial_id) ?? basename(directory),
     taskName,
     success: (record.exception_info === null || record.exception_info === undefined) && reward === 1,
     timedOut: typeof record.timed_out === 'boolean' ? record.timed_out : null,
-    observedAceCalls: receipts.length,
+    observedAceCalls: projections.length,
     // Projection responses cannot establish that a provider actually received
     // or processed the rewritten request. Keep the acceptance gate conservative.
     successfulAceCalls: 0,

@@ -96,7 +96,7 @@
 - **D-06:** Graphiti extractor/model + backend license, local privacy, durable storage and deletion.
 - **D-07:** Jev adoption only *after* comparative spike; optional forever.
 - **D-08:** Pinned Harbor/Codex adapter and normalization of usage counter semantics.
-- **D-09:** Exact Gateway v1 schema, request-bound Bifröst connector behavior and supported route capabilities; unsupported routes fail closed.
+- **D-09:** Exact native Responses v2 schema, request-bound Bifröst connector behavior and supported route capabilities; unsupported routes fail closed.
 
 Implementer MAY mock unresolved provider integration for isolated tests, but MUST return `unsupported/not_configured` in functional paths until an approved real provider exists. No simulated successful runtime behavior.
 
@@ -130,7 +130,7 @@ Implementer MAY mock unresolved provider integration for isolated tests, but MUS
 |---|---|---|---|
 | DBC-01/02/03 actual Qdrant→AST→LSP, precise spans | FR-01/02/03/05, ADR-003/004 | 003 + 006 | Real Gateway→Qdrant/FastEmbed/LSP composition has deterministic/provider fixtures; full real-agent/external-provider G11 remains capability-specific |
 | DBC-06 completeness | FR-05/15/28, ADR-006/007 | 003 + 006 | Warnings can coexist with `complete=true` |
-| DBC-09 Gateway/connector conformance | FR-24/27, ADR-017 | 001 + 006 + 010 | Gateway v1 contract + Go connector + native plugin compile are CI-checked; final external-provider wire/real-agent G11 remains separate |
+| DBC-09 Gateway/connector conformance | FR-24/27, ADR-017/020 | 001 + 006 + 010 + 013 | Native Responses v2 contract + Go connector + plugin compile are CI-checked; final external-provider wire/real-agent G11 remains separate |
 | DBC-10/11 archive identity/delete | FR-17/18/22, ADR-005 | 004 + 006 | append re-identifies episodes; shared digest delete risk |
 | DBC-12 Harbor attribution | FR-29/30/35, ADR-009 | 002 + 006 | trivial forced smoke and zero-call natural smoke cannot prove gains |
 

@@ -4,17 +4,19 @@ OpenSpec records capability requirements and accepted change deltas. It does **n
 
 ## Current integration authority
 
-The repository owner selected **Bifröst Gateway-only ACE delivery** on 2026-11-14.
+The repository owner selected **Bifröst Gateway-only ACE delivery** on 2026-11-14 and **native Responses-only Gateway traffic** for G11 C01 on 2026-11-18.
 
-- Active integration contract: [010-gateway-only-ownership](changes/010-gateway-only-ownership/).
+- Ownership contract: [010-gateway-only-ownership](changes/010-gateway-only-ownership/).
+- Production-acceptance contract: [013-gateway-g11-production-acceptance](changes/013-gateway-g11-production-acceptance/).
 - Bifröst is the sole agent-facing ACE context-delivery route.
+- Native Responses v2 is the only supported provider protocol; provider dispatch remains fail-closed until independently certified.
 - Model-invoked ACE context tools and the Hermes-native ACE ContextEngine delivery experiment are retired.
 - Superseded integration changes 008 and 009 are preserved under [changes/archive/](changes/archive/) as historical evidence only.
-- Gateway v1 TypeSpec/codegen is installed; real provider/agent G11 evidence remains a distinct acceptance stage.
+- Native Responses v2 TypeSpec/codegen is installed; real provider/agent G11 evidence remains a distinct acceptance stage.
 
 ## Capability changes still retained in the active tree
 
-Changes 001–007 contain the historical staged capability work for foundation, evaluation, retrieval, memory, routing, production retrieval acceptance and hybrid context. They predate the Gateway-only owner decision. Their retrieval/domain requirements remain useful where not superseded, but **any agent-facing transport statement that conflicts with change 010, current Accepted ADRs or the owner decision is obsolete**.
+Changes 001–007 contain the historical staged capability work for foundation, evaluation, retrieval, memory, routing, production retrieval acceptance and hybrid context. They predate the Gateway-only owner decision. Their retrieval/domain requirements remain useful where not superseded, but **any agent-facing transport statement that conflicts with changes 010/013, current Accepted ADRs or the owner decision is obsolete**.
 
 In particular, an old mention of a model-invoked tool transport or Hermes-native context delivery must never be interpreted as permission to restore a second agent-facing path.
 
@@ -27,7 +29,8 @@ In particular, an old mention of a model-invoked tool transport or Hermes-native
 5. `005-adaptive-routing-spike` — experimental routing comparison.
 6. `006-production-retrieval-vertical-slice` — real-provider/DBC acceptance history.
 7. `007-hybrid-context-engine` — active hybrid retrieval/context semantics, now transport-neutral and Gateway-delivered.
-8. `010-gateway-only-ownership` — current agent-facing Gateway ownership and fail-closed delivery contract.
+8. `010-gateway-only-ownership` — agent-facing Gateway ownership and fail-closed delivery contract.
+9. `013-gateway-g11-production-acceptance` — native Responses v2 and staged G11 production acceptance.
 
 Archived:
 - `008-hermes-context-integration` — superseded Hermes-native delivery experiment.

@@ -13,7 +13,7 @@ import (
 func TestSessionCorrelationFromRequestMatchesBifrostHeaderPrecedence(t *testing.T) {
 	req := &schemas.HTTPRequest{Headers: map[string]string{
 		"x-bf-session-id": " explicit-session ",
-		"session-id": "harness-session",
+		"session-id":      "harness-session",
 	}}
 	got, ok := sessionCorrelationFromRequest(req)
 	if !ok || got != "explicit-session" {
@@ -22,7 +22,7 @@ func TestSessionCorrelationFromRequestMatchesBifrostHeaderPrecedence(t *testing.
 
 	req = &schemas.HTTPRequest{Headers: map[string]string{
 		"x-bf-session-id": strings.Repeat("x", schemas.MaxSessionIDLength+1),
-		"session-id": "must-not-be-used",
+		"session-id":      "must-not-be-used",
 	}}
 	if got, ok := sessionCorrelationFromRequest(req); ok || got != "" {
 		t.Fatalf("invalid explicit session must fail closed rather than fall back: got %q ok=%v", got, ok)
@@ -30,7 +30,7 @@ func TestSessionCorrelationFromRequestMatchesBifrostHeaderPrecedence(t *testing.
 
 	req = &schemas.HTTPRequest{Headers: map[string]string{
 		"x-claude-code-session-id": strings.Repeat("x", schemas.MaxSessionIDLength+1),
-		"session-id": "codex-session",
+		"session-id":               "codex-session",
 	}}
 	got, ok = sessionCorrelationFromRequest(req)
 	if !ok || got != "codex-session" {
@@ -39,7 +39,7 @@ func TestSessionCorrelationFromRequestMatchesBifrostHeaderPrecedence(t *testing.
 }
 
 func TestRequestBoundIdentityDoesNotDependOnLaterBifrostContextPopulation(t *testing.T) {
-	body := []byte(`{"model":"openai/test-model","messages":[{"role":"user","content":"find handler"}]}`)
+	body := []byte(`{"model":"openai/test-model","input":"find handler","store":false}`)
 	req := &schemas.HTTPRequest{Headers: map[string]string{"session-id": "codex-session"}, Body: body}
 	firstID, sessionID, provider, normalizedModel, rawAttestation, err := requestBoundIdentity(req, body, "openai/test-model")
 	if err != nil {
@@ -68,20 +68,15 @@ func TestRequestBoundIdentityDoesNotDependOnLaterBifrostContextPopulation(t *tes
 	}
 }
 
-func TestResponsesOnlyQuarantineBlocksEveryGenerationRoute(t *testing.T) {
+func TestResponsesOnlyQuarantineBlocksEveryUnsupportedGenerationRoute(t *testing.T) {
 	cases := []struct {
-		path string
+		path   string
 		status int
 	}{
-		{"/v1/chat/completions", 410},
-		{"/chat/completions", 410},
-		{"/openai/chat/completions", 410},
 		{"/v1/responses", 503},
-		{"/responses", 503},
-		{"/openai/responses", 503},
-		{"/chatgpt_passthrough/backend-api/codex/responses", 415},
-		{"/v1/completions", 415},
-		{"/v1/messages", 415},
+		{"/v1/unsupported", 404},
+		{"/openai/unsupported", 404},
+		{"/unsupported", 404},
 	}
 	for _, tc := range cases {
 		t.Run(tc.path, func(t *testing.T) {
@@ -105,36 +100,36 @@ func TestPreLLMHookCannotForwardWithoutCertifiedNativeResponses(t *testing.T) {
 }
 
 func TestNativeResponsesQueryFromToolResultAndMultimodalUserInput(t *testing.T) {
-    fixtures := []struct { name, body, expected string } {
-        {"tool-result", `[{"type":"function_call","call_id":"c1","arguments":"{}"},{"type":"function_call_output","call_id":"c1","output":"tool returned entrypoint"}]`, "tool returned entrypoint"},
-        {"multimodal-user", `[{"role":"user","content":[{"type":"input_text","text":"find module"},{"type":"input_image","image_url":"data:image/png;base64,AA=="}]}]`, "find module"},
-        {"no-source", `[{"type":"reasoning","encrypted_content":"opaque"}]`, ""},
-    }
-    for _, tc := range fixtures {
-        t.Run(tc.name,func(t *testing.T){
-            got, ok := nativeResponsesQuery(json.RawMessage(tc.body))
-            if got != tc.expected || ok != (tc.expected != "") {
-                t.Fatalf("native query=%q ok=%v expected=%q",got,ok,tc.expected)
-            }
-        })
-    }
+	fixtures := []struct{ name, body, expected string }{
+		{"tool-result", `[{"type":"function_call","call_id":"c1","arguments":"{}"},{"type":"function_call_output","call_id":"c1","output":"tool returned entrypoint"}]`, "tool returned entrypoint"},
+		{"multimodal-user", `[{"role":"user","content":[{"type":"input_text","text":"find module"},{"type":"input_image","image_url":"data:image/png;base64,AA=="}]}]`, "find module"},
+		{"no-source", `[{"type":"reasoning","encrypted_content":"opaque"}]`, ""},
+	}
+	for _, tc := range fixtures {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := nativeResponsesQuery(json.RawMessage(tc.body))
+			if got != tc.expected || ok != (tc.expected != "") {
+				t.Fatalf("native query=%q ok=%v expected=%q", got, ok, tc.expected)
+			}
+		})
+	}
 }
 
 func TestNativeResponsesIngressWithoutContextOrWorkspaceNeverSends(t *testing.T) {
-    request := &schemas.HTTPRequest{
-        Method:"POST",Path:"/v1/responses",
-        Body:[]byte(`{"model":"openai/gpt-test","input":"find handler","store":false}`),
-        Headers:map[string]string{"session-id":"test-session"},
-    }
-    previousWorkspace := defaultWorkspaceID
-    defaultWorkspaceID = "test-workspace"
-    defer func(){defaultWorkspaceID=previousWorkspace}()
-    resp, err := HTTPTransportPreHook(nil,request)
-    if err!=nil || resp==nil || resp.StatusCode != 503 {
-        t.Fatalf("missing live transport context must be denied: %+v %v",resp,err)
-    }
-    _, stop, err := PreLLMHook(nil, &schemas.BifrostRequest{ResponsesRequest: &schemas.BifrostResponsesRequest{Model:"gpt-test"}})
-    if err!=nil || stop==nil || stop.Error==nil || stop.Error.AllowFallbacks==nil || *stop.Error.AllowFallbacks {
-        t.Fatal("no provider dispatch or fallback permitted before physical-send certification")
-    }
+	request := &schemas.HTTPRequest{
+		Method: "POST", Path: "/v1/responses",
+		Body:    []byte(`{"model":"openai/gpt-test","input":"find handler","store":false}`),
+		Headers: map[string]string{"session-id": "test-session"},
+	}
+	previousWorkspace := defaultWorkspaceID
+	defaultWorkspaceID = "test-workspace"
+	defer func() { defaultWorkspaceID = previousWorkspace }()
+	resp, err := HTTPTransportPreHook(nil, request)
+	if err != nil || resp == nil || resp.StatusCode != 503 {
+		t.Fatalf("missing live transport context must be denied: %+v %v", resp, err)
+	}
+	_, stop, err := PreLLMHook(nil, &schemas.BifrostRequest{ResponsesRequest: &schemas.BifrostResponsesRequest{Model: "gpt-test"}})
+	if err != nil || stop == nil || stop.Error == nil || stop.Error.AllowFallbacks == nil || *stop.Error.AllowFallbacks {
+		t.Fatal("no provider dispatch or fallback permitted before physical-send certification")
+	}
 }

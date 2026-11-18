@@ -2,12 +2,13 @@
 // Repo-wide inventory and regression gate for rejected agent-invoked tool protocol.
 // Construct the obsolete token rather than embedding it in the guard source itself.
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 const removed = String.fromCharCode(109, 99, 112);
 const paths = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const results = [];
 const matcher = new RegExp(removed, 'gi');
 for (const path of paths) {
+  if (!existsSync(path)) continue;
   const pathMatch = matcher.test(path);
   matcher.lastIndex = 0;
   const bytes = readFileSync(path);

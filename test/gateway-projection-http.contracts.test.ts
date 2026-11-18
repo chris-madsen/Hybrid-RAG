@@ -10,23 +10,12 @@ import {
 } from '../src/transport/gateway-projection-http.js';
 import { ok } from '../src/domain/result.js';
 
+let projectCalls = 0;
 const service = {
-  project: () => Effect.succeed(ok({
-    kind: 'BLOCK' as const,
-    receipt: {
-      schemaVersion: 'ace.gateway.v1' as const,
-      requestId: 'req-1',
-      attemptGroupId: 'group-1',
-      attemptIndex: 0,
-      receiptId: 'receipt-1',
-      decision: 'BLOCK' as const,
-      reasonCode: 'HOST_COMPACTION_ACTIVE',
-      baseBodySha256: 'a'.repeat(64),
-      hostCompactionEpoch: 3,
-      activeEngineId: 'ace_context_engine',
-      permittedWireRewrites: [],
-    },
-  })),
+  projectResponses: () => {
+    projectCalls += 1;
+    return Effect.succeed(ok({ kind: 'BLOCK' as const, reasonCode: 'ROUTE_NOT_CERTIFIED', baseBodySha256: 'a'.repeat(64) }));
+  },
 };
 
 test('gateway HTTP host validation accepts loopback addresses only', () => {
@@ -51,26 +40,30 @@ test('gateway HTTP rejects non-loopback options and environment hosts before lis
   }
 });
 
-test('gateway HTTP exposes health and capability contracts', async () => {
-  const health = await handleGatewayProjectionHttp(service, 'GET', '/internal/ace-gateway/v1/health', '');
+test('gateway HTTP exposes native Responses v2 health and capability contracts', async () => {
+  const health = await handleGatewayProjectionHttp(service, 'GET', '/internal/ace-gateway/v2/health', '');
   assert.equal(health.statusCode, 200);
+  assert.equal(health.body.schemaVersion, 'ace.gateway.v2');
   assert.equal(health.body.providerWire, 'not_certified');
-  const capabilities = await handleGatewayProjectionHttp(service, 'GET', '/internal/ace-gateway/v1/capabilities', '');
+  const capabilities = await handleGatewayProjectionHttp(service, 'GET', '/internal/ace-gateway/v2/capabilities', '');
   assert.equal(capabilities.statusCode, 200);
-  assert.equal(capabilities.body.schemaVersion, 'ace.gateway.v1');
-  assert.deepEqual(capabilities.body.routes, [], 'legacy generation must not be advertised as available');
+  assert.equal(capabilities.body.schemaVersion, 'ace.gateway.v2');
+  assert.deepEqual(capabilities.body.routes, [], 'provider generation must not be advertised before certification');
 });
 
-test('legacy Gateway projection is quarantined without invoking the old service', async () => {
-  const projected = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v1/project', '{}');
-  assert.equal(projected.statusCode, 503);
-  assert.equal((projected.body as { error: { code: string } }).error.code, 'RESPONSES_ONLY_NOT_READY');
+test('native Responses projection returns a typed denial until dispatch is certified', async () => {
+  projectCalls = 0;
+  const projected = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v2/project', '{}');
+  assert.equal(projected.statusCode, 409);
+  assert.equal((projected.body as { error: { code: string } }).error.code, 'ROUTE_NOT_CERTIFIED');
+  assert.equal(projectCalls, 1);
   const missing = await handleGatewayProjectionHttp(service, 'POST', '/unknown', '{}');
   assert.equal(missing.statusCode, 404);
+  assert.equal(projectCalls, 1, 'unknown endpoints must not invoke the projection service');
 });
 
 test('gateway HTTP does not accept unverified final-delivery claims', async () => {
-  const result = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v1/record-delivery', '{}');
+  const result = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v2/record-delivery', '{}');
   assert.equal(result.statusCode, 501);
 });
 
@@ -81,7 +74,7 @@ test('gateway allows Base64 and JSON framing beyond the raw four MiB body limit'
   assert.ok(maxEnvelopeBytesFor(rawBytes) >= encodedBytes + rawBytes + 1024, 'query duplicates the user message outside Base64');
 });
 
-test('projection HTTP refuses local callers without the configured shared secret', async () => {
+test('native projection HTTP refuses local callers without the configured shared secret', async () => {
   const server = createGatewayProjectionServer(service, { authToken: 'in-memory-test-token' });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -89,7 +82,7 @@ test('projection HTTP refuses local callers without the configured shared secret
   });
   const address = server.address();
   assert.ok(address && typeof address !== 'string');
-  const url = `http://127.0.0.1:${address.port}/internal/ace-gateway/v1/project`;
+  const url = `http://127.0.0.1:${address.port}/internal/ace-gateway/v2/project`;
   try {
     const anonymous = await fetch(url, { method: 'POST', body: '{}' });
     assert.equal(anonymous.status, 401);
@@ -100,15 +93,15 @@ test('projection HTTP refuses local callers without the configured shared secret
       headers: { Authorization: 'Bearer in-memory-test-token' },
       body: '{}',
     });
-    assert.equal(authenticated.status, 503);
+    assert.equal(authenticated.status, 409);
     const result = await authenticated.json() as { error: { code: string } };
-    assert.equal(result.error.code, 'RESPONSES_ONLY_NOT_READY');
+    assert.equal(result.error.code, 'ROUTE_NOT_CERTIFIED');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
 
-test('projection HTTP without a server credential is NOT_READY, not public', async () => {
+test('native projection HTTP without a server credential is NOT_READY, not public', async () => {
   const server = createGatewayProjectionServer(service, { authToken: '' });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -117,7 +110,7 @@ test('projection HTTP without a server credential is NOT_READY, not public', asy
   const address = server.address();
   assert.ok(address && typeof address !== 'string');
   try {
-    const reply = await fetch(`http://127.0.0.1:${address.port}/internal/ace-gateway/v1/project`, {
+    const reply = await fetch(`http://127.0.0.1:${address.port}/internal/ace-gateway/v2/project`, {
       method: 'POST',
       body: '{}',
     });
@@ -127,12 +120,7 @@ test('projection HTTP without a server credential is NOT_READY, not public', asy
   }
 });
 
-test('retired v1 project path never invokes legacy provider projection service', async () => {
-  let invoked = false;
-  const forbidden = { project: () => { invoked = true; throw new Error('unexpected legacy projection'); } };
-  const response = await handleGatewayProjectionHttp(forbidden, 'POST', '/internal/ace-gateway/v1/project', JSON.stringify({
-    protocol: 'openai.chat.completions', messages: [{ role: 'user', content: 'test' }],
-  }));
-  assert.equal(response.statusCode, 503);
-  assert.equal(invoked, false, 'legacy business service must not run or admit egress');
+test('only the generated native Responses v2 paths are recognized', async () => {
+  const response = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v2/unsupported', '{}');
+  assert.equal(response.statusCode, 404);
 });

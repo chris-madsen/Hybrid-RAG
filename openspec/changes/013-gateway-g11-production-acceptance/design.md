@@ -2,34 +2,36 @@
 
 ## Authority, baseline and evidence classification
 
-- Verified repository snapshot: `chris-madsen/Mult-agent-AI-Orchestration@3b42fbee5168126eda046d47fb2286c633b21e17` (2026-11-17). This document is source-grounded **planning**, not observed implementation.
-- `AGENTS.md` and the 2026-11-14 owner correction: Bifröst Gateway alone delivers ACE context, TS/Effect owns domain/application, TypeSpec owns migrated wire and Harbor owns task-level comparison. Explicit latest owner decision selects **Hermes → Bifröst /v1/responses (provider-native) → ACE projection → external provider** and rejects Chat Completions translation/fallback.
-- `openspec/changes/010-gateway-only-ownership/design.md` records accepted historical request binding and additive Chat v1 behavior. It remains a historical compatibility authority for *what was built*, not an override of the newer Responses-only destination.
+- Verified repository snapshot: `chris-madsen/Mult-agent-AI-Orchestration@601e08ae9f0895c84a88d8e55773a867ccae908b` (2026-11-18). This document records source-grounded design and observed current implementation; it is not provider-wire evidence.
+- Current owner decision selects **Hermes → Bifröst native `/v1/responses` → ACE Gateway v2** as the sole agent-facing route. TypeScript/Effect owns domain/application behavior, TypeSpec owns the generated wire, and Harbor owns task-level comparison. The previous projection contract and repository compatibility implementation are to be removed, not retained as a fallback.
+- OpenSpec change 010 remains historical ownership context only. Its previous wire behavior is superseded by this owner decision and must not remain as an active runtime, schema or generated type.
 - Existing `openspec/changes/013-gateway-g11-production-acceptance/specs/**` owns G11-001…G11-020; new `gateway-native-responses` spec supplies RESP-001…RESP-008. `openspec/changes/002-harbor-evaluation/specs/agent-benchmarking/spec.md` and ADR-009 remain Harbor quality/usage authority.
 - Original #271/#273 branches were **closed without merging**. Their fail-closed code, TypeSpec draft and fixture tests are candidate reuse evidence only, not active ACE code, provider proof or owner approval. This plan does not silently cherry-pick them.
 
-### AS-IS: actual main source owners
+### AS-IS: actual main source owners at the verified baseline
+
+The following rows describe `601e08ae9f0895c84a88d8e55773a867ccae908b`, not the current C01 worktree. C01 removes the listed prior owners; the implementation status remains unverified until its required tests and reviews pass.
 
 | Owner / file | Verified current behavior | Architectural gap |
 |---|---|---|
-| `integrations/bifrost/ace-connector/plugin/main.go` | `HTTPTransportPreHook` only handles `/v1/chat/completions`; `PreLLMHook` requires `req.ChatRequest`, checks context/session/provider and blocks repeated attempts | No native Responses model generation, no final physical-send check |
-| `integrations/bifrost/ace-connector/connector.go` | `ace.gateway.v1` original-body digest, authenticated loopback request, `validateChatProjection` preserving Chat messages | Must introduce a versioned native Responses adapter without losing v1 ABI history |
-| `src/domain/gateway-projection.ts` | v1 Chat request/receipt validation; host attestation can explicitly be unattested | No native stateless Responses ADT; do not assume full Hermes transcript |
-| `src/application/gateway-projection-service.ts` | Effect retrieval/policy/secret checks and one additive system message for Chat | Needs native input projection and separate prepared-versus-authorized proof |
-| `src/transport/gateway-projection-http.ts` | authenticated local v1 projection; readiness reports `providerWire: not_certified`; delivery recording unimplemented | No v2 Responses API, codegen mapping or certified send receipt |
+| `integrations/bifrost/ace-connector/plugin/main.go` | `HTTPTransportPreHook` accepts native `/v1/responses` for local preparation; `PreLLMHook` short-circuits every model attempt | No final physical-send authorization; keep all dispatch disabled |
+| `integrations/bifrost/ace-connector/connector.go` and `responses.go` | Native v2 projection client exists alongside obsolete contract types and validators | Remove the obsolete owner and retain only bounded native request binding/application |
+| `src/domain/gateway-projection.ts` and `responses-projection.ts` | Native Responses ADT exists, while the prior projection ADT remains in the active source tree | Remove the prior domain owner and make Responses v2 the only projection contract |
+| `src/application/gateway-projection-service.ts` and `responses-projection-service.ts` | Native context preparation is composed; the prior service remains as dead compatibility code | Remove the prior application owner and keep Effects/errors/policy in the native service |
+| `src/transport/gateway-projection-http.ts` | v2 projection is available, but v1 health/capabilities/delivery routes and generated types remain | Move all Gateway operations to v2 and delete every prior projection endpoint/type |
 | `src/bin/ace-runtime.ts`, `src/bin/ace-gateway-http.ts` | constructs existing Gateway runtime under `ACE_GATEWAY_HTTP_MODE` | Must compose exactly one native Responses path; no extra proxy/tool |
-| `typespec/main.tsp` and `src/generated/ace-gateway/v1/**` | pinned generated public Gateway v1 contract | Keep v1 byte-frozen; independently version v2 |
+| `typespec/responses-v2.tsp` and generated outputs | Gateway contract ownership is split across prior handwritten and generated wire artifacts | Make native Responses v2 the sole TypeSpec contract and remove superseded schemas, DTOs and adapters |
 | `scripts/build-bifrost-ace-plugin.sh`, `integrations/bifrost/ace-connector/plugin/main_test.go` | exact Bifröst source pin `fe7634a6c828927d05ffdd57c62be0aaab04193f`; compile/fixture confidence only | Pin does not certify OAuth, no-conversion, raw-body `store:false` or per-inner-retry final send |
 | `test/gateway-projection*.ts`, `test/bifrost-plugin.contracts.test.ts`, `scripts/real-projection-e2e.mjs` | v1/limited mock and negative contract fixtures | Need native reasoning/tool/stream/attempt tests and one real authorized Hermes evidence run |
 | `src/domain/harbor-evaluation-policy.ts`, `src/adapters/harbor-*.ts`, `scripts/collect-feedback-loop.ts` | existing Harbor quality and pairing owners | Need route-bound provider receipts and paired real-agent usage, not a custom benchmark engine |
 
-**Verified limitations:** Current checked-in transport is Chat-first; CodeQL QG6 high-severity baseline issues are tracked in #269. No live provider egress, OAuth route, exact model/window/counter, terminal streaming, real Hermes multi-turn or Harbor claim has been performed or certified by this planning revision.
+**Verified limitations:** The current checked-in source has a native local preparation path, but `PreLLMHook` still blocks all model attempts. No live provider egress, OAuth route, exact model/window/counter, terminal streaming, real Hermes multi-turn or Harbor claim has been performed or certified. CodeQL QG6 findings remain a separate security issue.
 
 ### External Bifröst uncertainty, not an invented seam
 
-Pinned upstream `maximhq/bifrost@fe7634a6c828927d05ffdd57c62be0aaab04193f` has a nominal Responses endpoint and code paths that may change request type for fallback; internal `extraAttempts`/retries may happen below ACE's outer `PreLLMHook` (see dated R6 reviews and inspect the pinned source before implementing). **G02 STOP:** select a maintained, authenticated final physical-dispatch interception point with proof it runs for every retry and raw-body variant; otherwise keep all Responses generation fail-closed and request an owner-reviewed upstream Bifröst extension. Never substitute Chat conversion, custom SSE proxy, model API-key bypass, or unmerged/uncertified provider route.
+Pinned upstream `maximhq/bifrost@fe7634a6c828927d05ffdd57c62be0aaab04193f` documents `HTTPTransportPreHook` as once per request and `PreLLMHook` as once per provider attempt/fallback; hook errors alone are non-blocking, while an explicit short-circuit blocks. The transport hook runs before downstream provider serialization/mutation and is not a final-send receipt. **C03 STOP:** identify a maintained authenticated final physical-dispatch interception point with proof it runs for every retry and raw-body variant; otherwise keep all Responses generation fail-closed and request an owner-reviewed upstream Bifröst extension. Do not add another proxy, direct provider credential path or uncertified route.
 
-## TO-BE — one agent loop, one Gateway, no Chat
+## TO-BE — one agent loop, one Gateway, native Responses only
 
 ```text
 Hermes owns multi-turn reasoning, tool decisions/results, local conversation and cancellation
@@ -39,7 +41,7 @@ Hermes owns multi-turn reasoning, tool decisions/results, local conversation and
         -> TS pure native Responses input ADTs, privacy/source digest rules
         -> Effect retrieval/source revalidation, policy/audit and additive untrusted evidence
         -> PREPARED body (not a provider-send permit)
-    -> Bifröst native Responses provider route without converting to Chat
+    -> Bifröst native Responses provider route without protocol conversion
     -> certified final physical-send hook: fresh single-use policy decision for exact bytes,
        provider/model/destination/store:false on EVERY send including retry/fallback
     -> real provider native response/stream, complete/failed/cancelled and usage evidence
@@ -65,32 +67,32 @@ Immutable pure domain model (proposed, not present on main): `ResponsesInput = {
 
 - **require:** explicit native route, validated session correlation (not authentication), provider/model, source provenance, intact original request hash, valid strict `store:false`, owner permissions and fresh attempt identity.
 - **ensure:** precisely one marked untrusted ACE developer-context insertion for a valid visible request; no dropped original items; complete traceability of final send or typed denial.
-- **invariant:** no Chat fallback, direct bypass, stale source as current, replayed permit, hidden provider-managed history treated as verified, or unauthorized private-data egress.
+- **invariant:** no non-Responses fallback, direct bypass, stale source as current, replayed permit, hidden provider-managed history treated as verified, or unauthorized private-data egress.
 - **frame:** preserve all original semantic payload items, tools/reasoning/model/opaque extension keys and accepted v1 snapshot; no changes to unrelated retrieval, Graphiti, Qdrant or Harbor scheduler.
 - **exceptional:** provider mismatch, missing physical-send hook, token/window uncertainty, invalid attestation, hidden continuation, timeout, stream truncation, policy denial or crash yields auditable BLOCKED/UNKNOWN/PARTIAL, never implicit pass-through.
 
-Deterministic oracles: native JSON fixtures with mismatched `call_id`, encrypted reasoning, unknown properties and `stream:true`; mock upstream after all custom hooks; race/replay/changed-provider barriers; invalid `store:false`; direct v1 Chat and custom passthrough zero-send. Real evidence is separate: independently observed post-last-mutation provider send, correlated provider ack/terminal stream, and real Hermes action/quality traces; retain private originals outside the repo, commit only redacted hashes and judgments.
+Deterministic oracles: native JSON fixtures with mismatched `call_id`, encrypted reasoning, unknown properties and `stream:true`; mock upstream after all custom hooks; race/replay/changed-provider barriers; invalid `store:false`; unsupported-route and custom passthrough zero-send. Real evidence is separate: independently observed post-last-mutation provider send, correlated provider ack/terminal stream, and real Hermes action/quality traces; retain private originals outside the repo, commit only redacted hashes and judgments.
 
 ## Contract ownership / implementation sequence
 
-- OpenSpec = requirement/AC authority; this design = reviewed behavior/interface intent; TypeSpec `typespec/responses-v2.tsp` (proposed NEW file) = sole v2 wire schema source. `typespec/main.tsp` and generated v1 remain unchanged until migration cutover is accepted.
-- TS domain/application deepens existing `gateway-projection` behavior via new native `src/domain/responses-projection.ts`, `src/application/responses-projection-service.ts` and reused `context-transform-service.ts`, `policy-service.ts`, audit/ports; Go stays thin and provider-neutral.
+- OpenSpec = requirement/AC authority; this design = reviewed behavior/interface intent; TypeSpec `typespec/responses-v2.tsp` owns the sole native Responses v2 wire source and all generated outputs.
+- TS domain/application owns the native `src/domain/responses-projection.ts` and `src/application/responses-projection-service.ts` with reused `context-transform-service.ts`, `policy-service.ts`, audit/ports; Go stays thin and provider-neutral.
 - A single new v2 HTTP handler in existing `gateway-projection-http.ts`; no alternate agent-facing protocol, new reverse proxy or model-invoked ACE tools. Application policy is **not** enough to authorize physical send; add a verified attempt-specific final-send capability or STOP.
-- The historical #271/#273 unmerged files may inform tests after source/licensing/quality review, but importing their snapshots wholesale would silently bypass current G02 and codegen decisions. Retire old executable Chat artifacts *only when* v2 equivalence and negative gates pass; archived specs never become accepted forward paths.
+- Existing unmerged prototypes are not source authority. Reuse only source-verified behavior that satisfies this design and the approved TypeSpec contract. Remove all obsolete executable projection artifacts, tests, generated outputs and historical reports in the approved scope.
 - No new production provider, OAuth shim, retry scheduler, token admission gate or exact model identity is selected by this planning document.
 
 ## Stage dependency, release and rollback
 
-C01 fail-closed contract and TypeSpec → C02 source-preserving native context → C03 exact physical-send mechanism → C04 destination/OAuth/privacy reauthorization → C05 final-wire proof → C06 native streaming → C07 real Hermes long-loop → C08 Harbor quality/cost and owner approval. A hard STOP at C03 or C04 leaves the generation route disabled. Per-phase rollback restores the previous **fail-closed** state; it never restores Chat as a permitted agent path. Source or accepted spec changes invalidate dependent plan fingerprints.
+C01 fail-closed native contract and repository retirement → C02 source-preserving native context → C03 exact physical-send mechanism → C04 destination/OAuth/privacy reauthorization → C05 final-wire proof → C06 native streaming → C07 real Hermes long-loop → C08 Harbor quality/cost and owner approval. A hard STOP at C03 or C04 leaves generation disabled. Per-phase rollback restores the previous **fail-closed** state; it never restores a retired protocol or enables an uncertified route. Source or accepted spec changes invalidate dependent plan fingerprints.
 
 ## G02 owner decision crosswalk
 
 | AC | Owner | Decision | Interface/state | Phase | Deterministic oracle | Provider/agent oracle |
 |---|---|---|---|---|---|---|
-| RESP-001 | ACE owner / G02 reviewer | Direction accepted; G02 mechanics pending | TypeSpec v2 + gateway quarantine | C01 | contract/compiler: rejects Chat and unknown route | provider zero-send |
-| RESP-002 | ACE owner / G02 reviewer | Direction accepted; G02 mechanics pending | TypeSpec v2 + gateway quarantine | C01 | contract/compiler: rejects Chat and unknown route | provider zero-send |
-| RESP-003 | ACE owner / G02 reviewer | Direction accepted; G02 mechanics pending | TypeSpec v2 + gateway quarantine | C01 | contract/compiler: rejects Chat and unknown route | provider zero-send |
-| G11-004 | ACE owner / G02 reviewer | Direction accepted; G02 mechanics pending | TypeSpec v2 + gateway quarantine | C01 | contract/compiler: rejects Chat and unknown route | provider zero-send |
+| RESP-001 | ACE owner | **Approved for C01** by explicit owner instruction 2026-11-18 | TypeSpec v2 + native route allowlist | C01 | contract/compiler: only native Responses route is accepted | provider zero-send |
+| RESP-002 | ACE owner | **Approved for C01** by explicit owner instruction 2026-11-18 | Gateway v2 readiness + universal dispatch block | C01 | readiness and route denial contract tests | provider zero-send |
+| RESP-003 | ACE owner | **Approved for C01** by explicit owner instruction 2026-11-18 | TypeSpec v2 as sole active wire source | C01 | generation/drift and invalid contract tests | provider zero-send |
+| G11-004 | ACE owner | **Approved for C01** by explicit owner instruction 2026-11-18 | native route allowlist + dispatch block | C01 | unsupported route returns explicit denial | provider zero-send |
 | RESP-004 | ACE owner / G02 reviewer | Direction accepted; G02 mechanics pending | Native lossless input/context projection | C02 | input/tool/reasoning fixture checks | full Hermes trace |
 | RESP-005 | ACE owner / G02 reviewer | G02 review required; no provider/model/egress approval | Final-send single-use authorization boundary | C03 | retry/race/replay denial | real Bifröst physical send |
 | G11-009 | ACE owner / G02 reviewer | G02 review required; no provider/model/egress approval | Final-send single-use authorization boundary | C03 | retry/race/replay denial | real Bifröst physical send |
@@ -116,4 +118,4 @@ C01 fail-closed contract and TypeSpec → C02 source-preserving native context �
 | G11-019 | ACE owner / G02 reviewer | G02 review required; no provider/model/egress approval | Harbor paired economics and acceptance | C08 | unknown usage/quality and fake savings | frozen repeated paired trials |
 | G11-020 | ACE owner / G02 reviewer | G02 review required; no provider/model/egress approval | Harbor paired economics and acceptance | C08 | unknown usage/quality and fake savings | frozen repeated paired trials |
 
-**G02 status: REVIEW_REQUIRED.** Accepted owner direction is *native Responses only*; the physical send seam, auth/model/counter, precise privacy tests and external egress remain conditional. All phase sizing/owners are planning estimates, not approved production configuration. No G02 PASS, provider-wire, Hermes agent-E2E or 5× token claim is made.
+**G02 status:** C01 design is **OWNER-APPROVED** by explicit instruction on 2026-11-18; later phase mechanics remain REVIEW_REQUIRED. The physical-send seam, OAuth/model/counter, precise privacy tests and external egress remain conditional. C01 approval does not authorize provider egress, live Hermes/Harbor, production configuration or a 5× token claim. No provider-wire or agent-E2E acceptance is claimed.

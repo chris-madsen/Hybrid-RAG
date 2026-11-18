@@ -29,7 +29,7 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
   await writeFile(join(workspace, 'code.ts'), 'export const context = true;\n');
   const port = await availablePort();
   const session = 'session-readiness';
-  const body = { model: 'mock', messages: [{ role: 'user', content: 'find context' }] };
+  const body = { model: 'mock', store: false, input: 'find context' };
   const encoded = Buffer.from(JSON.stringify(body), 'utf8').toString('base64');
   const child = spawn(process.execPath, ['--import', 'tsx', 'src/bin/ace-gateway-http.ts'], {
     cwd: process.cwd(),
@@ -70,19 +70,19 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       child.once('error', (error) => finish(error));
       child.once('exit', (code) => finish(new Error('Gateway exited before ready: ' + code + ' ' + stderr.slice(-1000))));
     });
-    const base = `http://127.0.0.1:${port}/internal/ace-gateway/v1`;
+    const base = `http://127.0.0.1:${port}/internal/ace-gateway/v2`;
     const health = await fetch(base + '/health');
     assert.equal(health.status, 200);
     const readiness = await health.json() as { providerWire: string };
     assert.equal(readiness.providerWire, 'not_certified');
     const request = {
-      schemaVersion: 'ace.gateway.v1',
+      schemaVersion: 'ace.gateway.v2',
       requestId: 'request-readiness',
       attemptGroupId: 'turn-readiness',
       agentSessionId: session,
       workspaceId: '11111111-1111-4111-8111-111111111111',
       dataClass: 'private',
-      protocol: 'openai.chat.completions',
+      protocol: 'openai.responses',
       provider: 'mock',
       model: 'mock',
       bodyBase64: encoded,
@@ -109,12 +109,9 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       headers: { 'content-type': 'application/json', authorization: 'Bearer readiness-fixture-secret' },
       body: JSON.stringify(request),
     });
-    assert.equal(response.status, 200);
-    const result = await response.json() as { kind: string; bodyBase64?: string; receipt: { reasonCode: string; decision: string } };
-    assert.equal(result.kind, 'BLOCK');
-    assert.equal(result.receipt.decision, 'BLOCK');
-    assert.equal(result.receipt.reasonCode, 'NOT_READY');
-    assert.equal(result.bodyBase64, undefined);
+    assert.equal(response.status, 409);
+    const result = await response.json() as { error: { code: string } };
+    assert.equal(result.error.code, 'NOT_READY');
   } finally {
     child.kill('SIGTERM');
     await new Promise<void>((resolve) => {

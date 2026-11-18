@@ -3,63 +3,40 @@ package connector
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
-
-type publicContractBaseline struct {
-	Gateway struct {
-		SchemaVersion string `json:"schemaVersion"`
-		Request       struct {
-			Required []string `json:"required"`
-			Attestation struct {
-				Required []string `json:"required"`
-			} `json:"attestation"`
-		} `json:"request"`
-		Decision struct {
-			Required []string `json:"required"`
-			Receipt  struct {
-				Required []string `json:"required"`
-			} `json:"receipt"`
-		} `json:"decision"`
-	} `json:"gateway"`
-}
-
-func readPublicContractBaseline(t *testing.T) publicContractBaseline {
-	t.Helper()
-	path := filepath.Join("..", "..", "..", ".github", "fixtures", "contracts", "ace-public-v1-baseline.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var baseline publicContractBaseline
-	if err := json.Unmarshal(data, &baseline); err != nil {
-		t.Fatalf("decode public contract baseline: %v", err)
-	}
-	return baseline
-}
-
-func assertRequiredJSONFields(t *testing.T, value map[string]json.RawMessage, required []string, label string) {
-	t.Helper()
-	for _, field := range required {
-		if _, ok := value[field]; !ok {
-			t.Errorf("%s is missing baseline field %q", label, field)
-		}
-	}
-}
 
 func digest(value []byte) string {
 	sum := sha256.Sum256(value)
 	return hex.EncodeToString(sum[:])
+}
+
+func validHostAttestation(t *testing.T, epoch int) json.RawMessage {
+	t.Helper()
+	value := map[string]any{
+		"hostBuildDigest":                    digest([]byte("host-build")),
+		"sessionId":                          "session-1",
+		"activeEngineId":                     "bifrost-visible-request-only",
+		"effectiveCompressionControlsDigest": digest([]byte("compression-controls")),
+		"durableActiveTranscriptRevision":    "unattested:request-1",
+		"durableActiveTranscriptDigest":      digest([]byte("transcript")),
+		"hostCompactionEpoch":                epoch,
+		"attestorId":                         "test-host",
+		"providerManagedHistoryCapability":   "visible",
+		"hostTranscriptAttested":             false,
+		"compactionEnabled":                  false,
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("encode host attestation: %v", err)
+	}
+	return encoded
 }
 
 type unexpectedRoundTripper struct{}
@@ -68,132 +45,18 @@ func (unexpectedRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
 	panic("non-loopback ACE endpoint reached HTTP transport")
 }
 
-type redirectRoundTripper struct {
-	location string
-	calls    int
-}
-
-func (r *redirectRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	r.calls++
-	if r.calls != 1 {
-		return nil, errors.New("projection request was replayed")
-	}
-	return &http.Response{
-		StatusCode: http.StatusTemporaryRedirect,
-		Header:     http.Header{"Location": []string{r.location}},
-		Body:       io.NopCloser(strings.NewReader("")),
-		Request:    request,
-	}, nil
-}
-
-func validHostAttestation(t *testing.T, epoch int) json.RawMessage {
-	t.Helper()
-	value := map[string]any{
-		"hostBuildDigest": digest([]byte("host-build")),
-		"sessionId": "session-1",
-		"activeEngineId": "ace_context_engine",
-		"effectiveCompressionControlsDigest": digest([]byte("compression-controls")),
-		"durableActiveTranscriptRevision": "row-1",
-		"durableActiveTranscriptDigest": digest([]byte("transcript")),
-		"hostCompactionEpoch": epoch,
-		"attestorId": "test-host",
-		"providerManagedHistoryCapability": "visible",
-		"hostTranscriptAttested": true,
-		"compactionEnabled": false,
-	}
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("encode valid Gateway v1 host attestation: %v", err)
-	}
-	return encoded
-}
-
-
-func TestProjectAndApplyBindOriginalAndProjectedDigests(t *testing.T) {
-	baseline := readPublicContractBaseline(t)
-	original := []byte(`{"model":"test","messages":[{"role":"user","content":"question"}]}`)
-	projected := []byte(`{"model":"test","messages":[{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Header.Get("Authorization") != "Bearer connector-test-token" {
-			t.Fatal("the private ACE request must carry the configured Gateway authorization token")
-		}
-		var payload map[string]json.RawMessage
-		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-			t.Fatal(err)
-		}
-		var schemaVersion string
-		var bodyDigest string
-		_ = json.Unmarshal(payload["schemaVersion"], &schemaVersion)
-		_ = json.Unmarshal(payload["bodySha256"], &bodyDigest)
-		if schemaVersion != baseline.Gateway.SchemaVersion || schemaVersion != SchemaVersion || bodyDigest != digest(original) {
-			t.Fatalf("unexpected request binding: %#v", payload)
-		}
-		assertRequiredJSONFields(t, payload, baseline.Gateway.Request.Required, "Bifrost request")
-		var sentAttestation map[string]json.RawMessage
-		if err := json.Unmarshal(payload["attestation"], &sentAttestation); err != nil || sentAttestation == nil {
-			t.Fatalf("Bifrost request has no valid host attestation object: %v", err)
-		}
-		assertRequiredJSONFields(t, sentAttestation, baseline.Gateway.Request.Attestation.Required, "Bifrost host attestation")
-		decision := Decision{
-			Kind:       "APPLY",
-			BodyBase64: base64.StdEncoding.EncodeToString(projected),
-			Receipt: Receipt{
-				SchemaVersion: SchemaVersion, RequestID: "req-1", AttemptGroupID: "group-1", AttemptIndex: 0,
-				ReceiptID: "receipt-1", Decision: "APPLY", BaseBodySHA256: digest(original),
-				ProjectedBodySHA256: digest(projected), HostCompactionEpoch: 3, ActiveEngineID: "ace_context_engine",
-				PermittedWireRewrites: []string{"append_verified_context_system_message"},
-			},
-		}
-		encoded, err := json.Marshal(decision)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var wireDecision map[string]json.RawMessage
-		if err := json.Unmarshal(encoded, &wireDecision); err != nil {
-			t.Fatal(err)
-		}
-		assertRequiredJSONFields(t, wireDecision, baseline.Gateway.Decision.Required, "Bifrost decision")
-		var wireReceipt map[string]json.RawMessage
-		if err := json.Unmarshal(wireDecision["receipt"], &wireReceipt); err != nil {
-			t.Fatal(err)
-		}
-		assertRequiredJSONFields(t, wireReceipt, baseline.Gateway.Decision.Receipt.Required, "Bifrost receipt")
-		_, _ = writer.Write(encoded)
-	}))
-	defer server.Close()
-
-	client := Client{Endpoint: server.URL, AuthToken: "connector-test-token"}
-	decision, err := client.Project(context.Background(), Request{
-		RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1", WorkspaceID: "workspace-1",
-		DataClass: "private", Protocol: "openai.chat.completions", Provider: "mock", Model: "test", Query: "question",
-		ProjectionMode: "gateway", DeadlineEpochMs: 4102444800000, Body: original, Attestation: validHostAttestation(t, 3),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	actual, err := Apply(original, decision)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(actual) != string(projected) {
-		t.Fatalf("unexpected projected body: %s", actual)
-	}
-}
-
 func TestValidateLoopbackEndpoint(t *testing.T) {
 	for _, endpoint := range []string{
-		"http://127.0.0.1:8765/project",
-		"https://127.10.20.30:8765/project",
-		"http://[::1]:8765/project",
-		"http://[0:0:0:0:0:0:0:1]:8765/project",
-		"http://localhost:8765/project",
+		"http://127.0.0.1:8765/internal/ace-gateway/v2/project",
+		"https://127.10.20.30:8765/internal/ace-gateway/v2/project",
+		"http://[::1]:8765/internal/ace-gateway/v2/project",
+		"http://localhost:8765/internal/ace-gateway/v2/project",
 	} {
 		if err := validateLoopbackEndpoint(endpoint); err != nil {
 			t.Errorf("expected loopback endpoint %q to pass: %v", endpoint, err)
 		}
 	}
 	for _, endpoint := range []string{
-		"/internal/ace-gateway/v1/project",
 		"ftp://127.0.0.1:8765/project",
 		"http://0.0.0.0:8765/project",
 		"http://192.168.1.4:8765/project",
@@ -203,271 +66,35 @@ func TestValidateLoopbackEndpoint(t *testing.T) {
 		"http://user@127.0.0.1:8765/project",
 	} {
 		if err := validateLoopbackEndpoint(endpoint); err == nil {
-			t.Errorf("expected non-loopback endpoint %q to fail", endpoint)
+			t.Errorf("expected endpoint %q to be rejected", endpoint)
 		}
 	}
 }
 
-func TestProjectRejectsNonLoopbackEndpointBeforeHTTP(t *testing.T) {
-	client := Client{
-		Endpoint:   "https://example.com/internal/ace-gateway/v1/project",
-		HTTPClient: &http.Client{Transport: unexpectedRoundTripper{}},
-	}
-	_, err := client.Project(context.Background(), Request{
-		RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1", WorkspaceID: "workspace-1",
-		DataClass: "private", Protocol: "openai.chat.completions", Provider: "mock", Model: "test", Query: "question",
-		ProjectionMode: "gateway", DeadlineEpochMs: 4102444800000, Body: []byte(`{"messages":[]}`),
-		Attestation: validHostAttestation(t, 1),
-	})
-	if err == nil {
-		t.Fatal("expected non-loopback endpoint to fail before HTTP")
-	}
-}
+func TestProjectNativeResponsesRefusesRedirect(t *testing.T) {
+	var targetCalls atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		targetCalls.Add(1)
+	}))
+	defer target.Close()
 
-func TestProjectDoesNotFollowRedirect(t *testing.T) {
-	for _, target := range []string{"https://example.com/project", "http://127.0.0.1:9000/other-service"} {
-		t.Run(target, func(t *testing.T) {
-			transport := &redirectRoundTripper{location: target}
-			client := Client{
-				Endpoint:   "http://127.0.0.1:8765/project",
-				HTTPClient: &http.Client{Transport: transport},
-			}
-			_, err := client.Project(context.Background(), Request{
-				RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1", WorkspaceID: "workspace-1",
-				DataClass: "private", Protocol: "openai.chat.completions", Provider: "mock", Model: "test", Query: "question",
-				ProjectionMode: "gateway", DeadlineEpochMs: 4102444800000, Body: []byte(`{"messages":[]}`),
-				Attestation: validHostAttestation(t, 1),
-			})
-			if err == nil || !strings.Contains(err.Error(), "redirects are not supported") {
-				t.Fatalf("expected explicit refusal, got %v", err)
-			}
-			if transport.calls != 1 {
-				t.Fatalf("request replayed %d times", transport.calls)
-			}
-		})
-	}
-}
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/collect", http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
 
-func TestBlockedDecisionNeverProducesProviderBody(t *testing.T) {
-	body := []byte(`{"messages":[]}`)
-	_, err := Apply(body, Decision{Kind: "BLOCK", Receipt: Receipt{BaseBodySHA256: digest(body), Decision: "BLOCK", ReasonCode: "HOST_COMPACTION_ACTIVE"}})
-	if err == nil {
-		t.Fatal("expected blocked decision to fail")
+	request := ResponsesV2Request{
+		RequestID: "request-1", AttemptGroupID: "attempt-1", AgentSessionID: "session-1",
+		WorkspaceID: "workspace-1", DataClass: "private", Provider: "openai", Model: "openai/gpt-test",
+		Query: "question", DeadlineEpochMs: time.Now().Add(time.Minute).UnixMilli(),
+		Body:        []byte(`{"model":"openai/gpt-test","store":false,"input":"question"}`),
+		Attestation: validHostAttestation(t, 0),
 	}
-}
-
-func TestOversizedRequestIsRejectedBeforeHTTP(t *testing.T) {
-	client := Client{Endpoint: "http://127.0.0.1:1", MaxBodyBytes: 1}
-	_, err := client.Project(context.Background(), Request{
-		RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1", WorkspaceID: "workspace-1", Body: []byte("too large"),
-	})
-	if err == nil {
-		t.Fatal("expected body bound failure")
+	client := Client{Endpoint: redirector.URL + "/internal/ace-gateway/v2/project", AuthToken: "token"}
+	if _, err := client.ProjectNativeResponses(context.Background(), request); err == nil {
+		t.Fatal("native projection must refuse redirects")
 	}
-}
-
-func TestRejectForgedProjectionReceipts(t *testing.T) {
- original := []byte(`{"model":"test","messages":[{"role":"user","content":"question"}]}`)
- projected := []byte(`{"model":"test","messages":[{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
- scenarios := []struct {
-  name string
-  change func(*Decision)
- }{
-  {"wrong attempt group", func(d *Decision) { d.Receipt.AttemptGroupID = "another-attempt" }},
-  {"wrong decision kind", func(d *Decision) { d.Receipt.Decision = "UNCHANGED_AUTHORIZED" }},
-  {"wrong attempt index", func(d *Decision) { d.Receipt.AttemptIndex = 1 }},
-  {"wrong projected digest", func(d *Decision) { d.Receipt.ProjectedBodySHA256 = digest([]byte("wrong")) }},
-  {"wrong host compaction epoch", func(d *Decision) { d.Receipt.HostCompactionEpoch = 2 }},
-  {"wrong active engine", func(d *Decision) { d.Receipt.ActiveEngineID = "other-engine" }},
-  {"malformed base64", func(d *Decision) { d.BodyBase64 = "e30=" + "!" }},
- }
- for _, scenario := range scenarios {
-  t.Run(scenario.name, func(t *testing.T) {
-   decision := Decision{
-    Kind: "APPLY",
-    BodyBase64: base64.StdEncoding.EncodeToString(projected),
-    Receipt: Receipt{
-     SchemaVersion: SchemaVersion, RequestID: "req-1", AttemptGroupID: "group-1",
-     AttemptIndex: 0, ReceiptID: "receipt-1", Decision: "APPLY",
-     BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(projected),
-     HostCompactionEpoch: 1, ActiveEngineID: "ace_context_engine", PermittedWireRewrites: []string{"append_verified_context_system_message"},
-    },
-   }
-   scenario.change(&decision)
-   server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-    _ = json.NewEncoder(writer).Encode(decision)
-   }))
-   defer server.Close()
-   client := Client{Endpoint: server.URL}
-   _, err := client.Project(context.Background(), Request{
-    RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1",
-    WorkspaceID: "workspace-1", DataClass: "private", Protocol: "openai.chat.completions",
-    Provider: "mock", Model: "test", Query: "question", ProjectionMode: "gateway",
-    DeadlineEpochMs: 4102444800000, Body: original,
-    Attestation: validHostAttestation(t, 1),
-   })
-   if err == nil {
-    t.Fatal("expected invalid projection receipt to fail closed")
-   }
-  })
- }
-}
-
-func TestProjectRejectsExpiredDeadline(t *testing.T) {
- client := Client{Endpoint: "http://127.0.0.1:1"}
- _, err := client.Project(context.Background(), Request{
-  RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1",
-  WorkspaceID: "workspace-1", Body: []byte("{}"), DeadlineEpochMs: 1,
-  Attestation: json.RawMessage(`{}`),
- })
- if err == nil {
-  t.Fatal("expired deadline must be rejected before HTTP")
- }
-}
-
-func TestProjectedResponseHonorsCustomBodyBound(t *testing.T) {
- original := []byte(`{"messages":[]}`)
- projected := make([]byte, 65)
- server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-  _ = json.NewEncoder(writer).Encode(Decision{
-   Kind: "APPLY", BodyBase64: base64.StdEncoding.EncodeToString(projected),
-   Receipt: Receipt{
-    SchemaVersion: SchemaVersion, RequestID: "req-1", AttemptGroupID: "group-1",
-    AttemptIndex: 0, ReceiptID: "receipt-1", Decision: "APPLY",
-    BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(projected),
-    HostCompactionEpoch: 1, ActiveEngineID: "ace_context_engine", PermittedWireRewrites: []string{"append_verified_context_system_message"},
-   },
-  })
- }))
- defer server.Close()
- _, err := (Client{Endpoint: server.URL, MaxBodyBytes: 64}).Project(context.Background(), Request{
-  RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1",
-  WorkspaceID: "workspace-1", DataClass: "private", Protocol: "openai.chat.completions",
-  Provider: "mock", Model: "test", Query: "question", ProjectionMode: "gateway",
-  DeadlineEpochMs: 4102444800000, Body: original,
-  Attestation: validHostAttestation(t, 1),
- })
- if err == nil { t.Fatal("projected response exceeded configured body bound") }
-}
-
-
-func TestProjectRejectsSchemaInvalidDecisionEnvelope(t *testing.T) {
-	original := []byte(`{"model":"test","messages":[{"role":"user","content":"question"}]}`)
-	projected := []byte(`{"model":"test","messages":[{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
-	validPayload := func() map[string]any {
-		return map[string]any{
-			"kind":       "APPLY",
-			"bodyBase64": base64.StdEncoding.EncodeToString(projected),
-			"receipt": map[string]any{
-				"schemaVersion":         SchemaVersion,
-				"requestId":             "req-1",
-				"attemptGroupId":        "group-1",
-				"attemptIndex":          0,
-				"receiptId":             "receipt-1",
-				"decision":              "APPLY",
-				"baseBodySha256":        digest(original),
-				"projectedBodySha256":   digest(projected),
-				"hostCompactionEpoch":   1,
-				"activeEngineId":        "ace_context_engine",
-				"permittedWireRewrites": []string{"append_verified_context_system_message"},
-			},
-		}
-	}
-	scenarios := []struct {
-		name   string
-		mutate func(map[string]any)
-	}{
-		{"unknown top-level field", func(payload map[string]any) { payload["unexpected"] = true }},
-		{"missing required attempt index", func(payload map[string]any) {
-			delete(payload["receipt"].(map[string]any), "attemptIndex")
-		}},
-		{"null permitted rewrites", func(payload map[string]any) {
-			payload["receipt"].(map[string]any)["permittedWireRewrites"] = nil
-		}},
-		{"invalid host compaction epoch", func(payload map[string]any) {
-			payload["receipt"].(map[string]any)["hostCompactionEpoch"] = map[string]any{"unexpected": true}
-		}},
-	}
-	for _, scenario := range scenarios {
-		t.Run(scenario.name, func(t *testing.T) {
-			payload := validPayload()
-			scenario.mutate(payload)
-			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-				_ = json.NewEncoder(writer).Encode(payload)
-			}))
-			defer server.Close()
-			_, err := (Client{Endpoint: server.URL}).Project(context.Background(), Request{
-				RequestID: "req-1", AttemptGroupID: "group-1", AgentSessionID: "session-1",
-				WorkspaceID: "workspace-1", DataClass: "private", Protocol: "openai.chat.completions",
-				Provider: "mock", Model: "test", Query: "question", ProjectionMode: "gateway",
-				DeadlineEpochMs: 4102444800000, Body: original,
-				Attestation: validHostAttestation(t, 1),
-			})
-			if err == nil {
-				t.Fatal("schema-invalid projection decision must fail closed")
-			}
-		})
-	}
-}
-
-func TestGatewayApplyRejectsSemanticMutationsEvenWithMatchingDigests(t *testing.T) {
-	original := []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"user","content":"question"}]}`)
-	valid := []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`)
-	mutations := []struct {
-		name string
-		body []byte
-		rewrites []string
-	}{
-		{"model substitution", []byte(`{"model":"other","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
-		{"tool removal", []byte(`{"model":"test","stream":true,"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"question"}]}`), []string{"append_verified_context_system_message"}},
-		{"user tampering", []byte(`{"model":"test","stream":true,"tools":[{"type":"function","function":{"name":"read"}}],"messages":[{"role":"system","content":"policy"},{"role":"system","content":"[ACE verified context]\nverified source\n[/ACE verified context]"},{"role":"user","content":"different"}]}`), []string{"append_verified_context_system_message"}},
-		{"false rewrite claim", valid, []string{}},
-		{"unsupported pass-through", original, []string{"append_verified_context_system_message"}},
-	}
-	for _, fixture := range mutations {
-		t.Run(fixture.name, func(t *testing.T) {
-			receipt := Receipt{
-				BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(fixture.body),
-				Decision: "APPLY", PermittedWireRewrites: fixture.rewrites,
-			}
-			_, err := Apply(original, Decision{Kind: "APPLY", BodyBase64: base64.StdEncoding.EncodeToString(fixture.body), Receipt: receipt})
-			if err == nil {
-				t.Fatal("semantically unauthorized projection must fail closed")
-			}
-		})
-	}
-	receipt := Receipt{
-		BaseBodySHA256: digest(original), ProjectedBodySHA256: digest(valid),
-		Decision: "APPLY", PermittedWireRewrites: []string{"append_verified_context_system_message"},
-	}
-	if _, err := Apply(original, Decision{Kind: "APPLY", BodyBase64: base64.StdEncoding.EncodeToString(valid), Receipt: receipt}); err != nil {
-		t.Fatalf("valid single system-message insertion must pass: %v", err)
-	}
-}
-
-func TestGatewayApplyRejectsRetiredPassThroughKinds(t *testing.T) {
-	body := []byte(`{"model":"test","messages":[]}`)
-	for _, kind := range []string{"UNCHANGED_AUTHORIZED", "DEGRADED_AUTHORIZED"} {
-		_, err := Apply(body, Decision{Kind: kind, Receipt: Receipt{BaseBodySHA256: digest(body), Decision: kind}})
-		if err == nil {
-			t.Fatalf("%s must not allow a model call without ACE application", kind)
-		}
-	}
-}
-
-func TestEnvelopeBudgetCountsDuplicatedUserQuery(t *testing.T) {
-	query := strings.Repeat("x", 90*1024)
-	body := []byte(`{"model":"test","messages":[{"role":"user","content":"` + query + `"}]}`)
-	request := map[string]any{
-		"bodyBase64": base64.StdEncoding.EncodeToString(body),
-		"query": query,
-		"model": "test",
-	}
-	encoded, err := json.Marshal(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if int64(len(encoded)) > maxEnvelopeBytes(int64(len(body))) {
-		t.Fatal("legitimate duplicated Chat user text must fit the request envelope")
+	if targetCalls.Load() != 0 {
+		t.Fatal("projection payload must not be replayed to a redirect target")
 	}
 }

@@ -1,10 +1,10 @@
 # ACE — Контракты, интеграции и Deployment Sketch
 
-**Статус:** Current contract/deployment architecture baseline, updated 2026-11-14. Domain contracts remain provider-neutral; Gateway v1 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
+**Статус:** Current contract/deployment architecture baseline, updated 2026-11-18. Domain contracts remain provider-neutral; native Responses Gateway v2 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
 
 ## 1. Инварианты границ
 
-**Current architecture (owner decision 2026-11-14):** participating coding agents use Bifröst as their configured model endpoint. A pinned thin Go connector calls the authenticated local `ace.gateway.v1` Projection API; ACE Core remains TypeScript + Effect. No Hermes-native or model-invoked ACE context route exists as an alternative. Provider-wire and real-agent acceptance are separate G11 evidence.
+**Current architecture (owner decisions 2026-11-14/18):** participating coding agents use Bifröst as their configured model endpoint and native Responses is the only supported provider protocol. A pinned thin Go connector calls the authenticated local `ace.gateway.v2` Projection API; ACE Core remains TypeScript + Effect. Provider dispatch remains fail-closed; no Hermes-native or model-invoked ACE context route exists as an alternative. Provider-wire and real-agent acceptance are separate G11 evidence.
 
 1. **Одна agent-facing плоскость:** model-bound context проходит только через Bifröst → authenticated ACE Gateway Projection API (ADR-017 / OpenSpec 010). LangGraph может планировать агентов снаружи ACE, но не является альтернативным context transport.
 2. Выполнение кодовых правок и контроль Git остаются за Codex; ACE **read-only** относительно файлов проекта (кроме своих индексов/архивов).
@@ -18,10 +18,11 @@
 
 | Endpoint / boundary | Input | Output | Control |
 |---|---|---|---|
-| `POST /internal/ace-gateway/v1/project` | request/session/workspace identity, provider/model, exact body digest+Base64, query, deadline, attestation | `APPLY` with projected body+receipt or `BLOCK` | authenticated loopback caller, schema/digest/body identity, policy/freshness, permitted rewrite |
-| `GET /internal/ace-gateway/v1/health` | none | liveness + provider-wire certification state | liveness is not production readiness |
-| `GET /internal/ace-gateway/v1/capabilities` | none | supported schema/route capability | unsupported route never becomes implicit pass |
-| Bifröst provider-attempt guard | normalized request + request-local ACE receipt | allowed first attempt or fail-closed error | model/provider/context binding; no fallback/retry reuse without fresh authorization |
+| `POST /internal/ace-gateway/v2/project` | native Responses request, session/workspace identity, provider/model, exact body digest+Base64, query, deadline, attestation | `PREPARED` with projected body or `BLOCK` | authenticated loopback caller, strict schema/digest/body identity, policy/freshness; preparation is not send authorization |
+| `GET /internal/ace-gateway/v2/health` | none | liveness, adapter readiness and provider-wire certification state | liveness is not production readiness |
+| `GET /internal/ace-gateway/v2/capabilities` | none | native Responses route capability and certification state | unsupported route never becomes implicit pass |
+| `POST /internal/ace-gateway/v2/record-delivery` | no certified final-send evidence | `501 PROVIDER_WIRE_NOT_CERTIFIED` | cannot accept unverified client claims as delivery proof |
+| Bifröst provider-attempt guard | normalized native Responses request + local projection decision | **currently blocks every physical attempt** | no fallback/retry reuse; final-send authorization requires independent certification |
 
 The public agent-facing contract is Gateway-only. Exact source retrieval, memory lookup and expansion remain internal ACE capabilities behind application ports. A model does not choose whether to call ACE.
 
@@ -117,8 +118,8 @@ Security logs: `occurred_at, correlation_id, component, category, policy_version
 flowchart TB
   LG["External orchestrator (optional)"] --> AG["Coding agents"]
   AG -->|"configured model endpoint"| BF["Bifröst + pinned thin Go ACE connector"]
-  BF -->|"authenticated ace.gateway.v1"| ACE["ACE modular monolith / TS+Effect"]
-  BF -->|"authorized provider attempt"| LLM["LLM provider"]
+  BF -->|"authenticated ace.gateway.v2"| ACE["ACE modular monolith / TS+Effect"]
+  BF -.->|"dispatch blocked until certified"| LLM["LLM provider"]
   ACE --> Q["Qdrant"]
   ACE --> T["ast-grep / LSP"]
   ACE --> G["Archive / Graphiti"]
@@ -144,7 +145,7 @@ flowchart TB
 
 ## 9. Versioning и migrations
 
-- `ContextBundle.schema_version`, domain events and `ace.gateway.v1` have explicit versions; public Gateway compatibility is guarded by TypeSpec regeneration and v1 contract checks.
+- `ContextBundle.schema_version`, domain events and `ace.gateway.v2` have explicit versions; the TypeSpec source and generated native Responses contract are checked for deterministic regeneration.
 - Индекс содержит `embeddingProfileVersion`, `parserVersion`, `repo revision` и `generationId`; смена профиля требует нового generation.
 - История Graphiti extraction версионируется; смена extractor не меняет raw archive, только derived projection.
 - Test fixtures/Harbor/Codex/provider model versions замораживаются в run manifest.

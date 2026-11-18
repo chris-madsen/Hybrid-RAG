@@ -48,8 +48,8 @@ attempt('ARTIFACTS_AND_PROTOCOL', () => {
   assert(outputHas(2,home+'design.md') && outputHas(3,home+'tasks.md') && outputHas(4,home+'phases'), 'A/P/X artifacts missing');
   const design=show(root,doc.stages[2].head,home+'design.md');
   assert(design.includes('Target agent transport: openai.responses'),'design lacks native Responses decision');
-  assert(design.includes('Legacy Chat route: RETIRED_NOT_SUPPORTED'),'design does not retire Chat');
-  assert(!/(?:initial|first|fallback|preferred|primary)[^\n]{0,90}(?:Chat Completions|openai\.chat\.completions)/iu.test(design),'Chat-first design detected');
+  assert(design.includes('Legacy provider route: RETIRED_NOT_SUPPORTED'),'design does not retire alternate provider routes');
+  assert(!/(?:initial|first|fallback|preferred|primary)[^\n]{0,90}(?:legacy|alternate|previous)[^\n]{0,90}(?:native )?Responses/iu.test(design),'Legacy-first design detected');
   const tasks=show(root,doc.stages[4].head,home+'tasks.md');
   const names=git(root,'ls-tree','--name-only',doc.stages[4].head+':'+home+'phases').split('\n');
   assert(names.length && names.every(n=>/^[A-Za-z][A-Za-z0-9-]*\.md$/u.test(n)),'phase inventory empty/invalid');

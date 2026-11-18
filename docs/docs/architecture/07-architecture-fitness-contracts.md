@@ -14,8 +14,8 @@ We chose mature engines for *actual behavior*, but the implementation can satisf
 flowchart LR
   LG["LangGraph or other external orchestrator"] --> A["Existing coding agents"]
   A -->|"configured model endpoint"| B["Bifröst gateway + pinned ACE Go connector"]
-  B -->|"authenticated ace.gateway.v1"| Gate["ACE authorization / data policy"]
-  B -->|"authorized model-bound request"| P["LLM providers"]
+  B -->|"authenticated ace.gateway.v2"| Gate["ACE authorization / data policy"]
+  B -.->|"dispatch blocked until certified"| P["LLM providers"]
   Gate --> O["Context Orchestration / Effect"]
   O --> Plan["Deterministic retrieval routing"]
   Plan --> Q["Qdrant dense + sparse"]
@@ -57,10 +57,10 @@ IDs are stable acceptance criteria. Each case must be implemented as **agent-fac
 | **DBC-06 Failure truth** | Force Qdrant timeout; local AST available | Partial response lists Qdrant as failed; fallback explicitly labelled | `complete=true` prohibited when a **required** source failed, even if remaining evidence is current |
 | **DBC-07 Policy safety** | Private-code cloud upload forbidden; Vertex/Jev or an LLM provider requested | Typed `POLICY_DENIED`, audit/evidence record where applicable, **zero** prohibited outbound requests | Gateway private-source projection requires explicit provider identity, cloud opt-in and provider allowlist; do not reinterpret policy deny as outage or auto-route/fallback to another cloud |
 | **DBC-08 Source exactness** | 2000+ line code and binary-like UTF-8 payload incl. newlines | Exact range pagination reassembles SHA-256-identical complete bytes | Source never silently truncated or replaced with summary |
-| **DBC-09 Gateway/connector conformance** | supported coding-agent HTTP request + pinned Bifröst/connector + explicit authorized provider/model + valid/invalid projection cases | Gateway v1, auth, honest host-state confidence, request/session binding, pre-retrieval destination policy, secret guard, semantic body preservation and exact provider-attempt admission meet the accepted contract | No alternate transport, automatic/unauthorized provider selection, fabricated host transcript proof, unbound attempt, silent passthrough or unpinned plugin ABI |
+| **DBC-09 Gateway/connector conformance** | supported native Responses request + pinned Bifröst/connector + explicit provider/model + valid/invalid projection cases | Native Responses v2, auth, honest host-state confidence, request/session binding, pre-retrieval destination policy, secret guard and semantic body preservation meet the accepted contract; physical provider attempts stay blocked until certified | No alternate transport, automatic/unauthorized provider selection, fabricated host transcript proof, unbound attempt, silent passthrough or unpinned plugin ABI |
 | **DBC-10 Memory stable identity** | Append one more JSONL episode to already imported history; replay | Prior episode IDs/citations stable; new episode added exactly once | File-level digest change must not re-identify existing episodes |
 | **DBC-11 Memory safe deletion** | Two distinct episodes reference identical content digest; delete only one | Survivor remains exactly readable; deleted episode inaccessible; derived projection purged | No shared content removal until reference-safe; no inferred decision auto-accepted |
-| **DBC-12 Benchmark attribution** | Pinned paired real-agent runs on a repo/task requiring code exploration | Report valid ACE APPLY/receipt count, provider trace, token totals, quality, external costs and source hashes | No ACE APPLY/provider evidence **cannot** prove ACE-caused saving; trivial forced context injection does not establish value |
+| **DBC-12 Benchmark attribution** | Pinned paired real-agent runs on a repo/task requiring code exploration | Report prepared-projection count separately from verified final provider sends, provider trace, token totals, quality, external costs and source hashes | A prepared projection without verified provider evidence **cannot** prove ACE-caused saving; trivial forced context injection does not establish value |
 | **DBC-13 Index persistence** | Restart ACE with dirty worktree and stale Qdrant generation | Startup/refresh computes truthful index status and incremental rebuild/overlay behavior | Restart never silently upgrades stale generation to current |
 | **DBC-14 Documentation conflict** | ADR says X, changed current code says Y | Bundle contains both, source classifications and timestamps, with conflict explicit | Documentation is not silently used as current source-code truth |
 

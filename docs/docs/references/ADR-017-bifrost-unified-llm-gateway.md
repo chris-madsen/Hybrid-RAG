@@ -67,7 +67,7 @@ These are **static source observations**, not a passed on-the-wire compatibility
 
 ## Required follow-up
 
-- Implementation and verification plan: [2026-10-24 Bifrost unified LLM gateway plan](../../plans/2026-10-24-bifrost-unified-llm-gateway-plan.md).
+- Current implementation and acceptance plan: [OpenSpec 013 — G11 production acceptance](../../../openspec/changes/013-gateway-g11-production-acceptance/); the native Responses-only contract is recorded in [ADR-020](ADR-020-native-responses-only.md).
 - Add normative OpenSpec capabilities before changing runtime code: contracts for `gateway admission`, `request-local projection`, `protected message groups`, `provider wire equivalence`, `authorization`, `fallback/retry` and `receipts`.
 - Stage compatibility as `contract-designed → adapter-implemented → provider-wire-tested → agent-E2E-tested → benchmark-evaluated → owner-approved`, one explicit state per protocol/route. No production approval is conferred by this ADR.
 

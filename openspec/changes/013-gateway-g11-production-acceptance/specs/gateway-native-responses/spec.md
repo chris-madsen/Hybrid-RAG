@@ -4,22 +4,22 @@
 
 ### Requirement: Agent route must be provider-native Responses
 
-ACE SHALL use Bifröst's certified provider-native Responses transport for its only agent-facing context delivery. Legacy Chat compatibility must not authorize model egress or silently downgrade an agent's input.
+ACE SHALL use Bifröst's provider-native Responses transport for its only agent-facing context delivery. No other protocol, converter, alias or fallback may authorize model egress or silently change an agent's input.
 
-#### Scenario: RESP-001 — Native Responses only, no Chat fallback
+#### Scenario: RESP-001 — Native Responses is the only generation protocol
 - **WHEN** Hermes sends a model request to the configured ACE/Bifröst endpoint
 - **THEN** only the independently certified native /v1/responses path can become eligible for generation
-- **AND** legacy Chat Completions aliases, internal Responses-to-Chat converters, automatic provider substitution and custom Codex passthrough are blocked before external egress.
+- **AND** every non-Responses alias, protocol converter, automatic provider substitution and unsupported passthrough is blocked before external egress.
 
 #### Scenario: RESP-002 — Explicit fail-closed capability surface
 - **WHEN** the native route, model, auth, privacy or final-send guard is not certified
-- **THEN** Gateway readiness advertises the capability as unavailable/not_certified and refuses generation or a direct v1 Chat projection
+- **THEN** Gateway v2 readiness advertises the capability as unavailable/not_certified and refuses generation when any required guard is missing
 - **AND** missing retrieval, failed policy, untrusted plugins or invalid body cannot silently forward unprojected requests.
 
 #### Scenario: RESP-003 — Versioned TypeSpec contract migration
-- **WHEN** ACE introduces the native Responses projection request/decision/receipt wire
+- **WHEN** ACE introduces the native Responses projection request/decision wire
 - **THEN** the new v2 operation and DTOs originate in TypeSpec with pinned generated output, typed mapping and negative compatibility tests
-- **AND** accepted Gateway v1 wire remains unchanged as an archived migration baseline until an explicit retirement gate; no dual active projection owners exist.
+- **AND** Gateway v2 is the sole active generated projection contract; previous projection schemas, DTOs and runtime routes are removed rather than retained as a compatibility surface.
 
 ### Requirement: Preserve the real long agent loop without provider-held implicit state
 
@@ -28,7 +28,7 @@ ACE SHALL preserve all original Responses input items, reasoning and tool-call r
 #### Scenario: RESP-004 — Lossless Responses multi-turn input projection
 - **WHEN** Hermes submits stateless Responses input with function_call, function_call_output, matching call_id, reasoning/opaque content, multimodal blocks, streaming and vendor extensions
 - **THEN** ACE inserts only clearly marked untrusted verified source evidence while preserving the full original input-item order and protected provider parameters
-- **AND** does not rewrite into Chat messages, invent a truncated history, drop model controls or claim a real Hermes loop from synthetic replay alone.
+- **AND** does not translate the request into another message format, invent a truncated history, drop model controls or claim a real Hermes loop from synthetic replay alone.
 
 ### Requirement: Provider network sends require independent authorization
 

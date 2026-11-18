@@ -47,7 +47,7 @@ The system SHALL preserve exact source/generated artifacts and SHALL NOT silentl
 
 ### Requirement: Versioned Gateway and pinned connector
 
-The production agent-facing boundary SHALL use the TypeSpec-owned Gateway v1 contract and a thin Bifröst connector compiled against the exact approved upstream revision. Custom parallel transports SHALL NOT become an alternate delivery route.
+The production agent-facing boundary SHALL use the TypeSpec-owned native Responses v2 Gateway contract and a thin Bifröst connector compiled against the exact approved upstream revision. Custom parallel transports SHALL NOT become an alternate delivery route.
 
 #### Scenario: Connector conformance
 

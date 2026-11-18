@@ -1,12 +1,12 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "ACE Gateway Projection v1",
-    "version": "1.0.0"
+    "title": "ACE Native Responses Projection",
+    "version": "2.0.0"
   },
   "tags": [],
   "paths": {
-    "/internal/ace-gateway/v1/capabilities": {
+    "/internal/ace-gateway/v2/capabilities": {
       "get": {
         "operationId": "capabilities",
         "parameters": [],
@@ -24,7 +24,7 @@
         }
       }
     },
-    "/internal/ace-gateway/v1/health": {
+    "/internal/ace-gateway/v2/health": {
       "get": {
         "operationId": "health",
         "parameters": [],
@@ -42,7 +42,7 @@
         }
       }
     },
-    "/internal/ace-gateway/v1/project": {
+    "/internal/ace-gateway/v2/project": {
       "post": {
         "operationId": "project",
         "parameters": [],
@@ -58,7 +58,67 @@
             }
           },
           "400": {
-            "description": "Existing HTTP failure envelope; errors are not fabricated success results.",
+            "description": "The server could not understand the request due to invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access is unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The server cannot find the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current state of the server.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -68,7 +128,7 @@
             }
           },
           "503": {
-            "description": "Existing HTTP failure envelope; errors are not fabricated success results.",
+            "description": "Service unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -87,18 +147,16 @@
               }
             }
           }
-        },
-        "x-ace-final-provider-wire": "not_certified",
-        "x-ace-runtime-policy-owner": "domain-policy"
+        }
       }
     },
-    "/internal/ace-gateway/v1/record-delivery": {
+    "/internal/ace-gateway/v2/record-delivery": {
       "post": {
         "operationId": "recordDelivery",
         "parameters": [],
         "responses": {
           "501": {
-            "description": "This public endpoint deliberately has no successful delivery response.",
+            "description": "Server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -114,6 +172,32 @@
   },
   "components": {
     "schemas": {
+      "BlockedProjection": {
+        "type": "object",
+        "required": [
+          "kind",
+          "baseBodySha256",
+          "reasonCode"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BLOCK"
+            ]
+          },
+          "baseBodySha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "reasonCode": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": {
+          "not": {}
+        }
+      },
       "DeliveryNotCertified": {
         "type": "object",
         "required": [
@@ -136,14 +220,15 @@
             "required": [
               "code",
               "message"
-            ]
+            ],
+            "additionalProperties": {
+              "not": {}
+            }
           }
         },
-        "description": "This public endpoint deliberately has no successful delivery response."
-      },
-      "EvidenceId": {
-        "type": "string",
-        "minLength": 1
+        "additionalProperties": {
+          "not": {}
+        }
       },
       "GatewayCapabilities": {
         "type": "object",
@@ -158,7 +243,7 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "ace.gateway.v1"
+              "ace.gateway.v2"
             ]
           },
           "routes": {
@@ -177,11 +262,7 @@
             "items": {
               "type": "string",
               "enum": [
-                "native",
-                "gateway",
-                "assist-only",
-                "observe-only",
-                "off"
+                "gateway"
               ]
             }
           },
@@ -191,6 +272,9 @@
               "not_certified"
             ]
           }
+        },
+        "additionalProperties": {
+          "not": {}
         }
       },
       "GatewayError": {
@@ -212,10 +296,15 @@
             "required": [
               "code",
               "message"
-            ]
+            ],
+            "additionalProperties": {
+              "not": {}
+            }
           }
         },
-        "description": "Existing HTTP failure envelope; errors are not fabricated success results."
+        "additionalProperties": {
+          "not": {}
+        }
       },
       "GatewayHealth": {
         "type": "object",
@@ -229,7 +318,7 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "ace.gateway.v1"
+              "ace.gateway.v2"
             ]
           },
           "liveness": {
@@ -251,7 +340,9 @@
             ]
           }
         },
-        "description": "Real informational routes; statuses are local adapter facts, not provider-wire approval."
+        "additionalProperties": {
+          "not": {}
+        }
       },
       "GatewayRouteCapability": {
         "type": "object",
@@ -264,7 +355,7 @@
           "protocol": {
             "type": "string",
             "enum": [
-              "openai.chat.completions"
+              "openai.responses"
             ]
           },
           "mode": {
@@ -276,9 +367,12 @@
           "capability": {
             "type": "string",
             "enum": [
-              "G2_GATEWAY_VISIBLE_ONLY"
+              "NATIVE_RESPONSES_NOT_CERTIFIED"
             ]
           }
+        },
+        "additionalProperties": {
+          "not": {}
         }
       },
       "HostCompactionAttestation": {
@@ -337,8 +431,7 @@
                   "unknown"
                 ]
               }
-            ],
-            "minimum": 0
+            ]
           },
           "attestorId": {
             "type": "string",
@@ -359,87 +452,25 @@
             "type": "boolean"
           }
         },
-        "description": "Checked by the existing application validator; string constraints are wire-only."
+        "additionalProperties": {
+          "not": {}
+        }
       },
-      "ProjectionDecision": {
+      "PreparedProjection": {
         "type": "object",
         "required": [
           "kind",
-          "receipt"
+          "baseBodySha256",
+          "projectedBodySha256",
+          "bodyBase64",
+          "reasonCode"
         ],
         "properties": {
           "kind": {
             "type": "string",
             "enum": [
-              "APPLY",
-              "UNCHANGED_AUTHORIZED",
-              "DEGRADED_AUTHORIZED",
-              "BLOCK"
+              "PREPARED"
             ]
-          },
-          "bodyBase64": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
-          },
-          "receipt": {
-            "$ref": "#/components/schemas/ProjectionReceipt"
-          }
-        }
-      },
-      "ProjectionReceipt": {
-        "type": "object",
-        "required": [
-          "schemaVersion",
-          "requestId",
-          "attemptGroupId",
-          "attemptIndex",
-          "receiptId",
-          "decision",
-          "baseBodySha256",
-          "hostCompactionEpoch",
-          "activeEngineId",
-          "permittedWireRewrites"
-        ],
-        "properties": {
-          "schemaVersion": {
-            "type": "string",
-            "enum": [
-              "ace.gateway.v1"
-            ]
-          },
-          "requestId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "attemptGroupId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "attemptIndex": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "projectionId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "receiptId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "decision": {
-            "type": "string",
-            "enum": [
-              "APPLY",
-              "UNCHANGED_AUTHORIZED",
-              "DEGRADED_AUTHORIZED",
-              "BLOCK"
-            ]
-          },
-          "reasonCode": {
-            "type": "string",
-            "minLength": 1
           },
           "baseBodySha256": {
             "type": "string",
@@ -449,31 +480,36 @@
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
           },
-          "hostCompactionEpoch": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "format": "int64"
-              },
-              {
-                "type": "string",
-                "enum": [
-                  "unknown"
-                ]
-              }
-            ],
-            "minimum": 0
-          },
-          "activeEngineId": {
+          "bodyBase64": {
             "type": "string",
-            "minLength": 1
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
           },
-          "permittedWireRewrites": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "uniqueItems": true
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "VERIFIED_CONTEXT_ADDED"
+            ]
+          }
+        },
+        "additionalProperties": {
+          "not": {}
+        }
+      },
+      "ProjectionDecision": {
+        "type": "object",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PreparedProjection"
+          },
+          {
+            "$ref": "#/components/schemas/BlockedProjection"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "PREPARED": "#/components/schemas/PreparedProjection",
+            "BLOCK": "#/components/schemas/BlockedProjection"
           }
         }
       },
@@ -481,12 +517,12 @@
         "type": "object",
         "required": [
           "schemaVersion",
+          "protocol",
           "requestId",
           "attemptGroupId",
           "agentSessionId",
           "workspaceId",
           "dataClass",
-          "protocol",
           "provider",
           "model",
           "bodyBase64",
@@ -500,7 +536,13 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "ace.gateway.v1"
+              "ace.gateway.v2"
+            ]
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "openai.responses"
             ]
           },
           "requestId": {
@@ -527,12 +569,6 @@
               "public"
             ]
           },
-          "protocol": {
-            "type": "string",
-            "enum": [
-              "openai.chat.completions"
-            ]
-          },
           "provider": {
             "type": "string",
             "minLength": 1
@@ -557,11 +593,7 @@
           "projectionMode": {
             "type": "string",
             "enum": [
-              "native",
-              "gateway",
-              "assist-only",
-              "observe-only",
-              "off"
+              "gateway"
             ]
           },
           "deadlineEpochMs": {
@@ -571,17 +603,10 @@
           },
           "attestation": {
             "$ref": "#/components/schemas/HostCompactionAttestation"
-          },
-          "nativeProjectionActive": {
-            "type": "boolean"
-          },
-          "requestedEvidenceIds": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EvidenceId"
-            },
-            "uniqueItems": true
           }
+        },
+        "additionalProperties": {
+          "not": {}
         }
       }
     }

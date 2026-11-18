@@ -2,9 +2,9 @@
 
 # Contract-first code generation — Sphericon lessons applied to ACE
 
-**Current implementation status (2026-11-15):** PR #244 merged the pinned TypeSpec Gateway v1 vertical slice: OpenAPI/JSON Schema generation, maintained TypeScript SDK/types, regeneration drift checks, strict Gateway schema compatibility and exhaustive DTO mapping checks. This statement applied to the historical Gateway v1 implementation only. Following the owner's explicit Responses-only decision, **Gateway v1 is frozen compatibility evidence and NOT the active generation surface**. The native `ace.gateway.v2` implementation is tracked by OpenSpec change 013 and `typespec/responses-v2.tsp`. v2 TypeSpec compilation alone does NOT yet constitute generated runtime validators/SDK or a certified provider-wire route; this migration remains incomplete. Broader generation ideas below are optional future capabilities.
+**Current implementation status (2026-11-18):** OpenSpec change 013 and ADR-020 select TypeSpec-generated native Responses v2 as the sole active Gateway contract. Pinned OpenAPI, JSON Schema, SDK and server types are generated from `typespec/responses-v2.tsp`; tests verify deterministic artifacts and strict unknown-field rejection. These checks do not certify provider dispatch or production readiness. Broader generation ideas below remain optional future capabilities.
 
-**Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document records both the installed Gateway v1 generation slice and broader generation coverage candidates; only committed generator/config/CI artifacts count as installed.
+**Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document records the active native Responses v2 generation slice and broader generation coverage candidates; only committed generator/config/CI artifacts count as installed.
 
 ## Inspected concrete Sphericon pipeline
 
@@ -101,7 +101,7 @@ Given TypeSpec defines \`indexGenerationId\` on response:
 
 **TS-05: generated artifact policy.** Generated output directory/header, \`.gitattributes\`, reproducible \`generate\` task, generated-diff check and schema compatibility gate. Include semantic tests for transport/permissions/mapping; ensure codegen changes are scope-aware in CI.
 
-**TS-06: wider migration.** Apply incrementally only when a **new live public interface** is owner-approved. At present there is no additional live public contract root beyond Gateway v1; do not manufacture work by migrating internal domain/provider protocols.
+**TS-06: wider migration.** Apply incrementally only when a **new live public interface** is owner-approved. The native Responses Gateway v2 is the only active Gateway projection contract; do not manufacture work by migrating internal domain/provider protocols.
 
 ## Required gates
 
