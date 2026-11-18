@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { realpath, readdir, readFile, stat } from 'node:fs/promises';
+import { realpath, readdir, open, stat } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { Effect } from 'effect';
@@ -41,6 +42,32 @@ export interface NodeWorkspacePortOptions {
   readonly excludedDirectories?: readonly string[];
 }
 
+// Read the very same file descriptor (never a second path lookup) with
+// O_NOFOLLOW and check metadata before/after the read. This refuses a swapped
+// leaf symlink and a changing inode rather than hashing unchecked bytes.
+class WorkspaceReadRaceError extends Error {}
+
+const readStableWorkspaceFile = async (path: string): Promise<{
+  readonly bytes: Uint8Array;
+  readonly metadata: import('node:fs').Stats;
+}> => {
+  const descriptor = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const before = await descriptor.stat();
+    if (!before.isFile()) throw new WorkspaceReadRaceError('workspace path is not a regular file');
+    const bytes = new Uint8Array(await descriptor.readFile());
+    const after = await descriptor.stat();
+    if (before.ino !== after.ino || before.dev !== after.dev
+      || before.size !== after.size || before.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== after.ctimeMs || bytes.byteLength !== after.size) {
+      throw new WorkspaceReadRaceError('workspace file changed during read');
+    }
+    return { bytes, metadata: after };
+  } finally {
+    await descriptor.close();
+  }
+};
+
 const walkFiles = async (
   rootPath: string,
   currentPath: string,
@@ -59,8 +86,7 @@ const walkFiles = async (
       continue;
     }
     if (!entry.isFile()) continue;
-    const metadata = await stat(absolutePath);
-    const bytes = new Uint8Array(await readFile(absolutePath));
+    const { metadata, bytes } = await readStableWorkspaceFile(absolutePath);
     const digestValue = createHash('sha256').update(bytes).digest('hex');
     const digest = makeContentDigest(digestValue);
     if (digest._tag === 'Err') throw new Error(digest.error.message);
@@ -456,23 +482,24 @@ export const makeNodeWorkspacePort = (options: NodeWorkspacePortOptions): Worksp
           const safePath = await resolveSafePath(rootPath, repoPath);
           if (safePath._tag === 'Err') return safePath;
           try {
-            const before = await stat(safePath.value);
-            const bytes = new Uint8Array(await readFile(safePath.value));
-            const after = await stat(safePath.value);
-            if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino) {
-              return errorResult('WORKTREE_RACED', 'repo_path', 'file changed while it was being read');
-            }
+            const { bytes, metadata } = await readStableWorkspaceFile(safePath.value);
             const digestValue = createHash('sha256').update(bytes).digest('hex');
             const digest = makeContentDigest(digestValue);
             return digest._tag === 'Ok'
               ? ok<ExactRead>({
                 bytes,
                 digest: digest.value,
-                sizeBytes: after.size,
-                mtimeMs: after.mtimeMs,
+                sizeBytes: metadata.size,
+                mtimeMs: metadata.mtimeMs,
               })
               : digest;
-          } catch {
+          } catch (cause) {
+            if (cause instanceof WorkspaceReadRaceError) {
+              return errorResult('WORKTREE_RACED', 'repo_path', 'file changed while it was being read');
+            }
+            if (nodeErrorCode(cause) === 'ELOOP') {
+              return errorResult('PATH_ESCAPE', 'repo_path', 'symlink substitution is refused');
+            }
             return errorResult('FILE_NOT_FOUND', 'repo_path', 'file could not be read');
           }
         },

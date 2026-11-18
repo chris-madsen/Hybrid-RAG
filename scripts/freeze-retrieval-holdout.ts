@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { canonicalBenchmarkCandidateId, type BenchmarkCandidateRange } from '../src/domain/retrieval-benchmark.js';
+import { writeFrozenArtifactPair } from './write-frozen-artifact-pair.js';
 import type {
   RetrievalHoldout,
   RetrievalHoldoutCase,
@@ -114,10 +115,8 @@ for (const repository of sourceSpec.repositories) {
     throw new Error(`repository ${repository.id} revision mismatch: expected ${repository.revision}, got ${actualRevision}`);
   }
   const manifest = manifestFor(repository, root);
-  await mkdir(resolve(manifestDirectoryArg), { recursive: true });
   const manifestPath = resolve(manifestDirectoryArg, `manifest-${repository.id}.json`);
-  await writeFile(manifestPath, manifest.bytes);
-  await writeFile(`${manifestPath}.sha256`, `${manifest.digest}  ${manifestPath.split('/').pop()}\n`);
+  await writeFrozenArtifactPair(manifestPath, manifest.bytes, manifest.digest);
   repositories.push({ id: repository.id, revision: repository.revision, sourceManifestSha256: manifest.digest });
   manifestByRepository.set(repository.id, { digest: manifest.digest, root, revision: repository.revision });
 }
@@ -176,9 +175,6 @@ const holdout: RetrievalHoldout = {
   cases,
 };
 const holdoutPath = resolve(holdoutArg);
-if (existsSync(holdoutPath)) throw new Error(`refusing to overwrite frozen holdout ${holdoutPath}`);
-await mkdir(dirname(holdoutPath), { recursive: true });
 const holdoutBytes = Buffer.from(JSON.stringify(holdout, null, 2) + '\n', 'utf8');
-await writeFile(holdoutPath, holdoutBytes);
-await writeFile(`${holdoutPath}.sha256`, `${sha256(holdoutBytes)}  ${holdoutPath.split('/').pop()}\n`);
+await writeFrozenArtifactPair(holdoutPath, holdoutBytes, sha256(holdoutBytes));
 process.stdout.write(JSON.stringify({ holdout: holdoutPath, holdoutSha256: sha256(holdoutBytes), cases: cases.length, repositories: repositories.length }) + '\n');

@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { canonicalBenchmarkCandidateId, type BenchmarkCandidateRange } from '../src/domain/retrieval-benchmark.js';
+import { writeFrozenArtifactPair } from './write-frozen-artifact-pair.js';
 import { exactUtf8SourceSpan } from '../src/domain/utf8-range.js';
 import type { RetrievalHoldout } from '../src/domain/retrieval-quality-evaluation.js';
 import {
@@ -123,10 +124,8 @@ for (const repository of sourceSpec.repositories) {
   const actualRevision = gitText(root, ['rev-parse', repository.revision]).trim();
   if (actualRevision !== repository.revision) throw new Error(`repository ${repository.id} revision mismatch: expected ${repository.revision}, got ${actualRevision}`);
   const manifest = manifestFor(repository, root);
-  await mkdir(resolve(manifestDirectoryArg as string), { recursive: true });
   const manifestPath = resolve(manifestDirectoryArg as string, `manifest-${repository.id}.json`);
-  await writeFile(manifestPath, manifest.bytes);
-  await writeFile(`${manifestPath}.sha256`, `${manifest.digest}  ${basename(manifestPath)}\n`);
+  await writeFrozenArtifactPair(manifestPath, manifest.bytes, manifest.digest);
   repositories.push({ id: repository.id, revision: repository.revision, sourceManifestSha256: manifest.digest });
   repositoryInfo.set(repository.id, { root, revision: repository.revision, manifestDigest: manifest.digest });
 }
@@ -184,10 +183,7 @@ const holdout: RerankerFixture = {
   cases,
 };
 const holdoutPath = resolve(holdoutArg as string);
-if (existsSync(holdoutPath)) throw new Error(`refusing to overwrite frozen holdout ${holdoutPath}`);
-await mkdir(dirname(holdoutPath), { recursive: true });
 const holdoutBytes = Buffer.from(JSON.stringify(holdout, null, 2) + '\n', 'utf8');
 const holdoutDigest = sha256(holdoutBytes);
-await writeFile(holdoutPath, holdoutBytes);
-await writeFile(`${holdoutPath}.sha256`, `${holdoutDigest}  ${basename(holdoutPath)}\n`);
+await writeFrozenArtifactPair(holdoutPath, holdoutBytes, holdoutDigest);
 process.stdout.write(JSON.stringify({ holdout: holdoutPath, holdoutSha256: holdoutDigest, cases: cases.length, repositories: repositories.length }) + '\n');
