@@ -8,6 +8,8 @@
 
 ---
 
+> **Execution authority / statuses:** This is a proposal, not the canonical task ledger. OpenSpec 013 `tasks.md` owns phase status/acceptance; the final checklist is a read-only criteria index. After PR #282 merges, re-diff current code before repeating codegen, native verification, or v1 removal. No implementation, test, or acceptance result may be imported from an unmerged PR as if it were on main.
+
 ## 1. Goal
 
 Bring ACE to a state where the project can truthfully claim that its AI-assisted SDLC is not merely documented but **executed and enforced end to end**:
@@ -74,7 +76,7 @@ Do not introduce the following merely to make the SDLC look more elaborate:
 - one microservice per DDD bounded context;
 - mutable OO aggregate classes where readonly ADTs and pure functions are clearer;
 - a second specification/task tracker beside OpenSpec;
-- Chat-Completions fallback or an alternate direct-provider ACE path;
+- a legacy generation-protocol fallback or an alternate direct-provider ACE path;
 - Ragas as a replacement for deterministic retrieval metrics, real-provider receipts or Harbor task correctness.
 
 ---
@@ -130,33 +132,30 @@ Unknown or unavailable provider identity, missing authorization, stale source, s
 
 ---
 
-# 5. Priority order
+# 5. Dependency DAG — independent work stays independent
 
-The work should proceed in this dependency order:
+This is **not** a mandatory linear pipeline. Route from the owner's requested stage, reusing current work as specified in `AGENTS.md` and `docs/operations/implementation-entry-resume.md`. Refresh current `main` and PRs **before every node**. A finished step in another PR is not repeated or treated as merged prematurely.
 
 ```text
-P0-A  Reconcile OpenSpec/G02 with current Responses implementation
-  |
-P0-B  Restore green current-main deterministic + real-Qdrant verification
-  |
-P0-C  Triage and close CodeQL high findings on exact current SHA
-  |
-P1-A  Complete TypeSpec Responses v2 generated authority
-  |
-P1-B  Run real coding-agent SDLC E2E / resume / negative-gate trials
-  |
-P1-C  Continue G11 C03-C08 provider/agent/Harbor acceptance
-  |
-P2-A  Add calibrated Ragas offline evaluation
-  |
-P2-B  Clean active OpenSpec / documentation status drift
-  |
-P2-C  Verify/enforce merge required-check policy
-  |
-P3    Promote only mature architecture/advisory checks to blocking
+              ┌─ P0-A OpenSpec 013/G02 reconciliation ───────────────────┐
+              │                                                        │
+main + PRs ───┼─ P0-B deterministic + real-Qdrant fixture checks ──────┤
+              │                                                        ├─ G11 C03→C04→C05→C06→C07→C08
+              ├─ P0-C CodeQL fixes / exact-source security evidence ────┤     (phase-specific G02
+              │                                                        │      + egress/oracle gates)
+              ├─ P1-A v2 TypeSpec/runtime contract reconciliation ──────┤
+              │                                                        │
+              ├─ P1-B real harness R/S/A/P/X/I/V/resume trials (separate)┘
+              └─ P2-B OpenSpec/docs status cleanup (independent)
+
+Optional/advisory, not on the acceptance critical path:
+  P2-A Ragas (only if owner retains it)   P3 selective advisory quality rules
+  P2-C CI evidence/review ergonomics (never required merge checks)
 ```
 
-Do not start later phases by pretending an earlier hard dependency passed.
+**Hard edges are capability-level, not row-order dependencies:** C03 requires current C02 behavior and an actual per-send interception seam; C04 needs C03 authorization before certifying fallback; C05 requires C03/C04 and real provider consent; C06 requires an authorized streaming path; C07 requires working provider + streaming/tool fidelity; C08 requires real agent outcomes. TypeSpec v2 and clean source/contract evidence are required for the specific G11 acceptance claiming them. CodeQL findings must be honestly resolved/triaged for security acceptance, but do **not** force unrelated offline planning or docs to wait. G02 applies to each material implementation decision and cannot be inferred from an old crosswalk. No node may claim a stronger evidence state than was actually observed.
+
+**Owner merge policy is authoritative:** owner may merge any PR at their discretion. This plan must not propose branch protection, required status checks, rulesets or mandatory PR approvals. Inform about failures without blocking the merge via GitHub settings.
 
 ---
 
@@ -305,7 +304,7 @@ and the scheduled workflow on the exact repair SHA.
 
 - full deterministic suite is green on exact current SHA;
 - real Qdrant projection job is green using native Responses;
-- old Chat/v1 route is tested as a negative zero-send path;
+- old retired legacy generation route is tested as a negative zero-send path;
 - evidence does not claim Bifröst/final-provider certification.
 
 ---
@@ -384,7 +383,7 @@ responses-v2.tsp
 5. Remove duplicate handwritten public wire types where generated authority replaces them.
 6. Add exhaustive adapter/domain mapping checks.
 7. Add negative fixtures for:
-   - Chat protocol;
+   - unsupported legacy protocol;
    - unknown/unsupported protocol;
    - missing provider/model/session binding;
    - invalid `store` policy;
@@ -513,7 +512,7 @@ Every physical provider attempt, including retries/fallback attempts, must recei
 
 Replay/race must fail.
 
-**Hard STOP:** if maintained Bifröst has no trustworthy post-last-mutation physical-send seam, do not invent a Chat proxy or bypass. Either use a maintainable supported extension or require an owner-reviewed upstream change.
+**Hard STOP:** if maintained Bifröst has no trustworthy post-last-mutation physical-send seam, do not invent a second proxy or bypass. Either use a maintainable supported extension or require an owner-reviewed upstream change.
 
 ## C04 — Privacy/OAuth/fallback
 
@@ -706,44 +705,17 @@ Update architecture-fitness docs from actual rule files, not remembered rule cou
 
 ---
 
-# 14. P2-C — Verify and enforce required merge checks
+# 14. P2-C — Honest CI visibility without GitHub merge restrictions
 
-## Problem
+**Authoritative owner decision (`AGENTS.md`, 2026-11-12):** no branch protection, rulesets, required status checks or mandatory PR approvals. The owner decides when a PR is merged, including with red or incomplete CI. **Do not configure restrictions, create owner-action tickets for them, or perform a blocked-merge test.**
 
-Repository workflows exist, but enforcement at the protected-branch/ruleset level must be verified separately. The inspected API surface did not expose a repository ruleset, and branch-protection status was not readable through the available integration.
+Use GitHub Actions and review reports strictly as **evidence and advice**:
+- collect actual status/conclusion at the exact PR head and tested merge SHA, distinguishing NOT_RUN from PASS;
+- show failing/high-severity findings and their likely cause clearly without hiding them or falsely declaring release acceptance;
+- keep path-filtered jobs and nightly provider/advisory jobs appropriately scoped; no artificial always-present required aggregate;
+- recommend fixes and revalidation, while leaving the merge action fully under owner control.
 
-Workflow existence is not proof that a merge cannot bypass a failed check.
-
-## Required work
-
-Inspect GitHub repository settings with owner/admin visibility.
-
-Define the minimum required merge policy for `main`.
-
-Prefer an **always-present required aggregator** if path-filtered jobs would otherwise remain permanently expected on unrelated PRs.
-
-Potential required signals:
-
-- scoped/focused ACE verification;
-- security PR gate;
-- Gateway-only audit;
-- aggregate result for applicable OpenSpec/TypeSpec checks;
-- required review/owner approval where configured.
-
-Keep scheduled/nightly real-provider and advisory jobs separate unless their semantics are suitable for a merge-blocking check.
-
-Document:
-
-- exact required check names;
-- whether admins can bypass;
-- review requirement;
-- stale review dismissal/update policy;
-- merge method.
-
-## Acceptance
-
-A test PR with a deliberately failing required gate cannot merge through the normal protected path.
-
+**Acceptance:** clear per-PR CI visibility and accurate risk reporting; **no change** to owner-controlled GitHub merge behavior.
 ---
 
 # 15. P3 — Promote mature report-only checks selectively
@@ -869,7 +841,7 @@ Do not add Grafana/Prometheus/OTel/Langfuse solely to claim SDLC completion.
 | Hermes agent E2E | real multi-turn task correctness | provider HTTP success |
 | Harbor | matched paired quality + usage/cost evidence | retrieval score alone |
 | Ragas | pinned dataset/model/metric provenance | unversioned judge score |
-| Merge enforcement | protected-path negative merge test | workflow YAML presence |
+| CI evidence visibility | exact-head outcomes and owner-visible failures | workflow YAML presence or invented required checks |
 | Release | exact-SHA supply-chain/owner evidence | generic signed artifact |
 
 ---
@@ -912,13 +884,13 @@ Exit: real R/S/A/P/X + I/G02/resume behavior observed.
 
 One security/acceptance phase per reviewable slice according to the canonical change-013 phase plan and current G02 decision.
 
-### PR-G — Ragas evaluation
+### PR-G — Optional Ragas evaluation (only on owner's request)
 
 Pinned offline evaluation, initially advisory.
 
-### PR-H — OpenSpec/docs cleanup and merge-policy documentation
+### PR-H — OpenSpec/docs cleanup and CI evidence visibility
 
-Archive/sync historical status; record required branch checks.
+Archive/sync historical status without deleting unique evidence; document observed CI outcomes without mandatory merge rules.
 
 Do not force this exact PR count if current dependencies make a different small split safer. Preserve phase acceptance IDs and negative diff semantics.
 
@@ -926,27 +898,27 @@ Do not force this exact PR count if current dependencies make a different small 
 
 # 21. Definition of full SDLC conformance
 
-ACE may be called **fully conformant to the repository's target AI-assisted SDLC** only when all of the following are true:
+ACE may be called **fully conformant to the repository's target AI-assisted SDLC** only when the following independently evidenced criteria are met. **This is a view, not a second mutable completion tracker:** statuses and phase checkboxes live solely in canonical OpenSpec 013 `tasks.md` and the corresponding owned acceptance/evidence records. Do not separately tick the list here.
 
-- [ ] current OpenSpec/G02 accurately describes the reachable Responses implementation;
-- [ ] no material T2 implementation is treated as accepted without real G02 owner review;
-- [ ] current exact-SHA deterministic full verification is green;
-- [ ] current exact-SHA real Qdrant and required real-provider component checks are green;
-- [ ] CodeQL high/critical gate is green or narrowly reviewed/triaged with no unowned finding;
-- [ ] TypeSpec native Responses v2 is generated/runtime-checked authority, not compile-only;
-- [ ] real coding-agent R/S/A/P/X behavior is observed and evidenced;
-- [ ] direct I entry, negative G02 block and resume behavior are observed;
-- [ ] G11 final-send authorization and real provider wire are certified;
-- [ ] native streaming/cancellation is evidenced;
-- [ ] real Hermes multi-turn agent loop is evidenced;
-- [ ] Harbor paired quality/usage/cost evidence exists for the accepted release claim;
-- [ ] the >=5x token target is claimed only if the measured quality-gated evidence actually supports it;
-- [ ] Ragas exists as a calibrated optional/advisory quality layer if retained as part of the agreed evaluation portfolio;
-- [ ] current OpenSpec/docs have no competing active historical authority;
-- [ ] protected-branch required checks are verified to prevent ordinary merge with failed mandatory gates;
-- [ ] release provenance is bound to the exact accepted source/configuration;
-- [ ] deferred observability remains explicitly deferred rather than falsely called missing;
-- [ ] every unavailable provider/agent/benchmark state is reported as NOT_RUN/BLOCKED/UNKNOWN rather than PASS.
+- current OpenSpec/G02 accurately describes the reachable Responses implementation;
+- no material T2 implementation is treated as accepted without real G02 owner review;
+- current exact-SHA deterministic full verification is green;
+- current exact-SHA real Qdrant and required real-provider component checks are green;
+- CodeQL high/critical gate is green or narrowly reviewed/triaged with no unowned finding;
+- TypeSpec native Responses v2 is generated/runtime-checked authority, not compile-only;
+- real coding-agent R/S/A/P/X behavior is observed and evidenced;
+- direct I entry, negative G02 block and resume behavior are observed;
+- G11 final-send authorization and real provider wire are certified;
+- native streaming/cancellation is evidenced;
+- real Hermes multi-turn agent loop is evidenced;
+- Harbor paired quality/usage/cost evidence exists for the accepted release claim;
+- the >=5x token target is claimed only if the measured quality-gated evidence actually supports it;
+- optional Ragas work, if requested, is calibrated and advisory, never a prerequisite for full SDLC conformance;
+- current OpenSpec/docs have no competing active historical authority;
+- exact-head CI checks and unresolved failures are visible to the owner; owner retains unrestricted merge control;
+- release provenance is bound to the exact accepted source/configuration;
+- deferred observability remains explicitly deferred rather than falsely called missing;
+- every unavailable provider/agent/benchmark state is reported as NOT_RUN/BLOCKED/UNKNOWN rather than PASS.
 
 ---
 
@@ -988,9 +960,9 @@ I: RED -> GREEN
    |
 V: exact-SHA evidence reconciliation
    |
-protected merge + owner approval
+owner-controlled merge (CI results advisory)
    |
 release provenance
 ```
 
-The key closure criterion is not the number of tools or gates. It is that **each claim has the right-strength evidence, the coding agent actually follows the process, current source and canonical status agree, and mandatory failures cannot be silently bypassed**.
+The key closure criterion is not the number of tools or gates. It is that **each claim has the right-strength evidence, the coding agent actually follows the process, current source and canonical status agree, and missing or failed evidence is reported transparently without restricting the owner's merge decision**.
