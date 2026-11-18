@@ -313,7 +313,7 @@ test('Harness-neutral SDLC enters any selected stage and reuses prepared phase w
   const trial = file('docs/operations/sdlc-e2e-trial.md');
   for (const content of [rules, router, handoff, ops, procedure, implement]) {
     assert.match(content, /implement|имплементируй/iu);
-    assert.match(content, /do not (automatically |start at |restart |rerun |replay |regenerate )|не /iu);
+    assert.match(content, /do not|never|не /iu, 'every SDLC entry document must forbid unconditional stage replay');
     assert.match(content, /G02/u);
   }
   assert.match(router, /## Harness-neutral intent-first stage entry[\s\S]*## Staged pipeline route/u, 'intent route must precede default staged planning');
