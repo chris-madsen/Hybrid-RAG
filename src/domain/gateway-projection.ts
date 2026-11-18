@@ -1,26 +1,11 @@
 import { domainError, type DomainError } from './errors.js';
 import { err, ok, type Result } from './result.js';
-import { sha256 } from './retrieval-benchmark.js';
+import { sha256Base64, validateHostCompactionAttestation, type HostCompactionAttestation } from './gateway-request-binding.js';
+export { sha256Base64, validateHostCompactionAttestation } from './gateway-request-binding.js';
+export type { HostCompactionAttestation, ProviderManagedHistoryCapability } from './gateway-request-binding.js';
 
 export type ProjectionMode = 'native' | 'gateway' | 'assist-only' | 'observe-only' | 'off';
 export type GatewayDecisionKind = 'APPLY' | 'UNCHANGED_AUTHORIZED' | 'DEGRADED_AUTHORIZED' | 'BLOCK';
-export type ProviderManagedHistoryCapability = 'visible' | 'hidden' | 'unknown';
-
-export interface HostCompactionAttestation {
-  readonly hostBuildDigest: string;
-  readonly sessionId: string;
-  readonly parentSessionId?: string;
-  readonly activeEngineId: string;
-  readonly effectiveCompressionControlsDigest: string;
-  readonly durableActiveTranscriptRevision: string;
-  readonly durableActiveTranscriptDigest: string;
-  readonly hostCompactionEpoch: number | 'unknown';
-  readonly attestorId: string;
-  readonly providerManagedHistoryCapability: ProviderManagedHistoryCapability;
-  readonly hostTranscriptAttested: boolean;
-  readonly compactionEnabled: boolean;
-}
-
 export interface GatewayProjectionRequest {
   readonly schemaVersion: 'ace.gateway.v1';
   readonly requestId: string;
@@ -68,11 +53,6 @@ const nonEmpty = (value: unknown): value is string => typeof value === 'string' 
 const safeInteger = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value);
 const maxBodyBytes = 4 * 1024 * 1024;
 const maxBase64Length = 4 * Math.ceil(maxBodyBytes / 3);
-const hostAttestationFields = new Set([
-  'hostBuildDigest', 'sessionId', 'parentSessionId', 'activeEngineId', 'effectiveCompressionControlsDigest',
-  'durableActiveTranscriptRevision', 'durableActiveTranscriptDigest', 'hostCompactionEpoch', 'attestorId',
-  'providerManagedHistoryCapability', 'hostTranscriptAttested', 'compactionEnabled',
-]);
 const gatewayProjectionRequestFields = new Set([
   'schemaVersion', 'requestId', 'attemptGroupId', 'agentSessionId', 'workspaceId', 'dataClass', 'protocol',
   'provider', 'model', 'bodyBase64', 'bodySha256', 'query', 'projectionMode', 'deadlineEpochMs', 'attestation',
@@ -80,49 +60,6 @@ const gatewayProjectionRequestFields = new Set([
 ]);
 const firstUnknownField = (input: Record<string, unknown>, allowed: ReadonlySet<string>): string | undefined =>
   Object.keys(input).find((field) => !allowed.has(field));
-
-export const sha256Base64 = (bodyBase64: string): string =>
-  sha256(Buffer.from(bodyBase64, 'base64'));
-
-export const validateHostCompactionAttestation = (
-  value: unknown,
-): Result<HostCompactionAttestation, DomainError> => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return err(domainError('INVALID_ATTESTATION', 'attestation', 'host attestation must be an object'));
-  }
-  const input = value as Record<string, unknown>;
-  const unknownField = firstUnknownField(input, hostAttestationFields);
-  if (unknownField !== undefined) {
-    return err(domainError('INVALID_ATTESTATION', `attestation.${unknownField}`, 'unknown host attestation field'));
-  }
-  const requiredStrings = [
-    'hostBuildDigest', 'sessionId', 'activeEngineId', 'effectiveCompressionControlsDigest',
-    'durableActiveTranscriptRevision', 'durableActiveTranscriptDigest', 'attestorId',
-  ];
-  if (requiredStrings.some((key) => !nonEmpty(input[key]))) {
-    return err(domainError('INVALID_ATTESTATION', 'attestation.identity', 'host attestation identity is incomplete'));
-  }
-  if (!digest(input.hostBuildDigest)
-    || !digest(input.effectiveCompressionControlsDigest)
-    || !digest(input.durableActiveTranscriptDigest)) {
-    return err(domainError('INVALID_ATTESTATION', 'attestation.digest', 'host attestation digests must be SHA-256'));
-  }
-  if ((!safeInteger(input.hostCompactionEpoch) || (input.hostCompactionEpoch as number) < 0) && input.hostCompactionEpoch !== 'unknown') {
-    return err(domainError('INVALID_ATTESTATION', 'attestation.hostCompactionEpoch', 'compaction epoch must be an integer or unknown'));
-  }
-  if (input.parentSessionId !== undefined && !nonEmpty(input.parentSessionId)) {
-    return err(domainError('INVALID_ATTESTATION', 'attestation.parentSessionId', 'parent session must be a non-empty string'));
-  }
-  if (typeof input.hostTranscriptAttested !== 'boolean' || typeof input.compactionEnabled !== 'boolean') {
-    return err(domainError('INVALID_ATTESTATION', 'attestation.flags', 'host attestation flags are required'));
-  }
-  if (input.providerManagedHistoryCapability !== 'visible'
-    && input.providerManagedHistoryCapability !== 'hidden'
-    && input.providerManagedHistoryCapability !== 'unknown') {
-    return err(domainError('INVALID_ATTESTATION', 'attestation.providerManagedHistoryCapability', 'provider history capability is invalid'));
-  }
-  return ok(input as unknown as HostCompactionAttestation);
-};
 
 export const validateGatewayProjectionRequest = (
   value: unknown,

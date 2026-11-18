@@ -67,3 +67,74 @@ func TestRequestBoundIdentityDoesNotDependOnLaterBifrostContextPopulation(t *tes
 		t.Fatalf("attestation must bind the minted physical request ID: %#v", attestation)
 	}
 }
+
+func TestResponsesOnlyQuarantineBlocksEveryGenerationRoute(t *testing.T) {
+	cases := []struct {
+		path string
+		status int
+	}{
+		{"/v1/chat/completions", 410},
+		{"/chat/completions", 410},
+		{"/openai/chat/completions", 410},
+		{"/v1/responses", 503},
+		{"/responses", 503},
+		{"/openai/responses", 503},
+		{"/chatgpt_passthrough/backend-api/codex/responses", 415},
+		{"/v1/completions", 415},
+		{"/v1/messages", 415},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			resp, err := HTTPTransportPreHook(nil, &schemas.HTTPRequest{Method: "POST", Path: tc.path, Body: []byte(`{"model":"openai/test","input":"text"}`)})
+			if err != nil || resp == nil || resp.StatusCode != tc.status {
+				t.Fatalf("expected fail-closed status %d, got %#v / %v", tc.status, resp, err)
+			}
+		})
+	}
+	allow, err := HTTPTransportPreHook(nil, &schemas.HTTPRequest{Method: "GET", Path: "/v1/models"})
+	if err != nil || allow != nil {
+		t.Fatalf("non-generation model catalog should remain available: %#v / %v", allow, err)
+	}
+}
+
+func TestPreLLMHookCannotForwardWithoutCertifiedNativeResponses(t *testing.T) {
+	_, short, err := PreLLMHook(nil, &schemas.BifrostRequest{})
+	if err != nil || short == nil || short.Error == nil || short.Error.AllowFallbacks == nil || *short.Error.AllowFallbacks {
+		t.Fatalf("uncertified provider dispatch must be short-circuited without fallback: %#v / %v", short, err)
+	}
+}
+
+func TestNativeResponsesQueryFromToolResultAndMultimodalUserInput(t *testing.T) {
+    fixtures := []struct { name, body, expected string } {
+        {"tool-result", `[{"type":"function_call","call_id":"c1","arguments":"{}"},{"type":"function_call_output","call_id":"c1","output":"tool returned entrypoint"}]`, "tool returned entrypoint"},
+        {"multimodal-user", `[{"role":"user","content":[{"type":"input_text","text":"find module"},{"type":"input_image","image_url":"data:image/png;base64,AA=="}]}]`, "find module"},
+        {"no-source", `[{"type":"reasoning","encrypted_content":"opaque"}]`, ""},
+    }
+    for _, tc := range fixtures {
+        t.Run(tc.name,func(t *testing.T){
+            got, ok := nativeResponsesQuery(json.RawMessage(tc.body))
+            if got != tc.expected || ok != (tc.expected != "") {
+                t.Fatalf("native query=%q ok=%v expected=%q",got,ok,tc.expected)
+            }
+        })
+    }
+}
+
+func TestNativeResponsesIngressWithoutContextOrWorkspaceNeverSends(t *testing.T) {
+    request := &schemas.HTTPRequest{
+        Method:"POST",Path:"/v1/responses",
+        Body:[]byte(`{"model":"openai/gpt-test","input":"find handler","store":false}`),
+        Headers:map[string]string{"session-id":"test-session"},
+    }
+    previousWorkspace := defaultWorkspaceID
+    defaultWorkspaceID = "test-workspace"
+    defer func(){defaultWorkspaceID=previousWorkspace}()
+    resp, err := HTTPTransportPreHook(nil,request)
+    if err!=nil || resp==nil || resp.StatusCode != 503 {
+        t.Fatalf("missing live transport context must be denied: %+v %v",resp,err)
+    }
+    _, stop, err := PreLLMHook(nil, &schemas.BifrostRequest{ResponsesRequest: &schemas.BifrostResponsesRequest{Model:"gpt-test"}})
+    if err!=nil || stop==nil || stop.Error==nil || stop.Error.AllowFallbacks==nil || *stop.Error.AllowFallbacks {
+        t.Fatal("no provider dispatch or fallback permitted before physical-send certification")
+    }
+}

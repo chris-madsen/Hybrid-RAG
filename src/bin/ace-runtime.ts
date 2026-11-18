@@ -83,7 +83,7 @@ import {
 } from '../application/lsp/server-registry.js';
 import { knownLspServers, selectInstalledLspServersForPaths } from '../application/lsp/claw-discovery.js';
 import { makeRoutedLspSession } from '../application/lsp/routed-semantic.js';
-import { makeGatewayProjectionService } from '../application/gateway-projection-service.js';
+import { makeResponsesProjectionService } from '../application/responses-projection-service.js';
 import { runGatewayProjectionHttp } from '../transport/gateway-projection-http.js';
 
 const required = (name: string): string => {
@@ -1128,13 +1128,15 @@ const main = async (): Promise<void> => {
       'NOT_READY', 'unified_context', 'required context provider is unavailable',
     ))),
   };
+  const gatewaySecurity = {
+    policy: gatewayPolicy,
+    allowedProviders: gatewayAllowedLlmProviders,
+    clock: ports.clock,
+    audit: makeFileAuditSink(resolve(stateDirectory, 'gateway-policy-audit.jsonl')),
+  };
+  const contextProvider = contextBridge ?? unavailableContext;
   try {
-    await runGatewayProjectionHttp(makeGatewayProjectionService(contextBridge ?? unavailableContext, {
-      policy: gatewayPolicy,
-      allowedProviders: gatewayAllowedLlmProviders,
-      clock: ports.clock,
-      audit: makeFileAuditSink(resolve(stateDirectory, 'gateway-policy-audit.jsonl')),
-    }));
+    await runGatewayProjectionHttp(makeResponsesProjectionService(contextProvider, gatewaySecurity));
   } finally {
     let cleanupError: unknown;
     try {

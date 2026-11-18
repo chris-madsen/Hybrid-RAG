@@ -1,3 +1,5 @@
+> **Native Responses v2 prepared locally; provider dispatch remains DISABLED.** The active ACE runtime uses only `ace.gateway.v2` native Responses projection at `/internal/ace-gateway/v2/project` (authenticated loopback), while the installed Bifröst plugin accepts native `/v1/responses` for **local context preparation only**. All actual model requests are still denied by `PreLLMHook`, including retries/fallback. No authorization for physical provider egress, live Hermes agent loop or production is claimed. Chat Completions ingress and hidden Responses→Chat conversion remain disallowed. The byte-frozen v1 TypeSpec/Go compatibility code is historical, not active composition, and must not be resurrected. The pinned Bifröst upstream has extra internal retries below `PreLLMHook`; a verified per-physical-send guard and native-only (no conversion) proof must precede enablement. See `openspec/changes/014-responses-native-agent-loop/`.
+
 # ACE Bifrost connector
 
 This directory contains the thin, provider-neutral Go IPC client for the versioned `ace.gateway.v1` projection contract.
