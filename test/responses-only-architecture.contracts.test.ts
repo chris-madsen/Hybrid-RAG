@@ -12,7 +12,8 @@ test('active ACE runtime only composes the native Responses projector', async ()
 test('native projection owns its request contract and protected provider controls', async () => {
   const domain = await source('src/domain/responses-projection.ts');
   const service = await source('src/application/responses-projection-service.ts');
-  assert.match(domain, /'openai\.responses'/u);
+  assert.match(domain, /GeneratedProjectionRequest/u);
+  assert.match(domain, /typespec\/generated\/sdk\/types\.gen/u);
   assert.match(domain, /value\.store !== false/u);
   assert.match(service, /kind: 'PREPARED'/u);
   assert.match(service, /kind: 'BLOCK'/u);
