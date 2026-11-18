@@ -94,6 +94,9 @@ Evidence used to close a gate must identify, as applicable, the **source commit,
 
 ## 8. Engineering workflow and change discipline
 
+**Harness-neutral intent-first entry / resume (all R/S/A/P/X/I/V stages):** For any coding harness/agent using ACE rules (currently Hermes), the **latest explicit owner request selects the entry stage**; a new session never implies starting R automatically. "Research" enters R, "write requirements" S, "architecture" A, "split tasks" P, "phase briefs/synthesis" X, "implement" I and "verify/review" V; "continue" resumes the **verified last active stage**, not always I. Check only the selected stage's prerequisite artifacts/source hashes and reuse valid upstream R/S/A/P/X outputs. A scoped input change triggers only owning-stage repair, never whole-pipeline recreation. **T2 G02 and provider-egress approval are binding at their dependent action**, not automatic vetoes on provisional planning and not supplied by a plan filename. An explicit implement request with accepted canonical tasks/phase enters I directly, with RED/GREEN and reviews, not a new Research/architecture/dual-plan run. Follow `docs/operations/implementation-entry-resume.md` and existing stage command skills; no extra orchestrator, automatic human approval, or model-provider bypass.
+
+
 **Operational SDLC for every repository change:** follow
 `docs/operations/ai-assisted-sdlc.md`. Choose T0/T1/T2 by risk, route through
 `docs/research/sdlc/PROMPTS-ACE.md` and read the complete stage command.

@@ -2,6 +2,9 @@
 
 **Route:** `.agents/skills/ace-stage-handoff/SKILL.md` orchestrates sequential skill handoffs within one active agent session. **Status:** proposed one-agent procedure for operator-initiated work. This is a **skill-led** stage handoff, not an autonomous daemon. It cannot execute across disconnected sessions unless the active agent host itself provides a continuing execution loop. Canonical authority remains root `AGENTS.md` → accepted ADR/OpenSpec and current owner decisions → current source and tests. **No automatic merge, branch protection or enforced GitHub approvals** (owner decision of 2026-11-12).
 
+## Entry to existing work at any stage (do not replay R → X)
+
+The following stage diagram describes **production of new artifacts**, not an obligatory first-stage startup for each agent turn. Apply [universal harness-neutral stage entry/resume](implementation-entry-resume.md). The explicit user request determines **R/S/A/P/X/I/V**; "continue" resumes **any** existing stage, its stacked Draft PR, inputs and verified progress (not necessarily implementation). For example, with existing accepted requirements "continue architecture" enters A and reuses S; with an existing DAG "detail C02" enters X and reuses P; with an approved executable brief "implement C02" enters I. Do not regenerate dual-plan A/B/C unless a *new or materially changed* T2 planning case specifically needs it. For stale inputs repair only the owning stage and impacted descendants. T2 G02 blocks dependent implementation but not provisional R/S/A/P/X. No generic fallback to Research for an already existing stage.
 ## One change, staged artifacts, existing architecture first
 
 | Stage | Mandatory skill / canonical command | Deliverable | May progress before parent merge? | Hard implementation gate |

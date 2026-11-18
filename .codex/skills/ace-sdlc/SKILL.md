@@ -1,6 +1,6 @@
 ---
 name: ace-sdlc
-description: Apply the project's single-agent ACE SDLC with evidence-backed gates and safe worktree/PR discipline; load before planning or changing ACE.
+description: Route coding requests to any existing R/S/A/P/X/I/V stage or resume it with upstream artifact reuse; defer to canonical ACE SDLC and approval gates.
 ---
 
 # ACE SDLC for Codex
