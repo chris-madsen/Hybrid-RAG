@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, open, readdir } from 'node:fs/promises';
+import { lstat, open, readFile, readdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { domainError, type DomainError } from '../domain/errors.js';
