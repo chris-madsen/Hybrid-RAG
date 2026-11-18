@@ -105,7 +105,7 @@ const hashBoundDescriptor = async (descriptor: FileHandle, expected: 'file' | 'd
     }
     const child = await openBoundPath(resolve(directoryPath, entry.name));
     try {
-      hash.update(expectedType + '\\0' + entry.name + '\\0', 'utf8');
+      hash.update(expectedType + '\0' + entry.name + '\0', 'utf8');
       hash.update(await hashBoundDescriptor(child, expectedType), 'utf8');
     } finally {
       await child.close();
