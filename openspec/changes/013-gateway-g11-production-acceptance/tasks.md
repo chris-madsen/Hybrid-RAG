@@ -1,6 +1,6 @@
 # Tasks — G11 native Responses-only executable implementation plan
 
-This is the **single canonical phase/checkbox ledger** for OpenSpec change 013. The current owner decision selects Hermes → Bifröst `/v1/responses` → ACE Gateway v2 as the sole agent-facing route and retires the previous projection contract and every repository compatibility implementation. C01 local implementation is complete in commit `497606ff3e3e799b630110a35168582f7598ae0c`; PR delivery and CI review remain pending. Owner approval recorded 2026-11-18 covers C01 design only; external provider egress remains NOT_AUTHORIZED, and live Hermes / Harbor remain NOT_RUN. C02–C08 are not started.
+This is the **single canonical phase/checkbox ledger** for OpenSpec change 013. The current owner decision selects Hermes → Bifröst `/v1/responses` → ACE Gateway v2 as the sole agent-facing route and retires the previous projection contract and every repository compatibility implementation. C01 local implementation is complete in commit `496e04cad9c9ab0b45606716e6b056fbe452cdd3`; PR #282 is open. Its relevant checks pass except the CodeQL severity gate, which reports seven existing high findings in unchanged main files. Owner approval recorded 2026-11-18 covers C01 design only; external provider egress remains NOT_AUTHORIZED, and live Hermes / Harbor remain NOT_RUN. C02–C08 are not started.
 
 ## Dependency DAG and LOC budget
 
