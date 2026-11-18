@@ -7,6 +7,9 @@ description: Advance the one-agent ACE SDLC across independently reviewable stac
 
 **Mode:** explicit one-agent stage transitions, not a daemon, subagent orchestrator or background runner. The active coding agent applies this after every completed stage when the owner's request authorizes continued planning. **Creating a Draft PR is not merge, approval, production acceptance or permission to implement T2.**
 
+## Enter an existing stage without replaying the pipeline
+
+When the owner says "implement the existing plan", "имплементируй C01" or "continue this PR", **do not start at R** and do not reopen A/B dual planning. Apply the intent-first [implementation entry/resume procedure](../../../docs/operations/implementation-entry-resume.md), select the canonical existing `tasks.md` + linked `phases/<ID>.md` and route **directly to I** (or resume the active I phase). R/S/A/P/X handoff rules below apply only to missing, explicitly requested or *scoped stale* planning artifacts. A resumed implementation is not a sixth planning stage and does not need five new Draft PRs. Actual G02/egress/dependency/branch gates still apply; fail BLOCKED at I rather than pretending the owner requested re-research. Review-only requests go to V.
 ## Stage DAG and exit artifacts
 
 1. **Research:** fact-only current-source evidence memo at exact SHA → Draft PR; may run separately when existing verified research can be reused.

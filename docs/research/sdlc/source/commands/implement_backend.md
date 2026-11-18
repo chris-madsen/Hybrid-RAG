@@ -2,6 +2,9 @@
 
 # Implement Backend — single-agent phase executor with explicit quality gates
 
+## Direct entry from a prepared plan / resumed Hermes session
+
+This command is also the **first invoked stage** when the owner says "implement/имплементируй" and an existing approved canonical plan is present. **Do not automatically run Research, Requirements, Architecture, ticket generation, phase planning or dual-plan synthesis again.** Follow `docs/operations/implementation-entry-resume.md`: select the existing change/phase, inspect exact current source, dependency readiness, phase fingerprint and actual owner G02, then use `openspec instructions apply` for that change constrained to one phase. This limited fact check is Phase 0 of implementation, **not a new R stage**. If owner G02/egress/dependency is missing, return an explicit BLOCKED verdict without code edits or speculative re-planning. If a specific phase is stale, route only the affected artifact to its owning prior stage. Preserve previous commits/tests and PR on resume.
 ## Mission and mode
 
 Implement an already approved plan **one independently testable slice at a time**, preserving the author's four-category review protocol: build, architecture, security and plan completeness. The working implementation is for ACE's TypeScript + Effect core, not a Go service or a multi-agent framework.

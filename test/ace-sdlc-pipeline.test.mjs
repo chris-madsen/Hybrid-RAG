@@ -302,3 +302,32 @@ test('G11 planning contract has native Responses acceptance and rejects a Chat-f
   const ids = [...newSpec.matchAll(/^#### Scenario: (RESP-\d{3})/gmu)].map((match) => match[1]);
   assert.deepEqual(ids, Array.from({ length: 8 }, (_, i) => 'RESP-' + String(i + 1).padStart(3, '0')));
 });
+
+test('Hermes implementation intent starts from existing phase without rerunning planning or bypassing gates', () => {
+  const rules = file('AGENTS.md');
+  const router = file('.agents/skills/ace-sdlc/SKILL.md');
+  const handoff = file('.agents/skills/ace-stage-handoff/SKILL.md');
+  const ops = file('docs/operations/ai-assisted-sdlc.md');
+  const procedure = file('docs/operations/implementation-entry-resume.md');
+  const implement = file('docs/research/sdlc/source/commands/implement_backend.md');
+  const trial = file('docs/operations/sdlc-e2e-trial.md');
+  for (const content of [rules, router, handoff, ops, procedure, implement]) {
+    assert.match(content, /implement|имплементируй/iu);
+    assert.match(content, /do not (automatically |start at |restart |rerun |replay |regenerate )|не /iu);
+    assert.match(content, /G02/u);
+  }
+  assert.match(router, /## Intent-first entry[\s\S]*## Staged pipeline route/u, 'intent route must precede default staged planning');
+  assert.match(router, /DIRECT_IMPLEMENT/u);
+  assert.match(procedure, /RESUME_PHASE/u);
+  assert.match(procedure, /BLOCKED_G02/u);
+  assert.match(procedure, /PLAN_REPAIR_SCOPED/u);
+  assert.match(procedure, /check:ace-phase-plan/u);
+  assert.match(procedure, /--stage implement/u);
+  assert.match(procedure, /openspec instructions apply/u);
+  assert.match(procedure, /one ACE phase/u);
+  assert.match(procedure, /not by itself approve/u);
+  assert.match(handoff, /do not start at R/u);
+  assert.match(implement, /not a new R stage/u);
+  assert.match(trial, /Live result: NOT RUN/u);
+  assert.match(trial, /zero source edits/u);
+});

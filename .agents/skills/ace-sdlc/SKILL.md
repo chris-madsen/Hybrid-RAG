@@ -12,7 +12,7 @@ This skill **routes to canonical ACE instructions**. It does not replace root `A
 3. Run the **read-only** preflight with an explicit stage and tier:
 
    ```bash
-   npm run sdlc:preflight -- --tier T1 --stage research --json
+   npm run sdlc:preflight -- --tier T1 --stage <selected-stage> --json
    ```
 
    `READY_FOR_AGENT` means only that local preflight has no blockers; it is **not** G02, CI, provider or production acceptance. `REVIEW_REQUIRED` means unresolved human/agent decisions. `BLOCKED` means stop and repair the stated condition.
@@ -23,6 +23,11 @@ This skill **routes to canonical ACE instructions**. It does not replace root `A
 8. Use **`.agents/skills/ace-stage-handoff/SKILL.md`** for review-overlap planning: a Draft PR per completed R/S/A/P/X stage; downstream branches/PRs **stack on the preceding stage branch**, never conflicting direct-to-main PRs. Record input artifact hashes, source branch HEAD and actual CI-tested checkout SHA separately. No automatic merge or owner approval; G02 and egress remain hard gates before dependent implementation.
 9. Before context handoff fill `docs/research/sdlc/source/templates/progress-checkpoint.md` and re-read live Git/source on resume.
 
+## Intent-first entry (Hermes, Codex and other coding agents)
+
+**Apply this BEFORE step 2 or the staged-pipeline route below.** The owner's latest request is the entry selector, not an instruction to rerun R→S→A→P→X unconditionally. Read the full [implementation entry/resume procedure](../../../docs/operations/implementation-entry-resume.md). For "implement / имплементируй / реализуй / continue coding" where canonical `tasks.md` and linked `phases/<ID>.md` already exist, use **DIRECT_IMPLEMENT / RESUME_PHASE**, subject to scoped freshness, dependency, actual G02 decision and external permission checks. **Do not** call `ace-sdd-prepare`, `ace-architecture-design`, `ace-to-tickets`, `ace-phase-plan` or dual-plan PREPARE/SYNTHESIZE again solely because a new agent session began. For an explicit plan request enter the relevant missing P/X stage; for review enter V; for genuinely new capability or explicit restart enter R. A stale *affected* artifact gets a scoped repair, not a whole-pipeline reset.
+
+**Admission for direct I:** locate the owner-selected OpenSpec change / phase from the current task, existing PR/worktree/checkpoint and live OpenSpec state; use `openspec status` and `openspec instructions apply` for the selected existing change, inspect the exact current source and phase hashes, run `check:ace-phase-plan` for that phase and `sdlc:preflight --stage implement` with task ID and plan path. A T2 G02 file is not owner approval; missing G02/egress/dependency is a **BLOCKED** result, not permission to code and not permission to restart planning. Reuse the same branch/PR for an in-progress phase, one approved phase per implementation pass, four reviews/RED-GREEN, with no new spec/task ledger. Static skill existence does not prove live Hermes routing.
 ## Staged pipeline route
 
 For requests to run the complete staged SDLC or prepare architecture/phase plans across reviews, read and follow **`.agents/skills/ace-stage-handoff/SKILL.md`** and **`docs/operations/staged-sdlc-pipeline.md`** in full. The normal T2 planning order is verified Research → Requirements OpenSpec → **`ace-plan-refinement` PREPARE** (private free-form A on the same R/S/source input) → independent Skills B: **`ace-architecture-design`** → `ace-to-tickets` → **`ace-phase-plan`** → **`ace-plan-refinement` SYNTHESIZE** (decision-level A/B comparison and canonical C) → G02 owner review → one separately approved Implement slice → cross-phase Verify. Planning may remain provisional across Draft PRs; T2 implementation cannot proceed without G02. A/B runs are sequential and must use fresh isolated contexts for a genuine independence claim. Planning may progress provisionally across Draft PRs before G02; **T2 implementation cannot**. The router is an instruction workflow for the currently active agent, not a background daemon.

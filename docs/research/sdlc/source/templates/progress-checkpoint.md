@@ -14,6 +14,9 @@ Use this before compaction, session switch or when execution spans multiple inte
 - Current execution environment:
 - Permission to perform external actions:
 - Current SDLC stage (R/S/A/P/X/I/V):
+- Latest owner intent and selected entry route (DIRECT_IMPLEMENT / RESUME_PHASE / VERIFY_ONLY / PLAN_REPAIR_SCOPED / BLOCKED / START_NEW_PIPELINE):
+- Canonical existing change and phase selected, or reason none was available:
+- Reused plan/phase fingerprint and last verification SHA (not an approval):
 - Parent stage PR / parent branch HEAD:
 - Input specs SHA-256 / design Git blob SHA:
 - Stage verdict: REVIEWABLE / PROVISIONAL / STALE / BLOCKED:

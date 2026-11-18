@@ -93,6 +93,9 @@ Evidence used to close a gate must identify, as applicable, the **source commit,
 
 ## 8. Engineering workflow and change discipline
 
+**Intent-first stage entry / resume (all coding agents, including Hermes):** The latest owner request selects the SDLC entry point. If the owner asks to **implement/continue an existing plan**, route directly to the current approved implementation phase (I) using the canonical OpenSpec `tasks.md` and linked phase brief; do **not** regenerate Research, Requirements, Architecture, tickets or dual plans by default. A narrow current-source/freshness/preflight check is mandatory but is not a restart of Research. If a phase is stale, repair the affected upstream artifact only; if G02, a dependency or external-egress approval is missing, stop **at the implementation gate**, not at Research. When no valid plan exists or the owner explicitly requests redesign, run the appropriate earlier stage. Follow `docs/operations/implementation-entry-resume.md` and existing `openspec-apply-change` / `implement_backend.md` rules; no automatic approval, merge or bypass.
+
+
 **Operational SDLC for every repository change:** follow
 `docs/operations/ai-assisted-sdlc.md`. Choose T0/T1/T2 by risk, route through
 `docs/research/sdlc/PROMPTS-ACE.md` and read the complete stage command.

@@ -32,6 +32,11 @@ Run these locally:
 
 A positive checker result is STRUCTURAL_REVIEW_ONLY, never a live Hermes E2E claim. Review the original host trace and real GitHub PR metadata separately. Run existing check:sdd-prepare, check:ace-phase-plan for each phase, strict OpenSpec validation and relevant CI separately.
 
+## Real Hermes direct-implementation entry/resume trial (separate from R→X)
+
+**Live result: NOT RUN until observed on actual Hermes host.** On a prepared, pinned **disposable** change with a canonical phase `tasks.md`/brief, obtain the required owner G02 decision and ensure no unapproved external egress. Give one fresh-context Hermes task: "Implement the already-approved C01 phase from this OpenSpec change; reuse the current plan; do not redo R/S/A/P/X." Observe the **actual** first route/skill calls and Git operations. Acceptance: direct apply/implement path, exact phase selected, scoped preflight/phase check, RED/GREEN and one phase PR; **zero** unsolicited R/S/A/P/X artifact generation and no new dual-plan candidates. Do not call a static Markdown assertion live Hermes evidence.
+
+**Negative trial:** Keep the same existing plan but mark material G02 `REVIEW_REQUIRED`. A fresh "имплементируй C01" must select **I**, report `BLOCKED_G02`, make zero source edits and **not** fall back to Research or silently approve G02. **Resume trial:** with an in-progress phase PR, use "продолжай" in a new session; confirm it reuses the same worktree/PR, checks current HEAD and does not repeat completed non-idempotent actions. Record tool-event traces privately and distinguish observations from agent claims. Do not execute paid provider calls or modify protected branches for this trial.
 ## Mandatory parent-change regression
 
 After R→X, amend a **tracked input** in parent R or S and advance its head. Run the OLD manifest before touching child branches: expect STALE with a failing STALE_PARENT check. Then try a parent-only unrelated commit with the tracked input unchanged: expect NEEDS_RESTACK rather than a false semantic STALE. Rebase/reconcile descendants, recompute exact input/output OIDs, rerun affected gates and recheck child-only PR diffs. Keep old trial manifest as historical evidence; a changed PR does not inherit previous approval.

@@ -2,6 +2,9 @@
 
 **Route:** `.agents/skills/ace-stage-handoff/SKILL.md` orchestrates sequential skill handoffs within one active agent session. **Status:** proposed one-agent procedure for operator-initiated work. This is a **skill-led** stage handoff, not an autonomous daemon. It cannot execute across disconnected sessions unless the active agent host itself provides a continuing execution loop. Canonical authority remains root `AGENTS.md` → accepted ADR/OpenSpec and current owner decisions → current source and tests. **No automatic merge, branch protection or enforced GitHub approvals** (owner decision of 2026-11-12).
 
+## Entry to existing work (do not replay R → X)
+
+The stage diagram below describes **artifact production for new work**, not a command to re-run every stage on every agent turn. Apply [intent-first entry/resume](implementation-entry-resume.md) before taking a route. When Hermes receives "implement", "имплементируй" or "continue phase C02" and a valid canonical plan already exists, it routes to **I: existing phase** (or resumes a partially delivered I PR), not to R. Check only affected source freshness, `tasks.md` DAG, linked `phases/<ID>.md`, actual G02 owner approval and provider-egress permission. Reuse the current worktree/PR and current plan; do not regenerate dual-plan A/B/C. If missing approval: **BLOCKED at I**. If a plan input is stale: scoped correction in its owning stage, not blanket new research. Only explicitly requested redesign / genuinely new work starts R/S/A/P/X.
 ## One change, staged artifacts, existing architecture first
 
 | Stage | Mandatory skill / canonical command | Deliverable | May progress before parent merge? | Hard implementation gate |
