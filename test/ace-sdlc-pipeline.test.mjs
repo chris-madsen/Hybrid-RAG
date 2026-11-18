@@ -318,6 +318,7 @@ test('Hermes implementation intent starts from existing phase without rerunning 
   }
   assert.match(router, /## Intent-first entry[\s\S]*## Staged pipeline route/u, 'intent route must precede default staged planning');
   assert.match(router, /DIRECT_IMPLEMENT/u);
+  assert.ok(router.indexOf('## Intent-first entry') < router.indexOf('1. Read repository-root'), 'intent routing must precede numbered Research-first steps');
   assert.match(procedure, /RESUME_PHASE/u);
   assert.match(procedure, /BLOCKED_G02/u);
   assert.match(procedure, /PLAN_REPAIR_SCOPED/u);
