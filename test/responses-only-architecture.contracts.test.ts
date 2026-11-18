@@ -38,3 +38,23 @@ test('new TypeSpec contract declares Responses-only and does not repurpose froze
   assert.match(v2, /kind: "PREPARED" \| "BLOCK"/u);
   assert.doesNotMatch(v2, /openai\.chat\.completions/u);
 });
+test('no active ACE entrypoint imports the retired Chat implementation', async () => {
+  const entrypoints = [
+    'src/bin/ace-runtime.ts',
+    'src/bin/ace-gateway-http.ts',
+    'src/transport/gateway-projection-http.ts',
+  ] as const;
+  for (const path of entrypoints) {
+    const contents = await source(path);
+    assert.doesNotMatch(contents, /makeGatewayProjectionService/u, `${path} resurrects legacy projection`);
+    assert.doesNotMatch(contents, /from ['"][^'"]*gateway-projection-service\.js['"]/u, `${path} imports legacy service`);
+    assert.doesNotMatch(contents, /openai\.chat\.completions/u, `${path} advertises forbidden protocol`);
+  }
+  const gateway = await source('src/transport/gateway-projection-http.ts');
+  assert.match(gateway, /routes: \[\]/u, 'gateway must never advertise the old v1 route');
+  assert.match(gateway, /return error\(503, 'RESPONSES_ONLY_NOT_READY'/u, 'retired v1 projection must deny');
+  const plugin = await source('integrations/bifrost/ace-connector/plugin/main.go');
+  assert.doesNotMatch(plugin, /projectionClient\.Project\(/u, 'Go plugin must never call old v1 projector');
+  assert.doesNotMatch(plugin, /req\.ChatRequest/u, 'Go plugin must never consume ChatRequest');
+  assert.match(plugin, /return blockProviderAttempt\(req, "ACE provider dispatch disabled until native Responses is certified"\)/u);
+});

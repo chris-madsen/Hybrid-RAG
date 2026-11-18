@@ -15,6 +15,9 @@ This is a **single-agent, client-independent** development process for the ACE r
 
 One line in an authorization guard can be T2. Do not classify by diff size alone.
 
+## Start at the owner-requested stage (including any existing artifact)
+
+Before selecting a stage, read [universal harness-neutral stage entry/resume](implementation-entry-resume.md). **A new harness session is not a new SDLC project.** Select the current owner-requested R/S/A/P/X/I/V stage, reuse verified prior-stage artifacts and enter that stage directly. "Requirements" enters S, "architecture" enters A, "tickets" P, "phase details" X, "implement" I, "review" V, and "continue" resumes whichever stage the actual branch/PR/checkpoint confirms. Do **not** rerun Research, Requirements, Architecture or dual-plan A/B/C synthesis for already fresh outputs. If something is stale or absent, correct *only that owning stage and affected descendants*. Material T2 G02 blocks dependent implementation, not provisional planning. Full R→X is the fallback for truly new scope or an explicitly requested restart.
 ## 0. Universal preflight
 1. Confirm repository, current branch, base and HEAD SHA.
 2. Check dirty worktree; preserve all unrelated files.
