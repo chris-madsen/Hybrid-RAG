@@ -131,7 +131,7 @@ export interface RetrievalEvidence {
   readonly conflictValue?: string;
   /** An outline/reference, not a truncated claim: full original bytes remain available when a handle exists. */
   readonly contentDelivery?: 'expand' | 'known_reference';
-  /** Original body bytes suppressed because the caller presented this stable evidence receipt. */
+  /** Exact source bytes omitted because already in the model-visible native input or covered by a stable evidence receipt. */
   readonly reusedContentBytes?: number;
   readonly originalSpanLines?: number;
   /** Handle for authorized, byte-exact full-source expansion via ace_expand. */

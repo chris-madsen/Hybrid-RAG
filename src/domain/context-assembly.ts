@@ -1,4 +1,5 @@
 import type { RetrievalEvidence } from './retrieval.js';
+import { alreadyKnownSourceMarker } from './context-delivery.js';
 
 export type ContextAssemblySource = RetrievalEvidence['source'];
 export type ContextAssemblySection = 'code' | 'repo_map' | 'lsp' | 'other';
@@ -67,6 +68,9 @@ const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
 
 const evidenceText = (item: RetrievalEvidence): string => {
   const header = `[${item.source}] ${item.citation}`;
+  if (item.content.length === 0 && item.contentDelivery === 'known_reference') {
+    return `${header}\n${alreadyKnownSourceMarker}`;
+  }
   if (item.content.length === 0) return `${header}\n[exact evidence available via expansion handle]`;
   return `${header}\n${item.content}`;
 };
