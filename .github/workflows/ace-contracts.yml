@@ -98,21 +98,10 @@ jobs:
               exit 1
             fi
           done
-          # Preserve unrelated public-contract snapshots while removing the
-          # retired Gateway contract from the general-purpose baseline.
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          import { execFileSync } from 'node:child_process';
-          import { readFileSync } from 'node:fs';
-          const previous = '.github/fixtures/contracts/ace-public-v1-baseline.json';
-          const file = '.github/fixtures/contracts/ace-public-contract-baseline.json';
-          const original = JSON.parse(execFileSync('git', ['show', process.env.PR_BASE_SHA + ':' + previous], { encoding: 'utf8' }));
-          const current = JSON.parse(readFileSync(file, 'utf8'));
-          delete original.gateway;
-          delete original.bifrost;
-          delete original[String.fromCharCode(109, 99, 112)];
-          assert.deepEqual(current, original, 'Only retired Gateway projection facts may disappear from the public contract snapshot');
-          NODE
+          # Compare retained public contracts at every PR head, including once the
+          # retired migration snapshot has disappeared from main.
+          node --test test/native-contract-migration.test.mjs
+          node scripts/verify-native-contract-migration.mjs
           echo "[qg5] only TypeSpec-native Responses v2 contract remains active"
       - name: Node 22
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

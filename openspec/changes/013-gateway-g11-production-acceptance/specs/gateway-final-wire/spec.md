@@ -27,6 +27,7 @@ The ACE Gateway implementation SHALL satisfy the following observable G11 criter
 
 #### Scenario: G11-004 — Unsupported or changed route
 - **WHEN** a route/protocol/stream mode is untested, the Bifröst or ACE source/config changes, or the capability report still says not_certified
-- **THEN** keep the capability unapproved and block unsafe generation paths rather than forwarding them without ACE
+- **THEN** keep **ordinary generation** unavailable and block unsafe paths, retries, mutation and fallback rather than forwarding without ACE
+- **AND** the only pre-certification live call is a separately owner-authorized, disposable PUBLIC C03–C05 test probe under an already verified per-physical-send guard and transmission-time privacy/target policy; a probe does not certify general routing
 - **AND** require fresh route-by-route evidence after relevant version/config changes; no blanket Gateway certification
 

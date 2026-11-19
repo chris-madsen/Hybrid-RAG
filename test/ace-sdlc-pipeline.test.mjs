@@ -127,6 +127,29 @@ test('valid phase structure is only reviewable, never architecturally or externa
   assert.equal(r.data.g02, 'NOT_VERIFIED_BY_THIS_CHECK');
   assert.equal(r.data.realProvider, 'NOT_RUN_BY_THIS_CHECK');
 });
+test('completed phase may list existing owners without fabricated Create work, but is never auto-certified', () => {
+  const result = makeFixture((root, ctx) => {
+    put(root, home + '/tasks.md', ctx.tasks.replace('- [ ] C01', '- [x] C01'));
+    put(root, home + '/phases/C01.md', ctx.content
+      .replace('| Modify | src/a.ts |', '| Exists in merged main | \`src/a.ts\` |')
+      .replace('## Objective', '## Objective\n- implementation=MERGED, behavior=PASS, G02=APPROVED_POST_IMPLEMENTATION'));
+  });
+  assert.equal(result.exit, 0, JSON.stringify(result.data));
+  assert.equal(result.data.verdict, 'READY_FOR_PHASE_REVIEW');
+  assert.equal(result.data.g02, 'NOT_VERIFIED_BY_THIS_CHECK');
+});
+
+test('unchecked or unevidenced phase cannot claim pre-existing owners to bypass concrete task requirements', () => {
+  blocked(makeFixture((root, ctx) => put(root, home + '/phases/C01.md',
+    ctx.content.replace('| Modify | src/a.ts |', '| Exists in merged main | \`src/a.ts\` |')
+      .replace('## Objective', '## Objective\n- implementation=MERGED, behavior=PASS, G02=APPROVED_POST_IMPLEMENTATION'))),
+    'EXECUTABLE_STRUCTURE');
+  blocked(makeFixture((root, ctx) => {
+    put(root, home + '/tasks.md', ctx.tasks.replace('- [ ] C01', '- [x] C01'));
+    put(root, home + '/phases/C01.md', ctx.content.replace('| Modify | src/a.ts |', '| Exists in merged main | \`src/a.ts\` |'));
+  }), 'EXECUTABLE_STRUCTURE');
+});
+
 test('changed architecture SHA invalidates dependent phase', () => {
   blocked(makeFixture((root, ctx) => put(root, home + '/design.md', ctx.design + 'new decision\n')), 'FRESH_INPUTS');
 });
