@@ -118,7 +118,8 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 	if decision.BaseBodySHA256 != hex.EncodeToString(sum[:]) {
 		return nil, errors.New("native Responses base digest mismatch")
 	}
-	if decision.Kind != "PREPARED" || decision.ReasonCode != "VERIFIED_CONTEXT_ADDED" {
+	if decision.Kind != "PREPARED" || (decision.ReasonCode != "VERIFIED_CONTEXT_ADDED" &&
+		decision.ReasonCode != "VERIFIED_NO_CONTEXT_NEEDED") {
 		return nil, errors.New("native Responses projection is not prepared")
 	}
 	if int64(len(decision.BodyBase64)) > 4*((DefaultMaxBodyBytes+2)/3) {
@@ -131,6 +132,16 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 	out := sha256.Sum256(body)
 	if decision.ProjectedBodySHA256 != hex.EncodeToString(out[:]) {
 		return nil, errors.New("native projected digest mismatch")
+	}
+	if decision.ReasonCode == "VERIFIED_NO_CONTEXT_NEEDED" {
+		if !bytes.Equal(original, body) {
+			return nil, errors.New("no-addition projection changed native body bytes")
+		}
+		decoded, err := normalizedJSON(body)
+		if err != nil || decoded["store"] != false {
+			return nil, errors.New("no-addition projection requires explicit store:false")
+		}
+		return body, nil
 	}
 	if err := validateNativeResponsesProjection(original, body); err != nil {
 		return nil, err
