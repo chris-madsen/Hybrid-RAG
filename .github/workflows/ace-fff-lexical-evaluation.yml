@@ -1,0 +1,62 @@
+name: ACE fff lexical evaluation (non-production)
+
+on:
+  push:
+    branches:
+      - codex/015-fff-lexical-benchmark
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fff-lexical-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout pinned evaluation source (no write credentials)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: ACE SDLC research preflight (diagnostic only)
+        run: |
+          set -euo pipefail
+          npm run sdlc:preflight -- --tier T1 --stage research --json
+
+      - name: ACE worktree safety preflight (detached CI checkout; diagnostic only)
+        shell: bash
+        run: |
+          set -uo pipefail
+          if npm run worktree:preflight -- --task-id 015-fff-lexical-benchmark --json; then
+            echo "worktree read-only preflight passed in CI"
+          else
+            echo "worktree preflight reported a CI/detached-worktree restriction; no worktree mutation attempted"
+          fi
+
+      - name: Install isolated exact-version native fff SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Node: $(node --version)"
+          echo "OS: $(uname -sm)"
+          command -v rg
+          rg --version | head -1
+          mkdir -p "$RUNNER_TEMP/fff-sdk"
+          npm install --prefix "$RUNNER_TEMP/fff-sdk" --no-audit --no-fund --save-exact @ff-labs/fff-node@0.11.0
+          npm ls --prefix "$RUNNER_TEMP/fff-sdk" --depth=1
+          npm view @ff-labs/fff-node@0.11.0 dist.integrity
+          test -f "$RUNNER_TEMP/fff-sdk/node_modules/@ff-labs/fff-node/dist/index.js"
+
+      - name: Run native fff versus rg deterministic synthetic benchmark
+        shell: bash
+        env:
+          FFF_SDK_VERSION: "0.11.0"
+          FFF_BENCH_FILES: "3000"
+          FFF_BENCH_REPEATS: "25"
+        run: |
+          set -euo pipefail
+          node --check scripts/research/fff-lexical-evaluation.mjs
+          export FFF_SDK_ENTRY="$RUNNER_TEMP/fff-sdk/node_modules/@ff-labs/fff-node/dist/index.js"
+          node scripts/research/fff-lexical-evaluation.mjs | tee "$RUNNER_TEMP/fff-lexical-result.json"
