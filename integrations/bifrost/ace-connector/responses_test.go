@@ -4,6 +4,7 @@ import (
     "context"
     "encoding/base64"
     "encoding/json"
+    "errors"
     "net/http"
     "net/http/httptest"
     "strings"
@@ -63,6 +64,27 @@ func TestNativeResponsesRejectsProtectedMutationAndHiddenState(t *testing.T) {
     }
     for i, bad:=range cases {
       if err:=validateNativeResponsesProjection(original,[]byte(bad));err==nil { t.Errorf("protected mutation %d accepted",i) }
+    }
+}
+
+func TestNativeProjectionBlockIsDeterministicNotTransportOutage(t *testing.T) {
+    original := []byte(`{"model":"openai/gpt-test","store":false,"input":"summarize"}`)
+    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+        _ = json.NewEncoder(w).Encode(ResponsesV2Decision{
+            Kind: "BLOCK", BaseBodySHA256: digest(original), ReasonCode: "POLICY_DENIED",
+        })
+    }))
+    defer server.Close()
+    client := Client{Endpoint: server.URL + "/internal/ace-gateway/v2/project", AuthToken:"test"}
+    _, _, err := client.ProjectNativeResponsesAndApply(context.Background(), ResponsesV2Request{
+        RequestID:"r",AttemptGroupID:"g",AgentSessionID:"s",
+        WorkspaceID:"w",Provider:"openai",Model:"openai/gpt-test",DataClass:"private",
+        Query:"summarize",DeadlineEpochMs:time.Now().Add(time.Minute).UnixMilli(),
+        Body:original,Attestation:validHostAttestation(t,0),
+    })
+    var denied *ProjectionDeniedError
+    if !errors.As(err, &denied) || denied.ReasonCode != "POLICY_DENIED" {
+        t.Fatalf("ACE BLOCK must remain typed deterministic denial: %v",err)
     }
 }
 
