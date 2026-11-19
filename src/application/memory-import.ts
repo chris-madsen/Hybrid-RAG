@@ -86,6 +86,13 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
     for (const item of archived) {
       const { episode, created, admission } = item;
       if (admission.kind === 'archive_only') {
+        // Record positive never-projected proof only for a newly persisted
+        // immutable episode. Absence of a receipt on an older import is NOT
+        // evidence that it was never sent to a graph.
+        if (created && input.outbox?.markArchiveOnly !== undefined) {
+          const marked = await input.outbox.markArchiveOnly(episode.episodeId);
+          if (marked._tag === 'Err') return marked;
+        }
         outcomes.push({ episodeId: episode.episodeId, persisted: created, admission });
         continue;
       }
