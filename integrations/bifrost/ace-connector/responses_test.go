@@ -39,13 +39,14 @@ func TestNativeResponsesV2ProjectionPreservesFunctionCallAndReasoning(t *testing
     }))
     defer server.Close()
     client := Client{Endpoint:server.URL+"/internal/ace-gateway/v2/project",AuthToken:"native-test"}
-    decision, err := client.ProjectNativeResponses(context.Background(),ResponsesV2Request{
+    decision, projectedOnce, err := client.ProjectNativeResponsesAndApply(context.Background(),ResponsesV2Request{
         RequestID:"request-1",AttemptGroupID:"attempt-1",AgentSessionID:"session-1",
         WorkspaceID:"workspace-1",Provider:"openai",Model:"openai/gpt-test",
         DataClass:"private",Query:"handler found",DeadlineEpochMs:time.Now().Add(time.Minute).UnixMilli(),
         Body:original,Attestation:validHostAttestation(t,0),
     })
     if err != nil { t.Fatalf("native projection: %v",err) }
+    if string(projectedOnce) != string(projected) { t.Fatal("single-pass validated bytes differ") }
     applied,err:=ApplyNativeResponses(original,decision)
     if err != nil || string(applied)!=string(projected) { t.Fatalf("native replay must remain byte-bound: %v",err) }
 }
@@ -62,6 +63,33 @@ func TestNativeResponsesRejectsProtectedMutationAndHiddenState(t *testing.T) {
     }
     for i, bad:=range cases {
       if err:=validateNativeResponsesProjection(original,[]byte(bad));err==nil { t.Errorf("protected mutation %d accepted",i) }
+    }
+}
+
+func TestNoAdditionProjectionRequiresByteExactStatelessBody(t *testing.T) {
+    original := []byte(`{"model":"openai/test","store":false,"input":[{"role":"user","content":"summary"}],"opaque":9007199254740993}`)
+    decision := ResponsesV2Decision{
+        Kind:"PREPARED",ReasonCode:"VERIFIED_NO_CONTEXT_NEEDED",
+        BaseBodySHA256:digest(original), ProjectedBodySHA256:digest(original),
+        BodyBase64:base64.StdEncoding.EncodeToString(original),
+    }
+    applied, err := ApplyNativeResponses(original, decision)
+    if err != nil || string(applied) != string(original) { t.Fatalf("exact no-addition failed: %v", err) }
+
+    altered := []byte(`{"model":"openai/test","store":false,"input":[{"role":"user","content":"changed"}],"opaque":9007199254740993}`)
+    decision.BodyBase64 = base64.StdEncoding.EncodeToString(altered)
+    decision.ProjectedBodySHA256 = digest(altered)
+    if _, err := ApplyNativeResponses(original, decision); err == nil {
+        t.Fatal("no-addition projection must not mutate any original bytes")
+    }
+    withoutStore := []byte(`{"model":"openai/test","input":"summary"}`)
+    decision = ResponsesV2Decision{
+        Kind:"PREPARED",ReasonCode:"VERIFIED_NO_CONTEXT_NEEDED",
+        BaseBodySHA256:digest(withoutStore), ProjectedBodySHA256:digest(withoutStore),
+        BodyBase64:base64.StdEncoding.EncodeToString(withoutStore),
+    }
+    if _, err := ApplyNativeResponses(withoutStore, decision); err == nil {
+        t.Fatal("no-addition cannot bypass explicit store:false")
     }
 }
 
