@@ -138,17 +138,19 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 	return body, nil
 }
 
-func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Request) (ResponsesV2Decision, error) {
+// ProjectNativeResponsesAndApply returns the validated exact body once, so
+// the Bifröst hook does not decode and verify it a second time.
+func (c Client) ProjectNativeResponsesAndApply(ctx context.Context, req ResponsesV2Request) (ResponsesV2Decision, []byte, error) {
 	invalid := ResponsesV2Decision{}
 	if c.Endpoint == "" || c.AuthToken == "" {
-		return invalid, errors.New("local native Responses projector is not configured")
+		return invalid, nil, errors.New("local native Responses projector is not configured")
 	}
 	if err := validateLoopbackEndpoint(c.Endpoint); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	target, err := url.Parse(c.Endpoint)
 	if err != nil || target.Path != "/internal/ace-gateway/v2/project" || target.RawQuery != "" || target.Fragment != "" {
-		return invalid, errors.New("native Responses projection requires the exact local v2 path")
+		return invalid, nil, errors.New("native Responses projection requires the exact local v2 path")
 	}
 	maxBody := c.MaxBodyBytes
 	if maxBody <= 0 {
@@ -157,20 +159,20 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 	if len(req.Body) == 0 || int64(len(req.Body)) > maxBody ||
 		req.AgentSessionID == "" || req.WorkspaceID == "" || req.RequestID == "" ||
 		req.AttemptGroupID == "" || req.Provider == "" || req.Model == "" || req.Query == "" {
-		return invalid, errors.New("invalid native Responses projection identity or bounds")
+		return invalid, nil, errors.New("invalid native Responses projection identity or bounds")
 	}
 	if req.DeadlineEpochMs <= time.Now().UnixMilli() {
-		return invalid, errors.New("native projection deadline elapsed")
+		return invalid, nil, errors.New("native projection deadline elapsed")
 	}
 	if _, err := normalizedJSON(req.Body); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	var attestation map[string]json.RawMessage
 	if err := json.Unmarshal(req.Attestation, &attestation); err != nil || attestation == nil {
-		return invalid, errors.New("native attestation is missing")
+		return invalid, nil, errors.New("native attestation is missing")
 	}
 	if _, _, err := requiredAttestationBinding(attestation); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	sum := sha256.Sum256(req.Body)
 	envelope := map[string]any{
@@ -185,10 +187,10 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 	}
 	wire, err := json.Marshal(envelope)
 	if err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	if int64(len(wire)) > maxEnvelopeBytes(maxBody) {
-		return invalid, errors.New("native projection envelope exceeds bound")
+		return invalid, nil, errors.New("native projection envelope exceeds bound")
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	if d := time.UnixMilli(req.DeadlineEpochMs); d.Before(deadline) {
@@ -206,34 +208,41 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 	}
 	httpReq, err := http.NewRequestWithContext(bounded, http.MethodPost, c.Endpoint, bytes.NewReader(wire))
 	if err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.AuthToken)
 	response, err := safe.Do(httpReq)
 	if err != nil {
-		return invalid, fmt.Errorf("native Responses projector unavailable: %w", err)
+		return invalid, nil, fmt.Errorf("native Responses projector unavailable: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return invalid, fmt.Errorf("native Responses projector denied with HTTP %d", response.StatusCode)
+		return invalid, nil, fmt.Errorf("native Responses projector denied with HTTP %d", response.StatusCode)
 	}
 	payload, err := io.ReadAll(io.LimitReader(response.Body, maxEnvelopeBytes(maxBody)+1))
 	if err != nil || int64(len(payload)) > maxEnvelopeBytes(maxBody) {
-		return invalid, errors.New("native Responses projector response exceeds limit")
+		return invalid, nil, errors.New("native Responses projector response exceeds limit")
 	}
 	d := json.NewDecoder(bytes.NewReader(payload))
 	d.DisallowUnknownFields()
 	var decision ResponsesV2Decision
 	if err := d.Decode(&decision); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	var trailing any
 	if err := d.Decode(&trailing); err != io.EOF {
-		return invalid, errors.New("native projection has trailing data")
+		return invalid, nil, errors.New("native projection has trailing data")
 	}
-	if _, err := ApplyNativeResponses(req.Body, decision); err != nil {
-		return invalid, err
+	projected, err := ApplyNativeResponses(req.Body, decision)
+	if err != nil {
+		return invalid, nil, err
 	}
-	return decision, nil
+	return decision, projected, nil
+}
+// ProjectNativeResponses preserves the original API for clients that need only
+// the decision. The provider hook uses ProjectNativeResponsesAndApply.
+func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Request) (ResponsesV2Decision, error) {
+    decision, _, err := c.ProjectNativeResponsesAndApply(ctx, req)
+    return decision, err
 }
