@@ -20,8 +20,16 @@
             "pattern": "^[A-Za-z0-9+/]+={0,2}$"
         },
         "reasonCode": {
-            "type": "string",
-            "const": "VERIFIED_CONTEXT_ADDED"
+            "anyOf": [
+                {
+                    "type": "string",
+                    "const": "VERIFIED_CONTEXT_ADDED"
+                },
+                {
+                    "type": "string",
+                    "const": "VERIFIED_NO_CONTEXT_NEEDED"
+                }
+            ]
         }
     },
     "required": [
