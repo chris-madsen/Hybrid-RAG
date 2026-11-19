@@ -13,6 +13,10 @@ if [[ "$actual" != "$BIFROST_COMMIT" ]]; then
   printf 'Bifrost source mismatch: expected %s got %s\n' "$BIFROST_COMMIT" "$actual" >&2
   exit 2
 fi
+if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
+  echo "Bifrost source checkout must be clean before plugin compilation" >&2
+  exit 2
+fi
 
 repo_root=$(git rev-parse --show-toplevel)
 ace_commit=$(git -C "$repo_root" rev-parse HEAD)

@@ -12,6 +12,7 @@ test('generated Gateway contract is native Responses v2 only', async () => {
     .filter((path) => path.startsWith('/internal/ace-gateway/'))
     .sort();
   assert.deepEqual(paths, [
+    '/internal/ace-gateway/v2/authorize-attempt',
     '/internal/ace-gateway/v2/capabilities',
     '/internal/ace-gateway/v2/health',
     '/internal/ace-gateway/v2/project',

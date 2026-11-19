@@ -5,11 +5,15 @@ import test from 'node:test';
 test('pinned Bifröst ACE plugin requires per-attempt native Responses authorization', async () => {
   const script = await readFile('scripts/build-bifrost-ace-plugin.sh', 'utf8');
   const plugin = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
+  const workflow = await readFile('.github/workflows/ace-contracts.yml', 'utf8');
   assert.match(script, /BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1/u);
   assert.match(script, /status --porcelain --untracked-files=all/u);
+  assert.match(script, /Bifrost source checkout must be clean/u);
   assert.match(script, /go 1\.27\.4/u);
   assert.match(script, /rev-parse HEAD/u);
   assert.match(script, /main_test\.go/u);
+  assert.match(workflow, /BIFROST_SOURCE_ROOT:\s+\$\{\{\s*runner\.temp\s*\}\}\/bifrost-src/u);
+  assert.match(workflow, /git -C "\$source_root" fetch --no-tags --depth=1 origin "\$BIFROST_COMMIT"/u);
   assert.match(script, /test -tags=bifrost_plugin -count=1/u);
   assert.match(script, /-buildmode=plugin/u);
   assert.match(script, /-X main\.aceSourceCommit=\$ace_commit/u);

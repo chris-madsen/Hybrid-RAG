@@ -297,13 +297,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Checkout exact pinned Bifröst source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: chris-madsen/bifrost
-          ref: 6baf302dc73a9858bb96da017a436ef2e60f82f1
-          path: .bifrost-src
-          persist-credentials: false
+      - name: Fetch exact pinned Bifröst source outside ACE checkout
+        shell: bash
+        env:
+          BIFROST_COMMIT: 6baf302dc73a9858bb96da017a436ef2e60f82f1
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/bifrost-src"
+          mkdir -p "$source_root"
+          git -C "$source_root" init
+          git -C "$source_root" remote add origin https://github.com/chris-madsen/bifrost.git
+          git -C "$source_root" fetch --no-tags --depth=1 origin "$BIFROST_COMMIT"
+          git -C "$source_root" checkout --detach FETCH_HEAD
+          test "$(git -C "$source_root" rev-parse HEAD)" = "$BIFROST_COMMIT"
       - name: Go 1.27.4
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -313,7 +319,7 @@ jobs:
         shell: bash
         env:
           BIFROST_COMMIT: 6baf302dc73a9858bb96da017a436ef2e60f82f1
-          BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.bifrost-src
+          BIFROST_SOURCE_ROOT: ${{ runner.temp }}/bifrost-src
           OUTPUT: ${{ runner.temp }}/ace-gateway-projection.so
         run: |
           set -euo pipefail
