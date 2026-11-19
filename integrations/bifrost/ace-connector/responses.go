@@ -41,6 +41,14 @@ type ResponsesV2Decision struct {
 	ReasonCode          string `json:"reasonCode"`
 }
 
+// ProjectionDeniedError preserves a deterministic authenticated ACE denial,
+// never converting it to retryable transport unavailability.
+type ProjectionDeniedError struct { ReasonCode string }
+
+func (e *ProjectionDeniedError) Error() string {
+    return "native Responses ACE projection denied: " + e.ReasonCode
+}
+
 func normalizedJSON(body []byte) (map[string]any, error) {
 	d := json.NewDecoder(bytes.NewReader(body))
 	d.UseNumber()
@@ -244,6 +252,18 @@ func (c Client) ProjectNativeResponsesAndApply(ctx context.Context, req Response
 	var trailing any
 	if err := d.Decode(&trailing); err != io.EOF {
 		return invalid, nil, errors.New("native projection has trailing data")
+	}
+	if decision.Kind == "BLOCK" {
+		if decision.BaseBodySHA256 != hex.EncodeToString(sum[:]) {
+			return invalid, nil, errors.New("native Responses BLOCK base digest mismatch")
+		}
+		code := decision.ReasonCode
+		if len(code) == 0 || len(code) > 64 || strings.IndexFunc(code, func(ch rune) bool {
+			return !(ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '_')
+		}) >= 0 {
+			return invalid, nil, errors.New("native Responses BLOCK reason is malformed")
+		}
+		return decision, nil, &ProjectionDeniedError{ReasonCode: code}
 	}
 	projected, err := ApplyNativeResponses(req.Body, decision)
 	if err != nil {
