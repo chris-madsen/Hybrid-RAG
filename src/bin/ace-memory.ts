@@ -104,7 +104,7 @@ const run = async (): Promise<void> => {
       if (finalized._tag === 'Err') throw new Error(finalized.error.message);
       process.stdout.write(JSON.stringify({
         episode_id: episodeId.value, purged: false, archive_only_deleted: true,
-      }) + '\\n');
+      }) + '\n');
       return;
     }
     const graphiti = await createGraphiti();
