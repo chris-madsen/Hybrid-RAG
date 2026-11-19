@@ -10,7 +10,7 @@
 
 Governed by existing G11 `RESP-004`: stateless provider-native Responses; preserve every original input item and all protected provider parameters; inject one clearly marked ACE evidence developer item. Correct duplicate **delivery**, without altering the original history.
 
-- VE-001 (T1 regression): If a complete, exact UTF-8 code evidence body, with current/direct proof and source digest, already appears in a native Hermes-visible input text segment, ACE sends its citation/receipt without copying the body again. No substring/fuzzy/semantic suppression.
+- VE-001 (T1 regression): If a complete, exact UTF-8 code evidence body, with current/direct proof and source digest, already appears in one native Hermes-visible input text segment **and omitting it saves bytes**, ACE sends its citation/receipt without copying the body again. Shorter snippets whose replacement would cost more remain inline. No approximate/fuzzy/semantic suppression.
 - VE-002: Unseen or unverified snippets remain byte-exact; docs/memory/other source classes remain independent; stale or uncertain evidence is not suppressed. Same file with a different span is not implicitly redundant.
 - VE-003: All-known context remains a valid `PREPARED` one-developer evidence item with cited references rather than BLOCK, empty body or optional passthrough. No modification/reordering/truncation of original Responses function_call, tool output, reasoning, multimodal and opaque numeric values.
 - VE-004: The comparison is local, deterministic and uses only model-visible user/assistant/developer/system text and function_call_output text present in the *current, stateless* native request. It never infers hidden Hermes/provider history and makes no new LLM/embedding/provider request.

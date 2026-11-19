@@ -216,3 +216,15 @@ test('Native visible suppression is exact and restricted to fresh directly prove
   });
   assert.equal(splitSegments.evidence[0]?.content, verified.content, 'no stitching across unrelated model messages');
 });
+
+test('short exact snippets are not replaced with longer reference markers', () => {
+  const short: RetrievalEvidence = {
+    ...(evidence[0] as RetrievalEvidence),
+    content: 'ok',
+  };
+  const result = projectContextForDelivery({ ...bundle, evidence: [short] }, 'inspect', {
+    visibleNativeInputText: ['ok'],
+  });
+  assert.equal(result.evidence[0]?.content, 'ok');
+  assert.equal(result.deliveryMetrics?.reusedContextBytes, 0);
+});

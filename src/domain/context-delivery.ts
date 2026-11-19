@@ -281,6 +281,8 @@ const suppressKnownEvidence = (
   });
 };
 
+export const alreadyKnownSourceMarker = '[known source body]';
+
 const suppressAlreadyVisibleCode = (
   evidence: readonly RetrievalEvidence[],
   visibleNativeInputText: readonly string[],
@@ -293,6 +295,7 @@ const suppressAlreadyVisibleCode = (
     if (item.source !== 'code' || item.sourceDigest === undefined
       || item.proofClass !== 'direct' || item.freshness !== 'current'
       || item.content.length === 0 || item.contentDelivery === 'expand'
+      || utf8Bytes(item.content) <= utf8Bytes(alreadyKnownSourceMarker)
       || !visibleNativeInputText.some((text) => text.includes(item.content))) {
       return item;
     }
