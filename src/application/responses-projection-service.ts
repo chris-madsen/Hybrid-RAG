@@ -98,7 +98,19 @@ export const makeResponsesProjectionService = (
       || result.turnId !== request.attemptGroupId || result.workspaceId !== request.workspaceId) {
       return block(request, 'TRANSFORM_IDENTITY_MISMATCH');
     }
-    if (result.status !== 'ready' || !result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
+    if (result.status !== 'ready') return block(request, 'TRANSFORM_NOT_READY');
+    if (result.contextText.trim() === '' && result.selectedEvidenceIds.length === 0
+      && result.limitations.length === 0) {
+      // Verified successful empty retrieval: preserve every original request
+      // byte, but never confuse this decision with final-send authorization.
+      return ok({
+        kind: 'PREPARED', reasonCode: 'VERIFIED_NO_CONTEXT_NEEDED',
+        bodyBase64: request.bodyBase64,
+        baseBodySha256: request.bodySha256,
+        projectedBodySha256: request.bodySha256,
+      });
+    }
+    if (!result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
       return block(request, 'TRANSFORM_NOT_READY');
     }
     if (containsLikelySecret(result.contextText)) {
