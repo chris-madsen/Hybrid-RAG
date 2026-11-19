@@ -26,6 +26,8 @@ export interface AceTransformRequest {
   };
   readonly knownBundleId?: string;
   readonly knownEvidenceIds?: readonly string[];
+  /** Text actually visible in the current native Responses input, not opaque history. */
+  readonly visibleNativeInputText?: readonly string[];
 }
 
 export interface AceTransformResult {
@@ -152,6 +154,8 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
       {
         ...(request.knownBundleId === undefined ? {} : { knownBundleId: request.knownBundleId }),
         ...(request.knownEvidenceIds === undefined ? {} : { knownEvidenceIds: request.knownEvidenceIds }),
+        ...(request.visibleNativeInputText === undefined ? {}
+          : { visibleNativeInputText: request.visibleNativeInputText }),
         receiptScope: String(workspaceId.value),
       },
     );

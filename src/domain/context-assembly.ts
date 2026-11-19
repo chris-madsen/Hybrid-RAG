@@ -67,6 +67,9 @@ const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
 
 const evidenceText = (item: RetrievalEvidence): string => {
   const header = `[${item.source}] ${item.citation}`;
+  if (item.content.length === 0 && item.contentDelivery === 'known_reference') {
+    return `${header}\n[verified source body omitted: already visible in native input or supplied receipt]`;
+  }
   if (item.content.length === 0) return `${header}\n[exact evidence available via expansion handle]`;
   return `${header}\n${item.content}`;
 };

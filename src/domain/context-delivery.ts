@@ -129,6 +129,8 @@ const bundleIdentity = (bundle: ContextBundle): BundleId => stableReceiptDigest(
 export interface ContextReceiptInput {
   readonly knownEvidenceIds?: readonly string[];
   readonly knownBundleId?: string;
+  /** Exact visible text in this native request, never inferred host history. */
+  readonly visibleNativeInputText?: readonly string[];
   /** Internal workspace scope; never serialized into the Gateway response. */
   readonly receiptScope?: string;
 }
@@ -279,6 +281,30 @@ const suppressKnownEvidence = (
   });
 };
 
+const suppressAlreadyVisibleCode = (
+  evidence: readonly RetrievalEvidence[],
+  visibleNativeInputText: readonly string[],
+): readonly RetrievalEvidence[] => {
+  if (visibleNativeInputText.length === 0) return evidence;
+  return evidence.map((item) => {
+    // Retain source identity and independent provenance. Only omit an exact,
+    // complete code body from fresh and directly verified source evidence.
+    // Fuzzy/semantic matches and concatenated unrelated input items are unsafe.
+    if (item.source !== 'code' || item.sourceDigest === undefined
+      || item.proofClass !== 'direct' || item.freshness !== 'current'
+      || item.content.length === 0 || item.contentDelivery === 'expand'
+      || !visibleNativeInputText.some((text) => text.includes(item.content))) {
+      return item;
+    }
+    return {
+      ...item,
+      content: '',
+      contentDelivery: 'known_reference' as const,
+      reusedContentBytes: utf8Bytes(item.content),
+    };
+  });
+};
+
 export const projectContextForDelivery = (
   bundle: ContextBundle,
   intent: ContextDeliveryIntent,
@@ -325,12 +351,12 @@ export const projectContextForDelivery = (
       ...(receiptId === undefined ? {} : { receiptId }),
     };
   });
-  const evidence = suppressKnownEvidence(
+  const evidence = suppressAlreadyVisibleCode(suppressKnownEvidence(
     receiptEvidence,
     knownEvidenceIds,
     receipts.knownBundleId !== undefined && receipts.knownBundleId === bundleId,
     receipts.receiptScope,
-  );
+  ), receipts.visibleNativeInputText ?? []);
   const delivered: ContextBundle = {
     ...projected,
     bundleId,

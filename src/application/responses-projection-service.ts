@@ -5,7 +5,7 @@ import { makeWorkspaceId } from '../domain/workspace.js';
 import { ok, type Result } from '../domain/result.js';
 import type { DomainError } from '../domain/errors.js';
 import {
-  addVerifiedContextToResponses, bodyQueryMatches, decodeNativeResponsesBody,
+  addVerifiedContextToResponses, bodyQueryMatches, decodeNativeResponsesBody, nativeResponsesVisibleText,
   validateResponsesProjectionRequest, type ResponsesProjectionDecision,
   type ResponsesProjectionRequest,
 } from '../domain/responses-projection.js';
@@ -89,6 +89,7 @@ export const makeResponsesProjectionService = (
       turnId: request.attemptGroupId, workspaceId: request.workspaceId,
       query: request.query, budgetTokens: Number.MAX_SAFE_INTEGER,
       sourceObligations: { required: ['code'] },
+      visibleNativeInputText: nativeResponsesVisibleText(body.value),
     });
     if (transformed._tag === 'Err') return block(request, transformed.error.code);
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
