@@ -51,6 +51,27 @@ test('gateway HTTP exposes native Responses v2 health and capability contracts',
   assert.deepEqual(capabilities.body.routes, [], 'provider generation must not be advertised before certification');
 });
 
+test('capabilities report the effective configured raw body limit', async () => {
+  const server = createGatewayProjectionServer(service, { authToken: 'limit-fixture', maxBodyBytes: 1024 });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/internal/ace-gateway/v2/capabilities`,
+      { headers: { Authorization: 'Bearer limit-fixture' } },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json() as { maxBodyBytes: number };
+    assert.equal(body.maxBodyBytes, 1024);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test('native Responses projection returns a typed denial until dispatch is certified', async () => {
   projectCalls = 0;
   const projected = await handleGatewayProjectionHttp(service, 'POST', '/internal/ace-gateway/v2/project', '{}');
