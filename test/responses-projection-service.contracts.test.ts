@@ -4,11 +4,13 @@ import test from 'node:test';
 import { Effect } from 'effect';
 import { makeResponsesProjectionService } from '../src/application/responses-projection-service.js';
 import { handleGatewayProjectionHttp, createGatewayProjectionServer } from '../src/transport/gateway-projection-http.js';
-import type { ContextTransformService, AceTransformResult } from '../src/application/context-transform-service.js';
+import { makeContextTransformService, type ContextTransformService, type AceTransformResult } from '../src/application/context-transform-service.js';
 import type { ResponsesProjectionRequest } from '../src/domain/responses-projection.js';
 import { defaultLocalPolicy } from '../src/domain/policy.js';
 import type { DataClass } from '../src/domain/policy.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
+import type { WorkspaceRecord } from '../src/domain/workspace.js';
+import type { ContextBundle } from '../src/domain/retrieval.js';
 import { domainError } from '../src/domain/errors.js';
 import { err, ok } from '../src/domain/result.js';
 import type { GatewayProjectionSecurity } from '../src/application/gateway-security-contract.js';
@@ -223,3 +225,95 @@ test('native gateway HTTP endpoint requires auth and returns local preparation o
     await new Promise<void>((done) => server.close(done));
   }
 });
+
+test('native projection forwards only visible input text to incremental receipt assembly', async () => {
+  let seen: readonly string[] | undefined;
+  const context: ContextTransformService = {
+    transform: (args) => {
+      seen = args.visibleNativeInputText;
+      return Effect.succeed(ok(example));
+    },
+  };
+  const response = await Effect.runPromise(make({ context }).projectResponses(req()));
+  assert.equal(response._tag, 'Ok');
+  if (response._tag === 'Ok') assert.equal(response.value.kind, 'PREPARED');
+  assert.deepEqual(seen, ['find entrypoint', 'entrypoint here']);
+});
+
+test('end-to-end native projection keeps Hermes input and sends only references for already-visible verified code', async () => {
+  const code = 'export function locateEntry() {\n  return true;\n}';
+  const workspaceId = makeWorkspaceId('ws1');
+  if (workspaceId._tag === 'Err') throw Error('invalid workspace fixture');
+  const workspace: WorkspaceRecord = {
+    workspaceId: workspaceId.value,
+    rootPath: '/workspace',
+    observationEpoch: 1,
+    createdAtMs: 1,
+    lastObservation: {
+      headRevision: 'a'.repeat(40), observationEpoch: 1,
+      files: [], removedPaths: [], gitStatus: 'available',
+    },
+  };
+  const providerResult: ContextBundle = {
+    requestId: 'search-1' as ContextBundle['requestId'],
+    query: code,
+    evidence: [{
+      evidenceId: 'evidence-code' as ContextBundle['evidence'][number]['evidenceId'],
+      source: 'code', citation: 'src/entrypoint.ts:1-3', content: code,
+      sourceDigest: 'b'.repeat(64) as never,
+      proofClass: 'direct', freshness: 'current',
+    }],
+    warnings: [], partialSources: [], complete: true,
+  };
+  let searches = 0;
+  const context = makeContextTransformService({
+    ids: { newRequestId: () => 'search-generated-id' },
+    store: { get: () => Effect.succeed(ok(workspace)) },
+    context: { search: () => {
+      searches += 1;
+      return Effect.succeed(ok(providerResult));
+    } },
+  });
+  const nativeWithCode = {
+    ...native,
+    input: [
+      native.input[0],
+      native.input[1],
+      { type: 'function_call_output', call_id: 'call-1', output: code },
+    ],
+  };
+  const prior = req({ query: code }, nativeWithCode);
+  const decision = await Effect.runPromise(make({ context }).projectResponses(prior));
+  assert.equal(decision._tag, 'Ok');
+  if (decision._tag === 'Err') return;
+  assert.equal(decision.value.kind, 'PREPARED', 'all-known evidence must not BLOCK normal Hermes progression');
+  if (decision.value.kind !== 'PREPARED') return;
+  const parsed = JSON.parse(Buffer.from(decision.value.bodyBase64, 'base64').toString('utf8')) as {
+    input: { role?: string; content?: string }[];
+    reasoning: unknown; tools: unknown; store: boolean;
+  };
+  assert.equal(parsed.input.length, nativeWithCode.input.length + 1);
+  assert.deepEqual(parsed.input.slice(1), nativeWithCode.input);
+  assert.match(parsed.input[0]?.content ?? '', /src\/entrypoint\.ts:1-3/u);
+  assert.match(parsed.input[0]?.content ?? '', /known source body/u);
+  assert.ok(!(parsed.input[0]?.content ?? '').includes(code),
+    'developer evidence item must not repeat the already-visible code body');
+  assert.deepEqual(parsed.reasoning, native.reasoning);
+  assert.deepEqual(parsed.tools, native.tools);
+  assert.equal(parsed.store, false);
+  assert.equal(searches, 1, 'native visibility check must not trigger a second retrieval');
+
+  const unseen = await Effect.runPromise(make({ context }).projectResponses(req()));
+  assert.equal(unseen._tag, 'Ok');
+  if (unseen._tag === 'Ok' && unseen.value.kind === 'PREPARED') {
+    const unchanged = JSON.parse(Buffer.from(unseen.value.bodyBase64, 'base64').toString('utf8')) as {
+      input: { content?: string }[];
+    };
+    assert.match(unchanged.input[0]?.content ?? '', /export function locateEntry/u,
+      'unseen source evidence must still be delivered exactly');
+    assert.equal(searches, 2);
+  } else {
+    assert.fail('normal unseen evidence must prepare successfully');
+  }
+});
+

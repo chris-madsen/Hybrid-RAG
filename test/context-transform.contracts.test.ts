@@ -136,3 +136,26 @@ test('host-provided model token counter improves measurement but is not a readin
   assert.deepEqual(result.value.limitations, []);
   assert.equal(result.value.estimatedTokens, Array.from(result.value.contextText).length);
 });
+
+test('transform delivers reference-only evidence when native input already contains exact verified code', async () => {
+  const original = bundle().evidence[0];
+  assert.ok(original);
+  const result = await Effect.runPromise(makeContextTransformService(makePorts()).transform({
+    ...request, visibleNativeInputText: ['Hermes already saw:\n' + original.content],
+  }));
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Err') return;
+  assert.equal(result.value.status, 'ready');
+  assert.deepEqual(result.value.selectedEvidenceIds, ['evidence-1']);
+  assert.match(result.value.contextText, /src\/application\/context-transform-service\.ts:1-20/u);
+  assert.doesNotMatch(result.value.contextText, /context transform service is available;/u);
+  assert.match(result.value.contextText, /known source body/iu);
+  assert.equal(result.value.evidence[0]?.reusedContentBytes, Buffer.byteLength(original.content));
+  const normal = await Effect.runPromise(makeContextTransformService(makePorts()).transform(request));
+  assert.equal(normal._tag, 'Ok');
+  if (normal._tag === 'Ok') {
+    assert.match(normal.value.contextText, /context transform service is available;/u);
+    assert.ok(Buffer.byteLength(result.value.contextText) < Buffer.byteLength(normal.value.contextText),
+      'the source reference must reduce model-visible context bytes for repeated code');
+  }
+});

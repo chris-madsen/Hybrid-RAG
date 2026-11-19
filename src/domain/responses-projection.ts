@@ -119,6 +119,43 @@ const visibleQuery = (body: Record<string, unknown>): string | null => {
 export const bodyQueryMatches = (body: Record<string, unknown>, query: string): boolean =>
   visibleQuery(body) === query;
 
+/**
+ * Only text actually visible in this native Responses input. Never infer
+ * hidden Hermes/provider history from opaque reasoning, images, tool-call
+ * arguments or untrusted session correlation.
+ */
+export const nativeResponsesVisibleText = (body: Readonly<Record<string, unknown>>): readonly string[] => {
+  const input = body.input;
+  if (typeof input === 'string') return [input];
+  if (!Array.isArray(input)) return [];
+
+  const visible: string[] = [];
+  const addContent = (content: unknown): void => {
+    if (typeof content === 'string') {
+      visible.push(content);
+      return;
+    }
+    if (!Array.isArray(content)) return;
+    for (const part of content) {
+      if (!object(part)) continue;
+      if ((part.type === 'input_text' || part.type === 'output_text' || part.type === 'text')
+        && typeof part.text === 'string') visible.push(part.text);
+    }
+  };
+  for (const item of input) {
+    if (!object(item)) continue;
+    if (item.type === 'function_call_output') {
+      addContent(item.output);
+      continue;
+    }
+    if (item.role === 'user' || item.role === 'assistant'
+      || item.role === 'developer' || item.role === 'system') {
+      addContent(item.content);
+    }
+  }
+  return visible;
+};
+
 // Preserve the entire input, reasoning, tool settings and opaque extension keys.
 // Inserting a developer item is supported by native Responses, including stateless
 // multi-turn function_call/function_call_output replay without protocol conversion.

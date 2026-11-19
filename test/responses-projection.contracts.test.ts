@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   validateResponsesProjectionRequest, decodeNativeResponsesBody,
-  bodyQueryMatches, addVerifiedContextToResponses, type ResponsesProjectionRequest,
+  bodyQueryMatches, addVerifiedContextToResponses, nativeResponsesVisibleText, type ResponsesProjectionRequest,
 } from '../src/domain/responses-projection.js';
 const digest = (s: string): string=>createHash('sha256').update(s).digest('hex');
 const input = {
@@ -122,4 +122,23 @@ test('opaque native number lexemes survive context injection without floating-po
   for (const literal of ['9007199254740993', '"decimal":1.00', '"exponent":1e100', '99999999999999999999']) {
     assert.ok(result.includes(literal), 'opaque JSON lexeme changed: ' + literal);
   }
+});
+
+test('visible native source extracts only model-readable text, never opaque reasoning or image payloads', () => {
+  const original = {
+    ...input,
+    input: [
+      { role: 'system', content: 'trusted code sample' },
+      { role: 'user', content: [{ type: 'input_text', text: 'visible pasted code' },
+        { type: 'input_image', image_url: 'data:image/png;base64,U0VDUkVU' }] },
+      { type: 'reasoning', encrypted_content: 'do not use this opaque string' },
+      { type: 'function_call', call_id: 'call1', name: 'read_file', arguments: '{"secret":"opaque args"}' },
+      { type: 'function_call_output', call_id: 'call1', output: 'export function verified() {}' },
+      { role: 'assistant', content: [{ type: 'output_text', text: 'model output code' }] },
+    ],
+  };
+  assert.deepEqual(nativeResponsesVisibleText(original), [
+    'trusted code sample', 'visible pasted code', 'export function verified() {}', 'model output code',
+  ]);
+  assert.deepEqual(nativeResponsesVisibleText({ ...input, input: 'user typed code' }), ['user typed code']);
 });

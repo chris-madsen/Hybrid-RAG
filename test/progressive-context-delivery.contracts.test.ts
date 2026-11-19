@@ -174,3 +174,57 @@ test('source-aware delivery collapses duplicate code spans but preserves indepen
   assert.equal(delivered.evidence[1]?.content, canonical.content);
   assert.equal(delivered.deliveryMetrics?.uniqueEvidenceCount, 2);
 });
+
+test('Native Responses-visible exact code is referenced instead of copied, retaining source receipts', () => {
+  const original = evidence[0] as RetrievalEvidence;
+  const projected = projectContextForDelivery(bundle, 'inspect', {
+    visibleNativeInputText: ['function seen elsewhere() {}', original.content],
+    receiptScope: 'workspace-1',
+  });
+  assert.equal(projected.evidence[0]?.content, '');
+  assert.equal(projected.evidence[0]?.contentDelivery, 'known_reference');
+  assert.equal(projected.evidence[0]?.citation, original.citation);
+  assert.equal(projected.evidence[0]?.sourceDigest, original.sourceDigest);
+  assert.ok(projected.evidence[0]?.receiptId);
+  assert.equal(projected.evidence[1]?.content, evidence[1]?.content);
+  assert.equal(projected.deliveryMetrics?.reusedContextBytes, Buffer.byteLength(original.content));
+  assert.equal(projected.deliveryMetrics?.duplicateContextBytesAvoided, Buffer.byteLength(original.content));
+  assert.equal(projectContextForDelivery(bundle, 'inspect').evidence[0]?.content, original.content,
+    'native comparison must be optional and cannot mutate fixture evidence');
+});
+
+test('Native visible suppression is exact and restricted to fresh directly proven code', () => {
+  const verified = evidence[0] as RetrievalEvidence;
+  const variants: RetrievalEvidence[] = [
+    { ...verified, evidenceId: 'uncertain' as never, proofClass: 'uncertain' },
+    { ...verified, evidenceId: 'derived' as never, proofClass: 'derived' },
+    { ...verified, evidenceId: 'without-digest' as never, sourceDigest: undefined },
+    { ...verified, evidenceId: 'documentation' as never, source: 'documentation' },
+  ];
+  for (const item of variants) {
+    const projected = projectContextForDelivery({ ...bundle, evidence: [item] }, 'inspect', {
+      visibleNativeInputText: [verified.content],
+    });
+    assert.equal(projected.evidence[0]?.content, verified.content, item.evidenceId);
+  }
+  const onlyPartial = projectContextForDelivery(bundle, 'inspect', {
+    visibleNativeInputText: [verified.content.slice(0, -1)],
+  });
+  assert.equal(onlyPartial.evidence[0]?.content, verified.content);
+  const splitSegments = projectContextForDelivery(bundle, 'inspect', {
+    visibleNativeInputText: [verified.content.slice(0, 12), verified.content.slice(12)],
+  });
+  assert.equal(splitSegments.evidence[0]?.content, verified.content, 'no stitching across unrelated model messages');
+});
+
+test('short exact snippets are not replaced with longer reference markers', () => {
+  const short: RetrievalEvidence = {
+    ...(evidence[0] as RetrievalEvidence),
+    content: 'ok',
+  };
+  const result = projectContextForDelivery({ ...bundle, evidence: [short] }, 'inspect', {
+    visibleNativeInputText: ['ok'],
+  });
+  assert.equal(result.evidence[0]?.content, 'ok');
+  assert.equal(result.deliveryMetrics?.reusedContextBytes, 0);
+});
