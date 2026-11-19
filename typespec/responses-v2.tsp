@@ -58,7 +58,7 @@ namespace ACE.ResponsesV2 {
     @pattern("^[a-f0-9]{64}$") baseBodySha256: string;
     @pattern("^[a-f0-9]{64}$") projectedBodySha256: string;
     @pattern("^[A-Za-z0-9+/]+={0,2}$") bodyBase64: string;
-    reasonCode: "VERIFIED_CONTEXT_ADDED";
+    reasonCode: "VERIFIED_CONTEXT_ADDED" | "VERIFIED_NO_CONTEXT_NEEDED";
   }
 
   @jsonSchema
