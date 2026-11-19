@@ -6,6 +6,7 @@ import { makeContextAssembler, type ContextAssembler } from './context-assembler
 import { projectContextForDelivery, resolveDeliveryIntent } from '../domain/context-delivery.js';
 import { ingestRepoPath, makeWorkspaceId, type WorkingContextHints, type WorkspaceId } from '../domain/workspace.js';
 import type { RetrievalEvidence } from '../domain/retrieval.js';
+import { sourceCoverageComplete } from '../domain/source-coverage.js';
 
 export interface AceTransformRequest {
   readonly schemaVersion: 1;
@@ -165,7 +166,8 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
     // Missing/partial/denied/stale required sources must still fail closed.
     if (projected.evidence.length === 0) {
       if (!projected.complete || projected.warnings.length > 0
-        || projected.partialSources.length > 0) {
+        || projected.partialSources.length > 0
+        || (projected.sourceCoverage !== undefined && !sourceCoverageComplete(projected.sourceCoverage))) {
         return err(domainError('NOT_READY', 'context', 'ACE evidence is missing or incomplete'));
       }
       return ok({
