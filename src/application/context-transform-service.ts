@@ -159,8 +159,29 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
         receiptScope: String(workspaceId.value),
       },
     );
+    // A completed, unambiguous search with zero relevant evidence is not a
+    // provider outage. Surface that verified empty outcome separately so the
+    // Gateway can preserve the original request without injecting filler.
+    // Missing/partial/denied/stale required sources must still fail closed.
     if (projected.evidence.length === 0) {
-      return err(domainError('NOT_READY', 'context', 'ACE returned no evidence for the transformation request'));
+      if (!projected.complete || projected.warnings.length > 0
+        || projected.partialSources.length > 0) {
+        return err(domainError('NOT_READY', 'context', 'ACE evidence is missing or incomplete'));
+      }
+      return ok({
+        schemaVersion: 1,
+        requestId: requestId.value, sessionId: sessionId.value, turnId: turnId.value,
+        workspaceId: workspaceId.value, status: 'ready' as const,
+        contextText: '', evidence: [], selectedEvidenceIds: [], omittedEvidenceIds: [],
+        estimatedTokens: 0, tokenCountMode: 'character_estimate' as const,
+        ...(workspace.value.lastObservation?.headRevision === undefined
+          ? {} : { sourceCommit: workspace.value.lastObservation.headRevision }),
+        ...(projected.indexCoverage?.sourceSnapshotDigest === undefined
+          ? {} : { sourceManifestSha256: projected.indexCoverage.sourceSnapshotDigest }),
+        providerIdentities: ports.providerIdentities ?? {},
+        receiptId: `ace-transform-${projected.bundleId ?? requestId.value}`,
+        providerRequestId: String(searched.value.requestId), limitations: [],
+      });
     }
     const assembled = yield* assembler.assemble({
       evidence: projected.evidence,
