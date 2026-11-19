@@ -223,3 +223,17 @@ test('native gateway HTTP endpoint requires auth and returns local preparation o
     await new Promise<void>((done) => server.close(done));
   }
 });
+
+test('native projection forwards only visible input text to incremental receipt assembly', async () => {
+  let seen: readonly string[] | undefined;
+  const context: ContextTransformService = {
+    transform: (args) => {
+      seen = args.visibleNativeInputText;
+      return Effect.succeed(ok(example));
+    },
+  };
+  const response = await Effect.runPromise(make({ context }).projectResponses(req()));
+  assert.equal(response._tag, 'Ok');
+  if (response._tag === 'Ok') assert.equal(response.value.kind, 'PREPARED');
+  assert.deepEqual(seen, ['find entrypoint', 'entrypoint here']);
+});
