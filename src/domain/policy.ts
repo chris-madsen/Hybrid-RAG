@@ -45,6 +45,8 @@ export interface SafeAuditRecord {
   readonly policyVersion: number;
   readonly outcome: 'allowed' | 'denied' | 'degraded';
   readonly reasonCode: string;
+  /** Redacted binding facts; never include provider credentials or source/prompt bodies. */
+  readonly details?: Readonly<Record<string, string>>;
 }
 
 export const defaultLocalPolicy = (workspaceId: WorkspaceId): ProjectDataPolicy => ({

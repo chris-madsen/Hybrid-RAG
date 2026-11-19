@@ -69,25 +69,58 @@ const requirements = [
   {
     id: 'BIFROST_PLUGIN_BUILD',
     file: '.github/workflows/ace-contracts.yml',
-    contains: ['Build pinned Bifröst ACE plugin', 'fe7634a6c828927d05ffdd57c62be0aaab04193f'],
+    contains: [
+      'Build pinned Bifröst ACE plugin',
+      'repository: chris-madsen/bifrost',
+      'ref: 6baf302dc73a9858bb96da017a436ef2e60f82f1',
+      'go-version: "1.27.4"',
+      'BIFROST_COMMIT: 6baf302dc73a9858bb96da017a436ef2e60f82f1',
+    ],
   },
   {
-    id: 'BIFROST_RESPONSES_ONLY_QUARANTINE',
+    id: 'BIFROST_PLUGIN_BUILD_SCRIPT',
+    file: 'scripts/build-bifrost-ace-plugin.sh',
+    contains: [
+      'BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1',
+      'status --porcelain --untracked-files=all',
+      'go 1.27.4',
+      '-buildmode=plugin',
+    ],
+  },
+  {
+    id: 'BIFROST_RESPONSES_ONLY_PHYSICAL_GUARD',
     file: 'integrations/bifrost/ace-connector/plugin/main.go',
     contains: [
       'func HTTPTransportPreHook',
       'case "/v1/responses":',
       'func prepareNativeResponses',
       'ACE Gateway endpoint is unsupported',
+      'ctx.SetPhysicalSendGuard(guard)',
+      'AuthorizeNativeResponsesAttempt',
       'func PreLLMHook',
-      'ACE provider dispatch disabled until native Responses is certified',
+      'ctx.PhysicalSendGuard()',
       'AllowFallbacks: &allowFallbacks',
       'schemas.HarnessSessionHeaders',
       'schemas.NormalizeSessionID',
       'hostTranscriptAttested',
       'bifrost-visible-request-only',
     ],
-    excludes: ['ctx.Value(schemas.BifrostContextKeyRequestID)'],
+    excludes: [
+      'ACE provider dispatch disabled until native Responses is certified',
+      'ctx.Value(schemas.BifrostContextKeyRequestID)',
+    ],
+  },
+  {
+    id: 'GATEWAY_PHYSICAL_SEND_POLICY',
+    file: 'src/application/gateway-attempt-authorization-service.ts',
+    contains: [
+      'verifyProjectionReceipt',
+      'request.bodySha256',
+      'request.preparedBodySha256',
+      'security.allowedDestinations.includes(request.destination)',
+      'physicalSendAttemptAllowed(request)',
+      'attemptAuditDetails(request)',
+    ],
   },
   {
     id: 'GATEWAY_EGRESS_POLICY',
@@ -106,7 +139,13 @@ const requirements = [
   {
     id: 'GATEWAY_EGRESS_CONFIG',
     file: 'src/bin/ace-runtime.ts',
-    contains: ['ACE_GATEWAY_EXTERNAL_LLM_OPT_IN', 'ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', 'allowedCloudDataClassesByProvider', 'gateway-policy-audit.jsonl'],
+    contains: [
+      'ACE_GATEWAY_EXTERNAL_LLM_OPT_IN',
+      'ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON',
+      'ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON',
+      'allowedCloudDataClassesByProvider',
+      'gateway-policy-audit.jsonl',
+    ],
   },
   {
     id: 'OPENSPEC_STRICT_VALIDATION',
@@ -205,7 +244,15 @@ const publicContractAuthorityGuard = async () => {
   let typeSpecMissing = [];
   try {
     const source = await readFile(resolve(root, 'typespec/responses-v2.tsp'), 'utf8');
-    for (const needle of ['namespace ACE.ResponsesV2', 'model ProjectionRequest', 'union ProjectionDecision', 'protocol: "openai.responses"', '@route("/internal/ace-gateway/v2/project")']) {
+    for (const needle of [
+      'namespace ACE.ResponsesV2',
+      'model ProjectionRequest',
+      'union ProjectionDecision',
+      'protocol: "openai.responses"',
+      '@route("/internal/ace-gateway/v2/project")',
+      'model PhysicalSendAttemptRequest',
+      '@route("/internal/ace-gateway/v2/authorize-attempt")',
+    ]) {
       if (!source.includes(needle)) typeSpecMissing.push(needle);
     }
   } catch {

@@ -13,7 +13,11 @@ export const authorizeAndAudit = (
   policy: ProjectDataPolicy,
   action: PolicyAction,
   correlationId: string,
-  ports: { readonly clock: ClockPort; readonly audit: AuditSink },
+  ports: {
+    readonly clock: ClockPort;
+    readonly audit: AuditSink;
+    readonly auditDetails?: Readonly<Record<string, string>>;
+  },
 ): Effect.Effect<Result<AuthorizationResult, DomainError>> =>
   Effect.gen(function* () {
     const decision = authorizeOutbound(action, policy);
@@ -26,6 +30,7 @@ export const authorizeAndAudit = (
       policyVersion: policy.policyVersion,
       outcome: decision.value.outcome,
       reasonCode: decision.value.reasonCode,
+      ...(ports.auditDetails === undefined ? {} : { details: ports.auditDetails }),
     };
     const written = yield* ports.audit.append(audit);
     if (isErr(written)) {

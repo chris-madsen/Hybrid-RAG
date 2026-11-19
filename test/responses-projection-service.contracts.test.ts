@@ -9,7 +9,7 @@ import { handleGatewayProjectionHttp, createGatewayProjectionServer } from '../s
 import { makeContextTransformService, type ContextTransformService, type AceTransformResult } from '../src/application/context-transform-service.js';
 import type { ResponsesProjectionRequest } from '../src/domain/responses-projection.js';
 import { defaultLocalPolicy } from '../src/domain/policy.js';
-import type { DataClass, ProjectDataPolicy } from '../src/domain/policy.js';
+import type { DataClass, ProjectDataPolicy, SafeAuditRecord } from '../src/domain/policy.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import type { WorkspaceRecord } from '../src/domain/workspace.js';
 import type { ContextBundle } from '../src/domain/retrieval.js';
@@ -117,7 +117,13 @@ test('native policy/Effect produces additive context without mutating function/r
 test('physical-send authorization binds each attempt, consumes IDs once, and fails closed after restart', async () => {
   const requestId = 'ace-' + 'a'.repeat(32);
   const projectionRequest = req({ requestId, attemptGroupId: requestId }, { ...native, stream: false });
-  const security = makeSecurity();
+  const auditRecords: SafeAuditRecord[] = [];
+  const security = makeSecurity({
+    audit: { append: (record) => {
+      auditRecords.push(record);
+      return Effect.succeed(ok(undefined));
+    } },
+  });
   const context: ContextTransformService = {
     transform: () => Effect.succeed(ok({ ...example, requestId, turnId: requestId })),
   };
@@ -135,12 +141,19 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     deadlineEpochMs: projectionRequest.deadlineEpochMs,
   });
   const authorization = makeGatewayAttemptAuthorizationService(security);
+  const firstAttemptId = 'bf-attempt-' + 'b'.repeat(32);
   const first = await Effect.runPromise(authorization.authorizePhysicalSend(
-    attempt('bf-attempt-' + 'b'.repeat(32)),
+    attempt(firstAttemptId),
   ));
   assert.equal(first._tag, 'Ok');
   if (first._tag === 'Err') return;
   assert.equal(first.value.kind, 'ALLOW');
+  const allowedAudit = auditRecords.find((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed');
+  assert.equal(allowedAudit?.details?.workspaceId, 'ws1');
+  assert.equal(allowedAudit?.details?.bodySha256, projection.value.projectedBodySha256);
+  assert.equal(allowedAudit?.details?.preparedBodySha256, projection.value.projectedBodySha256);
+  assert.equal(allowedAudit?.details?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
+  assert.equal(allowedAudit?.details?.destination, 'https://api.openai.com/v1/responses');
 
   const replay = await Effect.runPromise(authorization.authorizePhysicalSend(
     attempt('bf-attempt-' + 'b'.repeat(32)),

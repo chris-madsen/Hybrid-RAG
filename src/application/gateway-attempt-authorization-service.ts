@@ -1,4 +1,5 @@
 import { Effect } from 'effect';
+import { createHash } from 'node:crypto';
 import type {
   PhysicalSendAttemptDecision as GeneratedPhysicalSendAttemptDecision,
   PhysicalSendAttemptRequest as GeneratedPhysicalSendAttemptRequest,
@@ -34,10 +35,27 @@ const sendBlock = (
       policyVersion: security.policy.policyVersion,
       outcome: 'denied',
       reasonCode,
+      details: attemptAuditDetails(request),
     });
     if (isErr(written)) return written;
     return physicalSendAttemptBlocked(request, reasonCode);
   });
+
+const attemptAuditDetails = (
+  request: GeneratedPhysicalSendAttemptRequest,
+): Readonly<Record<string, string>> => ({
+  attemptId: request.attemptId,
+  requestId: request.requestId,
+  workspaceId: request.workspaceId,
+  provider: request.provider,
+  model: request.model,
+  method: request.method,
+  destination: request.destination,
+  dataClass: request.dataClass,
+  bodySha256: request.bodySha256,
+  preparedBodySha256: request.preparedBodySha256,
+  projectionReceiptSha256: createHash('sha256').update(request.projectionReceipt, 'utf8').digest('hex'),
+});
 
 const dataClassesFor = (dataClass: GeneratedPhysicalSendAttemptRequest['dataClass']) => {
   const sourceClass = dataClass === 'private' ? 'private_source' : dataClass;
@@ -117,7 +135,11 @@ export const makeGatewayAttemptAuthorizationService = (
         dataClasses: dataClassesFor(request.dataClass),
         paths: [],
         secretDetected,
-      }, request.attemptId, { clock: security.clock, audit: security.audit });
+      }, request.attemptId, {
+        clock: security.clock,
+        audit: security.audit,
+        auditDetails: attemptAuditDetails(request),
+      });
       if (isErr(authorized)) return authorized;
       if (authorized.value.decision.outcome !== 'allowed') {
         return physicalSendAttemptBlocked(request, authorized.value.decision.reasonCode);
