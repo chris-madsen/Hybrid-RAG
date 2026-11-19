@@ -96,6 +96,46 @@ test('gateway allows Base64 and JSON framing beyond the raw four MiB body limit'
   assert.ok(maxEnvelopeBytesFor(rawBytes) >= encodedBytes + rawBytes + 1024, 'query duplicates the user message outside Base64');
 });
 
+test('disconnect interrupts a long-running local projection instead of leaving retrieval running', async () => {
+  let started!: () => void;
+  let finalized!: () => void;
+  const began = new Promise<void>((resolve) => { started = resolve; });
+  const interrupted = new Promise<void>((resolve) => { finalized = resolve; });
+  const hanging = {
+    projectResponses: () => Effect.sync(() => started()).pipe(
+      Effect.zipRight(Effect.never),
+      Effect.onInterrupt(() => Effect.sync(() => finalized())),
+    ),
+  };
+  const server = createGatewayProjectionServer(hanging, { authToken: 'interrupt-fixture' });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const controller = new AbortController();
+    const request = fetch(`http://127.0.0.1:${address.port}/internal/ace-gateway/v2/project`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer interrupt-fixture' },
+      body: '{}', signal: controller.signal,
+    }).catch(() => undefined);
+    await began;
+    controller.abort();
+    await Promise.race([
+      interrupted,
+      new Promise<never>((_resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('projection was not interrupted after disconnect')), 3000);
+        timeout.unref();
+      }),
+    ]);
+    await request;
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test('native projection HTTP refuses local callers without the configured shared secret', async () => {
   const server = createGatewayProjectionServer(service, { authToken: 'in-memory-test-token' });
   await new Promise<void>((resolve, reject) => {
