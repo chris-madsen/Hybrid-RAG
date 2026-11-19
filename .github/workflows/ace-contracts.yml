@@ -102,11 +102,20 @@ jobs:
           # retired Gateway contract from the general-purpose baseline.
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
-          import { execFileSync } from 'node:child_process';
+          import { execFileSync, spawnSync } from 'node:child_process';
           import { readFileSync } from 'node:fs';
           const previous = '.github/fixtures/contracts/ace-public-v1-baseline.json';
           const file = '.github/fixtures/contracts/ace-public-contract-baseline.json';
-          const original = JSON.parse(execFileSync('git', ['show', process.env.PR_BASE_SHA + ':' + previous], { encoding: 'utf8' }));
+          const base = process.env.PR_BASE_SHA;
+          const baseCommit = spawnSync('git', ['cat-file', '-e', base + '^{commit}'], { stdio: 'ignore' });
+          assert.equal(baseCommit.status, 0, 'could not inspect the PR base commit');
+          const priorPath = execFileSync('git', ['ls-tree', '-r', '--name-only', base, '--', previous], { encoding: 'utf8' }).trim();
+          // This migration-only assertion applies until the retired snapshot is absent from the PR base.
+          if (priorPath.length === 0) {
+            console.log('[qg5] retired v1 baseline is absent from PR base; one-time migration comparison already completed');
+            process.exit(0);
+          }
+          const original = JSON.parse(execFileSync('git', ['show', base + ':' + previous], { encoding: 'utf8' }));
           const current = JSON.parse(readFileSync(file, 'utf8'));
           delete original.gateway;
           delete original.bifrost;
