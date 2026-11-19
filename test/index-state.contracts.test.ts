@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { Effect } from 'effect';
 import test from 'node:test';
-import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
+import { buildLocalCodeIndex, sourceRangeFromByteOffsets } from '../src/adapters/local-code-index.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import { ok } from '../src/domain/result.js';
 import type { StructuralAnalysisPort, WorkspaceFilePort } from '../src/application/ports.js';
@@ -188,4 +188,34 @@ test('pre-materialized snapshot avoids a second repository snapshot during incre
   }));
   assert.equal(built._tag, 'Ok');
   assert.equal(snapshotCalls, 0);
+});
+
+test('UTF-8 byte offsets use exact one-based columns across CRLF, Unicode and EOF', () => {
+  const source = Buffer.from('αβ\r\nthird😀line\nlast');
+  const b = (value: string): number => Buffer.byteLength(value);
+  assert.deepEqual(sourceRangeFromByteOffsets(source, 0, b('αβ')), {
+    startLine: 1, startColumn: 1, endLine: 1, endColumn: 5,
+  });
+  assert.deepEqual(sourceRangeFromByteOffsets(source, b('αβ\r\n'), b('αβ\r\nthird😀')), {
+    startLine: 2, startColumn: 1, endLine: 2, endColumn: b('third😀') + 1,
+  });
+  assert.deepEqual(sourceRangeFromByteOffsets(source, b('αβ\r\nthird😀line\n'), source.length), {
+    startLine: 3, startColumn: 1, endLine: 3, endColumn: 5,
+  });
+  assert.equal(sourceRangeFromByteOffsets(source, -1, 2), undefined);
+  assert.equal(sourceRangeFromByteOffsets(source, 2, 2), undefined);
+  assert.equal(sourceRangeFromByteOffsets(source, 0, source.length + 1), undefined);
+});
+
+test('many large-file symbol offsets preserve exact line identity', () => {
+  const line = 'export const value = 1;\n';
+  const lines = 2000;
+  const bytes = Buffer.from(line.repeat(lines));
+  for (let index = 0; index < lines; index += 47) {
+    const start = index * Buffer.byteLength(line);
+    const range = sourceRangeFromByteOffsets(bytes, start, start + Buffer.byteLength('export'));
+    assert.deepEqual(range, {
+      startLine: index + 1, startColumn: 1, endLine: index + 1, endColumn: 7,
+    });
+  }
 });
