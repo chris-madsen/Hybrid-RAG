@@ -391,7 +391,7 @@ export const contextTransportText = (bundle: ContextCarrier): string => {
     const mode = item.contentDelivery === 'expand'
       ? ` [exact body via ace_expand(handle${span})]`
       : item.contentDelivery === 'known_reference'
-        ? ` [body omitted: caller supplied stable evidence receipt${typeof item.expansionHandle === 'string' ? `; exact body via ace_expand(handle${span})` : ''}]`
+        ? ` [body omitted: exact source already visible in native input or covered by receipt${typeof item.expansionHandle === 'string' ? `; exact body via ace_expand(handle${span})` : ''}]`
         : '';
     // Do not mirror snippet text here: structuredContent owns verified code
     // bodies. Text is a compact navigation map only.
