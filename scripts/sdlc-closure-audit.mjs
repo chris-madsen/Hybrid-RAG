@@ -71,8 +71,10 @@ const requirements = [
     file: '.github/workflows/ace-contracts.yml',
     contains: [
       'Build pinned Bifröst ACE plugin',
-      'repository: chris-madsen/bifrost',
-      'ref: 6baf302dc73a9858bb96da017a436ef2e60f82f1',
+      'Fetch exact pinned Bifröst source outside ACE checkout',
+      'https://github.com/chris-madsen/bifrost.git',
+      'fetch --no-tags --depth=1 origin "$BIFROST_COMMIT"',
+      'BIFROST_SOURCE_ROOT: ${{ runner.temp }}/bifrost-src',
       'go-version: "1.27.4"',
       'BIFROST_COMMIT: 6baf302dc73a9858bb96da017a436ef2e60f82f1',
     ],
@@ -83,6 +85,8 @@ const requirements = [
     contains: [
       'BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1',
       'status --porcelain --untracked-files=all',
+      'Bifrost source checkout must be clean',
+      'ACE source checkout must be clean',
       'go 1.27.4',
       '-buildmode=plugin',
     ],
