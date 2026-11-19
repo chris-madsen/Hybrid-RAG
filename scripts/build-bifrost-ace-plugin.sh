@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${BIFROST_SOURCE_ROOT:?set BIFROST_SOURCE_ROOT to the exact Bifrost checkout}"
-: "${BIFROST_COMMIT:=fe7634a6c828927d05ffdd57c62be0aaab04193f}"
+: "${BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1}"
 : "${GO_BIN:=go}"
 : "${OUTPUT:=integrations/bifrost/ace-connector/ace-gateway-projection.so}"
 export GOWORK=off
@@ -16,7 +16,7 @@ fi
 
 repo_root=$(git rev-parse --show-toplevel)
 ace_commit=$(git -C "$repo_root" rev-parse HEAD)
-if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]]; then
+if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=all)" ]]; then
   echo "ACE source checkout must be clean before plugin compilation" >&2
   exit 2
 fi
@@ -27,7 +27,7 @@ cp integrations/bifrost/ace-connector/plugin/main_test.go "$build_root/main_test
 cat > "$build_root/go.mod" <<EOF
 module ace-gateway-projection-plugin
 
-go 1.27.3
+go 1.27.4
 
 require (
   github.com/maximhq/bifrost/core v0.0.0

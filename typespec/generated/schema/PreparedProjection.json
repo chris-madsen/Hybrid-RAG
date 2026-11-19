@@ -19,6 +19,11 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9+/]+={0,2}$"
         },
+        "projectionReceipt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+        },
         "reasonCode": {
             "type": "string",
             "const": "VERIFIED_CONTEXT_ADDED"
@@ -29,6 +34,7 @@
         "baseBodySha256",
         "projectedBodySha256",
         "bodyBase64",
+        "projectionReceipt",
         "reasonCode"
     ],
     "unevaluatedProperties": {

@@ -13,6 +13,7 @@ import type { ContextTransformService } from './context-transform-service.js';
 import { authorizeAndAudit } from './policy-service.js';
 import type { GatewayProjectionSecurity } from './gateway-security-contract.js';
 import { sha256Base64 } from '../domain/gateway-request-binding.js';
+import { makeProjectionReceiptClaims, signProjectionReceipt } from './projection-receipt.js';
 
 // This service prepares an additive native Responses input, not a provider
 // delivery receipt. Bifröst's per-physical-send guard is a separate hard gate.
@@ -109,11 +110,30 @@ export const makeResponsesProjectionService = (
     const injected = addVerifiedContextToResponses(body.value, result.contextText);
     if (injected._tag === 'Err') return block(request, injected.error.code);
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
+    if (!security.receiptSigningKey.trim()) return block(request, 'PROJECTION_RECEIPT_NOT_READY');
+    const projectedBodySha256 = sha256Base64(injected.value);
+    const receiptClaims = makeProjectionReceiptClaims({
+      requestId: request.requestId,
+      attemptGroupId: request.attemptGroupId,
+      agentSessionId: request.agentSessionId,
+      workspaceId: request.workspaceId,
+      dataClass: request.dataClass === 'private' ? 'private_source' : request.dataClass,
+      provider: request.provider.toLowerCase(),
+      model: request.model,
+      baseBodySha256: request.bodySha256,
+      projectedBodySha256,
+      selectedEvidenceIds: result.selectedEvidenceIds,
+      contextText: result.contextText,
+      policyVersion: security.policy.policyVersion,
+      deadlineEpochMs: request.deadlineEpochMs,
+    });
+    const projectionReceipt = signProjectionReceipt(receiptClaims, security.receiptSigningKey);
     return ok({
       kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED',
       bodyBase64: injected.value,
       baseBodySha256: request.bodySha256,
-      projectedBodySha256: sha256Base64(injected.value),
+      projectedBodySha256,
+      projectionReceipt,
     });
   }),
 });

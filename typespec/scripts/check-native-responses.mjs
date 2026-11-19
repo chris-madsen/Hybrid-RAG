@@ -11,6 +11,7 @@ const routes = Object.keys(openapi.paths ?? {})
   .filter((path) => path.startsWith('/internal/ace-gateway/'))
   .sort();
 assert.deepEqual(routes, [
+  '/internal/ace-gateway/v2/authorize-attempt',
   '/internal/ace-gateway/v2/capabilities',
   '/internal/ace-gateway/v2/health',
   '/internal/ace-gateway/v2/project',

@@ -69,11 +69,57 @@ export type HostCompactionAttestation = {
     [key: string]: unknown;
 };
 
+export type PhysicalSendAttemptAllowed = {
+    kind: 'ALLOW';
+    attemptId: string;
+    bodySha256: string;
+    provider: string;
+    model: string;
+    destination: string;
+    reasonCode: 'AUTHORIZED';
+    [key: string]: unknown;
+};
+
+export type PhysicalSendAttemptBlocked = {
+    kind: 'BLOCK';
+    attemptId: string;
+    bodySha256: string;
+    reasonCode: string;
+    [key: string]: unknown;
+};
+
+export type PhysicalSendAttemptDecision = ({
+    kind: 'ALLOW';
+} & PhysicalSendAttemptAllowed) | ({
+    kind: 'BLOCK';
+} & PhysicalSendAttemptBlocked);
+
+export type PhysicalSendAttemptRequest = {
+    schemaVersion: 'ace.gateway.v2';
+    requestId: string;
+    attemptGroupId: string;
+    agentSessionId: string;
+    workspaceId: string;
+    dataClass: 'private' | 'project_document' | 'public';
+    provider: string;
+    model: string;
+    attemptId: string;
+    method: string;
+    destination: string;
+    bodyBase64: string;
+    bodySha256: string;
+    preparedBodySha256: string;
+    projectionReceipt: string;
+    deadlineEpochMs: number;
+    [key: string]: unknown;
+};
+
 export type PreparedProjection = {
     kind: 'PREPARED';
     baseBodySha256: string;
     projectedBodySha256: string;
     bodyBase64: string;
+    projectionReceipt: string;
     reasonCode: 'VERIFIED_CONTEXT_ADDED';
     [key: string]: unknown;
 };
@@ -102,6 +148,59 @@ export type ProjectionRequest = {
     attestation: HostCompactionAttestation;
     [key: string]: unknown;
 };
+
+export type AuthorizePhysicalSendData = {
+    body: PhysicalSendAttemptRequest;
+    path?: never;
+    query?: never;
+    url: '/internal/ace-gateway/v2/authorize-attempt';
+};
+
+export type AuthorizePhysicalSendErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: GatewayError;
+    /**
+     * Access is unauthorized.
+     */
+    401: GatewayError;
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: GatewayError;
+    /**
+     * Client error
+     */
+    405: GatewayError;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: GatewayError;
+    /**
+     * Client error
+     */
+    413: GatewayError;
+    /**
+     * Server error
+     */
+    501: GatewayError;
+    /**
+     * Service unavailable.
+     */
+    503: GatewayError;
+};
+
+export type AuthorizePhysicalSendError = AuthorizePhysicalSendErrors[keyof AuthorizePhysicalSendErrors];
+
+export type AuthorizePhysicalSendResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: PhysicalSendAttemptDecision;
+};
+
+export type AuthorizePhysicalSendResponse = AuthorizePhysicalSendResponses[keyof AuthorizePhysicalSendResponses];
 
 export type CapabilitiesData = {
     body?: never;

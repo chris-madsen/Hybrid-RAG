@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // ResponsesV2Request represents observed, unmodified native Bifröst ingress.
@@ -38,10 +39,47 @@ type ResponsesV2Decision struct {
 	BodyBase64          string `json:"bodyBase64,omitempty"`
 	BaseBodySHA256      string `json:"baseBodySha256"`
 	ProjectedBodySHA256 string `json:"projectedBodySha256,omitempty"`
+	ProjectionReceipt   string `json:"projectionReceipt,omitempty"`
 	ReasonCode          string `json:"reasonCode"`
 }
 
+// PhysicalSendV2Request binds one actual Bifröst transport attempt to the
+// prepared native body and exact provider route. It never carries provider
+// credentials or the serialized HTTP headers.
+type PhysicalSendV2Request struct {
+	SchemaVersion              string `json:"schemaVersion"`
+	RequestID                  string `json:"requestId"`
+	AttemptGroupID             string `json:"attemptGroupId"`
+	AgentSessionID             string `json:"agentSessionId"`
+	WorkspaceID                string `json:"workspaceId"`
+	DataClass                  string `json:"dataClass"`
+	Provider                   string `json:"provider"`
+	Model                      string `json:"model"`
+	AttemptID                  string `json:"attemptId"`
+	Method                     string `json:"method"`
+	Destination                string `json:"destination"`
+	Body                       []byte `json:"bodyBase64"`
+	BodySHA256                 string `json:"bodySha256"`
+	PreparedBodySHA256         string `json:"preparedBodySha256"`
+	PreparedBodySemanticSHA256 string `json:"-"`
+	ProjectionReceipt          string `json:"projectionReceipt"`
+	DeadlineEpochMs            int64  `json:"deadlineEpochMs"`
+}
+
+type PhysicalSendV2Decision struct {
+	Kind        string `json:"kind"`
+	AttemptID   string `json:"attemptId"`
+	BodySHA256  string `json:"bodySha256"`
+	Provider    string `json:"provider"`
+	Model       string `json:"model"`
+	Destination string `json:"destination"`
+	ReasonCode  string `json:"reasonCode"`
+}
+
 func normalizedJSON(body []byte) (map[string]any, error) {
+	if !utf8.Valid(body) {
+		return nil, errors.New("native Responses body must be valid UTF-8")
+	}
 	d := json.NewDecoder(bytes.NewReader(body))
 	d.UseNumber()
 	var v map[string]any
@@ -121,6 +159,9 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 	if decision.Kind != "PREPARED" || decision.ReasonCode != "VERIFIED_CONTEXT_ADDED" {
 		return nil, errors.New("native Responses projection is not prepared")
 	}
+	if strings.TrimSpace(decision.ProjectionReceipt) == "" || len(decision.ProjectionReceipt) > 16*1024 {
+		return nil, errors.New("native projection lacks a bounded physical-send receipt")
+	}
 	if int64(len(decision.BodyBase64)) > 4*((DefaultMaxBodyBytes+2)/3) {
 		return nil, errors.New("native projected body exceeds bound")
 	}
@@ -136,6 +177,75 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 		return nil, err
 	}
 	return body, nil
+}
+
+func validatePreparedNativeResponses(projected []byte, model string) error {
+	after, err := normalizedJSON(projected)
+	if err != nil {
+		return err
+	}
+	stream, hasStream := after["stream"]
+	if after["model"] != model || after["store"] != false || (hasStream && stream != false) {
+		return errors.New("physical-send body changed its model, stateless mode, or non-streaming contract")
+	}
+	for _, field := range []string{"previous_response_id", "conversation", "conversation_id", "thread_id"} {
+		if after[field] != nil {
+			return errors.New("physical-send body contains uncertified provider state")
+		}
+	}
+	items, ok := after["input"].([]any)
+	if !ok || len(items) < 2 {
+		return errors.New("physical-send body lacks its additive ACE context item")
+	}
+	aceItems := 0
+	for _, item := range items {
+		message, ok := item.(map[string]any)
+		if !ok || message["role"] != "developer" {
+			continue
+		}
+		content, _ := message["content"].(string)
+		if strings.Contains(content, "[ACE verified context]\n") && strings.Contains(content, "\n[/ACE verified context]") {
+			aceItems++
+		}
+	}
+	if aceItems != 1 {
+		return errors.New("physical-send body must contain exactly one ACE evidence item")
+	}
+	original := make(map[string]any, len(after))
+	for key, value := range after {
+		original[key] = value
+	}
+	originalItems := make([]any, len(items)-1)
+	copy(originalItems, items[1:])
+	original["input"] = originalItems
+	originalBytes, err := json.Marshal(original)
+	if err != nil {
+		return errors.New("physical-send body could not be validated")
+	}
+	return validateNativeResponsesProjection(originalBytes, projected)
+}
+
+// SemanticBodySHA256 hashes the provider request's parsed JSON value. Object
+// key order and whitespace are ignored; arrays and exact JSON number lexemes
+// remain significant. It is used only to compare Bifröst's prepared and wire
+// representations; the physical-send receipt still binds the final raw bytes.
+func SemanticBodySHA256(body []byte) (string, error) {
+	value, err := normalizedJSON(body)
+	if err != nil {
+		return "", err
+	}
+	if _, exists := value["stream"]; !exists {
+		// In native Responses, an omitted stream flag and explicit false both
+		// select the non-streaming request path. No other provider field is
+		// normalized here.
+		value["stream"] = false
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return "", errors.New("provider request could not be canonicalized")
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Request) (ResponsesV2Decision, error) {
@@ -196,14 +306,7 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 	}
 	bounded, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
-	client := c.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	safe := *client
-	safe.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return errors.New("native Responses projection redirect refused")
-	}
+	safe := loopbackHTTPClient(c.HTTPClient)
 	httpReq, err := http.NewRequestWithContext(bounded, http.MethodPost, c.Endpoint, bytes.NewReader(wire))
 	if err != nil {
 		return invalid, err
@@ -236,4 +339,118 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 		return invalid, err
 	}
 	return decision, nil
+}
+
+func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req PhysicalSendV2Request) (PhysicalSendV2Decision, error) {
+	invalid := PhysicalSendV2Decision{}
+	if c.Endpoint == "" || c.AuthToken == "" {
+		return invalid, errors.New("local physical-send authorizer is not configured")
+	}
+	if err := validateLoopbackEndpoint(c.Endpoint); err != nil {
+		return invalid, err
+	}
+	target, err := url.Parse(c.Endpoint)
+	if err != nil || target.Path != "/internal/ace-gateway/v2/project" || target.RawQuery != "" || target.Fragment != "" {
+		return invalid, errors.New("physical-send authorization requires the exact local v2 base path")
+	}
+	target.Path = "/internal/ace-gateway/v2/authorize-attempt"
+	target.RawPath = ""
+	maxBody := c.MaxBodyBytes
+	if maxBody <= 0 {
+		maxBody = DefaultMaxBodyBytes
+	}
+	if req.SchemaVersion != "ace.gateway.v2" || req.RequestID == "" || req.AttemptGroupID != req.RequestID ||
+		req.AgentSessionID == "" || req.WorkspaceID == "" || req.Provider == "" || req.Model == "" ||
+		req.Method != http.MethodPost || req.AttemptID == "" || req.ProjectionReceipt == "" ||
+		len(req.PreparedBodySHA256) != 64 || len(req.PreparedBodySemanticSHA256) != 64 ||
+		req.DeadlineEpochMs <= time.Now().UnixMilli() || len(req.Body) == 0 || int64(len(req.Body)) > maxBody {
+		return invalid, errors.New("invalid physical-send attempt identity or bounds")
+	}
+	if err := validatePhysicalSendDestination(req.Destination); err != nil {
+		return invalid, err
+	}
+	sum := sha256.Sum256(req.Body)
+	if req.BodySHA256 != hex.EncodeToString(sum[:]) {
+		return invalid, errors.New("physical-send attempt body digest mismatch")
+	}
+	body, err := normalizedJSON(req.Body)
+	if err != nil || body["store"] != false || body["model"] != req.Model {
+		return invalid, errors.New("physical-send attempt body is not the authorized stateless Responses body")
+	}
+	if err := validatePreparedNativeResponses(req.Body, req.Model); err != nil {
+		return invalid, fmt.Errorf("physical-send body validation failed: %w", err)
+	}
+	semanticDigest, err := SemanticBodySHA256(req.Body)
+	if err != nil || semanticDigest != req.PreparedBodySemanticSHA256 {
+		return invalid, errors.New("provider wire body differs from ACE-prepared semantics")
+	}
+	wire, err := json.Marshal(req)
+	if err != nil {
+		return invalid, err
+	}
+	if int64(len(wire)) > maxEnvelopeBytes(maxBody) {
+		return invalid, errors.New("physical-send authorization envelope exceeds bound")
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	if d := time.UnixMilli(req.DeadlineEpochMs); d.Before(deadline) {
+		deadline = d
+	}
+	bounded, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+	safe := loopbackHTTPClient(c.HTTPClient)
+	httpReq, err := http.NewRequestWithContext(bounded, http.MethodPost, target.String(), bytes.NewReader(wire))
+	if err != nil {
+		return invalid, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+c.AuthToken)
+	response, err := safe.Do(httpReq)
+	if err != nil {
+		return invalid, fmt.Errorf("physical-send authorizer unavailable: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return invalid, fmt.Errorf("physical-send authorizer returned HTTP %d", response.StatusCode)
+	}
+	payload, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
+	if err != nil || len(payload) > 64*1024 {
+		return invalid, errors.New("physical-send decision exceeds limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	var decision PhysicalSendV2Decision
+	if err := decoder.Decode(&decision); err != nil {
+		return invalid, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return invalid, errors.New("physical-send decision contains trailing data")
+	}
+	if decision.AttemptID != req.AttemptID || decision.BodySHA256 != req.BodySHA256 {
+		return invalid, errors.New("physical-send decision is not bound to this attempt")
+	}
+	switch decision.Kind {
+	case "BLOCK":
+		if strings.TrimSpace(decision.ReasonCode) == "" {
+			return invalid, errors.New("physical-send denial has no reason code")
+		}
+		return decision, nil
+	case "ALLOW":
+		if decision.ReasonCode != "AUTHORIZED" || decision.Provider != req.Provider ||
+			decision.Model != req.Model || decision.Destination != req.Destination {
+			return invalid, errors.New("physical-send allow decision does not match the authorized route")
+		}
+		return decision, nil
+	default:
+		return invalid, errors.New("physical-send decision kind is unsupported")
+	}
+}
+
+func validatePhysicalSendDestination(destination string) error {
+	parsed, err := url.Parse(destination)
+	if err != nil || parsed == nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil ||
+		parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path == "" || parsed.String() != destination {
+		return errors.New("physical-send destination is not a canonical credential-free HTTPS URL")
+	}
+	return nil
 }

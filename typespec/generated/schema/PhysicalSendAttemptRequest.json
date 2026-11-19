@@ -1,0 +1,106 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "PhysicalSendAttemptRequest.json",
+    "type": "object",
+    "properties": {
+        "schemaVersion": {
+            "type": "string",
+            "const": "ace.gateway.v2"
+        },
+        "requestId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "attemptGroupId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "agentSessionId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "workspaceId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "dataClass": {
+            "anyOf": [
+                {
+                    "type": "string",
+                    "const": "private"
+                },
+                {
+                    "type": "string",
+                    "const": "project_document"
+                },
+                {
+                    "type": "string",
+                    "const": "public"
+                }
+            ]
+        },
+        "provider": {
+            "type": "string",
+            "minLength": 1
+        },
+        "model": {
+            "type": "string",
+            "minLength": 1
+        },
+        "attemptId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "method": {
+            "type": "string",
+            "minLength": 1
+        },
+        "destination": {
+            "type": "string",
+            "minLength": 1
+        },
+        "bodyBase64": {
+            "type": "string",
+            "maxLength": 5592408,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+        },
+        "bodySha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+        },
+        "preparedBodySha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+        },
+        "projectionReceipt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+        },
+        "deadlineEpochMs": {
+            "type": "integer",
+            "minimum": 1
+        }
+    },
+    "required": [
+        "schemaVersion",
+        "requestId",
+        "attemptGroupId",
+        "agentSessionId",
+        "workspaceId",
+        "dataClass",
+        "provider",
+        "model",
+        "attemptId",
+        "method",
+        "destination",
+        "bodyBase64",
+        "bodySha256",
+        "preparedBodySha256",
+        "projectionReceipt",
+        "deadlineEpochMs"
+    ],
+    "unevaluatedProperties": {
+        "not": {}
+    }
+}

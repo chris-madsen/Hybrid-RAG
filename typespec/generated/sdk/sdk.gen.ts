@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { CapabilitiesData, CapabilitiesResponses, HealthData, HealthResponses, ProjectData, ProjectErrors, ProjectResponses, RecordDeliveryData, RecordDeliveryErrors } from './types.gen.js';
+import type { AuthorizePhysicalSendData, AuthorizePhysicalSendErrors, AuthorizePhysicalSendResponses, CapabilitiesData, CapabilitiesResponses, HealthData, HealthResponses, ProjectData, ProjectErrors, ProjectResponses, RecordDeliveryData, RecordDeliveryErrors } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,6 +17,15 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+export const authorizePhysicalSend = <ThrowOnError extends boolean = false>(options: Options<AuthorizePhysicalSendData, ThrowOnError>): RequestResult<AuthorizePhysicalSendResponses, AuthorizePhysicalSendErrors, ThrowOnError> => (options.client ?? client).post<AuthorizePhysicalSendResponses, AuthorizePhysicalSendErrors, ThrowOnError>({
+    url: '/internal/ace-gateway/v2/authorize-attempt',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 export const capabilities = <ThrowOnError extends boolean = false>(options?: Options<CapabilitiesData, ThrowOnError>): RequestResult<CapabilitiesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<CapabilitiesResponses, unknown, ThrowOnError>({ url: '/internal/ace-gateway/v2/capabilities', ...options });
 

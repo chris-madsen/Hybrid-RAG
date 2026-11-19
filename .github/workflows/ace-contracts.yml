@@ -300,19 +300,19 @@ jobs:
       - name: Checkout exact pinned Bifröst source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: maximhq/bifrost
-          ref: fe7634a6c828927d05ffdd57c62be0aaab04193f
+          repository: chris-madsen/bifrost
+          ref: 6baf302dc73a9858bb96da017a436ef2e60f82f1
           path: .bifrost-src
           persist-credentials: false
-      - name: Go 1.27.3
+      - name: Go 1.27.4
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.27.3"
+          go-version: "1.27.4"
           cache: false
       - name: Compile native plugin against pinned upstream
         shell: bash
         env:
-          BIFROST_COMMIT: fe7634a6c828927d05ffdd57c62be0aaab04193f
+          BIFROST_COMMIT: 6baf302dc73a9858bb96da017a436ef2e60f82f1
           BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.bifrost-src
           OUTPUT: ${{ runner.temp }}/ace-gateway-projection.so
         run: |
