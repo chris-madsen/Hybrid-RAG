@@ -37,6 +37,20 @@ export interface AccessDecision {
   readonly destination: Destination;
 }
 
+export interface SafePhysicalSendAuditDetails {
+  readonly attemptId: string;
+  readonly requestId: string;
+  readonly workspaceId: string;
+  readonly provider: string;
+  readonly model: string;
+  readonly method: string;
+  readonly destinationSha256: string;
+  readonly dataClass: string;
+  readonly bodySha256: string;
+  readonly preparedBodySha256: string;
+  readonly projectionReceiptSha256: string;
+}
+
 export interface SafeAuditRecord {
   readonly occurredAtMs: number;
   readonly correlationId: string;
@@ -45,8 +59,8 @@ export interface SafeAuditRecord {
   readonly policyVersion: number;
   readonly outcome: 'allowed' | 'denied' | 'degraded';
   readonly reasonCode: string;
-  /** Redacted binding facts; never include provider credentials or source/prompt bodies. */
-  readonly details?: Readonly<Record<string, string>>;
+  /** Typed redacted send bindings; never include provider credentials or source/prompt bodies. */
+  readonly physicalSend?: SafePhysicalSendAuditDetails;
 }
 
 export const defaultLocalPolicy = (workspaceId: WorkspaceId): ProjectDataPolicy => ({

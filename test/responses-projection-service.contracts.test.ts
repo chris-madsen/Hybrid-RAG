@@ -149,11 +149,12 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   if (first._tag === 'Err') return;
   assert.equal(first.value.kind, 'ALLOW');
   const allowedAudit = auditRecords.find((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed');
-  assert.equal(allowedAudit?.details?.workspaceId, 'ws1');
-  assert.equal(allowedAudit?.details?.bodySha256, projection.value.projectedBodySha256);
-  assert.equal(allowedAudit?.details?.preparedBodySha256, projection.value.projectedBodySha256);
-  assert.equal(allowedAudit?.details?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
-  assert.equal(allowedAudit?.details?.destination, 'https://api.openai.com/v1/responses');
+  assert.equal(allowedAudit?.physicalSend?.workspaceId, 'ws1');
+  assert.equal(allowedAudit?.physicalSend?.bodySha256, projection.value.projectedBodySha256);
+  assert.equal(allowedAudit?.physicalSend?.preparedBodySha256, projection.value.projectedBodySha256);
+  assert.equal(allowedAudit?.physicalSend?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
+  assert.equal(allowedAudit?.physicalSend?.destinationSha256, hash('https://api.openai.com/v1/responses'));
+  assert.equal(JSON.stringify(allowedAudit).includes('https://api.openai.com/v1/responses'), false);
 
   const replay = await Effect.runPromise(authorization.authorizePhysicalSend(
     attempt('bf-attempt-' + 'b'.repeat(32)),

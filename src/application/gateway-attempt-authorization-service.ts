@@ -5,6 +5,7 @@ import type {
   PhysicalSendAttemptRequest as GeneratedPhysicalSendAttemptRequest,
 } from '../generated/ace-gateway/v2/types.gen.js';
 import type { DomainError } from '../domain/errors.js';
+import type { SafePhysicalSendAuditDetails } from '../domain/policy.js';
 import { containsLikelySecret } from '../domain/sensitive-text.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
 import { authorizeAndAudit } from './policy-service.js';
@@ -35,7 +36,7 @@ const sendBlock = (
       policyVersion: security.policy.policyVersion,
       outcome: 'denied',
       reasonCode,
-      details: attemptAuditDetails(request),
+      physicalSend: attemptAuditDetails(request),
     });
     if (isErr(written)) return written;
     return physicalSendAttemptBlocked(request, reasonCode);
@@ -43,14 +44,14 @@ const sendBlock = (
 
 const attemptAuditDetails = (
   request: GeneratedPhysicalSendAttemptRequest,
-): Readonly<Record<string, string>> => ({
+): SafePhysicalSendAuditDetails => ({
   attemptId: request.attemptId,
   requestId: request.requestId,
   workspaceId: request.workspaceId,
   provider: request.provider,
   model: request.model,
   method: request.method,
-  destination: request.destination,
+  destinationSha256: createHash('sha256').update(request.destination, 'utf8').digest('hex'),
   dataClass: request.dataClass,
   bodySha256: request.bodySha256,
   preparedBodySha256: request.preparedBodySha256,
@@ -138,7 +139,7 @@ export const makeGatewayAttemptAuthorizationService = (
       }, request.attemptId, {
         clock: security.clock,
         audit: security.audit,
-        auditDetails: attemptAuditDetails(request),
+        physicalSendDetails: attemptAuditDetails(request),
       });
       if (isErr(authorized)) return authorized;
       if (authorized.value.decision.outcome !== 'allowed') {
