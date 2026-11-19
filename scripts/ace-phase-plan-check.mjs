@@ -224,7 +224,18 @@ const main = () => {
     }
     if (!/RED/iu.test(plan) || !/GREEN/iu.test(plan) || !/rollback|STOP/iu.test(plan)) fail('missing test or rollback obligations');
     if (!/npm run |node |go test |npx |tsx |pytest |openssl /iu.test(plan)) fail('no concrete test/validation command');
-    if (!/\|\s*(?:Modify|Create|Delete)\s*\|/iu.test(plan)) fail('file map needs one concrete owned change');
+    if (!/\|\s*(?:Modify|Create|Delete)\s*\|/iu.test(plan)) {
+      // Already-implemented phases retain exact source owners as "Exists"
+      // rather than fraudulently asking the next agent to Create them again.
+      // This is structural reconciliation only, never acceptance by the checker.
+      const completed = tasks.split('\n').some((line) => line.startsWith('- [x] ' + phase + ' —'));
+      const existingOwner = /^\|\s*Exists in merged main\s*\|\s*`[^`]+`\s*\|/mu.test(plan);
+      const recordedEvidence = /implementation=MERGED/iu.test(plan) && /behavior=PASS/iu.test(plan)
+        && /APPROVED_POST_IMPLEMENTATION/iu.test(plan);
+      if (!completed || !existingOwner || !recordedEvidence) {
+        fail('file map needs a concrete owned change, or completed-phase source evidence with canonical [x] and present owners');
+      }
+    }
     if (/^\s*-\s*\[[ x]\]/mu.test(plan)) fail('phase file duplicates task tracker checkboxes');
     if (/\b(?:TBD|FIXME|PLACEHOLDER|TODO_REPLACE)\b/iu.test(plan)) fail('unresolved placeholder');
   });
