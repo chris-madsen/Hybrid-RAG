@@ -13,7 +13,7 @@ topics: [lexical-retrieval, native-sdk, source-freshness, benchmarking]
 
 ## 1. Question and scope
 
-> «Вторая — оценить fff как готовую библиотеку для быстрого лексического поиска. Не писать собственный аналог, не выбрасывать Qdrant/LSP и не тащить MCP-сервер туда, где ACE может использовать нативный SDK.»
+> «Вторая — оценить fff как готовую библиотеку для быстрого лексического поиска. Не писать собственный аналог, не выбрасывать Qdrant/LSP и не тащить agent-invoked protocol-сервер туда, где ACE может использовать нативный SDK.»
 
 **Selected ACE SDLC stage:** **R / Research**, as requested by the owner: evaluate current external implementation and current ACE seams, not implement a new production search provider. Source inspection only; no new TypeSpec, Qdrant/LSP removal, Go/Bifröst gateway change, or LLM tools. An independent experiment on the actual Node SDK is still required before a production decision.
 
@@ -54,7 +54,7 @@ Hermes native Responses
   -> source verification -> context projection/assembly -> additive evidence
 ```
 
-This diagram is an **observed functional ownership summary**, not a new integration design. Raw fff `fileSearch`/`grep` results are lexical candidate data, not ACE source-verified evidence. No MCP insertion is present in the observed ACE agent-facing architecture.
+This diagram is an **observed functional ownership summary**, not a new integration design. Raw fff `fileSearch`/`grep` results are lexical candidate data, not ACE source-verified evidence. No agent-invoked protocol insertion is present in the observed ACE agent-facing architecture.
 
 ## 5. External caveats requiring direct experiment
 
