@@ -103,7 +103,7 @@ const visibleQuery = (body: Record<string, unknown>): string | null => {
   for (let i = body.input.length - 1; i >= 0; i--) {
     const item: unknown = body.input[i];
     if (!object(item)) continue;
-    if (item.type === 'function_call_output' && typeof item.output === 'string') return item.output;
+    if (item.type === 'function_call_output' && typeof item.output === 'string' && item.output.trim().length > 0) return item.output;
     if (item.role !== 'user') continue;
     if (typeof item.content === 'string') return item.content;
     if (Array.isArray(item.content)) {
