@@ -12,8 +12,9 @@ ACE SHALL use Bifröst's provider-native Responses transport for its only agent-
 - **AND** every non-Responses alias, protocol converter, automatic provider substitution and unsupported passthrough is blocked before external egress.
 
 #### Scenario: RESP-002 — Explicit fail-closed capability surface
-- **WHEN** the native route, model, auth, privacy or final-send guard is not certified
-- **THEN** Gateway v2 readiness advertises the capability as unavailable/not_certified and refuses generation when any required guard is missing
+- **WHEN** a required native route, model, auth, privacy or per-physical-send guard is missing, or general provider-wire certification is incomplete
+- **THEN** Gateway v2 readiness advertises ordinary generation as unavailable/not_certified; ordinary agent traffic cannot bypass an uncertified route or a missing guard
+- **AND** a separately owner-authorized **disposable PUBLIC C03–C05 certification probe** MAY send on native Responses/Bifröst **only after** the exact physical-attempt guard, C04 transmission-time provider/model/destination/data policy, payload integrity and audit are verified. Its test-only admission does not certify general generation or permit unchecked retries
 - **AND** missing retrieval, failed policy, untrusted plugins or invalid body cannot silently forward unprojected requests.
 
 #### Scenario: RESP-003 — Versioned TypeSpec contract migration
