@@ -56,6 +56,8 @@ export const handleGatewayProjectionHttp = async (
   method: string,
   path: string,
   body: string,
+  maxBodyBytes = defaultMaxBodyBytes,
+  signal?: AbortSignal,
 ): Promise<GatewayProjectionHttpResponse> => {
   if (method === 'GET' && path === '/internal/ace-gateway/v2/health') {
     const wire: GeneratedGatewayHealth = {
@@ -68,7 +70,7 @@ export const handleGatewayProjectionHttp = async (
       schemaVersion,
       // No provider generation route is advertised until final-wire certification.
       routes: [],
-      maxBodyBytes: defaultMaxBodyBytes,
+      maxBodyBytes,
       projectionModes: ['gateway'],
       providerWireCertification: 'not_certified',
     };
@@ -87,7 +89,7 @@ export const handleGatewayProjectionHttp = async (
     try { payload = JSON.parse(body) as unknown; } catch {
       return error(400, 'INVALID_JSON', 'native Responses request must be JSON');
     }
-    const response = await Effect.runPromise(service.projectResponses(payload));
+    const response = await Effect.runPromise(service.projectResponses(payload), { signal });
     if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
     // A policy denial is a typed projection decision, not an out-of-schema
     // error. The Go connector must still refuse BLOCK and never dispatch.
@@ -140,10 +142,25 @@ export const createGatewayProjectionServer = (
         return;
       }
       const body = await readRequestBody(request, maxEnvelopeBytes);
-      writeResponse(response, await handleGatewayProjectionHttp(service, request.method ?? 'GET', request.url ?? '/', body));
+      const controller = new AbortController();
+      const abort = (): void => controller.abort();
+      request.once('aborted', abort);
+      response.once('close', abort);
+      try {
+        const result = await handleGatewayProjectionHttp(
+          service, request.method ?? 'GET', request.url ?? '/', body, maxBodyBytes, controller.signal,
+        );
+        if (!response.destroyed) writeResponse(response, result);
+      } finally {
+        request.off('aborted', abort);
+        response.off('close', abort);
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'gateway request failed';
-      writeResponse(response, error(message === 'BODY_TOO_LARGE' ? 413 : 400, message, message === 'BODY_TOO_LARGE' ? 'request body exceeds gateway bound' : 'request could not be read'));
+      if (!response.destroyed) {
+        writeResponse(response, error(message === 'BODY_TOO_LARGE' ? 413 : 400, message,
+          message === 'BODY_TOO_LARGE' ? 'request body exceeds gateway bound' : 'request could not be read'));
+      }
     }
   });
 };
