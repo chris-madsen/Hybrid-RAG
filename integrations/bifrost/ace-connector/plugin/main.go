@@ -234,6 +234,10 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 		Body: req.Body, Attestation: attestation,
 	})
 	if err != nil {
+		var denied *connector.ProjectionDeniedError
+		if errors.As(err, &denied) {
+			return errorResponse(409, denied.Error()), nil
+		}
 		return errorResponse(503, "native Responses ACE projection is not ready"), nil
 	}
 	if decision.Kind != "PREPARED" {
