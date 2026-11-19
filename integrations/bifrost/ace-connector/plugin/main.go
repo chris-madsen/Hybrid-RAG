@@ -227,7 +227,7 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	}
 	var requestCtx context.Context = ctx
 	deadline := time.Now().Add(30 * time.Second).UnixMilli()
-	decision, err := projectionClient.ProjectNativeResponses(requestCtx, connector.ResponsesV2Request{
+	decision, projected, err := projectionClient.ProjectNativeResponsesAndApply(requestCtx, connector.ResponsesV2Request{
 		RequestID: requestID, AttemptGroupID: requestID, AgentSessionID: session,
 		WorkspaceID: defaultWorkspaceID, DataClass: "private",
 		Provider: provider, Model: rawModel, Query: query, DeadlineEpochMs: deadline,
@@ -236,9 +236,8 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	if err != nil {
 		return errorResponse(503, "native Responses ACE projection is not ready"), nil
 	}
-	projected, err := connector.ApplyNativeResponses(req.Body, decision)
-	if err != nil {
-		return errorResponse(409, "native Responses projection violated protected fields"), nil
+	if decision.Kind != "PREPARED" {
+		return errorResponse(409, "native Responses projection is not prepared"), nil
 	}
 	req.Body = projected
 	return nil, nil // PreLLMHook still blocks every physical model attempt
