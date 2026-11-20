@@ -126,7 +126,7 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         if (begun._tag === 'Err') return begun;
         queued = begun.value;
         if (queued.status === 'projected' || queued.status === 'tombstoned' || queued.status === 'dead_letter'
-          || !projectionRetryDue(queued, nowMs())) {
+          || queued.inflightAttemptId !== undefined || !projectionRetryDue(queued, nowMs())) {
           // A pending acknowledgement can still be awaiting provider
           // materialization, and an incomplete receipt may be in backoff.
           // Re-import must not bypass the durable next-attempt fence.
@@ -181,6 +181,21 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         }
       }
 
+      // The durable claim prevents two importers from concurrently sending
+      // the same episode and one prematurely enabling archive deletion.
+      const claim = await input.outbox.startAttempt(episode.episodeId, input.extractorVersion);
+      if (claim._tag === 'Err') {
+        outcomes.push({
+          episodeId: episode.episodeId,
+          persisted: created,
+          admission,
+          projectionStatus: 'incomplete',
+          projectionErrorCode: claim.error.code,
+        });
+        continue;
+      }
+      queued = claim.value;
+
       let projected: Result<ProjectionReceipt, DomainError>;
       try {
         projected = await Effect.runPromise(session.projection.project({
@@ -200,7 +215,9 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
       }
       if (projected._tag === 'Err') {
         if (queued !== undefined && input.outbox !== undefined) {
-          const incomplete = scheduleProjectionRetry(queued, nowMs(), projected.error.code, retryPolicy);
+          const incomplete = scheduleProjectionRetry(
+            { ...queued, uncertainGraphAttempt: true }, nowMs(), projected.error.code, retryPolicy,
+          );
           if (incomplete._tag === 'Err') return incomplete;
           const stored = await input.outbox.put(incomplete.value);
           if (stored._tag === 'Err') return stored;

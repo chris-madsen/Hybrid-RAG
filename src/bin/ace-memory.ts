@@ -142,6 +142,12 @@ const run = async (): Promise<void> => {
       let deadLettered = 0;
       for (const receipt of receipts.value) {
         if (receipt.status === 'projected' || receipt.status === 'tombstoned' || receipt.status === 'dead_letter') continue;
+        if (receipt.inflightAttemptId !== undefined) {
+          // A killed/unknown provider attempt may still materialize; do not
+          // create another physical send or silently clear its durable claim.
+          deferred += 1;
+          continue;
+        }
         const nowMs = Date.now();
         if (!projectionRetryDue(receipt, nowMs)) {
           deferred += 1;
@@ -179,6 +185,8 @@ const run = async (): Promise<void> => {
           missingOriginal += 1;
           continue;
         }
+        const claim = await outbox.startAttempt(receipt.episodeId, receipt.extractorVersion);
+        if (claim._tag === 'Err') throw new Error(claim.error.message);
         const retry = await Effect.runPromise(graphiti.projection.project({
           episodeId: original.value.episodeId,
           occurredAtMs: original.value.occurredAtMs,
@@ -190,14 +198,16 @@ const run = async (): Promise<void> => {
           }],
         }));
         if (retry._tag === 'Err') {
-          const failed = scheduleProjectionRetry(receipt, nowMs, retry.error.code, retryPolicy);
+          const failed = scheduleProjectionRetry(
+            { ...claim.value, uncertainGraphAttempt: true }, nowMs, retry.error.code, retryPolicy,
+          );
           if (failed._tag === 'Err') throw new Error(failed.error.message);
           const stored = await outbox.put(failed.value);
           if (stored._tag === 'Err') throw new Error(stored.error.message);
           if (failed.value.status === 'dead_letter') deadLettered += 1;
           continue;
         }
-        const enqueued = recordProjectionEnqueue(receipt, retry.value, nowMs, verificationDelayMs);
+        const enqueued = recordProjectionEnqueue(claim.value, retry.value, nowMs, verificationDelayMs);
         if (enqueued._tag === 'Err') throw new Error(enqueued.error.message);
         const stored = await outbox.put(enqueued.value);
         if (stored._tag === 'Err') throw new Error(stored.error.message);
