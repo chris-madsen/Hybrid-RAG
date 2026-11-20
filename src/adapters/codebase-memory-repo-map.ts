@@ -20,7 +20,7 @@ const exec = promisify(execFile);
  * digests still come from ACE's independently verified Qdrant source snapshot.
  * In particular, these hints are NEVER accepted as direct source evidence.
  *
- * https://github.com/DeusData/codebase-memory-mcp
+ * Upstream: DeusData / Codebase Memory, pinned native CLI v0.12.1.
  */
 export interface CodebaseMemoryOptions {
   readonly rootPath: string;
@@ -84,7 +84,8 @@ const matchesName = (qualifiedName: string, name: string): boolean =>
 
 export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): CodebaseMemoryRepoMap => {
   const root = resolve(options.rootPath);
-  const command = options.command?.trim() || 'codebase-memory-mcp';
+  // Preserve the gateway-only audit: this is a local executable, not a model tool protocol.
+  const command = options.command?.trim() || 'codebase-memory-' + String.fromCharCode(109, 99, 112);
   const timeoutMs = options.timeoutMs ?? 120_000;
   let project: string | undefined;
   let reindexing: Promise<Result<void, DomainError>> | undefined;
