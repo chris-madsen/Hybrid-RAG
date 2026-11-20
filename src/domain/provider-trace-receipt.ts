@@ -207,7 +207,10 @@ export interface NativeResponsesFinalWireEvidence {
 }
 
 export type NativeResponsesFinalWireProof = Readonly<{
-  kind: 'mock-capture' | 'signed-provider-capture';
+  // A signature on an operator-supplied manifest is NOT proof that a mock
+  // server actually observed the asserted final wire. Only an independently
+  // observed mock capture may use 'mock-capture'.
+  kind: 'mock-capture' | 'signed-provider-capture' | 'signed-manifest-only';
   finalWireBodySha256: string;
   serializedRequestSha256: string;
   signerKeySha256?: string;
