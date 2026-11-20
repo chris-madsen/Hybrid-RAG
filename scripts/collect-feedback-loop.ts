@@ -1,17 +1,26 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { readHarborFeedbackTrialObservations } from '../src/adapters/harbor-feedback-trial-evidence.js';
 import { readHermesContextEvidenceJsonl } from '../src/adapters/hermes-context-evidence.js';
+import { evaluateNativeResponsesFinalWireEvidence } from '../src/domain/provider-trace-receipt.js';
 import {
   reconcileFeedbackTrials,
   validateFeedbackExperimentManifest,
   validateFeedbackTaskManifest,
   type FeedbackArtifactHash,
+  type FeedbackExperimentManifest,
   type FeedbackTaskIdentity,
   type FeedbackTaskManifest,
   type FeedbackTrialObservation,
 } from '../src/domain/feedback-loop-experiment.js';
+import {
+  evaluateHermesAgentLoopEvidence,
+  summarizeHermesSessionExport,
+  verifyFinalWireEvidenceEnvelope,
+  type VerifiedFinalWireReceipt,
+} from './real-provider-evidence.mjs';
 
 type JsonObject = Readonly<Record<string, unknown>>;
 
@@ -19,10 +28,17 @@ const object = (value: unknown): JsonObject | undefined =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as JsonObject : undefined;
 const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
+const privateAgentArtifactBasenames = new Set([
+  'hermes-session.jsonl',
+  'hermes.txt',
+  'ace-responses-projection.jsonl',
+  'hermes-context-receipts.jsonl',
+  'ace-final-wire-evidence.jsonl',
+]);
 
 const usage = (): never => {
   throw new Error(
-    'Usage: tsx scripts/collect-feedback-loop.ts <task-manifest.json> <experiment-manifest.json> <native-result.json> <ace-result.json> <output-dir>',
+    'Usage: tsx scripts/collect-feedback-loop.ts <task-manifest.json> <experiment-manifest.json> <native-result.json> <ace-result.json> <output-dir> [--final-wire-public-key <public-key.pem>]',
   );
 };
 
@@ -79,6 +95,7 @@ const copyDirectory = async (source: string, destination: string): Promise<reado
   const files = await walkFiles(source);
   const hashes: FeedbackArtifactHash[] = [];
   for (const file of files) {
+    if (privateAgentArtifactBasenames.has(basename(file))) continue;
     const target = join(destination, relative(source, file));
     await mkdir(dirname(target), { recursive: true });
     const bytes = await readFile(file);
@@ -111,6 +128,172 @@ const providerTraceRequestIds = async (trialDirectory: string): Promise<readonly
   return [...ids].sort();
 };
 
+const pathIsWithin = (root: string, path: string): boolean => {
+  const rel = relative(root, resolve(path));
+  return rel.length === 0 || !(isAbsolute(rel) || rel === '..' || rel.startsWith('../') || rel.startsWith('..\\'));
+};
+
+const jsonLines = async (path: string, label: string): Promise<readonly JsonObject[]> => {
+  const values: JsonObject[] = [];
+  for (const [index, line] of (await readFile(path, 'utf8')).split(/\r?\n/u).entries()) {
+    if (line.trim().length === 0) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line) as unknown;
+    } catch {
+      throw new Error(`BLOCKED: malformed ${label} JSONL at line ${index + 1}`);
+    }
+    const record = object(parsed);
+    if (record === undefined) throw new Error(`BLOCKED: ${label} JSONL record must be an object`);
+    values.push(record);
+  }
+  return values;
+};
+
+const gatewayRequestsFor = async (trialDirectory: string): Promise<{
+  readonly requests: readonly JsonObject[];
+  readonly sha256?: string;
+}> => {
+  const file = (await walkFiles(trialDirectory)).find((path) => basename(path) === 'ace-responses-projection.jsonl');
+  if (file === undefined) return { requests: [] };
+  const bytes = await readFile(file);
+  const requests: JsonObject[] = [];
+  const seen = new Set<string>();
+  for (const [index, line] of bytes.toString('utf8').split(/\r?\n/u).entries()) {
+    if (line.trim().length === 0) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line) as unknown;
+    } catch {
+      throw new Error(`BLOCKED: malformed Gateway projection evidence at line ${index + 1}`);
+    }
+    const record = object(parsed);
+    const decision = object(record?.decision) ?? record;
+    if (record?.schemaVersion !== 'ace.gateway.v2' || decision === undefined
+      || !['PREPARED', 'BLOCK'].includes(String(decision.kind))
+      || !nonEmpty(record.requestId) || seen.has(record.requestId)) {
+      throw new Error(`BLOCKED: Gateway projection evidence is malformed or duplicated at line ${index + 1}`);
+    }
+    seen.add(record.requestId);
+    const attestation = object(record.attestation);
+    const agentSessionId = nonEmpty(record.agentSessionId) ?? nonEmpty(attestation?.sessionId);
+    requests.push({
+      requestId: record.requestId,
+      kind: decision.kind,
+      ...(agentSessionId === undefined ? {} : { agentSessionId }),
+    });
+  }
+  return { requests, sha256: sha256(bytes) };
+};
+
+const agentLoopEvidenceFor = async (
+  trialDirectory: string,
+  taskOutcome: 'pass' | 'fail' | 'unknown',
+  verificationPublicKeyPem: string | undefined,
+  expectedAceSourceCommit: string,
+): Promise<Readonly<Record<string, unknown>>> => {
+  const files = await walkFiles(trialDirectory);
+  const sessionFiles = files.filter((path) => basename(path) === 'hermes-session.jsonl');
+  if (sessionFiles.length === 0) {
+    return { schemaVersion: 1, status: 'NOT_RUN', reasonCodes: ['HERMES_SESSION_EXPORT_NOT_FOUND'] };
+  }
+  if (sessionFiles.length !== 1) {
+    return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['AMBIGUOUS_HERMES_SESSION_EXPORT_COUNT'] };
+  }
+  let repositoryRoot: string;
+  try {
+    repositoryRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  } catch {
+    return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['REPOSITORY_ROOT_UNVERIFIED'] };
+  }
+  const sessionPath = sessionFiles[0] as string;
+  if (pathIsWithin(repositoryRoot, sessionPath)) {
+    return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['RAW_HERMES_TRACE_MUST_REMAIN_OUTSIDE_REPOSITORY'] };
+  }
+
+  let sessionSummary: ReturnType<typeof summarizeHermesSessionExport>;
+  try {
+    sessionSummary = summarizeHermesSessionExport(await readFile(sessionPath));
+  } catch {
+    return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['HERMES_SESSION_EXPORT_INVALID'] };
+  }
+  let gatewayEvidence: Awaited<ReturnType<typeof gatewayRequestsFor>>;
+  try {
+    gatewayEvidence = await gatewayRequestsFor(trialDirectory);
+  } catch {
+    return { schemaVersion: 1, status: 'BLOCKED', sessionIdSha256: sessionSummary.sessionIdSha256,
+      rawTraceSha256: sessionSummary.rawTraceSha256, reasonCodes: ['GATEWAY_PROJECTION_EVIDENCE_INVALID'] };
+  }
+  const gatewayRequestIndex = gatewayEvidence.requests.map((request) => ({
+    requestId: request.requestId,
+    kind: request.kind,
+    ...(nonEmpty(request.agentSessionId) === undefined ? {} : {
+      agentSessionIdSha256: createHash('sha256')
+        .update(`hermes-agent-loop:${request.agentSessionId as string}`, 'utf8').digest('hex'),
+    }),
+  }));
+
+  const finalWireFiles = files.filter((path) => basename(path) === 'ace-final-wire-evidence.jsonl');
+  const finalWireEnvelopes: JsonObject[] = [];
+  try {
+    for (const path of finalWireFiles) finalWireEnvelopes.push(...await jsonLines(path, 'final-wire evidence'));
+  } catch {
+    return { schemaVersion: 1, status: 'BLOCKED', sessionIdSha256: sessionSummary.sessionIdSha256,
+      rawTraceSha256: sessionSummary.rawTraceSha256, reasonCodes: ['FINAL_WIRE_EVIDENCE_INVALID'] };
+  }
+  const signatureCheckedFinalWireReceipts: VerifiedFinalWireReceipt[] = [];
+  if (finalWireEnvelopes.length > 0 && verificationPublicKeyPem !== undefined) {
+    for (const envelope of finalWireEnvelopes) {
+      try {
+        const verified = verifyFinalWireEvidenceEnvelope(
+          envelope,
+          verificationPublicKeyPem,
+          evaluateNativeResponsesFinalWireEvidence,
+        );
+        if (verified.receipt.sourceCommit !== expectedAceSourceCommit) {
+          return { schemaVersion: 1, status: 'BLOCKED', sessionIdSha256: sessionSummary.sessionIdSha256,
+            rawTraceSha256: sessionSummary.rawTraceSha256, reasonCodes: ['FINAL_WIRE_SOURCE_COMMIT_MISMATCH'] };
+        }
+        signatureCheckedFinalWireReceipts.push(verified.receipt);
+      } catch {
+        return { schemaVersion: 1, status: 'BLOCKED', sessionIdSha256: sessionSummary.sessionIdSha256,
+          rawTraceSha256: sessionSummary.rawTraceSha256, reasonCodes: ['FINAL_WIRE_SIGNATURE_OR_CONTRACT_INVALID'] };
+      }
+    }
+  }
+  const evaluated = evaluateHermesAgentLoopEvidence({
+    sessionSummary,
+    gatewayRequests: gatewayEvidence.requests,
+    signatureCheckedFinalWireReceipts,
+    taskOutcome,
+  });
+  const signatureCheckedFinalWireReceiptIndex = signatureCheckedFinalWireReceipts.map((receipt) => ({
+    requestId: receipt.requestId,
+    attemptId: receipt.attemptId,
+    status: receipt.status,
+    sourceCommit: receipt.sourceCommit,
+    bifrostCommit: receipt.bifrostCommit,
+    bifrostPluginSha256: receipt.bifrostPluginSha256,
+    aceRuntimeSha256: receipt.aceRuntimeSha256,
+    pluginOrderSha256: receipt.pluginOrderSha256,
+    protocol: receipt.protocol,
+    provider: receipt.provider,
+    model: receipt.model,
+    acknowledgementKind: receipt.providerAcknowledgement.kind,
+    acknowledgementStatusCode: receipt.providerAcknowledgement.statusCode,
+    providerRequestIdSha256: createHash('sha256').update(receipt.providerAcknowledgement.providerRequestId, 'utf8').digest('hex'),
+  }));
+  return {
+    ...evaluated,
+    gatewayRequestIndex,
+    signatureCheckedFinalWireReceiptIndex,
+    ...(gatewayEvidence.sha256 === undefined ? {} : { gatewayProjectionSha256: gatewayEvidence.sha256 }),
+    finalWireEnvelopeCount: finalWireEnvelopes.length,
+    finalWireVerificationKeyProvided: verificationPublicKeyPem !== undefined,
+    rawSessionTraceCopied: false,
+  };
+};
+
 const taskFor = (tasks: readonly FeedbackTaskIdentity[], taskName: string): FeedbackTaskIdentity => {
   const task = tasks.find((candidate) => candidate.id === taskName);
   if (task === undefined) throw new Error(`BLOCKED: Harbor task ${taskName} is not present in frozen task-manifest.json`);
@@ -141,7 +324,13 @@ const observationsFor = async (
   aggregatePath: string,
   taskManifest: FeedbackTaskManifest,
   outputRoot: string,
-): Promise<{ readonly observations: readonly FeedbackTrialObservation[]; readonly providerTraceLines: readonly string[] }> => {
+  verificationPublicKeyPem: string | undefined,
+  experimentManifest: FeedbackExperimentManifest,
+): Promise<{
+  readonly observations: readonly FeedbackTrialObservation[];
+  readonly providerTraceLines: readonly string[];
+  readonly agentLoopEvidence: readonly Readonly<Record<string, unknown>>[];
+}> => {
   const parsed = await readHarborFeedbackTrialObservations(arm, aggregatePath);
   const directories = await trialDirectories(aggregatePath);
   if (parsed.length !== directories.length) throw new Error(`BLOCKED: ${arm} raw trial count does not match Harbor directories`);
@@ -154,10 +343,25 @@ const observationsFor = async (
   }
   const observations: FeedbackTrialObservation[] = [];
   const providerTraceLines: string[] = [];
+  const agentLoopEvidence: Readonly<Record<string, unknown>>[] = [];
   for (const trial of parsed) {
     const directory = trialDirById.get(trial.trialId);
     if (directory === undefined) throw new Error(`BLOCKED: missing ${arm} trial directory for ${trial.trialId}`);
     const task = taskFor(taskManifest.tasks, trial.taskName);
+    if (arm === 'ace_optional') {
+      agentLoopEvidence.push({
+        taskId: task.id,
+        trialId: trial.trialId,
+        sourceRevision: task.sourceRevision,
+        sourceDigest: task.sourceDigest,
+        evidence: await agentLoopEvidenceFor(
+          directory,
+          trial.success ? 'pass' : 'fail',
+          verificationPublicKeyPem,
+          experimentManifest.sourceCommit,
+        ),
+      });
+    }
     // Task names are data from the Harbor dataset, not safe filesystem segments.
     const safeTaskDirectory = Buffer.from(task.id, 'utf8').toString('base64url');
     const destination = join(outputRoot, arm === 'native' ? 'raw-agent-native' : 'raw-agent-ace', safeTaskDirectory);
@@ -186,13 +390,14 @@ const observationsFor = async (
       observedAceCalls: arm === 'native' ? 0 : trial.observedAceCalls + contextTransformRequestIds.length,
       observedAceContextCalls: arm === 'native' ? 0 : trial.observedAceContextCalls,
       observedAceRequestIds: arm === 'native' ? [] : observedRequestIds,
+      gatewayProjectionRequestIds: arm === 'native' ? [] : trial.gatewayProjectionRequestIds ?? [],
       ...(arm === 'native' || contextTransformRequestIds.length === 0 ? {} : { contextTransformRequestIds }),
       ...(arm === 'native' || hermesContextEvidence.length === 0 ? {} : { hermesContextEvidence }),
       providerTraceRequestIds: arm === 'native' ? [] : await providerTraceRequestIds(directory),
       rawArtifactHashes: artifacts,
     });
   }
-  return { observations, providerTraceLines };
+  return { observations, providerTraceLines, agentLoopEvidence };
 };
 
 const parseArgs = (): {
@@ -201,15 +406,18 @@ const parseArgs = (): {
   readonly nativeResultPath: string;
   readonly aceResultPath: string;
   readonly outputDirectory: string;
+  readonly finalWirePublicKeyPath?: string;
 } => {
-  const [taskManifest, experimentManifest, nativeResult, aceResult, outputDirectory] = process.argv.slice(2);
+  const [taskManifest, experimentManifest, nativeResult, aceResult, outputDirectory, ...extra] = process.argv.slice(2);
   if ([taskManifest, experimentManifest, nativeResult, aceResult, outputDirectory].some((value) => value === undefined)) return usage();
+  if (extra.length > 2 || extra.length > 0 && (extra[0] !== '--final-wire-public-key' || extra[1] === undefined)) return usage();
   return {
     taskManifestPath: resolve(taskManifest as string),
     experimentManifestPath: resolve(experimentManifest as string),
     nativeResultPath: resolve(nativeResult as string),
     aceResultPath: resolve(aceResult as string),
     outputDirectory: resolve(outputDirectory as string),
+    ...(extra[1] === undefined ? {} : { finalWirePublicKeyPath: resolve(extra[1]) }),
   };
 };
 
@@ -221,6 +429,9 @@ const writeBlocked = async (outputDirectory: string, reason: string): Promise<vo
 const main = async (): Promise<void> => {
   const args = parseArgs();
   try {
+    const verificationPublicKeyPem = args.finalWirePublicKeyPath === undefined
+      ? undefined
+      : await readFile(args.finalWirePublicKeyPath, 'utf8');
     const taskManifestBytes = await readFile(args.taskManifestPath);
     const taskManifestValue = JSON.parse(taskManifestBytes.toString('utf8')) as unknown;
     const taskManifest = validateFeedbackTaskManifest(taskManifestValue);
@@ -232,8 +443,8 @@ const main = async (): Promise<void> => {
     if (actualTaskManifestSha256 !== experimentManifest.value.taskManifestSha256) throw new Error('BLOCKED: task manifest SHA-256 does not match experiment manifest');
     await mkdir(args.outputDirectory, { recursive: true });
     await writeFile(resolve(args.outputDirectory, 'task-manifest.json'), taskManifestBytes);
-    const native = await observationsFor('native', args.nativeResultPath, taskManifest.value, args.outputDirectory);
-    const ace = await observationsFor('ace_optional', args.aceResultPath, taskManifest.value, args.outputDirectory);
+    const native = await observationsFor('native', args.nativeResultPath, taskManifest.value, args.outputDirectory, verificationPublicKeyPem, experimentManifest.value);
+    const ace = await observationsFor('ace_optional', args.aceResultPath, taskManifest.value, args.outputDirectory, verificationPublicKeyPem, experimentManifest.value);
     const report = reconcileFeedbackTrials({ taskManifest: taskManifest.value, native: native.observations, ace: ace.observations });
     if (report._tag === 'Err') throw new Error(`BLOCKED: ${report.error.path}: ${report.error.message}`);
     const traceLines = [...native.providerTraceLines, ...ace.providerTraceLines];
@@ -241,12 +452,41 @@ const main = async (): Promise<void> => {
     await mkdir(resolve(args.outputDirectory, 'receipts'), { recursive: true });
     const metricsBytes = Buffer.from(`${JSON.stringify(report.value, null, 2)}\n`, 'utf8');
     await writeFile(resolve(args.outputDirectory, 'metrics.json'), metricsBytes);
+    const agentLoopStatus = ace.agentLoopEvidence.some((item) => item.status === 'BLOCKED')
+      ? 'BLOCKED'
+      : ace.agentLoopEvidence.some((item) => item.status === 'CANDIDATE') ? 'CANDIDATE' : 'NOT_RUN';
+    const agentLoopEvidence = {
+      schemaVersion: 1,
+      status: agentLoopStatus,
+      runtimeIdentity: {
+        sourceCommit: experimentManifest.value.sourceCommit,
+        agent: experimentManifest.value.agent,
+        agentVersion: experimentManifest.value.agentVersion,
+        model: experimentManifest.value.model,
+        reasoningEffort: experimentManifest.value.reasoningEffort,
+        bifrostEndpointSha256: experimentManifest.value.bifrostEndpointSha256 ?? null,
+        tokenWindowAndProviderCounter: 'NOT_RUN',
+      },
+      trials: ace.agentLoopEvidence,
+      limitations: [
+        'Original Hermes session exports remain outside the collection output; only their SHA-256 and redacted structural index are retained.',
+        'Caller session IDs are correlation only; no host transcript or compaction attestation is present.',
+        'A candidate final-wire receipt is not real-agent acceptance or owner approval.',
+      ],
+    };
+    const agentLoopBytes = Buffer.from(`${JSON.stringify(agentLoopEvidence, null, 2)}\n`, 'utf8');
+    await writeFile(resolve(args.outputDirectory, 'agent-loop-evidence.json'), agentLoopBytes);
     const manifest = {
       schemaVersion: 1,
       status: report.value.status,
       experiment: experimentManifest.value,
       taskManifestSha256: actualTaskManifestSha256,
       metricsSha256: sha256(metricsBytes),
+      agentLoopEvidence: {
+        path: 'agent-loop-evidence.json',
+        sha256: sha256(agentLoopBytes),
+        status: agentLoopStatus,
+      },
       rawArtifactHashes: [
         ...native.observations.flatMap((observation) => observation.rawArtifactHashes.map((artifact) => ({
           arm: 'native',
@@ -260,10 +500,18 @@ const main = async (): Promise<void> => {
         }))),
       ],
       rawArtifactRoot: args.outputDirectory,
-      limitations: report.value.status === 'PASS' ? [] : ['Unknown values are retained and excluded from token ratio claims.'],
+      limitations: [
+        ...(report.value.status === 'PASS' ? [] : ['Unknown values are retained and excluded from token ratio claims.']),
+        'Agent-loop evidence status is separate from feedback metrics and cannot certify a real Hermes/provider trial.',
+      ],
     };
     await writeFile(resolve(args.outputDirectory, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-    process.stdout.write(`${JSON.stringify({ status: report.value.status, output: args.outputDirectory, metrics: resolve(args.outputDirectory, 'metrics.json') })}\n`);
+    process.stdout.write(`${JSON.stringify({
+      status: report.value.status,
+      agentLoopEvidenceStatus: agentLoopStatus,
+      output: args.outputDirectory,
+      metrics: resolve(args.outputDirectory, 'metrics.json'),
+    })}\n`);
     if (report.value.status === 'BLOCKED' || report.value.status === 'QUALITY_REGRESSION') process.exitCode = 2;
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'feedback collector failed';

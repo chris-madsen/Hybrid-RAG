@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,6 +48,8 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       ACE_GATEWAY_HTTP_SHARED_SECRET: 'readiness-fixture-secret',
       ACE_GATEWAY_EXTERNAL_LLM_OPT_IN: 'true',
       ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
+      ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: '{"mock":["mock"]}',
+      ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_conversation","private_source"]',
     },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
@@ -124,4 +126,13 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
     });
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('C07 operator guidance pins Bifröst routing and keeps real agent evidence unaccepted', async () => {
+  const readiness = await readFile('docs/operations/ace-configuration-and-readiness-matrix.md', 'utf8');
+  assert.match(readiness, /HERMES_CODEX_BASE_URL/u);
+  assert.match(readiness, /bifrost_endpoint_sha256/u);
+  assert.match(readiness, /provider-native token-counter\/context-window evidence/u);
+  assert.match(readiness, /agent-loop-evidence\.json/u);
+  assert.match(readiness, /real Hermes\/provider\/Harbor trials remain unauthorized/u);
 });

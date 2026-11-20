@@ -219,6 +219,25 @@ test('Hermes retrieval trace cannot stand in for model-bound ContextEngine deliv
   assert.equal(result.value.aceCorrelatedCalls, 0);
   assert.equal(result.value.tokenRatio, null);
 });
+
+test('automatic Gateway projections are not ACE tool calls or retrieval-trace delivery proof', () => {
+  const result = reconcile(undefined, observation('ace_optional', {
+    observedAceCalls: 0,
+    observedAceContextCalls: 0,
+    observedAceRequestIds: [],
+    gatewayProjectionRequestIds: ['ace-gateway-request-1'],
+    providerTraceRequestIds: ['ace-gateway-request-1'],
+  }));
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Err') return;
+  assert.equal(result.value.status, 'UNKNOWN');
+  assert.equal(result.value.rows[0]?.aceCalled, true);
+  assert.equal(result.value.rows[0]?.aceCorrelation, 'UNKNOWN');
+  assert.equal(result.value.aceObservedCalls, 0);
+  assert.equal(result.value.aceCorrelatedCalls, 0);
+  assert.equal(result.value.tokenRatio, null);
+});
+
 test('quality regression never presents token savings even in the per-task row', () => {
   const result = reconcile(undefined, observation('ace_optional', {
     quality: 'fail',
@@ -447,6 +466,7 @@ const hermesAgent = (withAce: boolean, overrides: Record<string, unknown> = {}):
   kwargs: {
     version: feedbackHermesVersion,
     reasoning_effort: 'high',
+    bifrost_endpoint_sha256: digest('a'),
     ace_context_enabled: withAce,
     ...(withAce
       ? { ace_context_bridge_sha256: digest('a'), context_plugin_sha256: digest('b') }
@@ -497,6 +517,14 @@ test('feedback Harbor identity rejects agent/model/version drift and non-serial 
   }))._tag, 'Err');
   assert.equal(validateFeedbackHarborJob(harborJob(false, { n_concurrent_trials: 2 }))._tag, 'Err');
   assert.equal(validateFeedbackHarborJob(harborJob(false, { n_attempts: 2 }))._tag, 'Err');
+  assert.equal(validateMatchingFeedbackHarborJobs(
+    harborJob(false, { agents: [hermesAgent(false, { kwargs: {
+      version: feedbackHermesVersion,
+      reasoning_effort: 'high',
+      bifrost_endpoint_sha256: digest('c'),
+    } })] }),
+    harborJob(),
+  )._tag, 'Err');
 });
 
 test('Docker feedback image identity accepts a local image ID or matching repository digest only', () => {

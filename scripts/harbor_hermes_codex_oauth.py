@@ -11,12 +11,15 @@ borrowed. Credential bytes are never written to Harbor logs or artifacts.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
+import re
 import shlex
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal, override
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import Field
@@ -35,6 +38,10 @@ class HermesCodexOAuthOptions(HermesOptions):
     ace_context_enabled: bool = Field(
         default=False,
         description="Retired ACE native context mode (always rejected); configure Bifrost Gateway instead.",
+    )
+    bifrost_endpoint_sha256: str = Field(
+        default="",
+        description="SHA-256 identity of the explicitly configured Bifrost Responses endpoint.",
     )
     ace_workspace_root: str = Field(default="/workspace")
     ace_allowed_roots: str = Field(default="/workspace")
@@ -56,6 +63,28 @@ class HermesCodexOAuth(Hermes):
 
     def get_version_command(self) -> str | None:
         return 'export PATH="$HOME/.local/bin:$PATH"; hermes --version'
+
+    @staticmethod
+    def _validate_bifrost_endpoint(endpoint: str | None, expected_sha256: str | None) -> str:
+        if not endpoint or not expected_sha256 or not re.fullmatch(r"[a-f0-9]{64}", expected_sha256):
+            raise ValueError("Hermes Bifrost endpoint and pinned SHA-256 identity are required")
+        normalized = endpoint.strip().rstrip("/")
+        try:
+            parsed = urlsplit(normalized)
+            hostname = (parsed.hostname or "").lower()
+            if (parsed.scheme not in ("http", "https") or not hostname
+                    or parsed.username is not None or parsed.password is not None
+                    or parsed.query or parsed.fragment):
+                raise ValueError("unsafe endpoint")
+        except ValueError as exc:
+            raise ValueError("Hermes Bifrost endpoint is not a safe HTTP(S) URL") from exc
+        if (hostname == "openai.com" or hostname.endswith(".openai.com")
+                or hostname == "chatgpt.com" or hostname.endswith(".chatgpt.com")):
+            raise ValueError("direct OpenAI/Codex endpoints bypass Bifrost and are prohibited")
+        actual_sha256 = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        if actual_sha256 != expected_sha256:
+            raise ValueError("Hermes Bifrost endpoint does not match the pinned experiment identity")
+        return normalized
 
     async def install(self, environment: BaseEnvironment) -> None:
         try:
@@ -94,6 +123,10 @@ class HermesCodexOAuth(Hermes):
     @override
     def preflight(cls, kwargs: dict[str, Any] | None = None, env: Mapping[str, str] | None = None) -> None:
         super().preflight(kwargs, env)
+        options = kwargs or {}
+        bifrost_endpoint = (env or {}).get("HERMES_CODEX_BASE_URL") or os.environ.get("HERMES_CODEX_BASE_URL")
+        endpoint_sha256 = options.get("bifrost_endpoint_sha256")
+        cls._validate_bifrost_endpoint(bifrost_endpoint, endpoint_sha256)
         configured = (env or {}).get("HERMES_AUTH_JSON_PATH") or os.environ.get("HERMES_AUTH_JSON_PATH")
         auth_path = Path(configured).expanduser() if configured else cls._default_auth_path()
         if not auth_path.is_file():
@@ -198,8 +231,17 @@ class HermesCodexOAuth(Hermes):
 
         if self.options.ace_context_enabled:
             raise ValueError("Native ACE ContextEngine injection is retired; route the agent through Bifrost")
+        bifrost_endpoint = self._validate_bifrost_endpoint(
+            self._extra_env.get("HERMES_CODEX_BASE_URL") or os.environ.get("HERMES_CODEX_BASE_URL"),
+            self.options.bifrost_endpoint_sha256,
+        )
         await self._stage_hermes_auth(environment)
-        env = {"HERMES_HOME": "/tmp/hermes", "TERMINAL_ENV": "local", "HARBOR_INSTRUCTION": instruction}
+        env = {
+            "HERMES_HOME": "/tmp/hermes",
+            "HERMES_CODEX_BASE_URL": bifrost_endpoint,
+            "TERMINAL_ENV": "local",
+            "HARBOR_INSTRUCTION": instruction,
+        }
         evidence_options = {
             "ACE_EVIDENCE_SOURCE_COMMIT": self.options.ace_evidence_source_commit,
             "ACE_EVIDENCE_SOURCE_MANIFEST_SHA256": self.options.ace_evidence_source_manifest_sha256,

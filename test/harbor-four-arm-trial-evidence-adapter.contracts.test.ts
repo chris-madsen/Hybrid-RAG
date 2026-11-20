@@ -40,7 +40,7 @@ test('Gateway arm without request-bound receipts is blocked, not counted as succ
   });
 });
 
-test('authenticated projection is not silently promoted to final-provider delivery evidence', async () => {
+test('Gateway projection is distinct from model-invoked ACE tools and final-provider delivery', async () => {
   await withTrial(async (_, dir, aggregate) => {
     const projection = {
       schemaVersion: 'ace.gateway.v2', requestId: 'req1',
@@ -49,7 +49,8 @@ test('authenticated projection is not silently promoted to final-provider delive
     };
     await writeFile(join(dir, 'agent', 'ace-responses-projection.jsonl'), JSON.stringify(projection) + '\n');
     const [result] = await readHarborFourArmTrialObservations('hybrid', aggregate);
-    assert.equal(result?.observedAceCalls, 1);
+    assert.equal(result?.observedAceCalls, 0);
+    assert.deepEqual(result?.gatewayProjectionRequestIds, ['req1']);
     assert.equal(result?.successfulAceCalls, 0);
     assert.equal(result?.rawOutputTokens, 15);
     assert.deepEqual(result?.successfulRequestIds, []);

@@ -146,6 +146,8 @@ export interface FeedbackPreflightBindingInput {
   readonly jobAgentVersion: string;
   readonly jobModel: string;
   readonly jobReasoningEffort: FeedbackReasoningEffort;
+  readonly actualBifrostEndpointSha256?: string;
+  readonly jobBifrostEndpointSha256?: string;
   readonly experiment: {
     readonly sourceCommit: string;
     readonly agent: 'hermes';
@@ -154,8 +156,46 @@ export interface FeedbackPreflightBindingInput {
     readonly reasoningEffort: FeedbackReasoningEffort;
     readonly harborVersion: string;
     readonly authenticationRoute: string;
+    readonly bifrostEndpointSha256?: string;
   };
 }
+
+export const inspectHermesBifrostEndpoint = (input: {
+  readonly endpoint?: string;
+  readonly endpointSha256?: string;
+  readonly expectedSha256?: string;
+}): FeedbackVerifierReadiness => {
+  const endpoint = input.endpoint?.trim().replace(/\/+$/u, '');
+  if (endpoint === undefined || endpoint.length === 0) {
+    return { status: 'missing_configuration', reason: 'Hermes Bifröst endpoint is not configured' };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(endpoint);
+    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+      || parsed.username.length > 0 || parsed.password.length > 0
+      || parsed.search.length > 0 || parsed.hash.length > 0) throw new Error('unsafe endpoint');
+  } catch {
+    return { status: 'invalid_configuration', reason: 'Hermes Bifröst endpoint is not a safe HTTP(S) URL' };
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (host === 'openai.com' || host.endsWith('.openai.com')
+    || host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) {
+    return { status: 'invalid_configuration', reason: 'direct OpenAI/Codex endpoints bypass Bifröst and are prohibited' };
+  }
+  if (input.endpointSha256 === undefined || !/^[a-f0-9]{64}$/u.test(input.endpointSha256)
+    || input.expectedSha256 === undefined || !/^[a-f0-9]{64}$/u.test(input.expectedSha256)) {
+    return { status: 'missing_configuration', reason: 'Bifröst endpoint digest is not pinned in both runtime and experiment identity' };
+  }
+  if (input.endpointSha256 !== input.expectedSha256) {
+    return { status: 'invalid_configuration', reason: 'Hermes Bifröst endpoint differs from the frozen experiment identity' };
+  }
+  return {
+    status: 'ready',
+    reason: 'Hermes endpoint matches the explicitly pinned Bifröst endpoint identity',
+    identity: input.endpointSha256,
+  };
+};
 
 export const validateFeedbackPreflightBinding = (input: FeedbackPreflightBindingInput): readonly string[] => {
   const failures: string[] = [];
@@ -166,6 +206,13 @@ export const validateFeedbackPreflightBinding = (input: FeedbackPreflightBinding
   if (input.experiment.reasoningEffort !== input.jobReasoningEffort) failures.push('reasoningEffort');
   if (input.experiment.harborVersion !== input.actualHarborVersion) failures.push('harborVersion');
   if (input.experiment.authenticationRoute !== input.expectedAuthenticationRoute) failures.push('authenticationRoute');
+  if (input.actualBifrostEndpointSha256 === undefined
+    || input.jobBifrostEndpointSha256 === undefined
+    || input.experiment.bifrostEndpointSha256 === undefined
+    || input.actualBifrostEndpointSha256 !== input.jobBifrostEndpointSha256
+    || input.actualBifrostEndpointSha256 !== input.experiment.bifrostEndpointSha256) {
+    failures.push('bifrostEndpointSha256');
+  }
   return failures;
 };
 

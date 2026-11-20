@@ -180,6 +180,16 @@ ACE_WORKTREE_HELPER_TLS_KEY=/run/ace-helper/client.key
 
 The host owns `workspace_id -> canonical root`; callers never supply an absolute host root. The required real-k3s containment/restart/race checks are in `infra/k8s/ace-local/HOST-WORKTREE-HELPER.md`.
 
+## Hermes Native Responses / Bifröst agent loop (C07)
+
+The Harbor Hermes adapter uses Hermes's native `openai-codex` Responses provider. For an ACE trial, it must receive an explicit `HERMES_CODEX_BASE_URL` pointing at the selected Bifröst endpoint and a `bifrost_endpoint_sha256` that matches the frozen experiment's `bifrostEndpointSha256`. The digest covers the trimmed endpoint after trailing slashes are removed. The URL is passed through Hermes's supported Codex endpoint override; direct `*.openai.com` and `*.chatgpt.com` hosts are rejected. The digest pins configuration identity only: it does not prove the endpoint is Bifröst or authorize provider egress.
+
+Both paired Harbor jobs must pin the same Bifröst endpoint digest, model, Hermes version and reasoning effort. `npm run preflight:feedback-loop` checks those bindings, but its full readiness procedure also queries the configured task-verifier endpoint, Harbor registry and Qdrant. Do not run that full procedure as an offline C07 check without separate external-probe authorization. It remains blocked until independent provider-native token-counter/context-window evidence, final-send authorization and the applicable C05/C06 gates are present; no token window is inferred from agent-reported usage.
+
+The Harbor trial's original `agent/hermes-session.jsonl` and `agent/hermes.txt` are private transcript artifacts and must remain outside the repository. The collector refuses a session export located inside the repository, hashes the original bytes, and excludes the raw session export, Hermes text log, projection body, context receipts and final-wire envelope from copied output. `agent-loop-evidence.json` retains only the digest, redacted event counts, tool-call/result ID hashes, Gateway request IDs and signature-checked receipt summaries. Caller session IDs are correlation only; when a same-session correlation is not observed, agent-loop evidence remains `NOT_RUN`. Hermes export alone cannot attest durable host history or compaction, and retrieval provider traces are not final LLM egress receipts.
+
+Agent-loop evidence has only `NOT_RUN`, `BLOCKED` or `CANDIDATE` states. A signature checked with an operator-supplied public key proves envelope integrity, not signer identity; C05 receipts therefore remain candidates. No mock, normalized session fixture, projection receipt, Harbor reward or usage counter by itself is real-agent acceptance. The owner authorized offline C07 implementation only; real Hermes/provider/Harbor trials remain unauthorized and are `NOT_RUN`.
+
 ## Selection and release gates
 
 These commands prepare or evaluate evidence; none should be replaced by an assertion in documentation:

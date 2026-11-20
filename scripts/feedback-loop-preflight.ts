@@ -15,6 +15,7 @@ import {
   inspectFeedbackVerifierModelsResponse,
   hermesCodexAuthenticationRoute,
   inspectFeedbackVerifierConfiguration,
+  inspectHermesBifrostEndpoint,
   inspectHermesAuthJson,
   validateFeedbackImageOverride,
   validateFeedbackPreflightBinding,
@@ -48,6 +49,7 @@ interface PreflightManifest {
     readonly agentVersion: string;
     readonly model: string;
     readonly reasoningEffort: FeedbackHarborJobIdentity['reasoningEffort'];
+    readonly bifrostEndpointSha256?: string;
     readonly harborVersion: string;
     readonly imageDigest?: string;
     readonly taskImages?: readonly { readonly reference: string; readonly digest: string }[];
@@ -287,12 +289,22 @@ const harborJobIdentity = async (
     const checked = validateMatchingFeedbackHarborJobs(nativeJob, aceJob);
     if (checked._tag === 'Err') return { check: { status: 'not_ready', reason: checked.error.message } };
     return {
-      check: { status: 'ready', reason: 'native and ACE optional jobs pin the same serial model/runtime identity', identity: checked.value.model },
+      check: { status: 'ready', reason: 'native and ACE optional jobs pin the same serial Hermes/model/reasoning/Bifröst endpoint identity', identity: checked.value.model },
       identity: checked.value,
     };
   } catch (error) {
     return { check: { status: 'not_ready', reason: error instanceof Error ? error.message : 'Harbor job identity could not be read' } };
   }
+};
+
+const hermesBifrostEndpoint = (expectedSha256: string | undefined): PreflightCheck => {
+  const endpoint = process.env.HERMES_CODEX_BASE_URL?.trim();
+  const normalized = endpoint?.replace(/\/+$/u, '');
+  const endpointSha256 = normalized === undefined || normalized.length === 0 ? undefined : sha256(normalized);
+  const readiness = inspectHermesBifrostEndpoint({ endpoint, endpointSha256, expectedSha256 });
+  return readiness.status === 'ready'
+    ? { status: 'ready', reason: readiness.reason, identity: readiness.identity }
+    : { status: 'not_ready', reason: readiness.reason };
 };
 
 const inspectDockerImage = (target: string, digest: string): PreflightCheck => {
@@ -448,6 +460,11 @@ const main = async (): Promise<void> => {
     harborDatasets: command('harbor', ['datasets', 'list']),
     harborDatasetPinned: harborDataset(datasetId),
     hermesCodexAuth: await hermesCodexAuth(),
+    bifrostEndpoint: hermesBifrostEndpoint(experimentManifest?.bifrostEndpointSha256),
+    providerTokenWindow: {
+      status: 'not_ready',
+      reason: 'provider-native token counter and context-window evidence is not independently certified; live Hermes trials remain blocked',
+    },
     docker: command('docker', ['--version']),
     harborJobs: harborJobs.check,
     taskVerifier: await taskVerifier(args.nativeJobPath),
@@ -471,12 +488,14 @@ const main = async (): Promise<void> => {
         jobAgentVersion: harborJobs.identity.agentVersion,
         jobModel: harborJobs.identity.model,
         jobReasoningEffort: harborJobs.identity.reasoningEffort,
+        actualBifrostEndpointSha256: checks.bifrostEndpoint.identity,
+        jobBifrostEndpointSha256: harborJobs.identity.bifrostEndpointSha256,
         experiment: experimentManifest,
       }),
       ...imageBindingFailures,
     ];
     checks.experimentBinding = failures.length === 0
-      ? { status: 'ready', reason: 'experiment identity matches current checkout, Harbor jobs/version, image provenance and OAuth route' }
+      ? { status: 'ready', reason: 'experiment identity matches checkout, Harbor jobs/version, Bifröst endpoint, image provenance and OAuth route' }
       : { status: 'not_ready', reason: `experiment identity mismatch: ${[...new Set(failures)].join(', ')}` };
   }
   checks.qdrant = args.fastLocal && datasetId === 'local/ace-suite'
@@ -488,7 +507,7 @@ const main = async (): Promise<void> => {
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
     'embeddingPython', 'sparseEmbedding', 'harbor', 'harborRun', 'harborDatasetPinned',
-    'hermesCodexAuth', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
+    'hermesCodexAuth', 'bifrostEndpoint', 'providerTokenWindow', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
     'embeddingCache', 'qdrant', 'taskVerifier',
   ];
   const blocked = required.filter((name) => !['ready', 'not_required'].includes(checks[name]?.status ?? 'not_ready'));
@@ -507,6 +526,8 @@ const main = async (): Promise<void> => {
           agentVersion: harborJobs.identity.agentVersion,
           model: harborJobs.identity.model,
           reasoningEffort: harborJobs.identity.reasoningEffort,
+          ...(harborJobs.identity.bifrostEndpointSha256 === undefined
+            ? {} : { bifrostEndpointSha256: harborJobs.identity.bifrostEndpointSha256 }),
           harborVersion: checks.harbor.identity ?? 'unknown',
           ...(effectiveImageDigest === undefined ? {} : { imageDigest: effectiveImageDigest }),
           ...(manifestTaskImages === undefined ? {} : { taskImages: manifestTaskImages }),
