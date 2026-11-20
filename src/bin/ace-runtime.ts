@@ -17,6 +17,7 @@ import { makeFetchHttpPort, makeQdrantCodeCandidatePort } from '../adapters/http
 import { makeQdrantSdkAdapter, validateLocalQdrantBaseUrl } from '../adapters/qdrant-sdk-adapter.js';
 import { buildLocalCodeIndex, type LocalCodeIndexBuild } from '../adapters/local-code-index.js';
 import { makeNodeWorkspacePort } from '../adapters/node-workspace-port.js';
+import { makeLocalQdrantPublicationAuthority, type QdrantPublicationTicket } from '../adapters/qdrant-publication-authority.js';
 import {
   makeProcessEmbeddingPort,
   verifiedEmbeddingIdentityFingerprint,
@@ -38,6 +39,7 @@ import {
   probeQdrantService,
   mutateQdrantChangedPaths,
   reuseOrPopulateQdrantSnapshot,
+  verifyQdrantSnapshotMembership,
 } from '../adapters/qdrant-context-provider.js';
 import {
   configuredAstGrepProvider,
@@ -647,7 +649,33 @@ const main = async (): Promise<void> => {
           const repoMapSymbolIdsByPath = new Map<RepoPath, readonly RepoMapSymbolId[]>();
           let activeRepoMap: RepoMapService | undefined;
           let latestBuild: LocalCodeIndexBuild | undefined;
-          let nextGeneration = generation;
+          const publicationAuthority = makeLocalQdrantPublicationAuthority({
+            workspaceId: registered.value.workspaceId,
+            // A shared, owner-private LOCAL directory is mandatory. Do not
+            // silently derive an unsafe per-process lock or support cross-host
+            // Qdrant mutation without an approved distributed authority.
+            directory: process.env.ACE_QDRANT_PUBLICATION_DIR?.trim() ?? '',
+            declaredTopology: process.env.ACE_QDRANT_WRITER_TOPOLOGY?.trim(),
+          });
+          // A Qdrant write may have happened even if the source-after check,
+          // membership verification or durable epoch commit subsequently fails.
+          // Never continue serving the old provider as READY in that case.
+          let publicationPending = 0;
+          let publicationTrustworthy = false;
+          const confirmEmptyQdrantBootstrap = async (): Promise<Result<boolean, DomainError>> => {
+            const collection = qdrantCollectionName(workspaceKey, embeddingFingerprint, retrievalFingerprint);
+            const ensured = await Effect.runPromise(ensureQdrantCollection(
+              collection, effectiveEmbedding.dimension, qdrantSdk,
+              retrievalStrategy === 'dense' ? 'dense' : 'hybrid',
+            ));
+            if (ensured._tag === 'Err') return ensured;
+            const counted = await Effect.runPromise(qdrantSdk.countPoints(collection, {
+              exact: true,
+              filter: { must: [{ key: 'workspace_id', match: { value: registered.value.workspaceId } }] },
+            }));
+            if (counted._tag === 'Err') return counted;
+            return ok(counted.value === 0);
+          };
           let workspaceSync: WorkspaceSync | undefined;
           let latestPublished: QdrantContextConfig | undefined;
           let semanticSnapshot: {
@@ -658,7 +686,7 @@ const main = async (): Promise<void> => {
             !isSensitiveSourcePath(repoPath)
             && (structuralLanguageForPath(repoPath) !== undefined
               || /(?:^|\/)(?:tsconfig(?:\..+)?\.json|package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock)$/u.test(repoPath));
-          const publishBuild = async (
+          const publishBuildUnchecked = async (
             build: LocalCodeIndexBuild,
             buildGeneration: number,
             verification: 'full' | 'incremental' = 'full',
@@ -989,6 +1017,62 @@ const main = async (): Promise<void> => {
               ...(activeRepoMap === undefined ? {} : { repoMap: activeRepoMap }),
             });
           };
+          const publishBuild = async (
+            build: LocalCodeIndexBuild,
+            ticket: QdrantPublicationTicket,
+            verification: 'full' | 'incremental' = 'full',
+            changedPaths: readonly RepoPath[] = [],
+            delta?: WorkspaceManifestDelta,
+            deltaMetrics?: {
+              readonly added: number;
+              readonly changed: number;
+              readonly deleted: number;
+              readonly renamed: number;
+              readonly unchanged: number;
+            },
+          ): Promise<Result<QdrantContextConfig, DomainError>> => {
+            const sourceKey = codeIndexKey(build.index, build.coverage, retrievalFingerprint, build.fileManifest);
+            const collection = qdrantCollectionName(workspaceKey, embeddingFingerprint, retrievalFingerprint);
+            const verifySource = async (): Promise<Result<boolean, DomainError>> => {
+              if (verification === 'incremental') {
+                const sourceProbe = await Effect.runPromise(observeWorkspaceManifest(
+                  files, registered.value.rootPath, build.workspaceManifest, retrievalRelevantPath,
+                ));
+                if (sourceProbe._tag === 'Err') return sourceProbe;
+                return ok(workspaceManifestEqual(
+                  build.workspaceManifest, sourceProbe.value.manifest ?? build.workspaceManifest,
+                ));
+              }
+              const current = await Effect.runPromise(files.snapshot(registered.value.rootPath, Date.now()));
+              if (current._tag === 'Err') return current;
+              return ok(workspaceManifestEqual(
+                build.workspaceManifest, workspaceManifestFromSnapshot(current.value, scopeFingerprint),
+              ));
+            };
+            publicationPending += 1;
+            try {
+              const outcome = await publicationAuthority.publish({
+                ticket, indexKey: sourceKey, collection, verifySource,
+                write: () => publishBuildUnchecked(
+                  build, ticket.epoch, verification, changedPaths, delta, deltaMetrics,
+                ),
+                // Verify the COMPLETE logical membership, including unchanged
+                // files, after changed-path deletes and after a cold restart.
+                verifyMembership: () => Effect.runPromise(verifyQdrantSnapshotMembership(
+                  qdrantSdk, collection, registered.value.workspaceId, undefined,
+                  build.index.candidates.map((candidate) => candidate.candidateId),
+                )),
+              });
+              publicationTrustworthy = outcome._tag === 'Ok';
+              if (outcome._tag === 'Err') {
+                readiness.code_retrieval = { state: 'not_ready', reason: 'qdrant_publication_uncommitted' };
+                readiness.unified_context = { state: 'not_ready', reason: 'qdrant_publication_uncommitted' };
+              }
+              return outcome;
+            } finally {
+              publicationPending -= 1;
+            }
+          };
           const reconcileRuntime: NonNullable<QdrantContextConfig['reconcile']> = (currentManifest, delta) => {
             const sync = workspaceSync;
             if (sync === undefined) return Effect.succeed(err(domainError('NOT_READY', 'workspace_sync', 'workspace synchronization is not initialized')));
@@ -1016,19 +1100,26 @@ const main = async (): Promise<void> => {
               unchanged: 0,
             }
             : undefined;
-          const built = await Effect.runPromise(buildLocalCodeIndex(files, registered.value.workspaceId, registered.value.rootPath, {
-            generation,
-            scopeFingerprint,
-            structural,
-            parserVersion: structuralFingerprint,
-          }));
+          const initialTicket = await publicationAuthority.reserve(confirmEmptyQdrantBootstrap);
+          const initialEpoch = initialTicket._tag === 'Ok' ? initialTicket.value.epoch : generation;
+          const built = initialTicket._tag === 'Err'
+            ? initialTicket
+            : await Effect.runPromise(buildLocalCodeIndex(files, registered.value.workspaceId, registered.value.rootPath, {
+              generation: initialEpoch,
+              scopeFingerprint,
+              structural,
+              parserVersion: structuralFingerprint,
+            }));
           if (built._tag === 'Err') {
             embeddings.close();
             readiness.code_retrieval = { state: 'not_ready', reason: 'structural_index_failed' };
             readiness.unified_context = { state: 'not_ready', reason: 'structural_index_failed' };
             process.stderr.write(`ace-runtime context NOT_READY: structural index failed (${built.error.code})\n`);
           } else {
-            const published = await publishBuild(built.value, generation, 'full', [], undefined, startupDeltaMetrics);
+            const published = await publishBuild(
+              built.value, { workspaceId: registered.value.workspaceId, epoch: initialEpoch },
+              'full', [], undefined, startupDeltaMetrics,
+            );
             if (published._tag === 'Err') {
               embeddings.close();
               readiness.code_retrieval = { state: 'not_ready', reason: 'qdrant_index_failed' };
@@ -1046,7 +1137,7 @@ const main = async (): Promise<void> => {
                   initial: {
                     workspaceId: registered.value.workspaceId,
                     workspaceManifest: built.value.workspaceManifest,
-                    generation,
+                    generation: initialEpoch,
                     indexKey: initialIndexKey,
                     candidateIdsByPath: candidateMembershipByPath(built.value.index.candidates.map((candidate) => ({ candidate, score: 0, freshness: 'unknown' }))),
                   },
@@ -1059,7 +1150,9 @@ const main = async (): Promise<void> => {
                   ),
                   rebuild: ({ nextManifest, delta }) => Effect.promise(async () => {
                     if (latestBuild === undefined) return err(domainError('NOT_READY', 'workspace_sync', 'initial retrieval snapshot is not available'));
-                    const rebuildGeneration = nextGeneration + 1;
+                    const ticket = await publicationAuthority.reserve(confirmEmptyQdrantBootstrap);
+                    if (ticket._tag === 'Err') return ticket;
+                    const rebuildGeneration = ticket.value.epoch;
                     const rebuilt = await Effect.runPromise(buildLocalCodeIndex(
                       files,
                       registered.value.workspaceId,
@@ -1083,12 +1176,11 @@ const main = async (): Promise<void> => {
                       ...delta.deleted,
                       ...delta.renamed.flatMap((entry) => [entry.from, entry.to]),
                     ];
-                    const nextPublished = await publishBuild(rebuilt.value, rebuildGeneration, 'incremental', changedPaths, delta);
+                    const nextPublished = await publishBuild(rebuilt.value, ticket.value, 'incremental', changedPaths, delta);
                     if (nextPublished._tag === 'Err') return nextPublished;
                     const nextIndexKey = nextPublished.value.indexKey;
                     if (nextIndexKey === undefined) return err(domainError('NOT_READY', 'workspace_sync', 'synchronized publication has no index key'));
                     latestBuild = rebuilt.value;
-                    nextGeneration = rebuildGeneration;
                     latestPublished = nextPublished.value;
                     return ok({
                       workspaceId: registered.value.workspaceId,
@@ -1099,12 +1191,27 @@ const main = async (): Promise<void> => {
                     });
                   }),
                 });
-                context = makeQdrantContextProvider({
+                const candidateContext = makeQdrantContextProvider({
                   ...published.value,
                   reconcile: reconcileRuntime,
                   workspaceSync,
                   qdrantStableCollection: true,
                 });
+                // Guard BOTH ends of a search: an in-flight lookup can overlap
+                // mutation, and a failed post-write check must not leave a
+                // stale provider capable of returning verified-empty/ready.
+                context = {
+                  search: (...args: Parameters<typeof candidateContext.search>) => Effect.gen(function* () {
+                    if (publicationPending !== 0 || !publicationTrustworthy) {
+                      return err(domainError('NOT_READY', 'qdrant_publication', 'Qdrant publication is uncommitted'));
+                    }
+                    const result = yield* candidateContext.search(...args);
+                    if (publicationPending !== 0 || !publicationTrustworthy) {
+                      return err(domainError('NOT_READY', 'qdrant_publication', 'Qdrant changed during retrieval'));
+                    }
+                    return result;
+                  }),
+                };
               }
             }
           }
