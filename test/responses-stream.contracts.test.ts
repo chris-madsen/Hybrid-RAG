@@ -195,3 +195,21 @@ test('C06 receipt CLI never overwrites input via symlink or hardlink output alia
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('C06 a completed terminal cannot hide missing SSE function or reasoning events', () => {
+  const skippedDelta = evidence({ events: [
+    { sequenceNumber: 1, type: 'response.created' },
+    { sequenceNumber: 3, type: 'response.function_call_arguments.delta' },
+    { sequenceNumber: 4, type: 'response.completed' },
+  ] });
+  const noBeginning = evidence({ events: [
+    { sequenceNumber: 9, type: 'response.completed' },
+  ] });
+  for (const input of [skippedDelta, noBeginning]) {
+    const result = evaluateNativeResponsesStreamEvidence(input);
+    assert.equal(result._tag, 'Err',
+      'observed success cannot attest chunks absent from the original event sequence');
+    if (result._tag === 'Err') assert.equal(result.error.path, 'stream_evidence.events');
+  }
+  assert.equal(evaluateNativeResponsesStreamEvidence(evidence())._tag, 'Ok');
+});

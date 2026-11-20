@@ -141,6 +141,14 @@ export const evaluateNativeResponsesStreamEvidence = (
       || (event.callIdSha256 !== undefined && !sha256Hex(event.callIdSha256))) {
       return rejected('stream_evidence.events', 'stream event sequence, type, or hashed item identity is invalid');
     }
+    // A terminal "completed" event does not prove lossless SSE when the
+    // capture silently skipped a function-call/reasoning delta. Refuse
+    // noncontiguous event summaries, rather than invent a complete run.
+    if ((events.length === 0 && event.sequenceNumber !== 0 && event.sequenceNumber !== 1)
+      || (events.length > 0 && event.sequenceNumber !== priorSequence + 1)) {
+      return rejected('stream_evidence.events',
+        'stream event sequence contains unobserved event numbers');
+    }
     priorSequence = event.sequenceNumber as number;
     events.push({
       sequenceNumber: event.sequenceNumber as number,
