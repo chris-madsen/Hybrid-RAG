@@ -655,6 +655,7 @@ const main = async (): Promise<void> => {
             // silently derive an unsafe per-process lock or support cross-host
             // Qdrant mutation without an approved distributed authority.
             directory: process.env.ACE_QDRANT_PUBLICATION_DIR?.trim() ?? '',
+            declaredTopology: process.env.ACE_QDRANT_WRITER_TOPOLOGY?.trim(),
           });
           let workspaceSync: WorkspaceSync | undefined;
           let latestPublished: QdrantContextConfig | undefined;
