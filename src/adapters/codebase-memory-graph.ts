@@ -158,19 +158,37 @@ export const nativeTraceQualifiedNames = (value: unknown): readonly string[] => 
 };
 
 /** Native query_graph always reports columns/rows; file values need validation. */
-export const nativeQueryGraphFiles = (root: string, value: unknown): readonly RepoPath[] | undefined => {
+interface NativeGraphTarget {
+  readonly file: RepoPath;
+  readonly qn?: string;
+}
+
+/** Decode only explicit graph-returned file and qualified-symbol identity. */
+export const nativeQueryGraphTargets = (
+  root: string,
+  value: unknown,
+): readonly NativeGraphTarget[] | undefined => {
   const o = object(value);
   if (o === undefined || !Array.isArray(o.columns) || !Array.isArray(o.rows)) return undefined;
   const index = o.columns.indexOf('file');
+  const qnIndex = o.columns.indexOf('qn');
   if (index < 0) return undefined;
-  const paths: RepoPath[] = [];
+  const targets: NativeGraphTarget[] = [];
   for (const row of o.rows) {
     if (!Array.isArray(row) || typeof row[index] !== 'string') return undefined;
-    const owned = ownedPath(root, row[index]);
-    if (owned !== undefined) paths.push(owned);
+    const file = ownedPath(root, row[index]);
+    if (file === undefined) continue;
+    const qn = qnIndex < 0 ? undefined : row[qnIndex];
+    targets.push({
+      file, ...(typeof qn === 'string' && qn.length > 0 ? { qn } : {}),
+    });
   }
-  return paths;
+  return targets;
 };
+
+/** File-only decoder retained for source-ownership and native contract tests. */
+export const nativeQueryGraphFiles = (root: string, value: unknown): readonly RepoPath[] | undefined =>
+  nativeQueryGraphTargets(root, value)?.map((node) => node.file);
 
 /** Impact results may contain nested source-path records; decode only explicit fields. */
 const nativeImpactFiles = (root: string, result: unknown): readonly RepoPath[] => {
