@@ -13,7 +13,7 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(script, /Bifrost source checkout must be clean/u);
   assert.match(script, /go 1\.27\.4/u);
   assert.match(script, /rev-parse HEAD/u);
-  assert.match(script, /main_test\.go/u);
+  assert.match(script, /plugin\/\*\.go/u);
   assert.match(workflow, /BIFROST_SOURCE_ROOT:\s+\$\{\{\s*runner\.temp\s*\}\}\/bifrost-src/u);
   assert.match(workflow, /git -C "\$source_root" fetch --no-tags --depth=1 origin "\$BIFROST_COMMIT"/u);
   assert.match(workflow, /scripts\/build-bifrost-ace-plugin\.sh\|\.github\/workflows\/ace-contracts\.yml/u);

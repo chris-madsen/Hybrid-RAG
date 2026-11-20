@@ -75,6 +75,7 @@ interface MakeOptions {
   readonly allowedModelsByProvider?: Readonly<Record<string, readonly string[]>>;
   readonly allowedDataClasses?: readonly Exclude<DataClass, 'secret'>[];
   readonly allowedDestinations?: readonly string[];
+  readonly allowedStreamingRoutes?: GatewayProjectionSecurity['allowedStreamingRoutes'];
   readonly context?: ContextTransformService;
   readonly audit?: GatewayProjectionSecurity['audit'];
 }
@@ -91,6 +92,7 @@ const makeSecurity = (options: MakeOptions = {}): GatewayProjectionSecurity => {
     allowedProviders: options.allowedProviders ?? ['openai'],
     allowedModelsByProvider: options.allowedModelsByProvider ?? { openai: [native.model] },
     allowedDestinations: options.allowedDestinations ?? ['https://api.openai.com/v1/responses'],
+    allowedStreamingRoutes: options.allowedStreamingRoutes ?? [],
     receiptSigningKey: 'test-projection-receipt-secret',
     clock: { nowMs: () => Date.now() },
     audit: options.audit ?? { append: () => Effect.succeed(ok(undefined)) },
@@ -322,17 +324,52 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     assert.equal(invalidReceipt.value.reasonCode, 'PROJECTION_RECEIPT_INVALID');
   }
 
-  const streamingAttempt = attempt('bf-attempt-' + 'f'.repeat(32));
-  const streamingBody = JSON.parse(decodeBase64Utf8(streamingAttempt.bodyBase64)) as Record<string, unknown>;
-  streamingBody.stream = true;
-  const streamingBodyText = JSON.stringify(streamingBody);
-  streamingAttempt.bodyBase64 = encodeBase64Utf8(streamingBodyText);
-  streamingAttempt.bodySha256 = hash(streamingBodyText);
-  const streaming = await Effect.runPromise(authorization.authorizePhysicalSend(streamingAttempt));
+  const streamingRequest = req({ requestId, attemptGroupId: requestId }, native);
+  const streamingProjection = await Effect.runPromise(
+    makeResponsesProjectionService(context, security).projectResponses(streamingRequest),
+  );
+  assert.equal(streamingProjection._tag, 'Ok');
+  if (streamingProjection._tag === 'Err' || streamingProjection.value.kind !== 'PREPARED') return;
+  const streamingAttemptFor = (attemptId: string, destination = 'https://api.openai.com/v1/responses') => ({
+    ...attempt(attemptId, destination),
+    bodyBase64: streamingProjection.value.bodyBase64,
+    bodySha256: streamingProjection.value.projectedBodySha256,
+    preparedBodySha256: streamingProjection.value.projectedBodySha256,
+    projectionReceipt: streamingProjection.value.projectionReceipt,
+    deadlineEpochMs: streamingRequest.deadlineEpochMs,
+  });
+  const route = { provider: 'openai', model: native.model, destination: 'https://api.openai.com/v1/responses' };
+  const streamingAttemptId = 'bf-attempt-' + 'f'.repeat(32);
+  const streaming = await Effect.runPromise(authorization.authorizePhysicalSend(streamingAttemptFor(streamingAttemptId)));
   assert.equal(streaming._tag, 'Ok');
   if (streaming._tag === 'Ok') {
     assert.equal(streaming.value.kind, 'BLOCK');
-    if (streaming.value.kind === 'BLOCK') assert.equal(streaming.value.reasonCode, 'FINAL_BODY_NOT_CERTIFIED');
+    if (streaming.value.kind === 'BLOCK') assert.equal(streaming.value.reasonCode, 'STREAMING_ROUTE_NOT_ALLOWED');
+  }
+
+  const streamingAuthorization = makeGatewayAttemptAuthorizationService({
+    ...security, allowedStreamingRoutes: [route],
+  });
+  const enabledStream = await Effect.runPromise(streamingAuthorization.authorizePhysicalSend(
+    streamingAttemptFor('bf-attempt-' + 'c'.repeat(32)),
+  ));
+  assert.equal(enabledStream._tag, 'Ok');
+  if (enabledStream._tag === 'Err') return;
+  assert.equal(enabledStream.value.kind, 'BLOCK');
+  if (enabledStream.value.kind === 'BLOCK') {
+    assert.equal(enabledStream.value.reasonCode, 'OAUTH_ROUTE_UNVERIFIED');
+  }
+
+  const wrongStreamRoute = makeGatewayAttemptAuthorizationService({
+    ...security,
+    allowedStreamingRoutes: [{ ...route, destination: 'https://api.openai.com/v1/other' }],
+  });
+  const wrongStream = await Effect.runPromise(wrongStreamRoute.authorizePhysicalSend(
+    streamingAttemptFor('bf-attempt-' + 'd'.repeat(32), 'https://api.openai.com/v1/responses'),
+  ));
+  assert.equal(wrongStream._tag, 'Ok');
+  if (wrongStream._tag === 'Ok' && wrongStream.value.kind === 'BLOCK') {
+    assert.equal(wrongStream.value.reasonCode, 'STREAMING_ROUTE_NOT_ALLOWED');
   }
 
   const secretAttempt = attempt('bf-attempt-' + '7'.repeat(32));

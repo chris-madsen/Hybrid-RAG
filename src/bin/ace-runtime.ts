@@ -79,6 +79,7 @@ import { verifyCompiledRuntimeProvenance } from '../application/runtime-provenan
 import { makeContextTransformService } from '../application/context-transform-service.js';
 import { makeContextAssembler } from '../application/context-assembler.js';
 import { makeGatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
+import { validateNativeResponsesStreamingRoutes } from '../application/gateway-security-contract.js';
 import { makeRepoMapService, type RepoMapService } from '../application/repo-map-service.js';
 import {
   makeLspServerDescriptor,
@@ -139,6 +140,18 @@ const configuredStringArrayMap = (name: string): Readonly<Record<string, readonl
     result[provider] = Object.freeze(rawModels.map((model: string) => model.trim()));
   }
   return Object.freeze(result);
+};
+
+const configuredNativeResponsesStreamingRoutes = (name: string) => {
+  const raw = process.env[name]?.trim();
+  if (raw === undefined || raw.length === 0) return validateNativeResponsesStreamingRoutes([]);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch (cause) {
+    throw new Error(`${name} must be a JSON array of exact provider/model/destination routes`, { cause });
+  }
+  return validateNativeResponsesStreamingRoutes(parsed);
 };
 
 const configuredLanguageIds = (name: string): Readonly<Record<string, string>> | undefined => {
@@ -1230,6 +1243,14 @@ const main = async (): Promise<void> => {
     .map((destination) => destination.trim())
     .filter((destination) => destination.length > 0);
   const gatewayAllowedLlmModelsByProvider = configuredStringArrayMap('ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON');
+  const gatewayAllowedLlmStreamingRoutes = configuredNativeResponsesStreamingRoutes('ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON');
+  for (const route of gatewayAllowedLlmStreamingRoutes) {
+    if (!gatewayAllowedLlmProviders.includes(route.provider)
+      || !(gatewayAllowedLlmModelsByProvider[route.provider] ?? []).includes(route.model)
+      || !gatewayAllowedLlmDestinations.includes(route.destination)) {
+      throw new Error('ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON must be a subset of the provider, model, and destination allowlists');
+    }
+  }
   const configuredGatewayDataClasses = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON', [])
     .map((dataClass) => dataClass.trim());
   const allowedGatewayDataClasses = new Set<Exclude<DataClass, 'secret'>>([
@@ -1282,6 +1303,7 @@ const main = async (): Promise<void> => {
     allowedProviders: gatewayAllowedLlmProviders,
     allowedModelsByProvider: gatewayAllowedLlmModelsByProvider,
     allowedDestinations: gatewayAllowedLlmDestinations,
+    allowedStreamingRoutes: gatewayAllowedLlmStreamingRoutes,
     // Projection receipts are intentionally process-scoped. After a restart,
     // any in-flight Bifröst attempt fails closed and must prepare again.
     receiptSigningKey: randomBytes(32).toString('base64url'),
