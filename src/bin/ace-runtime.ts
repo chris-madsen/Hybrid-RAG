@@ -1053,15 +1053,15 @@ const main = async (): Promise<void> => {
             try {
               const outcome = await publicationAuthority.publish({
                 ticket, indexKey: sourceKey, collection, verifySource,
-              write: () => publishBuildUnchecked(
-                build, ticket.epoch, verification, changedPaths, delta, deltaMetrics,
-              ),
-              // Verify the COMPLETE logical membership, including unchanged
-              // files, after changed-path deletes and after a cold restart.
-              verifyMembership: () => Effect.runPromise(verifyQdrantSnapshotMembership(
-                qdrantSdk, collection, registered.value.workspaceId, undefined,
-                build.index.candidates.map((candidate) => candidate.candidateId),
-              )),
+                write: () => publishBuildUnchecked(
+                  build, ticket.epoch, verification, changedPaths, delta, deltaMetrics,
+                ),
+                // Verify the COMPLETE logical membership, including unchanged
+                // files, after changed-path deletes and after a cold restart.
+                verifyMembership: () => Effect.runPromise(verifyQdrantSnapshotMembership(
+                  qdrantSdk, collection, registered.value.workspaceId, undefined,
+                  build.index.candidates.map((candidate) => candidate.candidateId),
+                )),
               });
               publicationTrustworthy = outcome._tag === 'Ok';
               if (outcome._tag === 'Err') {
