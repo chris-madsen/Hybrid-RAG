@@ -36,7 +36,7 @@ Interpret examples semantically, **not via string matching alone**. An explicit 
 - **BLOCKED_INPUT / BLOCKED_G02 / BLOCKED_DEPENDENCY / BLOCKED_EGRESS / BLOCKED_AMBIGUOUS**: report exact blocker at the selected stage; no fabricated PASS and no fallback to full Research.
 - **START_NEW_PIPELINE**: explicitly new end-to-end task or no usable existing artifacts after inspecting actual state.
 
-**Do not infer state from a checkpoint alone.** No new durable phase tracker or parallel OpenSpec change for the same work. The existing `tasks.md` is the one acceptance ledger. Stage-specific Draft PRs stack only when producing *new* stages; restarting an existing stage reuses its branch/PR. Static docs/tests are not live proof that Hermes or another harness really chose the correct entry.
+**Do not infer state from a checkpoint alone.** No new durable phase tracker or parallel OpenSpec change for the same work. The existing `tasks.md` is the one acceptance ledger. Stage-specific PRs stack only when producing *new* stages; restarting an existing stage reuses its branch/PR. Static docs/tests are not live proof that Hermes or another harness really chose the correct entry.
 
 ## Implementation-specific admission (additional gates for I)
 
