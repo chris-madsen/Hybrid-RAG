@@ -4,7 +4,8 @@ set -euo pipefail
 : "${BIFROST_SOURCE_ROOT:?set BIFROST_SOURCE_ROOT to the exact Bifrost checkout}"
 : "${BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1}"
 : "${GO_BIN:=go}"
-: "${OUTPUT:=integrations/bifrost/ace-connector/ace-gateway-projection.so}"
+temp_root=${RUNNER_TEMP:-${TMPDIR:-$HOME/.cache/ace}}
+: "${OUTPUT:=$temp_root/ace-gateway-projection.so}"
 export GOWORK=off
 
 root=$(git -C "$BIFROST_SOURCE_ROOT" rev-parse --show-toplevel)
@@ -24,7 +25,8 @@ if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=all)" ]]; t
   echo "ACE source checkout must be clean before plugin compilation" >&2
   exit 2
 fi
-build_root=$(mktemp -d "${TMPDIR:-/tmp}/ace-bifrost-plugin.XXXXXX")
+mkdir -p "$temp_root"
+build_root=$(mktemp -d "$temp_root/ace-bifrost-plugin.XXXXXX")
 trap 'rm -rf "$build_root"' EXIT
 cp integrations/bifrost/ace-connector/plugin/main.go "$build_root/main.go"
 cp integrations/bifrost/ace-connector/plugin/main_test.go "$build_root/main_test.go"

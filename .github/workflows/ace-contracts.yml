@@ -51,6 +51,8 @@ jobs:
             echo "[scope] changed path: ${path}"
             case "${path}" in
               integrations/bifrost/ace-connector/*) go=true ;;
+              scripts/build-bifrost-ace-plugin.sh|.github/workflows/ace-contracts.yml)
+                node=true; go=true ;;
               .github/fixtures/contracts/*) node=true; go=true ;;
               src/*|test/*|scripts/*|architecture/*|contracts/*|package.json|package-lock.json|tsconfig.json|tsconfig.eslint.json|.eslintrc.cjs|knip.json|knip.config.*|benchmarks/fixtures/*)
                 node=true ;;
