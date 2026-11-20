@@ -5,7 +5,7 @@ import { makeStructuralAnalysis, type StructuralAnalysis, type StructuralKind, t
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, type Result } from '../domain/result.js';
 import type { RepoPath } from '../domain/workspace.js';
-import type { CodebaseMemoryRepoMap, NativeOutlineRow } from './codebase-memory-repo-map.js';
+import type { CodebaseMemoryGraph, NativeOutlineRow } from './codebase-memory-graph.js';
 
 /**
  * Binds upstream CBM get_file_outline to ACE's verified-source pipeline.
@@ -87,7 +87,7 @@ export const cbmOutlineToAnalysis = (
 };
 
 export const makeCodebaseMemoryStructuralPort = (
-  cbm: Pick<CodebaseMemoryRepoMap, 'outline'>,
+  cbm: Pick<CodebaseMemoryGraph, 'outline'>,
 ): StructuralAnalysisPort => {
   const extract: StructuralAnalysisPort['extract'] = (input) =>
     Effect.gen(function* () {
