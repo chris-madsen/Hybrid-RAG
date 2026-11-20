@@ -356,21 +356,31 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
    * the seed symbol itself. Both sides are bounded and remain candidate hints
    * until ACE rereads the original file. Never infer an edge in this adapter.
    */
-  const adjacentNativeFiles = async (files: readonly RepoPath[]): Promise<readonly RepoPath[]> => {
+  const adjacentNativeFiles = async (files: readonly RepoPath[]): Promise<readonly NativeGraphTarget[]> => {
     const owned = [...new Set(files)].filter((file) => /^[\w./-]+$/u.test(file)).slice(0, 8);
     if (owned.length === 0) return [];
+    // CBM also stores semantic similarity and historical co-change links.
+    // Neither is a source dependency. Only named dependency-bearing edges
+    // may expand the structural shortlist.
+    const dependencyRelations = [
+      'CALLS', 'IMPORTS', 'REFERENCES_FILE', 'EXTENDS', 'IMPLEMENTS',
+      'OVERRIDES', 'DEPENDS_ON', 'TESTS', 'TESTS_FILE', 'CONFIGURES',
+      'HTTP_CALLS', 'GRPC_CALLS', 'ASYNC_CALLS', 'HANDLES', 'SPAWNS',
+      'EMITS', 'LISTENS_ON', 'READS', 'WRITES', 'USES_TYPE',
+    ];
+    const edgePredicate = dependencyRelations.map((name) => "type(r) = '" + name + "'").join(' OR ');
     const predicate = owned.map((file) => "origin.file_path = '" + file + "'").join(' OR ');
     const queries = [
-      'MATCH (origin)-[r]->(other) WHERE ' + predicate
-        + ' RETURN DISTINCT other.file_path AS file LIMIT 50',
-      'MATCH (other)-[r]->(origin) WHERE ' + predicate
-        + ' RETURN DISTINCT other.file_path AS file LIMIT 50',
+      'MATCH (origin)-[r]->(other) WHERE (' + predicate + ') AND (' + edgePredicate + ')'
+        + ' RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50',
+      'MATCH (other)-[r]->(origin) WHERE (' + predicate + ') AND (' + edgePredicate + ')'
+        + ' RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50',
     ];
-    const result: RepoPath[] = [];
+    const result: NativeGraphTarget[] = [];
     for (const query of queries) {
       const traversed = await Effect.runPromise(queryGraph(query));
       if (traversed._tag !== 'Ok') continue;
-      result.push(...(nativeQueryGraphFiles(root, traversed.value) ?? []));
+      result.push(...(nativeQueryGraphTargets(root, traversed.value) ?? []));
     }
     return result;
   };
