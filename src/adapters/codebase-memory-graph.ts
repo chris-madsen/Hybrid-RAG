@@ -205,13 +205,18 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
 
   const invoke = async (tool: string, args: Readonly<Record<string, unknown>>): Promise<Result<unknown, DomainError>> => {
     try {
+      // Git variables supplied by an embedding runner or isolated harness must
+      // not redirect CBM's source discovery to an unrelated checkout.
+      const env = { ...process.env, CBM_ALLOWED_ROOT: root };
+      delete env.GIT_DIR;
+      delete env.GIT_WORK_TREE;
       const { stdout } = await exec(command, ['cli', '--quiet', tool, JSON.stringify(args)], {
         cwd: root,
         encoding: 'utf8',
         timeout: timeoutMs,
         maxBuffer: 2 * 1024 * 1024,
         windowsHide: true,
-        env: { ...process.env, CBM_ALLOWED_ROOT: root },
+        env,
       });
       const response: unknown = JSON.parse(stdout);
       const body = object(response);
