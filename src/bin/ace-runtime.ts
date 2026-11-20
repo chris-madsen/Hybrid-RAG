@@ -657,6 +657,11 @@ const main = async (): Promise<void> => {
             directory: process.env.ACE_QDRANT_PUBLICATION_DIR?.trim() ?? '',
             declaredTopology: process.env.ACE_QDRANT_WRITER_TOPOLOGY?.trim(),
           });
+          // A Qdrant write may have happened even if the source-after check,
+          // membership verification or durable epoch commit subsequently fails.
+          // Never continue serving the old provider as READY in that case.
+          let publicationPending = 0;
+          let publicationTrustworthy = false;
           const confirmEmptyQdrantBootstrap = async (): Promise<Result<boolean, DomainError>> => {
             const collection = qdrantCollectionName(workspaceKey, embeddingFingerprint, retrievalFingerprint);
             const ensured = await Effect.runPromise(ensureQdrantCollection(
@@ -1044,8 +1049,10 @@ const main = async (): Promise<void> => {
                 build.workspaceManifest, workspaceManifestFromSnapshot(current.value, scopeFingerprint),
               ));
             };
-            return publicationAuthority.publish({
-              ticket, indexKey: sourceKey, collection, verifySource,
+            publicationPending += 1;
+            try {
+              const outcome = await publicationAuthority.publish({
+                ticket, indexKey: sourceKey, collection, verifySource,
               write: () => publishBuildUnchecked(
                 build, ticket.epoch, verification, changedPaths, delta, deltaMetrics,
               ),
@@ -1055,7 +1062,16 @@ const main = async (): Promise<void> => {
                 qdrantSdk, collection, registered.value.workspaceId, undefined,
                 build.index.candidates.map((candidate) => candidate.candidateId),
               )),
-            });
+              });
+              publicationTrustworthy = outcome._tag === 'Ok';
+              if (outcome._tag === 'Err') {
+                readiness.code_retrieval = { state: 'not_ready', reason: 'qdrant_publication_uncommitted' };
+                readiness.unified_context = { state: 'not_ready', reason: 'qdrant_publication_uncommitted' };
+              }
+              return outcome;
+            } finally {
+              publicationPending -= 1;
+            }
           };
           const reconcileRuntime: NonNullable<QdrantContextConfig['reconcile']> = (currentManifest, delta) => {
             const sync = workspaceSync;
@@ -1175,12 +1191,27 @@ const main = async (): Promise<void> => {
                     });
                   }),
                 });
-                context = makeQdrantContextProvider({
+                const candidateContext = makeQdrantContextProvider({
                   ...published.value,
                   reconcile: reconcileRuntime,
                   workspaceSync,
                   qdrantStableCollection: true,
                 });
+                // Guard BOTH ends of a search: an in-flight lookup can overlap
+                // mutation, and a failed post-write check must not leave a
+                // stale provider capable of returning verified-empty/ready.
+                context = {
+                  search: (...args: Parameters<typeof candidateContext.search>) => Effect.gen(function* () {
+                    if (publicationPending !== 0 || !publicationTrustworthy) {
+                      return err(domainError('NOT_READY', 'qdrant_publication', 'Qdrant publication is uncommitted'));
+                    }
+                    const result = yield* candidateContext.search(...args);
+                    if (publicationPending !== 0 || !publicationTrustworthy) {
+                      return err(domainError('NOT_READY', 'qdrant_publication', 'Qdrant changed during retrieval'));
+                    }
+                    return result;
+                  }),
+                };
               }
             }
           }
