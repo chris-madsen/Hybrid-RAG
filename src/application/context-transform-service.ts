@@ -6,7 +6,7 @@ import { makeContextAssembler, type ContextAssembler } from './context-assembler
 import { projectContextForDelivery, resolveDeliveryIntent } from '../domain/context-delivery.js';
 import { ingestRepoPath, makeWorkspaceId, type WorkingContextHints, type WorkspaceId } from '../domain/workspace.js';
 import type { RetrievalEvidence } from '../domain/retrieval.js';
-import { sourceCoverageComplete } from '../domain/source-coverage.js';
+import { resolveExplicitSourceRequirements, sourceCoverageComplete } from '../domain/source-coverage.js';
 
 export interface AceTransformRequest {
   readonly schemaVersion: 1;
@@ -132,6 +132,10 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
     }
     const sourceObligations = sourceObligationsFor(request.sourceObligations);
     if (sourceObligations._tag === 'Err') return sourceObligations;
+    // The native Gateway requests code ONLY. Do not fall back to the legacy
+    // includeCode route, which also implicitly requests optional RepoMap.
+    const sourcePlan = resolveExplicitSourceRequirements({ required: sourceObligations.value.required });
+    if (sourcePlan._tag === 'Err') return sourcePlan;
     const workspaceId = makeWorkspaceId(request.workspaceId);
     if (workspaceId._tag === 'Err') return workspaceId;
     const workspace = yield* ports.store.get(workspaceId.value);
@@ -146,11 +150,32 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
       includeDocs: false,
       includeMemory: false,
       includeHistory: false,
+      sourceRequirements: sourcePlan.value,
       ...(workingContext.value === undefined ? {} : { workingContextHints: workingContext.value }),
     });
     if (isErr(searched)) return searched;
+    // A provider which ignored the explicit code-only contract must not be
+    // allowed to turn a legacy optional map into a successful model request.
+    const returnedPlan = searched.value.sourcePlan;
+    // An omitted plan is not proof of having honored the caller's code-only
+    // restriction. Fail closed instead of silently accepting a legacy provider
+    // that may have searched or certified a different set of sources.
+    if (returnedPlan === undefined
+      || Object.keys(returnedPlan).length !== Object.keys(sourcePlan.value).length
+      || (Object.keys(sourcePlan.value) as Array<keyof typeof sourcePlan.value>).some((source) =>
+        returnedPlan[source]?.requirement !== sourcePlan.value[source]?.requirement
+        || returnedPlan[source]?.allowed !== sourcePlan.value[source]?.allowed)) {
+      return err(domainError('NOT_READY', 'source_plan', 'retrieval provider ignored the code-only source plan'));
+    }
+    // Defense in depth at the model boundary: even if a provider accidentally
+    // returns a structural item, do not allow it into receipt packing or the
+    // Native Responses developer context. It is not an authorized source.
+    const codeOnlyBundle = {
+      ...searched.value,
+      evidence: searched.value.evidence.filter((item) => item.source === 'code'),
+    };
     const projected = projectContextForDelivery(
-      searched.value,
+      codeOnlyBundle,
       resolveDeliveryIntent(request.intent),
       {
         ...(request.knownBundleId === undefined ? {} : { knownBundleId: request.knownBundleId }),
