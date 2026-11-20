@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { Effect } from 'effect';
-import { makeCodebaseMemoryRepoMap, parseCodebaseMemorySemanticRows } from '../src/adapters/codebase-memory-repo-map.js';
+import { makeCodebaseMemoryRepoMap, parseCodebaseMemoryLexicalRows, parseCodebaseMemorySemanticRows } from '../src/adapters/codebase-memory-repo-map.js';
 import type { CodeCandidate } from '../src/domain/retrieval.js';
 
 test('native semantic result table retains source path and rejects escapes', () => {
@@ -24,6 +24,13 @@ test('native semantic result table retains source path and rejects escapes', () 
   ]);
   assert.equal(parseCodebaseMemorySemanticRows(root, { semantic: { cols: [], rows: [] } }), undefined);
   assert.equal(parseCodebaseMemorySemanticRows(root, { error: 'not ready' }), undefined);
+});
+
+test('native CBM BM25 rows use documented columns without inventing a search rank', () => {
+  assert.deepEqual(parseCodebaseMemoryLexicalRows(resolve(process.cwd()), {
+    cols: ['qn', 'label', 'file', 'lines', 'rank'],
+    rows: [['ace.compareStructuralAnalyses', 'Function', 'src/application/ast-grep-parity.ts', '69-153', -7.5]],
+  }), [{ qn: 'ace.compareStructuralAnalyses', file: 'src/application/ast-grep-parity.ts', score: 7.5 }]);
 });
 
 test('installed Codebase Memory indexes ACE and returns source-bound candidates', {
@@ -58,7 +65,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   });
   const indexed = await Effect.runPromise(provider.reindex());
   assert.equal(indexed._tag, 'Ok', JSON.stringify(indexed));
-  const found = await Effect.runPromise(provider.search({ query: 'compareStructuralAnalyses function', limit: 100 }));
+  const found = await Effect.runPromise(provider.search({ query: 'compareStructuralAnalyses', limit: 100 }));
   assert.equal(found._tag, 'Ok', JSON.stringify(found));
   if (found._tag === 'Ok') {
     assert.ok(found.value.length > 0, 'native CBM must discover at least one matching ACE symbol');
