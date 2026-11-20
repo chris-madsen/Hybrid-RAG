@@ -7,6 +7,13 @@ import type { SemanticAnalysisPort } from '../ports.js';
 import type { LspRegistrySession } from './server-registry.js';
 
 /** Thin, extension-scoped routing; Claw server registry owns sessions. */
+/** Only actually resolved providers may appear in Gateway provenance. An
+ * absent/failed provider is unknown, not the configured TypeScript default.
+ */
+export const resolvedLspProviderLabel = (
+  providers: readonly Readonly<{ name: string; version: string }>[],
+): string => providers.map((provider) => `${provider.name}:${provider.version}`).join('|') || 'unavailable';
+
 export interface LspRoute {
   readonly languageIds: Readonly<Record<string, string>>;
   readonly session: LspRegistrySession;

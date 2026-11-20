@@ -85,7 +85,7 @@ import {
   makeLspServerRegistry,
 } from '../application/lsp/server-registry.js';
 import { knownLspServers, selectInstalledLspServersForPaths } from '../application/lsp/claw-discovery.js';
-import { makeRoutedLspSession } from '../application/lsp/routed-semantic.js';
+import { makeRoutedLspSession, resolvedLspProviderLabel } from '../application/lsp/routed-semantic.js';
 import { makeResponsesProjectionService } from '../application/responses-projection-service.js';
 import { runGatewayProjectionHttp } from '../transport/gateway-projection-http.js';
 
@@ -810,10 +810,12 @@ const main = async (): Promise<void> => {
                   serverName: plan.serverName, snapshotIdentity: sourceKey,
                 }))
                 : Promise.resolve(undefined)));
-            const semanticProviderVersion = serverPlans.map((plan, index) => {
+            const semanticProviderVersion = resolvedLspProviderLabel(serverPlans.flatMap((plan, index) => {
               const identity = providerIdentities[index];
-              return `${plan.serverName}:${identity?._tag === 'Ok' ? identity.value.version : 'unavailable'}`;
-            }).join('|');
+              return identity?._tag === 'Ok'
+                ? [{ name: plan.serverName, version: identity.value.version }]
+                : [];
+            }));
             const configIdentity = build.workspaceManifest.files
               .filter((file) => /^tsconfig(?:\..+)?\.json$/u.test(file.repoPath))
               .map((file) => `${file.repoPath}:${file.sourceDigest}`).sort().join('|') || 'absent';

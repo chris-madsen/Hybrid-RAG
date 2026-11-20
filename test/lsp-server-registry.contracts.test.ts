@@ -189,3 +189,16 @@ test('Claw multi-server registry routing preserves independent language ownershi
   assert.equal((await Effect.runPromise(composite.references({ ...query, repoPath: 'src/pkg.go' })))._tag, 'Err');
   assert.deepEqual(called, { py: 1, ts: 1 });
 });
+
+test('AR07 resolved provider summary never mislabels a missing LSP as TypeScript', async () => {
+  const { resolvedLspProviderLabel } = await import('../src/application/lsp/routed-semantic.js');
+  assert.equal(resolvedLspProviderLabel([]), 'unavailable');
+  assert.equal(resolvedLspProviderLabel([
+    { name: 'rust-analyzer', version: '1.0.0' },
+  ]), 'rust-analyzer:1.0.0');
+  assert.equal(resolvedLspProviderLabel([
+    { name: 'rust-analyzer', version: '1.0.0' },
+    { name: 'pyright-langserver', version: '1.1.0' },
+  ]), 'rust-analyzer:1.0.0|pyright-langserver:1.1.0');
+  assert.doesNotMatch(resolvedLspProviderLabel([]), /typescript-language-server/u);
+});
