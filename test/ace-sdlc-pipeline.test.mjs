@@ -47,7 +47,8 @@ test('one-agent ACE skills are discoverable, routed and keep G02 separate', () =
     assert.match(parent, new RegExp(name + '/SKILL\\.md', 'u'));
     assert.match(handoff, new RegExp(name, 'u'));
     assert.match(skill, /G02/u);
-    assert.match(skill, /Draft/u);
+    assert.match(skill, /PR/u);
+    assert.doesNotMatch(skill, /(?:create|open|publish|require).*Draft PR/iu);
   }
   assert.match(preparation, /ace-architecture-design/u);
   assert.match(toTickets, /ace-phase-plan/u);
@@ -55,6 +56,8 @@ test('one-agent ACE skills are discoverable, routed and keep G02 separate', () =
   assert.match(handoff, /STALE/u);
   assert.match(handoff, /stacked/u);
   assert.match(handoff, /no automatic merge|never.*auto.merge/iu);
+  assert.match(file('.agents/skills/ace-stage-handoff/SKILL.md'), /ordinary PRs \(Ready for review\) by default/u);
+  assert.doesNotMatch(file('docs/operations/staged-sdlc-pipeline.md'), /create a stacked Draft PR|open \*\*Draft PR\*\*/iu);
 });
 
 const home = 'openspec/changes/check-fixture';
