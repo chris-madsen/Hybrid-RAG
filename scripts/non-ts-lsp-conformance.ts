@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Effect } from 'effect';
@@ -94,12 +94,31 @@ try {
       ...queryAt(source, 'save', 0),
       snapshotIdentity,
     })));
-    await wait(Number(process.env.ACE_NON_TS_LSP_SETTLE_MS ?? 5_000));
-    const definition = mustOk(await Effect.runPromise(provider.definition({
-      repoPath: sourcePath,
-      ...queryAt(source, 'save', 1),
-      snapshotIdentity,
-    })));
+    // A fixed sleep can be either too short or needless on a cold real LSP.
+    // Retry only a transient ContentModified result or an empty readiness
+    // response on the *unchanged* synthetic source; never accept stale facts.
+    const initialDelay = Number(process.env.ACE_NON_TS_LSP_SETTLE_MS ?? 0);
+    if (!Number.isSafeInteger(initialDelay) || initialDelay < 0 || initialDelay > 30_000) {
+      throw new Error('ACE_NON_TS_LSP_SETTLE_MS must be a bounded non-negative integer');
+    }
+    if (initialDelay > 0) await wait(initialDelay);
+    const definition = await (async () => {
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const result = await Effect.runPromise(provider.definition({
+          repoPath: sourcePath,
+          ...queryAt(source, 'save', 1),
+          snapshotIdentity,
+        }));
+        if (result._tag === 'Ok' && result.value.length > 0) return result.value;
+        if (result._tag === 'Err' && !/content.modified/iu.test(result.error.message)) {
+          throw new Error(JSON.stringify(result.error));
+        }
+        const latest = await readFile(join(rootPath, sourcePath), 'utf8');
+        assert.equal(sha256(latest), sha256(source), 'source changed while waiting for real LSP readiness');
+        if (attempt < 11) await wait(Math.min(250 * (attempt + 1), 1_500));
+      }
+      throw new Error('real LSP definition did not become ready within bounded attempts');
+    })();
     const references = mustOk(await Effect.runPromise(provider.references({
       repoPath: sourcePath,
       ...queryAt(source, 'save', 0),

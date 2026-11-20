@@ -251,6 +251,38 @@ test('identity mismatch or no retrieved evidence blocks transformation', async (
   }
 });
 
+test('verified empty context preserves native request byte-for-byte; incomplete remains blocked', async () => {
+  const original = req();
+  const empty = await Effect.runPromise(make({
+    result: { contextText: '', selectedEvidenceIds: [], evidence: [], limitations: [] },
+  }).projectResponses(original));
+  assert.equal(empty._tag, 'Ok');
+  if (empty._tag === 'Ok') {
+    assert.equal(empty.value.kind, 'PREPARED');
+    assert.equal(empty.value.reasonCode, 'VERIFIED_NO_CONTEXT_NEEDED');
+    if (empty.value.kind === 'PREPARED') {
+      assert.equal(empty.value.bodyBase64, original.bodyBase64);
+      assert.equal(empty.value.projectedBodySha256, original.bodySha256);
+      const receipt = verifyProjectionReceipt(empty.value.projectionReceipt, 'test-projection-receipt-secret', Date.now());
+      assert.equal(receipt._tag, 'Ok', 'verified-empty still needs a signed physical-send binding');
+      if (receipt._tag === 'Ok') {
+        assert.equal(receipt.value.baseBodySha256, original.bodySha256);
+        assert.equal(receipt.value.projectedBodySha256, original.bodySha256);
+        assert.equal(receipt.value.evidenceIdsSha256, hash('[]'));
+        assert.equal(receipt.value.contextTextSha256, hash(''));
+      }
+    }
+  }
+  for (const result of [
+    { status: 'partial' as const, contextText: '', selectedEvidenceIds: [], limitations: [] },
+    { contextText: '', selectedEvidenceIds: [], limitations: ['required code source is stale'] },
+  ]) {
+    const denied = await Effect.runPromise(make({ result }).projectResponses(original));
+    assert.equal(denied._tag, 'Ok');
+    if (denied._tag === 'Ok') assert.equal(denied.value.kind, 'BLOCK');
+  }
+});
+
 test('hidden provider state and active host compaction block before retrieval', async () => {
   let transforms = 0;
   const context: ContextTransformService = { transform: () => {
@@ -384,6 +416,39 @@ test('native projection forwards only visible input text to incremental receipt 
   assert.equal(response._tag, 'Ok');
   if (response._tag === 'Ok') assert.equal(response.value.kind, 'PREPARED');
   assert.deepEqual(seen, ['find entrypoint', 'entrypoint here']);
+});
+
+test('completed empty retrieval and unavailable retrieval have different outcomes', async () => {
+  const workspaceId = makeWorkspaceId('ws1');
+  assert.equal(workspaceId._tag, 'Ok');
+  if (workspaceId._tag === 'Err') return;
+  const workspace: WorkspaceRecord = {
+    workspaceId: workspaceId.value, rootPath: '/workspace',
+    observationEpoch: 1, createdAtMs: 1,
+  };
+  const makeSearch = (complete: boolean, partialSources: string[] = []) =>
+    makeContextTransformService({
+      ids: { newRequestId: () => 'search-generated-id' },
+      store: { get: () => Effect.succeed(ok(workspace)) },
+      context: { search: () => Effect.succeed(ok({
+        requestId: 'search-empty' as ContextBundle['requestId'],
+        query: 'summarize the task', evidence: [], warnings: [],
+        partialSources, complete,
+      })) },
+    });
+  const body = { ...native, input: [{ role: 'user', content: 'summarize the task' }] };
+  const request = req({ query: 'summarize the task' }, body);
+  const success = await Effect.runPromise(make({ context: makeSearch(true) }).projectResponses(request));
+  assert.equal(success._tag, 'Ok');
+  if (success._tag === 'Ok') {
+    assert.equal(success.value.kind, 'PREPARED');
+    if (success.value.kind === 'PREPARED') assert.equal(success.value.bodyBase64, request.bodyBase64);
+  }
+  const unavailable = await Effect.runPromise(make({
+    context: makeSearch(false, ['code']),
+  }).projectResponses(request));
+  assert.equal(unavailable._tag, 'Ok');
+  if (unavailable._tag === 'Ok') assert.equal(unavailable.value.kind, 'BLOCK');
 });
 
 test('end-to-end native projection keeps Hermes input and sends only references for already-visible verified code', async () => {

@@ -44,6 +44,7 @@ type projectionBinding struct {
 	preparedBodySHA256         string
 	preparedBodySemanticSHA256 string
 	projectionReceipt          string
+	noContextNeeded            bool
 	deadlineEpochMs            int64
 }
 
@@ -260,18 +261,21 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	}
 	var requestCtx context.Context = ctx
 	deadline := time.Now().Add(30 * time.Second).UnixMilli()
-	decision, err := projectionClient.ProjectNativeResponses(requestCtx, connector.ResponsesV2Request{
+	decision, projected, err := projectionClient.ProjectNativeResponsesAndApply(requestCtx, connector.ResponsesV2Request{
 		RequestID: requestID, AttemptGroupID: requestID, AgentSessionID: session,
 		WorkspaceID: defaultWorkspaceID, DataClass: "private",
 		Provider: provider, Model: normalizedModel, Query: query, DeadlineEpochMs: deadline,
 		Body: normalizedBody, Attestation: attestation,
 	})
 	if err != nil {
+		var denied *connector.ProjectionDeniedError
+		if errors.As(err, &denied) {
+			return errorResponse(409, denied.Error()), nil
+		}
 		return errorResponse(503, "native Responses ACE projection is not ready"), nil
 	}
-	projected, err := connector.ApplyNativeResponses(normalizedBody, decision)
-	if err != nil {
-		return errorResponse(409, "native Responses projection violated protected fields"), nil
+	if decision.Kind != "PREPARED" {
+		return errorResponse(409, "native Responses projection is not prepared"), nil
 	}
 	semanticDigest, err := connector.SemanticBodySHA256(projected)
 	if err != nil {
@@ -282,6 +286,7 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 		workspaceID: defaultWorkspaceID, dataClass: "private", provider: provider,
 		model: normalizedModel, preparedBodySHA256: decision.ProjectedBodySHA256,
 		preparedBodySemanticSHA256: semanticDigest, projectionReceipt: decision.ProjectionReceipt,
+		noContextNeeded: decision.ReasonCode == "VERIFIED_NO_CONTEXT_NEEDED",
 		deadlineEpochMs: deadline,
 	}
 	guard := schemas.PhysicalSendGuard{
@@ -304,6 +309,7 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 				BodySHA256: attempt.BodySHA256, PreparedBodySHA256: binding.preparedBodySHA256,
 				PreparedBodySemanticSHA256: binding.preparedBodySemanticSHA256,
 				ProjectionReceipt:          binding.projectionReceipt, DeadlineEpochMs: binding.deadlineEpochMs,
+				NoContextNeeded: binding.noContextNeeded,
 			})
 			if authorizeErr != nil {
 				return providerUtils.NewPhysicalSendAuthorizationError(503, "AUTHORIZATION_UNAVAILABLE", authorizeErr)

@@ -91,7 +91,9 @@ try {
     child.once('exit', (code) => settle(new Error('Gateway exited before listening: ' + code + ': ' + startupLog.slice(-3000))));
     child.once('error', settle);
   });
-  const health = await fetch(endpoint + '/health', { signal: timeout(10000) });
+  const health = await fetch(endpoint + '/health', {
+    headers: { authorization: 'Bearer real-provider-fixture-secret' }, signal: timeout(10000),
+  });
   assert.equal(health.status, 200);
   const healthBody = await health.json();
   assert.equal(healthBody.providerWire, 'not_certified');
@@ -129,13 +131,16 @@ try {
   }
   const response = await responsePromise;
   const decision = await response.json();
-  if (response.status === 409) {
-    assert.equal(response.status, 409);
-    assert.equal(typeof decision.error?.code, 'string');
-    console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.error.code }));
+  assert.equal(response.status, 200, JSON.stringify(decision));
+  if (decision.kind === 'BLOCK') {
+    assert.ok(outage || race, 'normal ready real-provider fixture must not report BLOCK');
+    assert.equal(typeof decision.reasonCode, 'string');
+    assert.ok(decision.reasonCode.length > 0, 'typed denial must specify a reason');
+    assert.equal(decision.baseBodySha256, payload.bodySha256);
+    console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.reasonCode }));
   } else {
-    assert.equal(response.status, 200);
     assert.equal(decision.kind, 'PREPARED', JSON.stringify(decision));
+    assert.equal(outage, false, 'outage must fail closed rather than returning PREPARED');
     assert.equal(decision.baseBodySha256, payload.bodySha256);
     const projected = JSON.parse(Buffer.from(decision.bodyBase64, 'base64').toString('utf8'));
     assert.deepEqual(projected.extra_field, body.extra_field);

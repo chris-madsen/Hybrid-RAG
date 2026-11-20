@@ -99,7 +99,38 @@ export const makeResponsesProjectionService = (
       || result.turnId !== request.attemptGroupId || result.workspaceId !== request.workspaceId) {
       return block(request, 'TRANSFORM_IDENTITY_MISMATCH');
     }
-    if (result.status !== 'ready' || !result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
+    if (result.status !== 'ready') return block(request, 'TRANSFORM_NOT_READY');
+    if (result.contextText.trim() === '' && result.selectedEvidenceIds.length === 0
+      && result.limitations.length === 0) {
+      // Verified successful empty retrieval: preserve every original request
+      // byte, but never confuse this decision with final-send authorization.
+      if (!security.receiptSigningKey.trim()) return block(request, 'PROJECTION_RECEIPT_NOT_READY');
+      // Even a proven empty search must carry the signed source-absence proof.
+      // The physical-send guard binds this receipt to the exact unchanged body.
+      const projectionReceipt = signProjectionReceipt(makeProjectionReceiptClaims({
+        requestId: request.requestId,
+        attemptGroupId: request.attemptGroupId,
+        agentSessionId: request.agentSessionId,
+        workspaceId: request.workspaceId,
+        dataClass: request.dataClass === 'private' ? 'private_source' : request.dataClass,
+        provider: request.provider.toLowerCase(),
+        model: request.model,
+        baseBodySha256: request.bodySha256,
+        projectedBodySha256: request.bodySha256,
+        selectedEvidenceIds: [],
+        contextText: '',
+        policyVersion: security.policy.policyVersion,
+        deadlineEpochMs: request.deadlineEpochMs,
+      }), security.receiptSigningKey);
+      return ok({
+        kind: 'PREPARED', reasonCode: 'VERIFIED_NO_CONTEXT_NEEDED',
+        bodyBase64: request.bodyBase64,
+        baseBodySha256: request.bodySha256,
+        projectedBodySha256: request.bodySha256,
+        projectionReceipt,
+      });
+    }
+    if (!result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
       return block(request, 'TRANSFORM_NOT_READY');
     }
     if (containsLikelySecret(result.contextText)) {

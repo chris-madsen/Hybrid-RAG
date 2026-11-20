@@ -300,10 +300,31 @@ export const validateHarborFourArmReport = (value: unknown): Result<HarborFourAr
  * per-trial traces corroborate the report's declared quality/token counters.
  * Release claims therefore require an independent trial-level reconciliation.
  */
+/**
+ * Total model tokens per accepted trial, including output and failed attempts
+ * in each arm's measured aggregate. Cached input is a subset of raw input:
+ * never add it again. Missing usage or zero accepted trials cannot pass 5x.
+ */
+export const totalTokensPerAcceptedTaskRatio = (
+  native: Pick<HarborFourArmReportArm, 'rawInputTokens' | 'rawOutputTokens' | 'successes'>,
+  candidate: Pick<HarborFourArmReportArm, 'rawInputTokens' | 'rawOutputTokens' | 'successes'>,
+): number | null => {
+  const total = (arm: typeof native): number | null =>
+    arm.rawInputTokens === null || arm.rawOutputTokens === null
+      || !Number.isFinite(arm.rawInputTokens) || !Number.isFinite(arm.rawOutputTokens)
+      || arm.rawInputTokens < 0 || arm.rawOutputTokens < 0 || !Number.isSafeInteger(arm.successes)
+      || arm.successes <= 0
+      ? null : arm.rawInputTokens + arm.rawOutputTokens;
+  const baseline = total(native);
+  const proposed = total(candidate);
+  if (baseline === null || proposed === null || baseline <= 0) return null;
+  return (proposed / candidate.successes) / (baseline / native.successes);
+};
+
 export const assessHarborFourArmFiveX = (input: {
   readonly qualityNonInferior: boolean;
   readonly costTelemetryComplete: boolean;
-  readonly tokenRatio: number | null;
+  readonly totalTokensPerAcceptedTaskRatio: number | null;
   readonly rawTrialEvidenceVerified: boolean;
 }): { readonly allowed: boolean; readonly reason: string } => {
   if (!input.rawTrialEvidenceVerified) {
@@ -312,7 +333,8 @@ export const assessHarborFourArmFiveX = (input: {
   if (!input.qualityNonInferior || !input.costTelemetryComplete) {
     return { allowed: false, reason: 'quality_or_cost_gate_failed' };
   }
-  if (input.tokenRatio === null || !Number.isFinite(input.tokenRatio) || input.tokenRatio < 0 || input.tokenRatio > 0.2) {
+  if (input.totalTokensPerAcceptedTaskRatio === null || !Number.isFinite(input.totalTokensPerAcceptedTaskRatio)
+    || input.totalTokensPerAcceptedTaskRatio < 0 || input.totalTokensPerAcceptedTaskRatio > 0.2) {
     return { allowed: false, reason: 'token_ratio_did_not_meet_five_x' };
   }
   return { allowed: true, reason: 'independent_quality_cost_and_trial_evidence_satisfied' };

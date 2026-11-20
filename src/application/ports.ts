@@ -219,6 +219,9 @@ export interface ProjectionOutboxPort {
   readonly put: (receipt: ProjectionReceipt) => Promise<Result<void, DomainError>>;
   readonly get: (key: ProjectionKey) => Promise<Result<ProjectionReceipt | undefined, DomainError>>;
   readonly list: () => Promise<Result<readonly ProjectionReceipt[], DomainError>>;
+  /** Optional durable proof that a newly archived episode was never projected. */
+  readonly markArchiveOnly?: (episodeId: EpisodeId) => Promise<Result<void, DomainError>>;
+  readonly isArchiveOnly?: (episodeId: EpisodeId) => Promise<Result<boolean, DomainError>>;
   readonly beginDeletion: (episodeId: EpisodeId) => Promise<Result<void, DomainError>>;
   readonly finalizeDeletion: (episodeId: EpisodeId) => Promise<Result<void, DomainError>>;
   readonly isDeletionBlocked: (episodeId: EpisodeId) => Promise<Result<boolean, DomainError>>;

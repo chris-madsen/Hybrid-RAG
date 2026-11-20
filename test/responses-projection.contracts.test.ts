@@ -93,6 +93,20 @@ test('deny provider-stored hidden history and malformed native input', ()=>{
   ];
   for (const value of cases)assert.equal(decodeNativeResponsesBody(req({}, value))._tag, 'Err');
 });
+test('empty or whitespace tool output falls back to last nonempty user text', () => {
+  for (const output of ['', '   ']) {
+    const value = { ...input, input: [
+      { role: 'user', content: 'earlier question' },
+      { type: 'function_call_output', call_id: 'call_1', output },
+    ] };
+    const decoded = decodeNativeResponsesBody(req({}, value));
+    assert.equal(decoded._tag, 'Ok');
+    if (decoded._tag === 'Ok') {
+      assert.equal(bodyQueryMatches(decoded.value, 'earlier question'), true);
+      assert.equal(bodyQueryMatches(decoded.value, ''), false);
+    }
+  }
+});
 test('query must be verified against actual visible Responses content', ()=>{
   const d = decodeNativeResponsesBody(req());
   assert.equal(d._tag, 'Ok');if (d._tag === 'Err') return;
