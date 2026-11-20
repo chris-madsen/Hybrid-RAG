@@ -944,7 +944,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       const lspRequirement = requirements.lsp ?? { requirement: 'not_requested' as const, allowed: true };
       const useLsp = sourceIsRequested(lspRequirement);
       // includeCode grants access to verified code candidates, NOT permission
-      // to compute or publish structural RepoMap text. The caller's source
+      // to compute or publish native graph metadata. The caller's source
       // plan independently authorizes the optional structural provider.
       let sourceCoverage = initialSourceCoverage(requirements);
       const evidence: RetrievalEvidence[] = [];
@@ -1501,7 +1501,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           }
         }
       }
-      // A rendered RepoMap can describe paths outside the verified Qdrant
+      // A native graph lookup can describe paths outside the verified Qdrant
       // shortlist. Its aggregate source provenance is not certified by the
       // per-candidate exact rereads, so it must NEVER enter model-visible
       // evidence. It can only provide digest-matched internal ranking hints.
