@@ -61,7 +61,7 @@ namespace ACE.ResponsesV2 {
     @minLength(1)
     @maxLength(16384)
     projectionReceipt: string;
-    reasonCode: "VERIFIED_CONTEXT_ADDED";
+    reasonCode: "VERIFIED_CONTEXT_ADDED" | "VERIFIED_NO_CONTEXT_NEEDED";
   }
 
   @jsonSchema

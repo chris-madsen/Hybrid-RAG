@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   assessHarborFourArmFiveX,
+  totalTokensPerAcceptedTaskRatio,
   validateHarborFourArmDesign,
   validateHarborFourArmReport,
 } from '../src/domain/harbor-four-arm.js';
@@ -141,11 +142,35 @@ test('four-arm Harbor report rejects savings without real ACE calls or observed 
   assert.equal(accepted._tag, 'Ok');
 });
 
+test('5x gate measures total tokens per accepted task, not merely input', () => {
+  const native = { rawInputTokens: 1000, rawOutputTokens: 100, successes: 1 };
+  const candidate = { rawInputTokens: 200, rawOutputTokens: 1100, successes: 1 };
+  const ratio = totalTokensPerAcceptedTaskRatio(native, candidate);
+  assert.ok(ratio !== null && ratio > 1, 'more total tokens despite 5x input reduction');
+  assert.equal(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true,
+    totalTokensPerAcceptedTaskRatio: ratio, rawTrialEvidenceVerified: true,
+  }).allowed, false);
+  assert.equal(totalTokensPerAcceptedTaskRatio(
+    { ...native, successes: 0 }, candidate,
+  ), null, 'zero accepted tasks cannot justify a fivefold claim');
+  assert.equal(totalTokensPerAcceptedTaskRatio(
+    { ...native, rawOutputTokens: null }, candidate,
+  ), null, 'unknown output usage is never treated as zero');
+  assert.equal(totalTokensPerAcceptedTaskRatio(
+    native, { rawInputTokens: 100, rawOutputTokens: 30, successes: 1 },
+  ), 130 / 1100);
+  assert.equal(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true,
+    totalTokensPerAcceptedTaskRatio: 130 / 1100, rawTrialEvidenceVerified: true,
+  }).allowed, true);
+});
+
 test('five-X evidence gate rejects self-declared success when raw trials were only hashed', () => {
   const advertisedWin = {
     qualityNonInferior: true,
     costTelemetryComplete: true,
-    tokenRatio: 0.1,
+    totalTokensPerAcceptedTaskRatio: 0.1,
     rawTrialEvidenceVerified: false,
   };
   assert.deepEqual(assessHarborFourArmFiveX(advertisedWin), {
@@ -155,7 +180,7 @@ test('five-X evidence gate rejects self-declared success when raw trials were on
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,
     rawTrialEvidenceVerified: true,
-    tokenRatio: 0.25,
+    totalTokensPerAcceptedTaskRatio: 0.25,
   }).allowed, false);
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,

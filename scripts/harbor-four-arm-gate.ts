@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { readHarborFourArmTrialObservations } from '../src/adapters/harbor-four-arm-trial-evidence.js';
 import { verifyHarborJobByteBinding } from '../src/application/harbor-byte-binding.js';
-import { assessHarborFourArmFiveX, validateHarborFourArmDesign, validateHarborFourArmReport } from '../src/domain/harbor-four-arm.js';
+import { assessHarborFourArmFiveX, totalTokensPerAcceptedTaskRatio, validateHarborFourArmDesign, validateHarborFourArmReport } from '../src/domain/harbor-four-arm.js';
 import { bindHarborTrialsToFrozenTasks, reconcileHarborFourArmTrials } from '../src/domain/harbor-four-arm-evidence.js';
 
 const [nativeJobPath, denseJobPath, hybridJobPath, deltaJobPath, reportPath, outputPath,
@@ -105,16 +105,22 @@ const rawTrialEvidence = trialPaths.every((path): path is string => path !== und
 const reconciledEvidence = rawTrialEvidence === undefined ? undefined : await rawTrialEvidence;
 const measuredNativeInputTokens = reconciledEvidence?.arms.native.rawInputTokens ?? native.rawInputTokens;
 const measuredDeltaInputTokens = reconciledEvidence?.arms['hybrid-delta'].rawInputTokens ?? delta.rawInputTokens;
-const tokenRatio = measuredNativeInputTokens === null || measuredDeltaInputTokens === null || measuredNativeInputTokens === 0
+// Historical input-only ratio remains an explicitly labeled diagnostic; it
+// cannot establish the product's total-token/accepted-task objective.
+const inputTokenRatio = measuredNativeInputTokens === null || measuredDeltaInputTokens === null || measuredNativeInputTokens === 0
   ? null
   : measuredDeltaInputTokens / measuredNativeInputTokens;
+const totalTokenRatio = totalTokensPerAcceptedTaskRatio(
+  reconciledEvidence?.arms.native ?? native,
+  reconciledEvidence?.arms['hybrid-delta'] ?? delta,
+);
 // Without raw trial paths, or when their independently observed telemetry is
 // unknown, a self-declared aggregate cannot authorize the five-X claim.
 const rawTrialEvidenceVerified = reconciledEvidence?.releaseEligible === true;
 const releaseGate = assessHarborFourArmFiveX({
   qualityNonInferior: checkedReport.value.qualityNonInferior,
   costTelemetryComplete: checkedReport.value.costTelemetryComplete,
-  tokenRatio,
+  totalTokensPerAcceptedTaskRatio: totalTokenRatio,
   rawTrialEvidenceVerified,
 });
 const reportOutput = {
@@ -139,7 +145,8 @@ const reportOutput = {
   verdict: {
     qualityNonInferior: checkedReport.value.qualityNonInferior,
     costTelemetryComplete: checkedReport.value.costTelemetryComplete,
-    tokenRatioDeltaOverNative: tokenRatio,
+    inputTokenRatioDeltaOverNative: inputTokenRatio,
+    totalTokensPerAcceptedTaskRatio: totalTokenRatio,
     fiveXAllowed: releaseGate.allowed,
     fiveXBlocker: releaseGate.allowed ? null : releaseGate.reason,
     rawTrialEvidenceVerified,
@@ -184,6 +191,7 @@ process.stdout.write(JSON.stringify({
   output: outputPath,
   designFingerprint,
   qualityNonInferior: checkedReport.value.qualityNonInferior,
-  tokenRatio,
+  inputTokenRatio,
+  totalTokensPerAcceptedTaskRatio: totalTokenRatio,
   fiveXAllowed: reportOutput.verdict.fiveXAllowed,
 }) + '\n');

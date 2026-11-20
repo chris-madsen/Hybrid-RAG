@@ -798,7 +798,8 @@
           "reasonCode": {
             "type": "string",
             "enum": [
-              "VERIFIED_CONTEXT_ADDED"
+              "VERIFIED_CONTEXT_ADDED",
+              "VERIFIED_NO_CONTEXT_NEEDED"
             ]
           }
         },

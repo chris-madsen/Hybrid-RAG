@@ -43,6 +43,14 @@ type ResponsesV2Decision struct {
 	ReasonCode          string `json:"reasonCode"`
 }
 
+// ProjectionDeniedError preserves an authenticated, deterministic ACE BLOCK
+// rather than treating a policy denial as retryable local transport failure.
+type ProjectionDeniedError struct { ReasonCode string }
+
+func (e *ProjectionDeniedError) Error() string {
+	return "native Responses ACE projection denied: " + e.ReasonCode
+}
+
 // PhysicalSendV2Request binds one actual Bifröst transport attempt to the
 // prepared native body and exact provider route. It never carries provider
 // credentials or the serialized HTTP headers.
@@ -63,6 +71,7 @@ type PhysicalSendV2Request struct {
 	PreparedBodySHA256         string `json:"preparedBodySha256"`
 	PreparedBodySemanticSHA256 string `json:"-"`
 	ProjectionReceipt          string `json:"projectionReceipt"`
+	NoContextNeeded            bool   `json:"-"` // Trusted local projection decision; never supplied by caller on the wire.
 	DeadlineEpochMs            int64  `json:"deadlineEpochMs"`
 }
 
@@ -156,7 +165,8 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 	if decision.BaseBodySHA256 != hex.EncodeToString(sum[:]) {
 		return nil, errors.New("native Responses base digest mismatch")
 	}
-	if decision.Kind != "PREPARED" || decision.ReasonCode != "VERIFIED_CONTEXT_ADDED" {
+	if decision.Kind != "PREPARED" || (decision.ReasonCode != "VERIFIED_CONTEXT_ADDED" &&
+		decision.ReasonCode != "VERIFIED_NO_CONTEXT_NEEDED") {
 		return nil, errors.New("native Responses projection is not prepared")
 	}
 	if strings.TrimSpace(decision.ProjectionReceipt) == "" || len(decision.ProjectionReceipt) > 16*1024 {
@@ -173,13 +183,29 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 	if decision.ProjectedBodySHA256 != hex.EncodeToString(out[:]) {
 		return nil, errors.New("native projected digest mismatch")
 	}
+	if decision.ReasonCode == "VERIFIED_NO_CONTEXT_NEEDED" {
+		if !bytes.Equal(original, body) {
+			return nil, errors.New("no-addition projection changed native body bytes")
+		}
+		decoded, err := normalizedJSON(body)
+		if err != nil || decoded["store"] != false {
+			return nil, errors.New("no-addition projection requires explicit store:false")
+		}
+		return body, nil
+	}
 	if err := validateNativeResponsesProjection(original, body); err != nil {
 		return nil, err
 	}
 	return body, nil
 }
 
+// Keep the additive-only validator as a stable boundary for existing callers
+// and tests; no-context is allowed only by the trusted projection decision.
 func validatePreparedNativeResponses(projected []byte, model string) error {
+	return validatePreparedNativeResponsesForDecision(projected, model, false)
+}
+
+func validatePreparedNativeResponsesForDecision(projected []byte, model string, allowNoContext bool) error {
 	after, err := normalizedJSON(projected)
 	if err != nil {
 		return err
@@ -192,6 +218,20 @@ func validatePreparedNativeResponses(projected []byte, model string) error {
 		if after[field] != nil {
 			return errors.New("physical-send body contains uncertified provider state")
 		}
+	}
+	if allowNoContext {
+		// The gateway's signed projection receipt and prepared-body semantic
+		// digest remain mandatory even when no source evidence was needed.
+		// A raw, stateless native input may be either a string or an item array.
+		switch input := after["input"].(type) {
+		case string:
+			if strings.TrimSpace(input) == "" { return errors.New("no-context native input is blank") }
+		case []any:
+			if len(input) == 0 { return errors.New("no-context native item list is empty") }
+		default:
+			return errors.New("no-context native input is not supported")
+		}
+		return nil
 	}
 	items, ok := after["input"].([]any)
 	if !ok || len(items) < 2 {
@@ -248,17 +288,19 @@ func SemanticBodySHA256(body []byte) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Request) (ResponsesV2Decision, error) {
+// ProjectNativeResponsesAndApply validates the exact projected bytes once;
+// its caller must still install a per-physical-attempt guard before sending.
+func (c Client) ProjectNativeResponsesAndApply(ctx context.Context, req ResponsesV2Request) (ResponsesV2Decision, []byte, error) {
 	invalid := ResponsesV2Decision{}
 	if c.Endpoint == "" || c.AuthToken == "" {
-		return invalid, errors.New("local native Responses projector is not configured")
+		return invalid, nil, errors.New("local native Responses projector is not configured")
 	}
 	if err := validateLoopbackEndpoint(c.Endpoint); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	target, err := url.Parse(c.Endpoint)
 	if err != nil || target.Path != "/internal/ace-gateway/v2/project" || target.RawQuery != "" || target.Fragment != "" {
-		return invalid, errors.New("native Responses projection requires the exact local v2 path")
+		return invalid, nil, errors.New("native Responses projection requires the exact local v2 path")
 	}
 	maxBody := c.MaxBodyBytes
 	if maxBody <= 0 {
@@ -267,20 +309,20 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 	if len(req.Body) == 0 || int64(len(req.Body)) > maxBody ||
 		req.AgentSessionID == "" || req.WorkspaceID == "" || req.RequestID == "" ||
 		req.AttemptGroupID == "" || req.Provider == "" || req.Model == "" || req.Query == "" {
-		return invalid, errors.New("invalid native Responses projection identity or bounds")
+		return invalid, nil, errors.New("invalid native Responses projection identity or bounds")
 	}
 	if req.DeadlineEpochMs <= time.Now().UnixMilli() {
-		return invalid, errors.New("native projection deadline elapsed")
+		return invalid, nil, errors.New("native projection deadline elapsed")
 	}
 	if _, err := normalizedJSON(req.Body); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	var attestation map[string]json.RawMessage
 	if err := json.Unmarshal(req.Attestation, &attestation); err != nil || attestation == nil {
-		return invalid, errors.New("native attestation is missing")
+		return invalid, nil, errors.New("native attestation is missing")
 	}
 	if _, _, err := requiredAttestationBinding(attestation); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	sum := sha256.Sum256(req.Body)
 	envelope := map[string]any{
@@ -295,10 +337,10 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 	}
 	wire, err := json.Marshal(envelope)
 	if err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	if int64(len(wire)) > maxEnvelopeBytes(maxBody) {
-		return invalid, errors.New("native projection envelope exceeds bound")
+		return invalid, nil, errors.New("native projection envelope exceeds bound")
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	if d := time.UnixMilli(req.DeadlineEpochMs); d.Before(deadline) {
@@ -309,36 +351,52 @@ func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Reque
 	safe := loopbackHTTPClient(c.HTTPClient)
 	httpReq, err := http.NewRequestWithContext(bounded, http.MethodPost, c.Endpoint, bytes.NewReader(wire))
 	if err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.AuthToken)
 	response, err := safe.Do(httpReq)
 	if err != nil {
-		return invalid, fmt.Errorf("native Responses projector unavailable: %w", err)
+		return invalid, nil, fmt.Errorf("native Responses projector unavailable: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return invalid, fmt.Errorf("native Responses projector denied with HTTP %d", response.StatusCode)
+		return invalid, nil, fmt.Errorf("native Responses projector denied with HTTP %d", response.StatusCode)
 	}
 	payload, err := io.ReadAll(io.LimitReader(response.Body, maxEnvelopeBytes(maxBody)+1))
 	if err != nil || int64(len(payload)) > maxEnvelopeBytes(maxBody) {
-		return invalid, errors.New("native Responses projector response exceeds limit")
+		return invalid, nil, errors.New("native Responses projector response exceeds limit")
 	}
 	d := json.NewDecoder(bytes.NewReader(payload))
 	d.DisallowUnknownFields()
 	var decision ResponsesV2Decision
 	if err := d.Decode(&decision); err != nil {
-		return invalid, err
+		return invalid, nil, err
 	}
 	var trailing any
 	if err := d.Decode(&trailing); err != io.EOF {
-		return invalid, errors.New("native projection has trailing data")
+		return invalid, nil, errors.New("native projection has trailing data")
 	}
-	if _, err := ApplyNativeResponses(req.Body, decision); err != nil {
-		return invalid, err
+	if decision.Kind == "BLOCK" {
+		if decision.BaseBodySHA256 != hex.EncodeToString(sum[:]) {
+			return invalid, nil, errors.New("native Responses BLOCK digest mismatch")
+		}
+		if strings.TrimSpace(decision.ReasonCode) == "" || len(decision.ReasonCode) > 256 {
+			return invalid, nil, errors.New("native Responses BLOCK is missing a bounded reason")
+		}
+		return invalid, nil, &ProjectionDeniedError{ReasonCode: decision.ReasonCode}
 	}
-	return decision, nil
+	projected, err := ApplyNativeResponses(req.Body, decision)
+	if err != nil { return invalid, nil, err }
+	return decision, projected, nil
+}
+
+// ProjectNativeResponses preserves the existing decision-only API for clients
+// that do not need the validated body. The Bifröst hook consumes the single
+// validated output from ProjectNativeResponsesAndApply.
+func (c Client) ProjectNativeResponses(ctx context.Context, req ResponsesV2Request) (ResponsesV2Decision, error) {
+	decision, _, err := c.ProjectNativeResponsesAndApply(ctx, req)
+	return decision, err
 }
 
 func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req PhysicalSendV2Request) (PhysicalSendV2Decision, error) {
@@ -377,7 +435,7 @@ func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req Physica
 	if err != nil || body["store"] != false || body["model"] != req.Model {
 		return invalid, errors.New("physical-send attempt body is not the authorized stateless Responses body")
 	}
-	if err := validatePreparedNativeResponses(req.Body, req.Model); err != nil {
+	if err := validatePreparedNativeResponsesForDecision(req.Body, req.Model, req.NoContextNeeded); err != nil {
 		return invalid, fmt.Errorf("physical-send body validation failed: %w", err)
 	}
 	semanticDigest, err := SemanticBodySHA256(req.Body)

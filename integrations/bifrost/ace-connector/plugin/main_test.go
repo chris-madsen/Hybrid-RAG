@@ -263,6 +263,8 @@ func TestNativeResponsesQueryFromToolResultAndMultimodalUserInput(t *testing.T) 
 	fixtures := []struct{ name, body, expected string }{
 		{"tool-result", `[{"type":"function_call","call_id":"c1","arguments":"{}"},{"type":"function_call_output","call_id":"c1","output":"tool returned entrypoint"}]`, "tool returned entrypoint"},
 		{"multimodal-user", `[{"role":"user","content":[{"type":"input_text","text":"find module"},{"type":"input_image","image_url":"data:image/png;base64,AA=="}]}]`, "find module"},
+		{"blank-tool-result", `[{"role":"user","content":"earlier question"},{"type":"function_call_output","call_id":"c1","output":""}]`, "earlier question"},
+		{"whitespace-tool-result", `[{"role":"user","content":"earlier question"},{"type":"function_call_output","call_id":"c1","output":"  "}]`, "earlier question"},
 		{"no-source", `[{"type":"reasoning","encrypted_content":"opaque"}]`, ""},
 	}
 	for _, tc := range fixtures {
