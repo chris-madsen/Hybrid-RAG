@@ -104,5 +104,52 @@ test('CBM discovery adds a file missing from Qdrant shortlist without bypassing 
   ]));
   assert.ok(direct.every((item) => item.proofClass === 'direct'));
   assert.ok(direct.some((item) => item.content.includes('function related')));
+  const documentSymbolsLookups: string[] = [];
+  const definitionsLookups: string[] = [];
+  const semanticSelection: SemanticAnalysisPort = {
+    ...semantics,
+    documentSymbols: (input) => {
+      documentSymbolsLookups.push(input.repoPath);
+      return Effect.succeed(ok([{
+        name: input.repoPath === 'src/known.ts' ? 'known' : 'related',
+        location: { repoPath: input.repoPath, startLine: 1, startColumn: 17,
+          endLine: 1, endColumn: input.repoPath === 'src/known.ts' ? 22 : 24 },
+      }]));
+    },
+    definition: (input) => {
+      definitionsLookups.push(input.repoPath);
+      return Effect.succeed(ok([{
+        location: { repoPath: input.repoPath, startLine: 1, startColumn: 17,
+          endLine: 1, endColumn: input.repoPath === 'src/known.ts' ? 22 : 24 },
+      }]));
+    },
+  };
+  const lspProvider = makeQdrantContextProvider({
+    workspaceId: workspace.value,
+    rootPath: '/repo',
+    files: filePort, qdrant,
+    semantics: semanticSelection,
+    embeddings: { embedMany: () => Effect.succeed(ok([[0.2, 0.8]])) },
+    codeGraph: {
+      search: () => Effect.succeed(ok([{ candidate: related, score: 0.95, freshness: 'unknown' }])),
+    },
+    candidateLimit: 2,
+    newRequestId: () => 'cbm-native-lsp-anchor',
+  });
+  const required = resolveExplicitSourceRequirements({ required: ['code', 'lsp'] });
+  assert.equal(required._tag, 'Ok');
+  if (required._tag === 'Err') return;
+  const verifiedWithLsp = await Effect.runPromise(lspProvider.search({
+    workspaceId: workspace.value,
+    query: 'follow related implementation',
+    includeCode: true, includeDocs: false, includeMemory: false,
+    sourceRequirements: required.value,
+  }));
+  assert.equal(verifiedWithLsp._tag, 'Ok');
+  if (verifiedWithLsp._tag === 'Err') return;
+  assert.deepEqual(new Set(documentSymbolsLookups), new Set(['src/known.ts', 'src/related.ts']));
+  assert.deepEqual(new Set(definitionsLookups), new Set(['src/known.ts', 'src/related.ts']));
+  assert.equal(verifiedWithLsp.value.sourceCoverage?.find((item) => item.source === 'lsp')?.status,
+    'satisfied', 'CBM line-only outlines must not disable LSP coverage');
 });
 
