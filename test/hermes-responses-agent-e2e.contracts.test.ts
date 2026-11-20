@@ -109,6 +109,14 @@ import typing
 
 typing.override = lambda function: function
 
+# This is an offline import/endpoint-guard test: stub only optional Harbor
+# adapter dependencies so the PR-focused Node CI needs no Python packages.
+yaml = types.ModuleType("yaml")
+sys.modules["yaml"] = yaml
+pydantic = types.ModuleType("pydantic")
+pydantic.Field = lambda default=None, **kwargs: default
+sys.modules["pydantic"] = pydantic
+
 for name in (
     "harbor", "harbor.agents", "harbor.agents.installed", "harbor.environments",
     "harbor.models", "harbor.models.agent",
@@ -446,4 +454,46 @@ test('feedback collector signature-checks final-wire bytes but leaves missing He
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('C07 a partly bound set of Gateway requests cannot claim same-session correlation', () => {
+  const summary = evidenceModule.summarizeHermesSessionExport?.(Buffer.from(sessionExport(), 'utf8'));
+  assert.ok(summary);
+  const result = evidenceModule.evaluateHermesAgentLoopEvidence?.({
+    sessionSummary: summary,
+    gatewayRequests: [
+      { kind: 'PREPARED', requestId: 'ace-' + 'a'.repeat(32), agentSessionId: 'private-session-id' },
+      { kind: 'PREPARED', requestId: 'ace-' + 'b'.repeat(32) },
+    ],
+    signatureCheckedFinalWireReceipts: [],
+    taskOutcome: 'pass',
+  });
+  assert.equal(result?.status, 'NOT_RUN', 'every prepared request needs its own same-session binding');
+  assert.ok((result?.reasonCodes as readonly string[]).includes('SESSION_CORRELATION_NOT_OBSERVED'));
+});
+
+test('C07 tool-call IDs only prove a completed loop when results follow calls and the final assistant follows results', () => {
+  const summary = (messages: readonly Record<string, unknown>[]) =>
+    evidenceModule.summarizeHermesSessionExport?.(Buffer.from(sessionExport({ messages }), 'utf8'));
+  const resultFirst = summary([
+    { role: 'user', content: 'prompt' },
+    { role: 'tool', tool_call_id: 'call-1', content: 'early result' },
+    { role: 'assistant', tool_calls: [{ id: 'call-1' }] },
+    { role: 'assistant', content: 'answer' },
+  ]);
+  assert.equal(resultFirst?.toolLoopStatus, 'incomplete');
+  const assistantBeforeResult = summary([
+    { role: 'user', content: 'prompt' },
+    { role: 'assistant', tool_calls: [{ id: 'call-1' }] },
+    { role: 'assistant', content: 'premature final answer' },
+    { role: 'tool', tool_call_id: 'call-1', content: 'delayed result' },
+  ]);
+  assert.equal(assistantBeforeResult?.toolLoopStatus, 'incomplete');
+  const ordered = summary([
+    { role: 'user', content: 'prompt' },
+    { role: 'assistant', tool_calls: [{ id: 'call-1' }] },
+    { role: 'tool', tool_call_id: 'call-1', content: 'result' },
+    { role: 'assistant', content: 'final answer' },
+  ]);
+  assert.equal(ordered?.toolLoopStatus, 'complete');
 });

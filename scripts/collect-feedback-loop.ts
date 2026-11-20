@@ -154,9 +154,14 @@ const gatewayRequestsFor = async (trialDirectory: string): Promise<{
   readonly requests: readonly JsonObject[];
   readonly sha256?: string;
 }> => {
-  const file = (await walkFiles(trialDirectory)).find((path) => basename(path) === 'ace-responses-projection.jsonl');
-  if (file === undefined) return { requests: [] };
-  const bytes = await readFile(file);
+  const matches = (await walkFiles(trialDirectory)).filter((path) => basename(path) === 'ace-responses-projection.jsonl');
+  if (matches.length === 0) return { requests: [] };
+  // A trial with multiple projection journals is ambiguous: choosing the
+  // first silently drops prepared/blocked requests and can falsely correlate
+  // only a subset with final-wire evidence. Require a single journal until
+  // this consumer has a durable cross-file journal identity.
+  if (matches.length !== 1) throw new Error('BLOCKED: multiple Gateway projection evidence journals');
+  const bytes = await readFile(matches[0]!);
   const requests: JsonObject[] = [];
   const seen = new Set<string>();
   for (const [index, line] of bytes.toString('utf8').split(/\r?\n/u).entries()) {

@@ -170,6 +170,10 @@ export const summarizeHermesSessionExport = (rawBytes) => {
   const messageCounts = { user: 0, assistant: 0, tool: 0, system: 0, other: 0 };
   const toolCallIds = [];
   const toolResultIds = [];
+  const pendingToolCalls = new Set();
+  let validToolEventOrder = true;
+  let lastCompletedToolResultAt = -1;
+  let lastAssistantAt = -1;
   let reasoningMessages = 0;
   let hiddenProviderStatePresent = containsHiddenProviderState({
     ...session,
@@ -186,7 +190,7 @@ export const summarizeHermesSessionExport = (rawBytes) => {
     }),
   });
 
-  for (const message of session.messages) {
+  for (const [messageIndex, message] of session.messages.entries()) {
     if (!jsonObject(message) || typeof message.role !== 'string') {
       messageCounts.other += 1;
       continue;
@@ -196,10 +200,22 @@ export const summarizeHermesSessionExport = (rawBytes) => {
       messageCounts.assistant += 1;
       if (message.reasoning !== undefined || message.reasoning_content !== undefined
         || message.reasoning_details !== undefined || message.codex_reasoning_items !== undefined) reasoningMessages += 1;
-      toolCallIds.push(...sessionToolCalls(message));
+      lastAssistantAt = messageIndex;
+      const calls = sessionToolCalls(message);
+      for (const id of calls) {
+        if (pendingToolCalls.has(id) || toolCallIds.includes(id)) validToolEventOrder = false;
+        pendingToolCalls.add(id);
+        toolCallIds.push(id);
+      }
     } else if (message.role === 'tool') {
       messageCounts.tool += 1;
-      if (safeIdentifier(message.tool_call_id)) toolResultIds.push(message.tool_call_id);
+      if (safeIdentifier(message.tool_call_id)) {
+        toolResultIds.push(message.tool_call_id);
+        if (!pendingToolCalls.delete(message.tool_call_id)) validToolEventOrder = false;
+        else lastCompletedToolResultAt = messageIndex;
+      } else {
+        validToolEventOrder = false;
+      }
     } else if (message.role === 'system') messageCounts.system += 1;
     else messageCounts.other += 1;
     if (containsHiddenProviderState(message)) hiddenProviderStatePresent = true;
@@ -213,6 +229,8 @@ export const summarizeHermesSessionExport = (rawBytes) => {
     && uniqueToolResults.size === toolResultIds.length
     && matchedToolIds.length === uniqueToolCalls.size
     && matchedToolIds.length === uniqueToolResults.size
+    && validToolEventOrder && pendingToolCalls.size === 0
+    && lastAssistantAt > lastCompletedToolResultAt
     ? 'complete' : 'incomplete';
 
   return {
@@ -277,7 +295,7 @@ export const evaluateHermesAgentLoopEvidence = (input) => {
       rawTraceSha256: summary.rawTraceSha256, reasonCodes: [...reasonCodes].sort() };
   }
   const requestIds = new Set();
-  let hasCallerSessionBinding = false;
+  let boundGatewayRequests = 0;
   for (const request of gatewayRequests) {
     if (!jsonObject(request) || request.kind !== 'PREPARED'
       || !/^ace-[a-f0-9]{32}$/u.test(request.requestId)
@@ -288,7 +306,7 @@ export const evaluateHermesAgentLoopEvidence = (input) => {
     }
     requestIds.add(request.requestId);
     if (safeIdentifier(request.agentSessionId)) {
-      hasCallerSessionBinding = true;
+      boundGatewayRequests += 1;
       if (digestIdentifier(request.agentSessionId) !== summary.sessionIdSha256) {
         reasonCodes.add('CALLER_ASSERTED_SESSION_ID_MISMATCH');
         return { schemaVersion: 1, status: 'BLOCKED', sessionIdSha256: summary.sessionIdSha256,
@@ -296,7 +314,7 @@ export const evaluateHermesAgentLoopEvidence = (input) => {
       }
     }
   }
-  if (!hasCallerSessionBinding) {
+  if (boundGatewayRequests !== requestIds.size) {
     reasonCodes.add('SESSION_CORRELATION_NOT_OBSERVED');
     return { schemaVersion: 1, status: 'NOT_RUN', sessionIdSha256: summary.sessionIdSha256,
       rawTraceSha256: summary.rawTraceSha256, gatewayRequestCount: requestIds.size,
