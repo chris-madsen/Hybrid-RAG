@@ -135,6 +135,27 @@ test('verified-empty code search requires explicit, satisfied required-source co
     assert.equal(approved.value.contextText, '');
     assert.deepEqual(approved.value.selectedEvidenceIds, []);
   }
+  const indexWithFailedPath = bundle({
+    evidence: [], complete: true,
+    sourceCoverage: [{ source: 'code', requirement: 'required', status: 'satisfied' }],
+    indexCoverage: {
+      schemaVersion: 1,
+      sourceSnapshotDigest: 'a'.repeat(64) as never,
+      parserVersion: 'test',
+      attemptedPaths: 1, indexedPaths: 0, policyExcludedPaths: 0,
+      outOfScopePaths: 0, failedPaths: 1,
+      failureCounts: {
+        read_failed: 1, binary_source: 0, invalid_utf8: 0, digest_raced: 0,
+        structural_failed: 0, digest_mismatch: 0, parser_partial: 0, unsupported_parser: 0,
+      },
+      failures: [{ repoPath: 'src/unreadable.ts' as never, kind: 'read_failed' }],
+    },
+  });
+  const unsafeIndex = await Effect.runPromise(makeContextTransformService(makePorts(indexWithFailedPath))
+    .transform(request));
+  assert.equal(unsafeIndex._tag, 'Err', 'a failed in-scope source invalidates a superficially satisfied empty query');
+  if (unsafeIndex._tag === 'Err') assert.equal(unsafeIndex.error.code, 'NOT_READY');
+
   for (const unverified of [
     bundle({ evidence: [], complete: true }),
     bundle({ evidence: [], complete: true, sourceCoverage: [] }),
