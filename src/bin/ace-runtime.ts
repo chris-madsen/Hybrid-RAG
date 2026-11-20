@@ -45,7 +45,7 @@ import {
   makeAstGrepStructuralPort,
   resolveAstGrepProviderIdentity,
 } from '../adapters/ast-grep-structural.js';
-import { buildRepoMapDelta } from '../adapters/repo-map-structural.js';
+import { makeCodebaseMemoryRepoMap } from '../adapters/codebase-memory-repo-map.js';
 import {
   lspLanguageIdForPath,
   makeLspSemanticAnalysisPort,
@@ -58,7 +58,7 @@ import { defaultLocalPolicy, type DataClass } from '../domain/policy.js';
 import { makeWorkspaceId, type RepoPath, type WorkspaceId } from '../domain/workspace.js';
 import { isSensitiveSourcePath } from '../domain/sensitive-path.js';
 import { structuralLanguageForPath } from '../domain/structural-language.js';
-import type { RepoMapSymbolId } from '../domain/repo-map.js';
+import type { CodeCandidate } from '../domain/retrieval.js';
 import type { RetrievalBenchmarkTraceSink } from '../domain/retrieval-benchmark.js';
 import {
   workspaceManifestFromSnapshot,
@@ -79,7 +79,7 @@ import { makeContextTransformService } from '../application/context-transform-se
 import { makeContextAssembler } from '../application/context-assembler.js';
 import { makeGatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
 import { validateNativeResponsesStreamingRoutes } from '../application/gateway-security-contract.js';
-import { makeRepoMapService, type RepoMapService } from '../application/repo-map-service.js';
+import type { RepoMapService } from '../application/repo-map-service.js';
 import {
   makeLspServerDescriptor,
   makeLspServerRegistry,
@@ -658,9 +658,13 @@ const main = async (): Promise<void> => {
             process.stderr.write(`ace retrieval warning: structural identity unverified; cache disabled and cross-restart snapshot reuse intentionally disabled (${structuralIdentity.error.code})\n`);
           }
           const structural = makeAstGrepStructuralPort(structuralOptions);
-          const repoMapService = makeRepoMapService();
-          const repoMapSymbolIdsByPath = new Map<RepoPath, readonly RepoMapSymbolId[]>();
-          let activeRepoMap: RepoMapService | undefined;
+          let codebaseMemoryCandidates: readonly CodeCandidate[] = [];
+          const codebaseMemory = makeCodebaseMemoryRepoMap({
+            rootPath: registered.value.rootPath,
+            command: process.env.ACE_CBM_COMMAND?.trim(),
+            candidates: () => codebaseMemoryCandidates,
+          });
+          let activeRepoMap: Pick<RepoMapService, 'render'> | undefined;
           let latestBuild: LocalCodeIndexBuild | undefined;
           const publicationAuthority = makeLocalQdrantPublicationAuthority({
             workspaceId: registered.value.workspaceId,
@@ -737,50 +741,17 @@ const main = async (): Promise<void> => {
               semanticSnapshot,
             ));
             if (sourceFiles._tag === 'Err') return sourceFiles;
-            const sourceBytesByPath = new Map<RepoPath, Uint8Array>(
-              Object.entries(sourceFiles.value).map(([repoPath, source]) => [repoPath as RepoPath, new TextEncoder().encode(source)]),
-            );
-            const changedPathSet = verification === 'incremental' ? new Set(changedPaths) : undefined;
-            const removedSymbolIds = verification === 'incremental'
-              ? changedPaths.flatMap((repoPath) => repoMapSymbolIdsByPath.get(repoPath) ?? [])
-              : [];
-            const structuralAnalyses = [...(build.structuralAnalysesByPath?.values() ?? [])];
-            const missingReferenceCoverage = structuralAnalyses.filter((analysis) =>
-              analysis.symbols.length > 0 && analysis.identifiers === undefined);
-            if (missingReferenceCoverage.length > 0
-              || !structuralAnalyses.some((analysis) => analysis.identifiers !== undefined)) {
-              activeRepoMap = undefined;
-              process.stderr.write(`ace-runtime RepoMap NOT_READY: shared def/ref records incomplete for ${missingReferenceCoverage.length} structural files; refusing a second parser pass\n`);
+            // Native Codebase Memory owns the semantic code graph. Index the
+            // same local root after ACE's verified read, before publishing its
+            // rank hints. ACE never synthesizes def/ref edges or trusts the
+            // provider's snippets as source bytes.
+            activeRepoMap = undefined;
+            const cbmIndexed = await Effect.runPromise(codebaseMemory.reindex());
+            if (cbmIndexed._tag === 'Err') {
+              process.stderr.write('ace-runtime Codebase Memory NOT_READY: ' + cbmIndexed.error.code + '\n');
             } else {
-              const repoMapDelta = await Effect.runPromise(buildRepoMapDelta({
-                candidates: build.index.candidates,
-                structuralAnalyses,
-                sourceBytesByPath,
-                ...(changedPathSet === undefined ? {} : { upsertPaths: changedPathSet }),
-                removedSymbolIds,
-              }));
-              if (repoMapDelta._tag === 'Err') {
-                activeRepoMap = undefined;
-                process.stderr.write(`ace-runtime RepoMap NOT_READY: structural graph assembly failed (${repoMapDelta.error.code})\n`);
-              } else {
-                const updatedRepoMap = await Effect.runPromise(repoMapService.update(repoMapDelta.value));
-                if (updatedRepoMap._tag === 'Err') {
-                  activeRepoMap = undefined;
-                  process.stderr.write(`ace-runtime RepoMap NOT_READY: structural graph update failed (${updatedRepoMap.error.code})\n`);
-                } else {
-                  for (const repoPath of changedPaths) repoMapSymbolIdsByPath.delete(repoPath);
-                  for (const symbol of repoMapDelta.value.upserted) {
-                    repoMapSymbolIdsByPath.set(symbol.repoPath, [
-                      ...(repoMapSymbolIdsByPath.get(symbol.repoPath) ?? []),
-                      symbol.id,
-                    ]);
-                  }
-                  for (const [repoPath, ids] of repoMapSymbolIdsByPath) {
-                    repoMapSymbolIdsByPath.set(repoPath, [...new Set(ids)]);
-                  }
-                  activeRepoMap = repoMapService;
-                }
-              }
+              codebaseMemoryCandidates = build.index.candidates;
+              activeRepoMap = codebaseMemory;
             }
             // Pinned Claw descriptors + existing vscode-jsonrpc/registry:
             // each installed language server owns only its known extensions.
@@ -1023,6 +994,7 @@ const main = async (): Promise<void> => {
                   : `${effectiveSparseEmbedding.provider}|model=${effectiveSparseEmbedding.model}|runtime=${effectiveSparseEmbedding.runtimeVersion}|artifact=${effectiveSparseEmbedding.artifactDigest}`,
                 qdrant: process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2',
                 structural: effectiveStructuralProviderIdentity,
+                code_graph: activeRepoMap === undefined ? 'codebase-memory/not_ready' : 'codebase-memory/v0.12.1',
                 semantic: semanticProviderVersion,
                 reranker: rerankerModel === undefined ? 'disabled' : `fastembed/cross-encoder|model=${rerankerModel}`,
               },
