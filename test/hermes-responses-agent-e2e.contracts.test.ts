@@ -163,6 +163,7 @@ pin = hashlib.sha256(endpoint.encode()).hexdigest()
 assert validate(endpoint, pin) == endpoint
 for bad_endpoint, bad_pin in (
     ("https://chatgpt.com/backend-api/codex", hashlib.sha256(b"https://chatgpt.com/backend-api/codex").hexdigest()),
+    ("https://api.anthropic.com/v1", hashlib.sha256(b"https://api.anthropic.com/v1").hexdigest()),
     (endpoint, "f" * 64),
     (None, pin),
 ):
@@ -202,6 +203,21 @@ test('Hermes Bifrost endpoint contract rejects direct provider URLs and endpoint
     expectedSha256: sha256(directProvider),
   });
   assert.notEqual(direct.status, 'ready');
+  const arbitraryProvider = 'https://api.anthropic.com/v1';
+  const fakeGateway = routeContract.inspectHermesBifrostEndpoint({
+    endpoint: arbitraryProvider,
+    endpointSha256: sha256(arbitraryProvider),
+    expectedSha256: sha256(arbitraryProvider),
+  });
+  assert.notEqual(fakeGateway.status, 'ready',
+    'a self-pinned arbitrary provider URL does not prove a Bifröst Gateway');
+  const explicitlyApproved = routeContract.inspectHermesBifrostEndpoint({
+    endpoint: 'https://gateway.private.example/v1',
+    endpointSha256: sha256('https://gateway.private.example/v1'),
+    expectedSha256: sha256('https://gateway.private.example/v1'),
+    allowedHosts: ['gateway.private.example'],
+  });
+  assert.equal(explicitlyApproved.status, 'ready');
 
   const drifted = routeContract.inspectHermesBifrostEndpoint({
     endpoint: bifrostEndpoint,

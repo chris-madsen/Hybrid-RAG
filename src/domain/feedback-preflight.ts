@@ -164,6 +164,8 @@ export const inspectHermesBifrostEndpoint = (input: {
   readonly endpoint?: string;
   readonly endpointSha256?: string;
   readonly expectedSha256?: string;
+  /** Explicit owner-approved host names for nonlocal Bifröst deployments. */
+  readonly allowedHosts?: readonly string[];
 }): FeedbackVerifierReadiness => {
   const endpoint = input.endpoint?.trim().replace(/\/+$/u, '');
   if (endpoint === undefined || endpoint.length === 0) {
@@ -182,6 +184,14 @@ export const inspectHermesBifrostEndpoint = (input: {
   if (host === 'openai.com' || host.endsWith('.openai.com')
     || host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) {
     return { status: 'invalid_configuration', reason: 'direct OpenAI/Codex endpoints bypass Bifröst and are prohibited' };
+  }
+  const approvedLocalHosts = new Set([
+    'localhost', '127.0.0.1', '[::1]', 'host.docker.internal', 'bifrost', 'bifrost-gateway',
+  ]);
+  const operatorAllowed = new Set((input.allowedHosts ?? []).map((value) => value.trim().toLowerCase()));
+  if (!approvedLocalHosts.has(host) && !operatorAllowed.has(host)) {
+    return { status: 'invalid_configuration',
+      reason: 'Bifröst host is not an approved local or explicitly allowlisted endpoint' };
   }
   if (input.endpointSha256 === undefined || !/^[a-f0-9]{64}$/u.test(input.endpointSha256)
     || input.expectedSha256 === undefined || !/^[a-f0-9]{64}$/u.test(input.expectedSha256)) {

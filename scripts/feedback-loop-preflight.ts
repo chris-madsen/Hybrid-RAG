@@ -301,7 +301,11 @@ const hermesBifrostEndpoint = (expectedSha256: string | undefined): PreflightChe
   const endpoint = process.env.HERMES_CODEX_BASE_URL?.trim();
   const normalized = endpoint?.replace(/\/+$/u, '');
   const endpointSha256 = normalized === undefined || normalized.length === 0 ? undefined : sha256(normalized);
-  const readiness = inspectHermesBifrostEndpoint({ endpoint, endpointSha256, expectedSha256 });
+  const allowedHosts = (process.env.ACE_HERMES_ALLOWED_BIFROST_HOSTS ?? '')
+    .split(',').map((host) => host.trim()).filter((host) => host.length > 0);
+  const readiness = inspectHermesBifrostEndpoint({
+    endpoint, endpointSha256, expectedSha256, allowedHosts,
+  });
   return readiness.status === 'ready'
     ? { status: 'ready', reason: readiness.reason, identity: readiness.identity }
     : { status: 'not_ready', reason: readiness.reason };

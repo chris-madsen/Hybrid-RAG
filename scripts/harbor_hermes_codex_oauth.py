@@ -65,7 +65,8 @@ class HermesCodexOAuth(Hermes):
         return 'export PATH="$HOME/.local/bin:$PATH"; hermes --version'
 
     @staticmethod
-    def _validate_bifrost_endpoint(endpoint: str | None, expected_sha256: str | None) -> str:
+    def _validate_bifrost_endpoint(endpoint: str | None, expected_sha256: str | None,
+                                   allowed_hosts: str = "") -> str:
         if not endpoint or not expected_sha256 or not re.fullmatch(r"[a-f0-9]{64}", expected_sha256):
             raise ValueError("Hermes Bifrost endpoint and pinned SHA-256 identity are required")
         normalized = endpoint.strip().rstrip("/")
@@ -81,6 +82,15 @@ class HermesCodexOAuth(Hermes):
         if (hostname == "openai.com" or hostname.endswith(".openai.com")
                 or hostname == "chatgpt.com" or hostname.endswith(".chatgpt.com")):
             raise ValueError("direct OpenAI/Codex endpoints bypass Bifrost and are prohibited")
+        # A matching hash of an attacker-supplied URL is only a configuration
+        # fingerprint; it does NOT prove Bifrost. Refuse arbitrary public hosts
+        # unless the deployment owner explicitly allowlists that exact host.
+        local_hosts = {"localhost", "127.0.0.1", "::1", "host.docker.internal",
+                       "bifrost", "bifrost-gateway"}
+        extra_hosts = {entry.strip().lower() for entry in allowed_hosts.split(",")
+                       if entry.strip()}
+        if hostname not in local_hosts and hostname not in extra_hosts:
+            raise ValueError("Bifrost endpoint host is not explicitly permitted")
         actual_sha256 = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         if actual_sha256 != expected_sha256:
             raise ValueError("Hermes Bifrost endpoint does not match the pinned experiment identity")
@@ -126,7 +136,11 @@ class HermesCodexOAuth(Hermes):
         options = kwargs or {}
         bifrost_endpoint = (env or {}).get("HERMES_CODEX_BASE_URL") or os.environ.get("HERMES_CODEX_BASE_URL")
         endpoint_sha256 = options.get("bifrost_endpoint_sha256")
-        cls._validate_bifrost_endpoint(bifrost_endpoint, endpoint_sha256)
+        cls._validate_bifrost_endpoint(
+            bifrost_endpoint, endpoint_sha256,
+            (env or {}).get("ACE_HERMES_ALLOWED_BIFROST_HOSTS")
+            or os.environ.get("ACE_HERMES_ALLOWED_BIFROST_HOSTS", ""),
+        )
         configured = (env or {}).get("HERMES_AUTH_JSON_PATH") or os.environ.get("HERMES_AUTH_JSON_PATH")
         auth_path = Path(configured).expanduser() if configured else cls._default_auth_path()
         if not auth_path.is_file():
@@ -234,6 +248,8 @@ class HermesCodexOAuth(Hermes):
         bifrost_endpoint = self._validate_bifrost_endpoint(
             self._extra_env.get("HERMES_CODEX_BASE_URL") or os.environ.get("HERMES_CODEX_BASE_URL"),
             self.options.bifrost_endpoint_sha256,
+            self._extra_env.get("ACE_HERMES_ALLOWED_BIFROST_HOSTS")
+            or os.environ.get("ACE_HERMES_ALLOWED_BIFROST_HOSTS", ""),
         )
         await self._stage_hermes_auth(environment)
         env = {
