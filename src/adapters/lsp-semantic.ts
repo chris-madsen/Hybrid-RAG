@@ -421,6 +421,7 @@ const startRuntime = async (options: LspSemanticOptions): Promise<Result<LspRunt
       capabilities: {
         textDocument: {
           definition: { linkSupport: true },
+          documentSymbol: { hierarchicalDocumentSymbolSupport: true },
           references: {},
           hover: {},
           publishDiagnostics: {},
@@ -666,6 +667,44 @@ export const makeLspSemanticAnalysisPort = (options: LspSemanticOptions): LspSem
     }));
 
   return {
+    documentSymbols: (input) => query({
+      ...input, line: 1, column: 1,
+    }, 'document_symbols', async (active, uri) => {
+      try {
+        const response = await withTimeout(active.connection.sendRequest<unknown>(
+          'textDocument/documentSymbol', { textDocument: { uri } },
+        ), options.timeoutMs ?? 15_000);
+        const symbols: SemanticDefinition[] = [];
+        const visit = (nodes: unknown, depth: number): void => {
+          if (!Array.isArray(nodes) || depth > 24 || symbols.length >= 2000) return;
+          for (const value of nodes) {
+            if (symbols.length >= 2000) break;
+            if (typeof value !== 'object' || value === null || Array.isArray(value)) continue;
+            const node = value as Record<string, unknown>;
+            if (typeof node.name !== 'string' || node.name.length === 0) continue;
+            // LSP DocumentSymbol selectionRange is the identifier, not the
+            // entire declaration. This is a native language-server response,
+            // never a source-parser invented by ACE.
+            // A flat SymbolInformation.location covers the full declaration,
+            // not necessarily the identifier. Never pretend that range is a
+            // precise name anchor. Only hierarchical DocumentSymbol's native
+            // selectionRange can certify an exact identifier.
+            const location = validRange(node.selectionRange)
+              ? locationFromLsp(options.rootPath, {
+                uri, range: node.selectionRange,
+              }, active.files) : undefined;
+            if (location !== undefined) symbols.push({ location, name: node.name });
+            visit(node.children, depth + 1);
+          }
+        };
+        visit(response, 0);
+        return ok(symbols);
+      } catch (cause) {
+        await retireRuntime(active);
+        return failure('lsp.document_symbols',
+          cause instanceof Error ? cause.message : 'LSP document-symbol request failed');
+      }
+    }),
     definition: (input) => query(input, 'definition', async (active, uri, position) => {
       try {
         const response = await withTimeout(active.connection.sendRequest<unknown>('textDocument/definition', {

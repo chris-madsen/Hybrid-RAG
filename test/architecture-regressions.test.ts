@@ -10,7 +10,7 @@ import { makeAsyncFileMemoryArchive } from '../src/adapters/file-memory-archive.
 import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
 import { makeLocalContextProvider } from '../src/adapters/local-context-provider.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeAstGrepStructuralPort } from '../src/adapters/ast-grep-structural.js';
+import { cbmOutlineToAnalysis } from '../src/adapters/codebase-memory-structural.js';
 import { makeTypeScriptLanguageServicePort } from '../src/adapters/typescript-language-service.js';
 import { makeRequestId, mergeEvidence } from '../src/domain/retrieval.js';
 import { makeEpisodeId, type SessionEpisode } from '../src/domain/memory.js';
@@ -41,13 +41,21 @@ test('DBC-02 parsed TS function has an exact span, not a whole-file-per-symbol p
   const files = makeNodeWorkspacePort({ allowedRoots: [parent] });
   const indexed = mustOk(await Effect.runPromise(buildLocalCodeIndex(files, workspaceId, root, {
     generation: 1,
-    structural: makeAstGrepStructuralPort({ command: join(process.cwd(), 'node_modules/.bin/ast-grep') }),
+    // Upstream outline row is fixture input; native tool itself is covered by
+    // real-CBM CI. This test checks ACE's exact source-slicing contract.
+    structural: {
+      extract: (input) => Effect.succeed(cbmOutlineToAnalysis(
+        input.repoPath as never, input.source,
+        [{ name: 'reconnect', label: 'Function', startLine: 1, endLine: 4,
+          qualifiedName: 'fixture.reconnect' }],
+      )),
+    },
   })));
   const match = indexed.index.candidates.find((item) => item.symbolName === 'reconnect');
   assert.ok(match);
   assert.equal(match.range.startLine, 1);
-  assert.equal(match.range.endLine, 4);
-  assert.equal(match.text, functionText);
+  assert.equal(match.range.endLine, 5);
+  assert.equal(match.text, functionText + '\n');
   assert.equal(match.sourceDigest, sha(Buffer.from(full)));
   assert.ok(!match.text.includes('unrelated line'));
 
@@ -62,7 +70,7 @@ test('DBC-02 parsed TS function has an exact span, not a whole-file-per-symbol p
   const bundle = mustOk(await Effect.runPromise(provider.search({
     workspaceId, query: 'reconnect', includeDocs: false, includeMemory: false,
   })));
-  assert.equal(bundle.evidence[0]?.content, functionText);
+  assert.equal(bundle.evidence[0]?.content, functionText + '\n');
   assert.equal(bundle.complete, false, 'local fallback is not an approved Qdrant semantic provider');
 });
 
@@ -121,12 +129,11 @@ test('DBC-11 deleting one episode never deletes shared content needed by another
   mustOk(await archive.deleteEpisode(second.episodeId));
 });
 
-test('RepoMap def/ref graph must not regain the old full-candidate LSP dependency', async () => {
-  const source = await readFile(join(process.cwd(), 'src/adapters/repo-map-structural.ts'), 'utf8');
-  assert.doesNotMatch(source, /SemanticAnalysisPort|input\.semantics|semantics\.references/u,
-    'RepoMap must consume shared ast-grep def/ref records, never an LSP scan over candidates');
+test('native CBM is the single production structural owner', async () => {
+  const runtime = await readFile(join(process.cwd(), 'src/bin/ace-runtime.ts'), 'utf8');
+  assert.match(runtime, /makeCodebaseMemoryStructuralPort/u);
+  assert.doesNotMatch(runtime, /makeAstGrepStructuralPort|buildRepoMapDelta|makeRepoMapService/u);
 });
-
 
 test('Gateway-only composition cannot start an optional model tool transport', async () => {
   const runtime = await readFile(join(process.cwd(), 'src/bin/ace-runtime.ts'), 'utf8');

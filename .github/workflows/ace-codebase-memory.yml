@@ -1,0 +1,67 @@
+name: ACE Codebase Memory native integration
+
+on:
+  pull_request:
+    paths:
+      - 'src/adapters/codebase-memory-graph.ts'
+      - 'src/adapters/qdrant-context-provider.ts'
+      - 'src/application/ports.ts'
+      - 'src/bin/ace-runtime.ts'
+      - 'test/codebase-memory-graph.contracts.test.ts'
+      - '.github/workflows/ace-codebase-memory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cbm-real:
+    name: Real CBM v0.12.1 source index and retrieval
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install ACE dependencies
+        run: npm ci
+      - name: Install pinned upstream Codebase Memory native executable
+        # Isolated read-only CI job; no repository credentials persist. Upstream
+        # installer verifies release artifact checksums before execution.
+        run: | # zizmor: ignore[adhoc-packages] version 0.12.1 pinned; native archive checksum verified upstream
+          npm install --global codebase-memory-mcp@0.12.1
+          codebase-memory-mcp --version
+      - name: Typecheck and lint
+        run: |
+          npm run check
+          npm run lint
+      - name: Native provider contract on actual ACE repository
+        env:
+          ACE_TEST_REAL_CBM: 'true'
+        run: npx tsx --test test/codebase-memory-graph.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
+
+  full-regression:
+    name: Full ACE regression after native CBM migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install ACE pinned dependencies
+        run: npm ci
+      - name: Install pinned upstream Codebase Memory for real LSP evidence
+        run: | # zizmor: ignore[adhoc-packages] pinned v0.12.1 verifies native archive checksum
+          npm install --global codebase-memory-mcp@0.12.1
+          codebase-memory-mcp --version
+      - name: Run complete source contracts, build, architecture and nightly property suite
+        run: npm run verify:full

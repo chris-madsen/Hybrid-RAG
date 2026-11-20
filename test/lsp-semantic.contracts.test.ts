@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os';
 import test from 'node:test';
 import { Effect } from 'effect';
 import { makeLspSemanticAnalysisPort, resolveLspProviderIdentity } from '../src/adapters/lsp-semantic.js';
-import { makeAstGrepStructuralPort } from '../src/adapters/ast-grep-structural.js';
 import { utf16ColumnAtUtf8Byte } from '../src/domain/utf8-range.js';
 
 const command = join(process.cwd(), 'node_modules/.bin/typescript-language-server');
@@ -23,6 +22,17 @@ test('generic LSP adapter uses the real TypeScript language server for definitio
     timeoutMs: 20_000,
   });
   try {
+    const symbols = await Effect.runPromise(provider.documentSymbols!({
+      repoPath: 'main.ts', snapshotIdentity,
+    }));
+    assert.equal(symbols._tag, 'Ok', JSON.stringify(symbols));
+    if (symbols._tag === 'Ok') {
+      assert.deepEqual(symbols.value.find((item) => item.name === 'save')?.location, {
+        repoPath: 'main.ts', startLine: 1, startColumn: 17, endLine: 1, endColumn: 21,
+      });
+      assert.ok(symbols.value.some((item) => item.name === 'value'));
+    }
+
     const definition = await Effect.runPromise(provider.definition({
       repoPath: 'main.ts', line: 2, column: 15, snapshotIdentity,
     }));
@@ -292,8 +302,8 @@ test('LSP identity and unsupported language status are explicit', async () => {
   await provider.close();
 });
 
-test('actual ast-grep declarations resolve through real LSP without injected name anchors', async () => {
-  const rootPath = await mkdtemp(join(tmpdir(), 'ace-cst-lsp-'));
+test('real LSP resolves multilingual declarations from independent UTF-8 source coordinates', async () => {
+  const rootPath = await mkdtemp(join(tmpdir(), 'ace-native-lsp-'));
   const snapshotIdentity = 'f'.repeat(64);
   const source = [
     'const emoji = "🧠";',
@@ -302,42 +312,37 @@ test('actual ast-grep declarations resolve through real LSP without injected nam
     '',
   ].join('\n');
   const bytes = Buffer.from(source, 'utf8');
-  const structural = makeAstGrepStructuralPort({ command: join(process.cwd(), 'node_modules/.bin/ast-grep') });
-  const outlined = await Effect.runPromise(structural.extract({ repoPath: 'main.ts', source: bytes }));
-  assert.equal(outlined._tag, 'Ok');
-  if (outlined._tag === 'Err') return;
+  const lines = source.split('\n');
   const lsp = makeLspSemanticAnalysisPort({
     command, rootPath, files: { 'main.ts': source }, snapshotIdentity, timeoutMs: 20_000,
   });
   try {
-    for (const name of ['привет', 'Service', 'save']) {
-      const candidate = outlined.value.symbols.find((item) => item.name === name);
-      assert.ok(candidate, 'missing declaration: ' + name);
-      assert.ok(candidate?.nameStartLine !== undefined && candidate?.nameStartColumn !== undefined
-        && candidate?.nameEndColumn !== undefined, 'missing semantic anchor: ' + name);
-      if (candidate?.nameStartLine === undefined || candidate.nameStartColumn === undefined
-        || candidate.nameEndColumn === undefined) continue;
-      const column = utf16ColumnAtUtf8Byte(bytes, candidate.nameStartLine, candidate.nameStartColumn);
-      const endColumn = utf16ColumnAtUtf8Byte(bytes, candidate.nameStartLine, candidate.nameEndColumn);
+    for (const [name, line] of [['привет', 2], ['Service', 3], ['save', 3]] as const) {
+      const sourceLine = lines[line - 1]!;
+      const charIndex = sourceLine.indexOf(name);
+      assert.ok(charIndex >= 0);
+      const byteColumn = Buffer.byteLength(sourceLine.slice(0, charIndex), 'utf8') + 1;
+      const endByteColumn = byteColumn + Buffer.byteLength(name, 'utf8');
+      const column = utf16ColumnAtUtf8Byte(bytes, line, byteColumn);
+      const endColumn = utf16ColumnAtUtf8Byte(bytes, line, endByteColumn);
       assert.ok(column !== undefined && endColumn !== undefined, 'UTF-8/UTF-16 conversion: ' + name);
       if (column === undefined || endColumn === undefined) continue;
       const definition = await Effect.runPromise(lsp.definition({
-        repoPath: 'main.ts', line: candidate.nameStartLine, column, snapshotIdentity,
+        repoPath: 'main.ts', line, column, snapshotIdentity,
       }));
       assert.equal(definition._tag, 'Ok', 'definition query for ' + name);
       if (definition._tag === 'Err') continue;
       assert.ok(definition.value.some((item) =>
         item.location.repoPath === 'main.ts'
-        && item.location.startLine === candidate.nameStartLine
+        && item.location.startLine === line
         && item.location.startColumn === column
-        && item.location.endLine === candidate.nameStartLine
-        && item.location.endColumn === endColumn), 'LSP disagrees with structural declaration: ' + name);
+        && item.location.endLine === line
+        && item.location.endColumn === endColumn), 'LSP disagrees with declaration: ' + name);
     }
   } finally {
     await lsp.close();
   }
 });
-
 
 test('failed LSP initialization allows bounded graceful provider termination', async () => {
   const rootPath = await mkdtemp(join(tmpdir(), 'ace-lsp-init-failure-'));

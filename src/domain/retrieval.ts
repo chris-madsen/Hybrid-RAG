@@ -32,7 +32,7 @@ export interface CodeCandidate {
   readonly repoPath: RepoPath;
   readonly range: SourceRange;
   readonly symbolName?: string;
-  /** ast-grep-derived structural metadata retained for compact navigation delivery. */
+  /** native CBM-derived structural metadata retained for compact navigation delivery. */
   readonly structuralKind?: StructuralKind;
   readonly structuralLanguage?: string;
   readonly structuralExported?: boolean;

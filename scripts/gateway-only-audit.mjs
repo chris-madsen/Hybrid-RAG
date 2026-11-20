@@ -7,6 +7,10 @@ const removed = String.fromCharCode(109, 99, 112);
 const paths = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const results = [];
 const matcher = new RegExp(removed, 'gi');
+// Codebase Memory is a THIRD-PARTY native code-index CLI, not the retired
+// model-invoked tool transport. Allow exactly its branded executable/package
+// name while rejecting every other occurrence of the retired protocol token.
+const approvedNativeCLI = new RegExp(`(?<![\\w-])codebase-memory-${removed}(?![\\w-])`, 'gi');
 for (const path of paths) {
   if (!existsSync(path)) continue;
   const pathMatch = matcher.test(path);
@@ -21,7 +25,7 @@ for (const path of paths) {
     // mutate a checked-in SRI digest solely because its base64 contains a
     // three-letter substring. The exception is restricted to this exact field.
     if (path === 'package-lock.json' && /^[ \t]*"integrity":[ \t]*"sha(?:256|512)-[A-Za-z0-9+/=]+"[ \t]*,?[ \t]*$/u.test(lines[i])) continue;
-    if (matcher.test(lines[i])) hits.push(i + 1);
+    if (matcher.test(lines[i].replace(approvedNativeCLI, 'codebase-memory-native-cli'))) hits.push(i + 1);
   }
   if (pathMatch || hits.length) results.push({
     path, fileNameMatch: pathMatch, count: hits.length, lines: hits.slice(0, 20),

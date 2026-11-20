@@ -1,3 +1,5 @@
+> **ARCHIVED / SUPERSEDED BY PR #316 (CBM migration):** This is retained as historical AR08 experiment evidence. The ast-grep CLI/NAPI structural provider, its 125-file comparison script and its parity tests have been removed from production/test tooling. Do **not** run the commands or treat this as current ACE parser-selection guidance. Use [native Codebase Memory operations](./codebase-memory-provider.md) for the active architecture. Historical corpus disagreement is not evidence about Codebase Memory accuracy.
+
 # AR08 — source recall / ast-grep corpus parity (offline evaluation)
 
 **Status:** observation capability implemented; real local-Qdrant/agent task benefit and provider promotion **NOT_RUN / NOT_APPROVED**. Based on current `main` with AR02/AR07 already merged. OpenSpec 014 owns acceptance IDs **REM-018** and **REM-019**.
@@ -23,7 +25,7 @@ For source-path recall, an independently labeled case may include optional `rele
 
 ## CLI vs NAPI: 125-file real source corpus
 
-The already-existing [parity probe](../../scripts/ast-grep-provider-parity.ts) now compares **the same exact source bytes** through the canonical CLI and experimental NAPI in batches, with a deterministic SHA-256 manifest of (relative path, source digest). Missing/extraction-failed files count as non-equivalent, not skipped.
+The already-existing [historical parity probe at its original source SHA](https://github.com/chris-madsen/Hybrid-RAG/blob/9464c4a4a420634ea39bd4ae57673a51fc88ed8f/scripts/ast-grep-provider-parity.ts) now compares **the same exact source bytes** through the canonical CLI and experimental NAPI in batches, with a deterministic SHA-256 manifest of (relative path, source digest). Missing/extraction-failed files count as non-equivalent, not skipped.
 
 ```bash
 ACE_AST_GREP_PARITY_MAX_FILES=125 \

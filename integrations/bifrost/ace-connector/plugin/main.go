@@ -198,9 +198,9 @@ func errorResponse(status int, message string) *schemas.HTTPResponse {
 	return &schemas.HTTPResponse{StatusCode: status, Headers: map[string]string{"Content-Type": "application/json"}, Body: body}
 }
 
-// Only native Responses ingress is admitted to local projection. The provider
-// attempt hook below still blocks every physical dispatch until final-send
-// authorization is independently certified.
+// Only native Responses ingress is admitted to local projection. Every
+// physical provider attempt requires a verified request-bound authorization
+// guard; a PREPARED projection by itself never authorizes dispatch.
 func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
 	if req == nil {
 		return errorResponse(400, "ACE gateway request is missing"), nil
@@ -216,10 +216,10 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	}
 }
 
-// The native Responses ingress can prepare local ACE context, but the
-// PreLLMHook below STILL denies every provider dispatch. No PREPARED result is
-// a physical-send permit, and Bifröst's internal retry/fallback conversion is
-// not certified. This deliberately allows local projection tests without egress.
+// Native Responses ingress prepares local ACE context and installs a
+// request-bound physical-send authorization guard. PreLLMHook denies every
+// request missing that guard. Terminal transport invokes the guard on each
+// serialized provider attempt; PREPARED alone is never authorization.
 func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
 	if req == nil || len(req.Body) == 0 || len(req.Body) > int(connector.DefaultMaxBodyBytes) {
 		return errorResponse(400, "native Responses body is missing or too large"), nil

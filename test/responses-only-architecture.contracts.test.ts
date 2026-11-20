@@ -19,12 +19,14 @@ test('native projection owns its request contract and protected provider control
   assert.match(service, /kind: 'BLOCK'/u);
 });
 
-test('pinned Bifröst plugin never treats prepared Responses context as provider-send approval', async () => {
+test('pinned Bifröst plugin gates all provider sends on a request-bound physical authorization', async () => {
   const plugin = await source('integrations/bifrost/ace-connector/plugin/main.go');
   const wire = await source('integrations/bifrost/ace-connector/responses.go');
   assert.match(plugin, /case "\/v1\/responses":/u);
   assert.match(plugin, /return prepareNativeResponses\(ctx, req\)/u);
-  assert.match(plugin, /return blockProviderAttempt\(req, "ACE provider dispatch disabled until native Responses is certified"\)/u);
+  assert.match(plugin, /return blockProviderAttempt\(req, "ACE physical-send authorization guard is unavailable"\)/u);
+  assert.match(plugin, /guard\.Authorize == nil/u);
+  assert.match(plugin, /AuthorizeNativeResponsesAttempt/u);
   assert.match(wire, /decision\.Kind != "PREPARED"/u);
 });
 
@@ -40,7 +42,7 @@ test('TypeSpec and generated SDK publish only the native v2 projection contract'
   const generated = await source('src/generated/ace-gateway/v2/types.gen.ts');
   assert.match(generated, /schemaVersion: 'ace\.gateway\.v2'/u);
 });
-test('active Gateway and Bifröst wiring stays on native v2 and blocks every dispatch', async () => {
+test('active Gateway and Bifröst wiring stays on native v2 and blocks unguarded dispatch', async () => {
   const runtime = await source('src/bin/ace-runtime.ts');
   assert.match(runtime, /makeResponsesProjectionService/u);
   const server = await source('src/bin/ace-gateway-http.ts');
@@ -51,5 +53,7 @@ test('active Gateway and Bifröst wiring stays on native v2 and blocks every dis
   assert.match(gateway, /routes: \[\]/u, 'gateway must not advertise uncertified generation');
   assert.match(gateway, /providerWire: 'not_certified'/u);
   const plugin = await source('integrations/bifrost/ace-connector/plugin/main.go');
-  assert.match(plugin, /return blockProviderAttempt\(req, "ACE provider dispatch disabled until native Responses is certified"\)/u);
+  assert.match(plugin, /return blockProviderAttempt\(req, "ACE physical-send authorization guard is unavailable"\)/u);
+  assert.match(plugin, /guard\.Authorize == nil/u);
+  assert.match(plugin, /AuthorizeNativeResponsesAttempt/u);
 });

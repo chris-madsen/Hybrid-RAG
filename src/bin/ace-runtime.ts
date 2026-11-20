@@ -40,12 +40,8 @@ import {
   reuseOrPopulateQdrantSnapshot,
   verifyQdrantSnapshotMembership,
 } from '../adapters/qdrant-context-provider.js';
-import {
-  configuredAstGrepProvider,
-  makeAstGrepStructuralPort,
-  resolveAstGrepProviderIdentity,
-} from '../adapters/ast-grep-structural.js';
-import { buildRepoMapDelta } from '../adapters/repo-map-structural.js';
+import { makeCodebaseMemoryStructuralPort } from '../adapters/codebase-memory-structural.js';
+import { makeCodebaseMemoryGraph } from '../adapters/codebase-memory-graph.js';
 import {
   lspLanguageIdForPath,
   makeLspSemanticAnalysisPort,
@@ -58,7 +54,7 @@ import { defaultLocalPolicy, type DataClass } from '../domain/policy.js';
 import { makeWorkspaceId, type RepoPath, type WorkspaceId } from '../domain/workspace.js';
 import { isSensitiveSourcePath } from '../domain/sensitive-path.js';
 import { structuralLanguageForPath } from '../domain/structural-language.js';
-import type { RepoMapSymbolId } from '../domain/repo-map.js';
+import type { CodeCandidate } from '../domain/retrieval.js';
 import type { RetrievalBenchmarkTraceSink } from '../domain/retrieval-benchmark.js';
 import {
   workspaceManifestFromSnapshot,
@@ -79,7 +75,6 @@ import { makeContextTransformService } from '../application/context-transform-se
 import { makeContextAssembler } from '../application/context-assembler.js';
 import { makeGatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
 import { validateNativeResponsesStreamingRoutes } from '../application/gateway-security-contract.js';
-import { makeRepoMapService, type RepoMapService } from '../application/repo-map-service.js';
 import {
   makeLspServerDescriptor,
   makeLspServerRegistry,
@@ -333,11 +328,6 @@ const main = async (): Promise<void> => {
       ? { state: 'not_ready', reason: 'provider_not_initialized' }
       : { state: 'disabled', reason: 'vertex_disabled' },
   };
-  const astGrepCommand = optionalCommand(
-    process.env.ACE_AST_GREP_COMMAND,
-    resolve(runtimeRoot, 'node_modules/.bin/ast-grep'),
-  );
-  const astGrepProvider = configuredAstGrepProvider(process.env.ACE_AST_GREP_PROVIDER);
   const lspCommand = optionalCommand(
     process.env.ACE_LSP_COMMAND,
     resolve(runtimeRoot, 'node_modules/.bin/typescript-language-server'),
@@ -378,9 +368,7 @@ const main = async (): Promise<void> => {
   // Provider provenance follows committed workspace publication, not an
   // unobserved default LS from process configuration.
   let activeContextProviderIdentities: Readonly<Record<string, string>> | undefined;
-  let effectiveStructuralProviderIdentity = astGrepProvider === 'napi'
-    ? process.env.ACE_AST_GREP_NAPI_VERSION?.trim() || 'ast-grep/napi@0.51.0'
-    : process.env.ACE_AST_GREP_VERSION?.trim() || 'ast-grep/0.51.0';
+  const cbmStructuralIdentity = 'codebase-memory/v0.12.1:outline:v1';
   if (process.env.ACE_ENABLE_EXPERIMENTAL_QDRANT === 'true') {
     const http = makeFetchHttpPort();
     const qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
@@ -533,11 +521,10 @@ const main = async (): Promise<void> => {
     if (qdrantReachable._tag === 'Err') {
       handleQdrantUnavailable(qdrantReachable.error.code);
     } else if (!commandBoundaryExists(embeddingWorker)
-      || (retrievalStrategy !== 'dense' && !commandBoundaryExists(sparseEmbeddingWorker))
-      || (astGrepProvider !== 'napi' && !commandBoundaryExists(astGrepCommand))) {
+      || (retrievalStrategy !== 'dense' && !commandBoundaryExists(sparseEmbeddingWorker))) {
       readiness.code_retrieval = { state: 'not_ready', reason: 'provider_runtime_missing' };
       readiness.unified_context = { state: 'not_ready', reason: 'provider_runtime_missing' };
-      process.stderr.write('ace-runtime context NOT_READY: configured embedding/ast-grep runtime files are missing\n');
+      process.stderr.write('ace-runtime context NOT_READY: configured embedding runtime files are missing\n');
     } else {
       const embeddings = makeProcessEmbeddingPort({
         command: embeddingWorker,
@@ -624,23 +611,10 @@ const main = async (): Promise<void> => {
           const sparseEmbeddingFingerprint = effectiveSparseEmbedding === undefined
             ? 'disabled'
             : sparseEmbeddingIdentityFingerprint(effectiveSparseEmbedding);
-          const structuralOptions = {
-            command: astGrepCommand,
-            provider: astGrepProvider,
-            providerVersion: astGrepProvider === 'napi'
-              ? process.env.ACE_AST_GREP_NAPI_VERSION?.trim() || 'ast-grep/napi@0.51.0'
-              : process.env.ACE_AST_GREP_VERSION?.trim() || 'ast-grep/0.51.0',
-            // Auto embeds BOTH maintained parser identities in warm-cache keys.
-            napiProviderVersion: process.env.ACE_AST_GREP_NAPI_VERSION?.trim() || 'ast-grep/napi@0.51.0',
-            trace: providerTrace,
-          };
-          const structuralIdentity = await Effect.runPromise(resolveAstGrepProviderIdentity(structuralOptions));
-          if (structuralIdentity._tag === 'Ok') effectiveStructuralProviderIdentity = structuralIdentity.value.version;
-          const structuralFingerprint = structuralIdentity._tag === 'Ok'
-            ? structuralIdentity.value.fingerprint
-            : createHash('sha256')
-              .update(`unverified-structural-runtime:${randomUUID()}`, 'utf8')
-              .digest('hex');
+          // CBM is the only production structural/graph engine. Qdrant still
+          // stores vectors, while source bytes and SHA-256 remain ACE-owned.
+          const structuralFingerprint = createHash('sha256')
+            .update(cbmStructuralIdentity, 'utf8').digest('hex');
           const retrievalFingerprint = createHash('sha256')
             .update(JSON.stringify({
               schema: retrievalStrategy === 'dense' ? 'dense-qdrant-v1' : 'hybrid-qdrant-local-sparse-v2',
@@ -652,15 +626,15 @@ const main = async (): Promise<void> => {
               sparseModel: effectiveSparseEmbedding?.model ?? null,
               sparsePreprocessing: effectiveSparseEmbedding?.preprocessing ?? null,
               fusion: retrievalStrategy === 'dense' ? 'none' : 'rrf',
-            }), 'utf8')
-            .digest('hex');
-          if (structuralIdentity._tag === 'Err') {
-            process.stderr.write(`ace retrieval warning: structural identity unverified; cache disabled and cross-restart snapshot reuse intentionally disabled (${structuralIdentity.error.code})\n`);
-          }
-          const structural = makeAstGrepStructuralPort(structuralOptions);
-          const repoMapService = makeRepoMapService();
-          const repoMapSymbolIdsByPath = new Map<RepoPath, readonly RepoMapSymbolId[]>();
-          let activeRepoMap: RepoMapService | undefined;
+            }), 'utf8').digest('hex');
+          let codebaseMemoryCandidates: readonly CodeCandidate[] = [];
+          const codebaseMemory = makeCodebaseMemoryGraph({
+            rootPath: registered.value.rootPath,
+            ...(process.env.ACE_CBM_COMMAND?.trim() ? { command: process.env.ACE_CBM_COMMAND.trim() } : {}),
+            candidates: () => codebaseMemoryCandidates,
+          });
+          const structural = makeCodebaseMemoryStructuralPort(codebaseMemory);
+          let activeCodeGraph: typeof codebaseMemory | undefined;
           let latestBuild: LocalCodeIndexBuild | undefined;
           const publicationAuthority = makeLocalQdrantPublicationAuthority({
             workspaceId: registered.value.workspaceId,
@@ -737,51 +711,11 @@ const main = async (): Promise<void> => {
               semanticSnapshot,
             ));
             if (sourceFiles._tag === 'Err') return sourceFiles;
-            const sourceBytesByPath = new Map<RepoPath, Uint8Array>(
-              Object.entries(sourceFiles.value).map(([repoPath, source]) => [repoPath as RepoPath, new TextEncoder().encode(source)]),
-            );
-            const changedPathSet = verification === 'incremental' ? new Set(changedPaths) : undefined;
-            const removedSymbolIds = verification === 'incremental'
-              ? changedPaths.flatMap((repoPath) => repoMapSymbolIdsByPath.get(repoPath) ?? [])
-              : [];
-            const structuralAnalyses = [...(build.structuralAnalysesByPath?.values() ?? [])];
-            const missingReferenceCoverage = structuralAnalyses.filter((analysis) =>
-              analysis.symbols.length > 0 && analysis.identifiers === undefined);
-            if (missingReferenceCoverage.length > 0
-              || !structuralAnalyses.some((analysis) => analysis.identifiers !== undefined)) {
-              activeRepoMap = undefined;
-              process.stderr.write(`ace-runtime RepoMap NOT_READY: shared def/ref records incomplete for ${missingReferenceCoverage.length} structural files; refusing a second parser pass\n`);
-            } else {
-              const repoMapDelta = await Effect.runPromise(buildRepoMapDelta({
-                candidates: build.index.candidates,
-                structuralAnalyses,
-                sourceBytesByPath,
-                ...(changedPathSet === undefined ? {} : { upsertPaths: changedPathSet }),
-                removedSymbolIds,
-              }));
-              if (repoMapDelta._tag === 'Err') {
-                activeRepoMap = undefined;
-                process.stderr.write(`ace-runtime RepoMap NOT_READY: structural graph assembly failed (${repoMapDelta.error.code})\n`);
-              } else {
-                const updatedRepoMap = await Effect.runPromise(repoMapService.update(repoMapDelta.value));
-                if (updatedRepoMap._tag === 'Err') {
-                  activeRepoMap = undefined;
-                  process.stderr.write(`ace-runtime RepoMap NOT_READY: structural graph update failed (${updatedRepoMap.error.code})\n`);
-                } else {
-                  for (const repoPath of changedPaths) repoMapSymbolIdsByPath.delete(repoPath);
-                  for (const symbol of repoMapDelta.value.upserted) {
-                    repoMapSymbolIdsByPath.set(symbol.repoPath, [
-                      ...(repoMapSymbolIdsByPath.get(symbol.repoPath) ?? []),
-                      symbol.id,
-                    ]);
-                  }
-                  for (const [repoPath, ids] of repoMapSymbolIdsByPath) {
-                    repoMapSymbolIdsByPath.set(repoPath, [...new Set(ids)]);
-                  }
-                  activeRepoMap = repoMapService;
-                }
-              }
-            }
+            // CBM indexing completed BEFORE local candidate extraction;
+            // the same source verification and manifest fences apply to
+            // both graph discovery and Qdrant publication.
+            codebaseMemoryCandidates = build.index.candidates;
+            activeCodeGraph = codebaseMemory;
             // Pinned Claw descriptors + existing vscode-jsonrpc/registry:
             // each installed language server owns only its known extensions.
             const lspOverridden = [
@@ -1022,13 +956,14 @@ const main = async (): Promise<void> => {
                   ? 'disabled'
                   : `${effectiveSparseEmbedding.provider}|model=${effectiveSparseEmbedding.model}|runtime=${effectiveSparseEmbedding.runtimeVersion}|artifact=${effectiveSparseEmbedding.artifactDigest}`,
                 qdrant: process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2',
-                structural: effectiveStructuralProviderIdentity,
+                structural: cbmStructuralIdentity,
+                code_graph: activeCodeGraph === undefined ? 'codebase-memory/not_ready' : 'codebase-memory/v0.12.1',
                 semantic: semanticProviderVersion,
                 reranker: rerankerModel === undefined ? 'disabled' : `fastembed/cross-encoder|model=${rerankerModel}`,
               },
               history,
               ...(documentation === undefined ? {} : { documentation }),
-              ...(activeRepoMap === undefined ? {} : { repoMap: activeRepoMap }),
+              ...(activeCodeGraph === undefined ? {} : { codeGraph: activeCodeGraph }),
             });
           };
           const publishBuild = async (
@@ -1116,8 +1051,10 @@ const main = async (): Promise<void> => {
             : undefined;
           const initialTicket = await publicationAuthority.reserve(confirmEmptyQdrantBootstrap);
           const initialEpoch = initialTicket._tag === 'Ok' ? initialTicket.value.epoch : generation;
-          const built = initialTicket._tag === 'Err'
-            ? initialTicket
+          const nativeIndex = initialTicket._tag === 'Err'
+            ? initialTicket : await Effect.runPromise(codebaseMemory.reindex());
+          const built = nativeIndex._tag === 'Err'
+            ? nativeIndex
             : await Effect.runPromise(buildLocalCodeIndex(files, registered.value.workspaceId, registered.value.rootPath, {
               generation: initialEpoch,
               scopeFingerprint,
@@ -1167,6 +1104,8 @@ const main = async (): Promise<void> => {
                     const ticket = await publicationAuthority.reserve(confirmEmptyQdrantBootstrap);
                     if (ticket._tag === 'Err') return ticket;
                     const rebuildGeneration = ticket.value.epoch;
+                    const nativeReindexed = await Effect.runPromise(codebaseMemory.reindex());
+                    if (nativeReindexed._tag === 'Err') return nativeReindexed;
                     const rebuilt = await Effect.runPromise(buildLocalCodeIndex(
                       files,
                       registered.value.workspaceId,
@@ -1237,7 +1176,7 @@ const main = async (): Promise<void> => {
   } else {
     readiness.code_retrieval = { state: 'not_ready', reason: 'real_provider_disabled' };
     readiness.unified_context = { state: 'not_ready', reason: 'real_provider_disabled' };
-    process.stderr.write('ace-runtime context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+ast-grep+TypeScript-LS composition; provider outage remains not_ready\n');
+    process.stderr.write('ace-runtime context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+Codebase Memory+LSP composition; provider outage remains not_ready\n');
   }
   const gatewayAllowedLlmProviders = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', [])
     .map((provider) => provider.trim().toLowerCase())

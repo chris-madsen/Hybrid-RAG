@@ -17,6 +17,7 @@ import {
 } from '../domain/retrieval.js';
 import type {
   CodeCandidatePort,
+  CodeGraphCandidatePort,
   CodePoint,
   DocumentationPort,
   GitHistoryPort,
@@ -30,14 +31,13 @@ import type {
   WorkspaceFilePort,
 } from '../application/ports.js';
 import type { WorkspaceSync } from '../application/workspace-sync.js';
-import type { RepoMapService } from '../application/repo-map-service.js';
-import type { RepoMapResult } from '../domain/repo-map.js';
 import {
   canonicalBenchmarkCandidateId,
   type RetrievalBenchmarkStageStatus,
   type RetrievalBenchmarkTraceSink,
 } from '../domain/retrieval-benchmark.js';
 import type { CodeCandidate } from '../domain/retrieval.js';
+import type { SemanticDefinition } from '../domain/semantic.js';
 import {
   workingContextFromSnapshot,
   type RepoPath,
@@ -118,8 +118,8 @@ export interface QdrantContextConfig {
   readonly workspaceSync?: WorkspaceSync;
   /** Stable collection mode keeps unchanged points across changed-path mutations. */
   readonly qdrantStableCollection?: boolean;
-  /** Optional bounded structural prior; Qdrant remains semantic authority. */
-  readonly repoMap?: RepoMapService;
+  /** CBM supplies candidates missing from Qdrant's shortlist; all are exact-read before delivery. */
+  readonly codeGraph?: CodeGraphCandidatePort;
 }
 
 export const embeddingContentKey = (providerIdentity: string, chunk: string): string =>
@@ -168,42 +168,6 @@ export const applyWorkingContextPriors = (
     .map((candidate) => {
       const boost = workingContextBoost(candidate, workingContext, hints);
       return { ...candidate, score: candidate.score + boost * scale };
-    })
-    .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
-    .slice(0, limit);
-};
-
-const repoMapKey = (candidate: RankedCandidate['candidate']): string => [
-  candidate.repoPath,
-  candidate.range.startLine,
-  candidate.range.startColumn ?? '',
-  candidate.range.endLine,
-  candidate.range.endColumn ?? '',
-  candidate.sourceDigest,
-].join(':');
-
-export const applyRepoMapPrior = (
-  candidates: readonly RankedCandidate[],
-  repoMap: RepoMapResult,
-  limit: number,
-): readonly RankedCandidate[] => {
-  const rankByKey = new Map(repoMap.ranked.map((item, index) => [
-    [
-      item.symbol.repoPath,
-      item.symbol.range.startLine,
-      item.symbol.range.startColumn ?? '',
-      item.symbol.range.endLine,
-      item.symbol.range.endColumn ?? '',
-      item.symbol.sourceDigest,
-    ].join(':'),
-    index,
-  ]));
-  return [...candidates]
-    .map((candidate) => {
-      const rank = rankByKey.get(repoMapKey(candidate.candidate));
-      return rank === undefined
-        ? candidate
-        : { ...candidate, score: candidate.score + 0.05 / (rank + 1) };
     })
     .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
     .slice(0, limit);
@@ -981,9 +945,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       const lspRequirement = requirements.lsp ?? { requirement: 'not_requested' as const, allowed: true };
       const useLsp = sourceIsRequested(lspRequirement);
       // includeCode grants access to verified code candidates, NOT permission
-      // to compute or publish structural RepoMap text. The caller's source
+      // to compute or publish native graph metadata. The caller's source
       // plan independently authorizes the optional structural provider.
-      const useRepoMap = includeCode && sourceIsRequested(requirements.structural);
       let sourceCoverage = initialSourceCoverage(requirements);
       const evidence: RetrievalEvidence[] = [];
       const warnings: string[] = [];
@@ -993,8 +956,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       // A shortlist is not delivered until the final source revalidation.
       const candidateEvidenceIds = new Map<string, string>();
       let deliveryTraceStartedAtMs: number | undefined;
-      let repoMapResult: RepoMapResult | undefined;
-      let repoMapError: DomainError | undefined;
+      let codeGraphError: DomainError | undefined;
+      let codeGraphHitCount = 0;
       let lspConfirmedCount = 0;
       if (includeCode) {
         const retrievalStrategy = activeConfig.retrievalStrategy
@@ -1136,31 +1099,48 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
               retrievalStartedAtMs,
               activeConfig.benchmarkRepositoryId,
             );
-            const workingContextStartedAtMs = Date.now();
-            let prioritized = applyWorkingContextPriors(
-              result.value,
-              requestWorkingContext,
-              input.workingContextHints,
-              result.value.length,
-            );
-            if (useRepoMap && activeConfig.repoMap !== undefined) {
-              const repoMap = yield* activeConfig.repoMap.render({
+            // Discover across the full indexed workspace, not just Qdrant's
+            // original top-k. CBM's own semantic engine chooses graph hits;
+            // the existing ACE verified-candidate inventory supplies digests
+            // and byte ranges. Reserve part of the bounded shortlist for each
+            // provider so a previously unknown dependency can still be read.
+            let discovered: readonly RankedCandidate[] = result.value;
+            if (activeConfig.codeGraph !== undefined) {
+              const graphResult = yield* activeConfig.codeGraph.search({
                 query: input.query,
-                openFiles: input.workingContextHints?.openPaths
-                  ?? (requestWorkingContext?.unstagedPaths ?? []),
-                mentionedFiles: input.workingContextHints?.focusedPath === undefined
-                  ? []
-                  : [input.workingContextHints.focusedPath],
-                tokenBudget: Math.max(128, retrievalLimit * 16),
+                limit: retrievalLimit,
+                changedPaths: [
+                  ...(requestWorkingContext?.stagedPaths ?? []),
+                  ...(requestWorkingContext?.unstagedPaths ?? []),
+                  ...(requestWorkingContext?.untrackedPaths ?? []),
+                ],
               });
-              if (repoMap._tag === 'Err') {
-                repoMapError = repoMap.error;
-                warnings.push('RepoMap unavailable: ' + repoMap.error.code);
+              if (graphResult._tag === 'Err') {
+                codeGraphError = graphResult.error;
+                warnings.push('Codebase Memory discovery unavailable: ' + graphResult.error.code);
               } else {
-                repoMapResult = repoMap.value;
-                prioritized = applyRepoMapPrior(prioritized, repoMap.value, retrievalLimit);
+                codeGraphHitCount = graphResult.value.length;
+                const graphSlots = Math.max(1, Math.floor(retrievalLimit / 2));
+                const topScore = result.value[0]?.score ?? 0;
+                const graphCandidates = graphResult.value.slice(0, graphSlots).map((item, rank) => ({
+                  ...item,
+                  score: topScore + 0.05 / (rank + 1),
+                }));
+                const seen = new Set<string>();
+                discovered = [...graphCandidates, ...result.value].filter((item) => {
+                  if (seen.has(item.candidate.candidateId)) return false;
+                  seen.add(item.candidate.candidateId);
+                  return true;
+                }).slice(0, retrievalLimit);
               }
             }
+            const workingContextStartedAtMs = Date.now();
+            let prioritized = applyWorkingContextPriors(
+              discovered,
+              requestWorkingContext,
+              input.workingContextHints,
+              discovered.length,
+            );
             prioritized = prioritized.slice(0, retrievalLimit);
             recordBenchmarkStage(
               activeConfig.benchmarkTrace,
@@ -1261,6 +1241,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         }
       }
 
+      const lspDocumentSymbolsByPath = new Map<RepoPath, Result<readonly SemanticDefinition[], DomainError>>();
       const fullSources = new Map<RepoPath, {
         readonly bytes: Uint8Array;
         readonly digest: string;
@@ -1327,23 +1308,57 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         if (evidenceId._tag === 'Err') return evidenceId;
         // Even a partial response must never present an unverified indexed snippet as direct evidence.
         if (!verified || verifiedText === undefined) continue;
+        // CBM's get_file_outline is source-authoritative for declarations,
+        // but its wire format reports inclusive LINES rather than identifier
+        // columns. Obtain exact selection ranges from the existing, independent
+        // native LSP documentSymbol API; do not add an ACE identifier parser.
+        let nativeSelection: SemanticDefinition | undefined;
+        if (useLsp && candidate.semanticAnchor === undefined
+          && candidate.symbolName !== undefined
+          && activeConfig.semantics.documentSymbols !== undefined) {
+          let documentSymbols = lspDocumentSymbolsByPath.get(candidate.repoPath);
+          if (documentSymbols === undefined) {
+            documentSymbols = yield* activeConfig.semantics.documentSymbols({
+              repoPath: candidate.repoPath, requestId: requestId.value,
+              ...(activeConfig.semanticSnapshotIdentity === undefined
+                ? {} : { snapshotIdentity: activeConfig.semanticSnapshotIdentity }),
+            });
+            lspDocumentSymbolsByPath.set(candidate.repoPath, documentSymbols);
+          }
+          if (documentSymbols._tag === 'Ok') {
+            const matches = documentSymbols.value.filter((item) =>
+              item.name === candidate.symbolName
+              && item.location.repoPath === candidate.repoPath
+              && item.location.startLine >= candidate.range.startLine
+              && item.location.startLine <= candidate.range.endLine
+              && item.location.endLine <= candidate.range.endLine);
+            if (matches.length === 1) nativeSelection = matches[0];
+          } else {
+            warnings.push(candidate.repoPath + ': native LSP document symbols unavailable ('
+              + documentSymbols.error.code + ')');
+          }
+        }
+        const semanticLine = candidate.semanticAnchor?.line ?? nativeSelection?.location.startLine;
+        const semanticEndLine = candidate.semanticAnchor?.endLine ?? nativeSelection?.location.endLine;
         const semanticColumn = candidate.semanticAnchor === undefined
-          ? undefined
+          ? nativeSelection?.location.startColumn
           : utf16ColumnAtUtf8Byte(full.bytes, candidate.semanticAnchor.line, candidate.semanticAnchor.byteColumn);
         const semanticEndColumn = candidate.semanticAnchor === undefined
-          ? undefined
+          ? nativeSelection?.location.endColumn
           : utf16ColumnAtUtf8Byte(full.bytes, candidate.semanticAnchor.endLine, candidate.semanticAnchor.endByteColumn);
         if (useLsp) {
-          if (candidate.semanticAnchor === undefined || semanticColumn === undefined || semanticEndColumn === undefined) {
-            warnings.push(candidate.repoPath + ': exact structural identifier anchor is unavailable for requested LSP enrichment');
+          if (semanticLine === undefined || semanticEndLine === undefined
+            || semanticColumn === undefined || semanticEndColumn === undefined) {
+            warnings.push(candidate.repoPath + ': no unique source-bound identifier selection from CBM/LSP');
             failed.push('lsp');
           } else {
             const definitions = yield* activeConfig.semantics.definition({
               repoPath: candidate.repoPath,
-              line: candidate.semanticAnchor.line,
+              line: semanticLine,
               column: semanticColumn,
               requestId: requestId.value,
-              ...(activeConfig.semanticSnapshotIdentity === undefined ? {} : { snapshotIdentity: activeConfig.semanticSnapshotIdentity }),
+              ...(activeConfig.semanticSnapshotIdentity === undefined
+                ? {} : { snapshotIdentity: activeConfig.semanticSnapshotIdentity }),
             });
             if (definitions._tag === 'Err') {
               warnings.push(candidate.repoPath + ': language service unavailable (' + definitions.error.code + ')');
@@ -1351,11 +1366,12 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
             } else {
               const lspConfirmed = definitions.value.some((entry) =>
                 entry.location.repoPath === candidate.repoPath
-              && entry.location.startLine === candidate.semanticAnchor?.line
-              && entry.location.startColumn === semanticColumn
-              && entry.location.endLine === candidate.semanticAnchor?.endLine
-              && entry.location.endColumn === semanticEndColumn
-              && (candidate.symbolName === undefined || entry.name === undefined || entry.name === candidate.symbolName));
+                && entry.location.startLine === semanticLine
+                && entry.location.startColumn === semanticColumn
+                && entry.location.endLine === semanticEndLine
+                && entry.location.endColumn === semanticEndColumn
+                && (candidate.symbolName === undefined || entry.name === undefined
+                  || entry.name === candidate.symbolName));
               if (!lspConfirmed) {
                 warnings.push(candidate.repoPath + ': LSP definition does not agree with the selected structural node');
                 failed.push('lsp');
@@ -1522,7 +1538,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           }
         }
       }
-      // A rendered RepoMap can describe paths outside the verified Qdrant
+      // A native graph lookup can describe paths outside the verified Qdrant
       // shortlist. Its aggregate source provenance is not certified by the
       // per-candidate exact rereads, so it must NEVER enter model-visible
       // evidence. It can only provide digest-matched internal ranking hints.
@@ -1627,25 +1643,19 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         );
       }
       if (requirements.structural.requirement !== 'not_requested' && requirements.structural.allowed) {
-        const renderedRepoMap = repoMapResult?.rendered.trim() ?? '';
+        // Native CBM graph is a discovery signal. The referenced original
+        // code is read/digest-verified in the code branch, but graph topology
+        // is never upgraded to an exact-source citation.
         const structuralStatus = !includeCode || codeProviderError !== undefined
+          || activeConfig.codeGraph === undefined || codeGraphError !== undefined
           ? 'unavailable'
-          : activeConfig.repoMap === undefined || repoMapError !== undefined || repoMapResult === undefined
-            ? 'unavailable'
-            : renderedRepoMap.length === 0
-              ? 'empty'
-              : 'partial';
+          : codeGraphHitCount === 0 ? 'empty' : 'partial';
         sourceCoverage = setSourceCoverage(
-          sourceCoverage,
-          'structural',
-          structuralStatus,
-          !includeCode
-            ? 'not_executed'
-            : codeProviderError?.code
-              ?? repoMapError?.code
-              ?? (activeConfig.repoMap === undefined || repoMapResult === undefined
-                ? 'repo_map_unavailable'
-                : renderedRepoMap.length === 0 ? undefined : 'repo_map_not_exact_reread'),
+          sourceCoverage, 'structural', structuralStatus,
+          !includeCode ? 'not_executed'
+            : codeProviderError?.code ?? codeGraphError?.code
+              ?? (activeConfig.codeGraph === undefined ? 'code_graph_unavailable'
+                : codeGraphHitCount === 0 ? undefined : 'native_graph_not_exact_reread'),
         );
       }
       if (lspRequirement.requirement !== 'not_requested' && lspRequirement.allowed) {

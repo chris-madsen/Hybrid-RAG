@@ -112,6 +112,10 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
+      - name: Install pinned native Codebase Memory code-intelligence provider
+        run: | # zizmor: ignore[adhoc-packages] exact upstream v0.12.1 verifies its binary archive
+          npm install --global codebase-memory-mcp@0.12.1
+          codebase-memory-mcp --version
       - name: Pin structural Python provider for nightly exhaustive suite
         if: github.event_name != 'pull_request'
         run: |

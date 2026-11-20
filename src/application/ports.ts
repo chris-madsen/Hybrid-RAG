@@ -92,6 +92,17 @@ export interface CodePoint {
   readonly embeddingKey?: string;
 }
 
+/** External code-graph discovery. Graph nodes are hints, never verified source
+ * evidence; consumers must read/hash the original workspace before delivery. */
+export interface CodeGraphCandidatePort {
+  readonly search: (input: {
+    readonly query: string;
+    readonly limit: number;
+    /** Dirty/changed paths trigger native detect_changes impact assessment. */
+    readonly changedPaths?: readonly RepoPath[];
+  }) => Effect.Effect<Result<readonly RankedCandidate[], DomainError>>;
+}
+
 export interface CodeCandidatePort {
   readonly search: (input: {
     readonly workspaceId: WorkspaceId;
@@ -160,6 +171,16 @@ export interface StructuralAnalysisPort {
 }
 
 export interface SemanticAnalysisPort {
+  /**
+   * Native LSP documentSymbol selection ranges allow exact identifier
+   * verification when CBM file outlines expose only inclusive line spans.
+   * Optional for language servers that cannot enumerate document symbols.
+   */
+  readonly documentSymbols?: (input: {
+    readonly repoPath: string;
+    readonly requestId?: string;
+    readonly snapshotIdentity?: string;
+  }) => Effect.Effect<Result<readonly SemanticDefinition[], DomainError>>;
   readonly definition: (input: SemanticQuery) => Effect.Effect<Result<readonly SemanticDefinition[], DomainError>>;
   readonly references: (input: SemanticQuery) => Effect.Effect<Result<readonly SemanticReference[], DomainError>>;
   readonly typeInfo: (input: SemanticQuery) => Effect.Effect<Result<SemanticTypeInfo | undefined, DomainError>>;

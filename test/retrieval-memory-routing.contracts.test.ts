@@ -23,7 +23,7 @@ import { makeAsyncFileMemoryArchive } from '../src/adapters/file-memory-archive.
 import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
 import { makeLocalContextProvider } from '../src/adapters/local-context-provider.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeAstGrepStructuralPort } from '../src/adapters/ast-grep-structural.js';
+import { cbmOutlineToAnalysis } from '../src/adapters/codebase-memory-structural.js';
 import type { QdrantClient } from '@qdrant/js-client-rest';
 import {
   makeGraphitiProjectionPort,
@@ -120,7 +120,13 @@ test('RVC-03 filesystem indexer uses exact workspace reads and exposes stale sou
   const files = makeNodeWorkspacePort({ allowedRoots: [parent] });
   const built = await Effect.runPromise(buildLocalCodeIndex(files, workspaceId, root, {
     generation: 1,
-    structural: makeAstGrepStructuralPort({ command: join(process.cwd(), 'node_modules/.bin/ast-grep') }),
+    structural: {
+      extract: (input) => Effect.succeed(cbmOutlineToAnalysis(
+        input.repoPath as never, input.source,
+        [{ name: 'save', label: 'Function', startLine: 1, endLine: 1,
+          qualifiedName: 'fixture.save' }],
+      )),
+    },
   }));
   const result = mustOk(built);
   assert.equal(result.index.candidates.length, 1);
