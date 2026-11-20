@@ -171,6 +171,16 @@ export interface StructuralAnalysisPort {
 }
 
 export interface SemanticAnalysisPort {
+  /**
+   * Native LSP documentSymbol selection ranges allow exact identifier
+   * verification when CBM file outlines expose only inclusive line spans.
+   * Optional for language servers that cannot enumerate document symbols.
+   */
+  readonly documentSymbols?: (input: {
+    readonly repoPath: string;
+    readonly requestId?: string;
+    readonly snapshotIdentity?: string;
+  }) => Effect.Effect<Result<readonly SemanticDefinition[], DomainError>>;
   readonly definition: (input: SemanticQuery) => Effect.Effect<Result<readonly SemanticDefinition[], DomainError>>;
   readonly references: (input: SemanticQuery) => Effect.Effect<Result<readonly SemanticReference[], DomainError>>;
   readonly typeInfo: (input: SemanticQuery) => Effect.Effect<Result<SemanticTypeInfo | undefined, DomainError>>;
