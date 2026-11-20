@@ -209,6 +209,25 @@ const nativeImpactFiles = (root: string, result: unknown): readonly RepoPath[] =
   return files;
 };
 
+/**
+ * CBM graph nodes are identified by qualified name, not a short symbol name.
+ * Match the upstream outline's exact line identity to a verified ACE chunk.
+ * Unresolved/ambiguous symbols are deliberately not assigned to the first
+ * same-named declaration in the file.
+ */
+export const nativeQualifiedSymbolCandidate = <T extends Pick<CodeCandidate, 'symbolName' | 'range'>>(
+  candidates: readonly T[],
+  qualifiedName: string,
+  outline: readonly NativeOutlineRow[],
+): T | undefined => {
+  const definitions = outline.filter((entry) => entry.qualifiedName === qualifiedName);
+  if (definitions.length !== 1) return undefined;
+  const native = definitions[0]!;
+  const matches = candidates.filter((candidate) => candidate.symbolName === native.name
+    && candidate.range.startLine === native.startLine);
+  return matches.length === 1 ? matches[0] : undefined;
+};
+
 const matchesName = (qualifiedName: string, name: string): boolean =>
   qualifiedName === name || qualifiedName.endsWith('.' + name)
   || qualifiedName.endsWith('#' + name) || qualifiedName.endsWith('/' + name);
