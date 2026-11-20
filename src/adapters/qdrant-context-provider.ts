@@ -119,7 +119,7 @@ export interface QdrantContextConfig {
   /** Stable collection mode keeps unchanged points across changed-path mutations. */
   readonly qdrantStableCollection?: boolean;
   /** Optional bounded structural prior; Qdrant remains semantic authority. */
-  readonly repoMap?: RepoMapService;
+  readonly repoMap?: Pick<RepoMapService, 'render'>;
 }
 
 export const embeddingContentKey = (providerIdentity: string, chunk: string): string =>
@@ -187,20 +187,30 @@ export const applyRepoMapPrior = (
   repoMap: RepoMapResult,
   limit: number,
 ): readonly RankedCandidate[] => {
-  const rankByKey = new Map(repoMap.ranked.map((item, index) => [
-    [
-      item.symbol.repoPath,
-      item.symbol.range.startLine,
-      item.symbol.range.startColumn ?? '',
-      item.symbol.range.endLine,
-      item.symbol.range.endColumn ?? '',
-      item.symbol.sourceDigest,
-    ].join(':'),
-    index,
-  ]));
+  const rankByKey = new Map(repoMap.ranked
+    .filter((item) => item.symbol.kind !== 'repo-map-file-anchor')
+    .map((item, index) => [
+      [
+        item.symbol.repoPath,
+        item.symbol.range.startLine,
+        item.symbol.range.startColumn ?? '',
+        item.symbol.range.endLine,
+        item.symbol.range.endColumn ?? '',
+        item.symbol.sourceDigest,
+      ].join(':'),
+      index,
+    ]));
+  // Codebase Memory may identify a relevant file without a declaration that
+  // matches an ast-grep candidate. Apply a bounded FILE prior in that case;
+  // never synthesize a function-to-function relationship or source citation.
+  const fileRank = new Map(repoMap.ranked.flatMap((item, index) =>
+    item.symbol.kind === 'repo-map-file-anchor'
+      ? [[item.symbol.repoPath + '\0' + item.symbol.sourceDigest, index] as const]
+      : []));
   return [...candidates]
     .map((candidate) => {
-      const rank = rankByKey.get(repoMapKey(candidate.candidate));
+      const rank = rankByKey.get(repoMapKey(candidate.candidate))
+        ?? fileRank.get(candidate.candidate.repoPath + '\0' + candidate.candidate.sourceDigest);
       return rank === undefined
         ? candidate
         : { ...candidate, score: candidate.score + 0.05 / (rank + 1) };
