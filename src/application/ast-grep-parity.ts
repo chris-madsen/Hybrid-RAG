@@ -165,3 +165,56 @@ export const symbolParityFingerprint = (report: SymbolParityReport): string =>
     napiSymbolCount: report.napiSymbolCount,
     differences: report.differences,
   });
+
+/**
+ * A corpus parity verdict is all-or-nothing, not an average symbol score.
+ * 121 disagreements in 125 files are NOT 125/125 equivalent. Every pinned
+ * path must have exactly one successful same-source comparison and zero
+ * differences; failed/excluded paths are not silently dropped.
+ */
+export interface AstGrepCorpusParityVerdict {
+  readonly status: 'equivalent' | 'not_equivalent';
+  readonly expectedPathCount: number;
+  readonly comparedPathCount: number;
+  readonly matchingPathCount: number;
+  readonly mismatchedPaths: readonly string[];
+  readonly failedPaths: readonly string[];
+  readonly missingPaths: readonly string[];
+}
+
+export const summarizeAstGrepCorpusParity = (
+  expectedPaths: readonly string[],
+  reports: readonly SymbolParityReport[],
+  failed: readonly string[] = [],
+): AstGrepCorpusParityVerdict => {
+  const expected = new Set(expectedPaths);
+  const counts = new Map<string, number>();
+  const byPath = new Map<string, SymbolParityReport>();
+  for (const report of reports) {
+    counts.set(report.repoPath, (counts.get(report.repoPath) ?? 0) + 1);
+    byPath.set(report.repoPath, report);
+  }
+  const failedPaths = [...new Set([
+    ...failed,
+    ...[...counts].filter(([path, count]) => count !== 1 || !expected.has(path)).map(([path]) => path),
+  ])].sort();
+  const missingPaths = [...expected].filter((path) => !byPath.has(path) && !failedPaths.includes(path)).sort();
+  const mismatchedPaths = [...expected].filter((path) =>
+    byPath.has(path) && byPath.get(path)?.equivalent !== true).sort();
+  const matchingPathCount = [...expected].filter((path) =>
+    byPath.get(path)?.equivalent === true && !failedPaths.includes(path)).length;
+  const equivalent = expectedPaths.length > 0
+    && expected.size === expectedPaths.length
+    && reports.length === expectedPaths.length
+    && failedPaths.length === 0 && missingPaths.length === 0
+    && mismatchedPaths.length === 0 && matchingPathCount === expectedPaths.length;
+  return {
+    status: equivalent ? 'equivalent' : 'not_equivalent',
+    expectedPathCount: expectedPaths.length,
+    comparedPathCount: reports.length,
+    matchingPathCount,
+    mismatchedPaths,
+    failedPaths,
+    missingPaths,
+  };
+};
