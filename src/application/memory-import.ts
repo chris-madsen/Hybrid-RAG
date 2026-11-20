@@ -130,7 +130,8 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         if (begun._tag === 'Err') return begun;
         queued = begun.value;
         if (queued.status === 'projected' || queued.status === 'tombstoned' || queued.status === 'dead_letter'
-          || queued.inflightAttemptId !== undefined || !projectionRetryDue(queued, nowMs())) {
+          || queued.inflightAttemptId !== undefined || queued.uncertainGraphAttempt === true
+          || !projectionRetryDue(queued, nowMs())) {
           // A pending acknowledgement can still be awaiting provider
           // materialization, and an incomplete receipt may be in backoff.
           // Re-import must not bypass the durable next-attempt fence.

@@ -310,3 +310,29 @@ test('AR05 outbox failure retains every immutable original but starts no Graphit
   assert.equal(local.episodes.size, 3, 'outbox outage must not discard later source truth');
   assert.equal(graphStarts, 0, 'no graph transmission without durable intent');
 });
+
+test('AR05 reimport never opens a Graphiti provider session for an unresolved prior send', async () => {
+  const outbox = await freshOutbox();
+  const current = episode('uncertain-reimport', 'We decided to keep this decision permanently.');
+  assert.equal((await outbox.begin(current.episodeId, 'extractor-v1'))._tag, 'Ok');
+  const claimed = await outbox.startAttempt(current.episodeId, 'extractor-v1');
+  assert.equal(claimed._tag, 'Ok');
+  if (claimed._tag === 'Err') return;
+  const persisted = await outbox.put({
+    ...claimed.value, status: 'incomplete', attempts: 1,
+    nextAttemptAtMs: 100, uncertainGraphAttempt: true,
+  });
+  assert.equal(persisted._tag, 'Ok');
+  const local = inMemoryArchive();
+  const calls = { created: 0, projected: 0 };
+  const importResult = await importMemoryEpisodes({
+    episodes: [current], archive: local.archive, outbox, extractorVersion: 'extractor-v1',
+    nowMs: () => 10_000,
+    createProjection: async () => projectionSession(calls),
+  });
+  assert.equal(importResult._tag, 'Ok');
+  if (importResult._tag === 'Ok') assert.equal(importResult.value[0]?.projectionStatus, 'incomplete');
+  assert.equal(calls.created, 0, 'unknown graph outcome must not even open a new provider session');
+  assert.equal(calls.projected, 0);
+  assert.equal(local.episodes.size, 1, 'original survives without duplicating uncertain provider side effects');
+});
