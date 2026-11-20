@@ -72,7 +72,7 @@ class HermesCodexOAuth(Hermes):
         normalized = endpoint.strip().rstrip("/")
         try:
             parsed = urlsplit(normalized)
-            hostname = (parsed.hostname or "").lower()
+            hostname = (parsed.hostname or "").lower().rstrip(".")
             if (parsed.scheme not in ("http", "https") or not hostname
                     or parsed.username is not None or parsed.password is not None
                     or parsed.query or parsed.fragment):
@@ -87,7 +87,7 @@ class HermesCodexOAuth(Hermes):
         # unless the deployment owner explicitly allowlists that exact host.
         local_hosts = {"localhost", "127.0.0.1", "::1", "host.docker.internal",
                        "bifrost", "bifrost-gateway"}
-        extra_hosts = {entry.strip().lower() for entry in allowed_hosts.split(",")
+        extra_hosts = {entry.strip().lower().rstrip(".") for entry in allowed_hosts.split(",")
                        if entry.strip()}
         if hostname not in local_hosts and hostname not in extra_hosts:
             raise ValueError("Bifrost endpoint host is not explicitly permitted")

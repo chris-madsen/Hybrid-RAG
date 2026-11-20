@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { readHarborFeedbackTrialObservations } from '../src/adapters/harbor-feedback-trial-evidence.js';
 import { readHermesContextEvidenceJsonl } from '../src/adapters/hermes-context-evidence.js';
@@ -128,8 +128,8 @@ const providerTraceRequestIds = async (trialDirectory: string): Promise<readonly
   return [...ids].sort();
 };
 
-const pathIsWithin = (root: string, path: string): boolean => {
-  const rel = relative(root, resolve(path));
+const canonicalPathIsWithin = (root: string, canonicalPath: string): boolean => {
+  const rel = relative(root, canonicalPath);
   return rel.length === 0 || !(isAbsolute(rel) || rel === '..' || rel.startsWith('../') || rel.startsWith('..\\'));
 };
 
@@ -212,13 +212,23 @@ const agentLoopEvidenceFor = async (
     return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['REPOSITORY_ROOT_UNVERIFIED'] };
   }
   const sessionPath = sessionFiles[0] as string;
-  if (pathIsWithin(repositoryRoot, sessionPath)) {
+  let canonicalRepositoryRoot: string;
+  let canonicalSessionPath: string;
+  try {
+    [canonicalRepositoryRoot, canonicalSessionPath] = await Promise.all([
+      realpath(repositoryRoot),
+      realpath(sessionPath),
+    ]);
+  } catch {
+    return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['HERMES_SESSION_PATH_UNVERIFIED'] };
+  }
+  if (canonicalPathIsWithin(canonicalRepositoryRoot, canonicalSessionPath)) {
     return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['RAW_HERMES_TRACE_MUST_REMAIN_OUTSIDE_REPOSITORY'] };
   }
 
   let sessionSummary: ReturnType<typeof summarizeHermesSessionExport>;
   try {
-    sessionSummary = summarizeHermesSessionExport(await readFile(sessionPath));
+    sessionSummary = summarizeHermesSessionExport(await readFile(canonicalSessionPath));
   } catch {
     return { schemaVersion: 1, status: 'BLOCKED', reasonCodes: ['HERMES_SESSION_EXPORT_INVALID'] };
   }
@@ -457,9 +467,11 @@ const main = async (): Promise<void> => {
     await mkdir(resolve(args.outputDirectory, 'receipts'), { recursive: true });
     const metricsBytes = Buffer.from(`${JSON.stringify(report.value, null, 2)}\n`, 'utf8');
     await writeFile(resolve(args.outputDirectory, 'metrics.json'), metricsBytes);
-    const agentLoopStatus = ace.agentLoopEvidence.some((item) => item.status === 'BLOCKED')
+    const agentLoopStatuses = ace.agentLoopEvidence.map((item) => object(item.evidence)?.status);
+    const agentLoopStatus = agentLoopStatuses.some((status) => status === 'BLOCKED')
       ? 'BLOCKED'
-      : ace.agentLoopEvidence.some((item) => item.status === 'CANDIDATE') ? 'CANDIDATE' : 'NOT_RUN';
+      : agentLoopStatuses.some((status) => status === 'CANDIDATE') ? 'CANDIDATE'
+        : agentLoopStatuses.every((status) => status === 'NOT_RUN') ? 'NOT_RUN' : 'BLOCKED';
     const agentLoopEvidence = {
       schemaVersion: 1,
       status: agentLoopStatus,

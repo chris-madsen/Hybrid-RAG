@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -12,6 +12,7 @@ const routeContract = feedbackPreflight as unknown as {
     readonly endpoint?: string;
     readonly endpointSha256?: string;
     readonly expectedSha256?: string;
+    readonly allowedHosts?: readonly string[];
   }) => { readonly status: string; readonly reason: string; readonly identity?: string };
 };
 
@@ -172,6 +173,13 @@ for bad_endpoint, bad_pin in (
     except ValueError:
         continue
     raise AssertionError("invalid or direct provider endpoint was accepted")
+trailing_dot_endpoint = "https://api.openai.com./v1"
+try:
+    validate(trailing_dot_endpoint, hashlib.sha256(trailing_dot_endpoint.encode()).hexdigest(), "api.openai.com.")
+except ValueError:
+    pass
+else:
+    raise AssertionError("a trailing-dot direct provider host bypassed the denylist")
 `;
   const run = spawnSync('python3', ['-c', script, 'scripts/harbor_hermes_codex_oauth.py'], {
     cwd: resolve('.'),
@@ -203,6 +211,14 @@ test('Hermes Bifrost endpoint contract rejects direct provider URLs and endpoint
     expectedSha256: sha256(directProvider),
   });
   assert.notEqual(direct.status, 'ready');
+  const trailingDotProvider = 'https://api.openai.com./v1';
+  const trailingDot = routeContract.inspectHermesBifrostEndpoint({
+    endpoint: trailingDotProvider,
+    endpointSha256: sha256(trailingDotProvider),
+    expectedSha256: sha256(trailingDotProvider),
+    allowedHosts: ['api.openai.com.'],
+  });
+  assert.notEqual(trailingDot.status, 'ready', 'direct provider hosts remain prohibited even if explicitly allowlisted');
   const arbitraryProvider = 'https://api.anthropic.com/v1';
   const fakeGateway = routeContract.inspectHermesBifrostEndpoint({
     endpoint: arbitraryProvider,
@@ -273,6 +289,28 @@ test('unmatched tool results and hidden provider continuations cannot satisfy th
   assert.equal(hidden.status, 'BLOCKED');
 });
 
+test('deeply nested or array-nested hidden provider state fails closed', () => {
+  let nested: Record<string, unknown> = { previous_response_id: 'hidden-provider-state' };
+  for (let index = 0; index < 13; index += 1) nested = { nested };
+  const summaries = [
+    evidenceModule.summarizeHermesSessionExport?.(Buffer.from(sessionExport({ metadata: nested }), 'utf8')),
+    evidenceModule.summarizeHermesSessionExport?.(Buffer.from(sessionExport({
+      metadata: [{ previous_response_id: 'hidden-provider-state' }],
+    }), 'utf8')),
+  ];
+  for (const summary of summaries) {
+    assert.ok(summary);
+    assert.equal(summary.hiddenProviderState, 'present');
+    const result = evidenceModule.evaluateHermesAgentLoopEvidence?.({
+      sessionSummary: summary,
+      gatewayRequests: [],
+      signatureCheckedFinalWireReceipts: [],
+      taskOutcome: 'unknown',
+    });
+    assert.equal(result?.status, 'BLOCKED');
+  }
+});
+
 test('missing or mock-only final-wire links remain NOT_RUN/BLOCKED, never accepted', () => {
   assert.equal(typeof evidenceModule.summarizeHermesSessionExport, 'function');
   assert.equal(typeof evidenceModule.evaluateHermesAgentLoopEvidence, 'function');
@@ -335,6 +373,7 @@ test('feedback collector signature-checks final-wire bytes but leaves missing He
   const outputRoot = join(root, 'collected');
   const taskManifestPath = join(root, 'task-manifest.json');
   const experimentManifestPath = join(root, 'experiment-manifest.json');
+  let repositoryArtifactRoot: string | undefined;
   try {
     const sourceRevision = 'a'.repeat(40);
     const taskManifest = {
@@ -467,8 +506,35 @@ test('feedback collector signature-checks final-wire bytes but leaves missing He
     await assert.rejects(readFile(join(copiedAgentDirectory, 'hermes.txt')));
     await assert.rejects(readFile(join(copiedAgentDirectory, 'ace-responses-projection.jsonl')));
     await assert.rejects(readFile(join(copiedAgentDirectory, 'ace-final-wire-evidence.jsonl')));
+
+    repositoryArtifactRoot = await mkdtemp(join(resolve('node_modules'), '.c07-repo-artifacts-'));
+    await writeTrial(repositoryArtifactRoot, 'ace-trial-1', 'ace-symlink-1', 'ace');
+    await writeFile(join(repositoryArtifactRoot, 'aggregate.json'), JSON.stringify({ n_total_trials: 1 }));
+    const externalAlias = join(root, 'ace-repo-alias');
+    await symlink(repositoryArtifactRoot, externalAlias, 'dir');
+    const symlinkOutputRoot = join(root, 'collected-symlink');
+    const symlinkRun = spawnSync(resolve('node_modules/.bin/tsx'), [
+      '--no-cache',
+      'scripts/collect-feedback-loop.ts',
+      taskManifestPath,
+      experimentManifestPath,
+      join(nativeRoot, 'aggregate.json'),
+      join(externalAlias, 'aggregate.json'),
+      symlinkOutputRoot,
+      '--final-wire-public-key',
+      verificationPublicKeyPath,
+    ], { cwd: resolve('.'), encoding: 'utf8', timeout: 120_000 });
+    assert.equal(symlinkRun.status, 0, symlinkRun.stderr + symlinkRun.stdout);
+    const symlinkEvidence = JSON.parse(await readFile(join(symlinkOutputRoot, 'agent-loop-evidence.json'), 'utf8')) as {
+      readonly status: string;
+      readonly trials: readonly { readonly evidence: { readonly status: string; readonly reasonCodes?: readonly string[] } }[];
+    };
+    assert.equal(symlinkEvidence.status, 'BLOCKED');
+    assert.equal(symlinkEvidence.trials[0]?.evidence.status, 'BLOCKED');
+    assert.ok(symlinkEvidence.trials[0]?.evidence.reasonCodes?.includes('RAW_HERMES_TRACE_MUST_REMAIN_OUTSIDE_REPOSITORY'));
   } finally {
     await rm(root, { recursive: true, force: true });
+    if (repositoryArtifactRoot !== undefined) await rm(repositoryArtifactRoot, { recursive: true, force: true });
   }
 });
 
@@ -512,4 +578,12 @@ test('C07 tool-call IDs only prove a completed loop when results follow calls an
     { role: 'assistant', content: 'final answer' },
   ]);
   assert.equal(ordered?.toolLoopStatus, 'complete');
+  const extraUnlinkedResult = summary([
+    { role: 'user', content: 'prompt' },
+    { role: 'assistant', tool_calls: [{ id: 'call-1' }] },
+    { role: 'tool', tool_call_id: 'call-1', content: 'result' },
+    { role: 'assistant', content: 'final answer' },
+    { role: 'tool', tool_call_id: 'orphan-call', content: 'unlinked result' },
+  ]);
+  assert.equal(extraUnlinkedResult?.toolLoopStatus, 'incomplete');
 });
