@@ -69,13 +69,30 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
   // Phase 1: source truth first. Any archive failure is fatal because ACE cannot
   // honestly claim the original history was preserved.
   for (const episode of input.episodes) {
+    const admission = admitMemoryEpisode(episode, policy);
+    if (input.outbox !== undefined) {
+      if (admission.kind === 'archive_only' && input.outbox.markArchiveOnly !== undefined) {
+        // WRITE-AHEAD positive proof: the previous created:true -> marker
+        // sequence lost its proof on SIGKILL and created:false replay cannot
+        // honestly infer that an old episode was never sent to Graphiti.
+        // Only mark a genuinely new original; legacy originals with no proof
+        // remain UNKNOWN and require actual graph verification for deletion.
+        const existing = await input.archive.readEpisode(episode.episodeId);
+        if (existing._tag === 'Err' && existing.error.code !== 'FILE_NOT_FOUND') return existing;
+        if (existing._tag === 'Err') {
+          const marked = await input.outbox.markArchiveOnly(episode.episodeId);
+          if (marked._tag === 'Err') return marked;
+        }
+      } else if (admission.kind === 'project') {
+        // Durable graph intent MUST precede the archive commit and every
+        // possible provider send, including a restart/replay after SIGKILL.
+        const begun = await input.outbox.begin(episode.episodeId, input.extractorVersion);
+        if (begun._tag === 'Err') return begun;
+      }
+    }
     const saved = await input.archive.importEpisode(episode);
     if (saved._tag === 'Err') return saved;
-    archived.push({
-      episode,
-      created: saved.value.created,
-      admission: admitMemoryEpisode(episode, policy),
-    });
+    archived.push({ episode, created: saved.value.created, admission });
   }
 
   const outcomes: MemoryImportOutcome[] = [];
@@ -86,14 +103,20 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
     for (const item of archived) {
       const { episode, created, admission } = item;
       if (admission.kind === 'archive_only') {
-        // Record positive never-projected proof only for a newly persisted
-        // immutable episode. Absence of a receipt on an older import is NOT
-        // evidence that it was never sent to a graph.
-        if (created && input.outbox?.markArchiveOnly !== undefined) {
-          const marked = await input.outbox.markArchiveOnly(episode.episodeId);
-          if (marked._tag === 'Err') return marked;
-        }
         outcomes.push({ episodeId: episode.episodeId, persisted: created, admission });
+        continue;
+      }
+
+      // An unrecorded Graphiti attempt cannot be fenced against concurrent
+      // deletion or uncertain recovery. Source originals are still archived.
+      if (input.outbox === undefined) {
+        outcomes.push({
+          episodeId: episode.episodeId,
+          persisted: created,
+          admission,
+          projectionStatus: 'incomplete',
+          projectionErrorCode: 'PERSISTENCE_FAILED',
+        });
         continue;
       }
 
