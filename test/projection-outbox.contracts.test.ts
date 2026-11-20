@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -172,4 +173,18 @@ test('AR05 old projected receipt without a protected acknowledgement is not dele
     'old receipt alone cannot certify no unsettled Graphiti side effects');
   const forged = await outbox.put({ ...begun.value, status: 'projected', graphDispatchAcknowledged: true });
   assert.equal(forged._tag, 'Err', 'no dispatch claim exists to support this acknowledgment');
+});
+
+test('AR05 OS SIGKILL between durable claim and provider result blocks replay and deletion', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar05-graph-kill-'));
+  const killed = spawnSync(process.execPath, [
+    '--import', 'tsx', 'test/fixtures/ar05-graph-attempt-kill.mjs', root,
+  ], { cwd: process.cwd(), encoding: 'utf8', timeout: 30_000 });
+  assert.equal(killed.signal, 'SIGKILL', killed.stderr);
+  const outbox = await makeFileProjectionOutbox(root);
+  const observed = await outbox.get('ar05-killed-attempt:extractor-v1' as never);
+  assert.equal(observed._tag, 'Ok');
+  if (observed._tag === 'Ok') assert.ok(observed.value?.inflightAttemptId);
+  assert.equal((await outbox.startAttempt('ar05-killed-attempt' as never, 'extractor-v1'))._tag, 'Err');
+  assert.equal((await outbox.beginDeletion('ar05-killed-attempt' as never))._tag, 'Err');
 });
