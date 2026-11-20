@@ -6,6 +6,9 @@ import { test } from 'node:test';
 import { Effect } from 'effect';
 import { makeCodebaseMemoryRepoMap, nativeTraceQualifiedNames, nativeQueryGraphFiles, parseCodebaseMemoryLexicalRows, parseCodebaseMemorySemanticRows } from '../src/adapters/codebase-memory-repo-map.js';
 import type { CodeCandidate } from '../src/domain/retrieval.js';
+import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
+import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
+import { makeCodebaseMemoryStructuralPort } from '../src/adapters/codebase-memory-structural.js';
 
 test('native semantic result table retains source path and rejects escapes', () => {
   const root = resolve(process.cwd());
@@ -102,4 +105,20 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   assert.equal(trace._tag, 'Ok', JSON.stringify(trace));
   const impact = await Effect.runPromise(provider.detectChanges('HEAD~1'));
   assert.equal(impact._tag, 'Ok', JSON.stringify(impact));
+  // This is the actual ACE indexing pipeline on its real checkout, not a
+  // synthetic fixture: native CBM -> source-checked symbol spans -> Qdrant
+  // candidate inventory (vectors are tested by the existing Qdrant suite).
+  const files = makeNodeWorkspacePort({ allowedRoots: [root] });
+  const built = await Effect.runPromise(buildLocalCodeIndex(
+    files, 'cbm-actual-source-smoke' as never, root,
+    { generation: 1, structural: makeCodebaseMemoryStructuralPort(provider),
+      parserVersion: 'codebase-memory/0.12.1', extensions: ['.ts'] },
+  ));
+  assert.equal(built._tag, 'Ok', JSON.stringify(built._tag === 'Err' ? built.error : 'ok'));
+  if (built._tag === 'Ok') {
+    assert.ok(built.value.index.candidates.length > 30,
+      'native CBM must supply useful real ACE code candidates');
+    assert.ok(built.value.index.candidates.some((item) =>
+      item.repoPath === 'src/adapters/qdrant-context-provider.ts'));
+  }
 });
