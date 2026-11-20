@@ -354,7 +354,11 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     streamingAttemptFor('bf-attempt-' + 'c'.repeat(32)),
   ));
   assert.equal(enabledStream._tag, 'Ok');
-  if (enabledStream._tag === 'Ok') assert.equal(enabledStream.value.kind, 'ALLOW');
+  if (enabledStream._tag === 'Err') return;
+  assert.equal(enabledStream.value.kind, 'BLOCK');
+  if (enabledStream.value.kind === 'BLOCK') {
+    assert.equal(enabledStream.value.reasonCode, 'OAUTH_ROUTE_UNVERIFIED');
+  }
 
   const wrongStreamRoute = makeGatewayAttemptAuthorizationService({
     ...security,
