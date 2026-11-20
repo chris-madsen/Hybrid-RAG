@@ -138,3 +138,16 @@ test('AR07 working prior is monotone across negative, zero and positive cosine s
   ], undefined, hints, 2);
   assert.equal(negative[0]?.candidate.candidateId, 'preferred');
 });
+
+test('AR07 additive prior is calibrated to small fused RRF scores, not raw cosine scale', () => {
+  const hints = { focusedPath: 'src/focus.ts' as RepoPath };
+  const source = candidate('rrf', 'src/focus.ts', 0.015);
+  const result = applyWorkingContextPriors([
+    candidate('other', 'src/other.ts', 0.014), source,
+  ], undefined, hints, 2);
+  const favored = result.find((item) => item.candidate.candidateId === source.candidate.candidateId);
+  assert.ok(favored);
+  assert.ok(favored.score > source.score);
+  assert.ok(favored.score - source.score < 0.003,
+    'small RRF scores must not receive a cosine-sized absolute boost');
+});

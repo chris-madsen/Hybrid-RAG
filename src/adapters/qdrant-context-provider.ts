@@ -162,17 +162,20 @@ export const applyWorkingContextPriors = (
   workingContext: WorkingContext | undefined,
   hints: WorkingContextHints | undefined,
   limit: number,
-): readonly RankedCandidate[] => [...candidates]
-  .map((candidate) => {
-    const boost = workingContextBoost(candidate, workingContext, hints);
-    // Cosine/rerank scores can be negative. Multiplication would demote a
-    // preferred candidate (-0.8 * 1.1 < -0.8) instead of increasing its rank.
-    // A bounded, additive prior is monotone for negative, zero and positive
-    // finite scores; the unmodified semantic score remains authoritative.
-    return { ...candidate, score: candidate.score + boost };
-  })
+): readonly RankedCandidate[] => {
+  // Qdrant cosine scores may be negative while fused RRF scores are tiny and
+  // positive. Calibrate the additive prior to the observed score scale, with
+  // a small floor for an all-zero shortlist, so neither score family is
+  // overpowered and no preferred negative candidate is ever demoted.
+  const scale = Math.min(1, Math.max(0.01, ...candidates.map((item) => Math.abs(item.score))));
+  return [...candidates]
+    .map((candidate) => {
+      const boost = workingContextBoost(candidate, workingContext, hints);
+      return { ...candidate, score: candidate.score + boost * scale };
+    })
   .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
-  .slice(0, limit);
+    .slice(0, limit);
+};
 
 const repoMapKey = (candidate: RankedCandidate['candidate']): string => [
   candidate.repoPath,
