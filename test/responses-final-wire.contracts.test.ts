@@ -270,3 +270,24 @@ test('a provider acknowledgement from another attempt cannot certify this send',
   assert.equal(result.value.status, 'NOT_CERTIFIED');
   assert.ok(result.value.reasonCodes.includes('ATTEMPT_ACK_MISMATCH'));
 });
+
+
+test('C05 a self-signed mock manifest is not independent evidence of a captured wire', () => {
+  const evidence = manifest();
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const payloadBytes = Buffer.from(JSON.stringify(evidence), 'utf8');
+  const verified = verifyFinalWireEvidenceEnvelope({
+    schemaVersion: 1,
+    payloadBase64: payloadBytes.toString('base64'),
+    signatureBase64: sign(null, payloadBytes, privateKey).toString('base64'),
+  }, publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+  evaluateNativeResponsesFinalWireEvidence);
+  assert.equal(verified.proof.kind, 'signed-manifest-only');
+  assert.equal(verified.receipt.status, 'NOT_CERTIFIED');
+  assert.ok(verified.receipt.reasonCodes.includes('MOCK_CAPTURE_PROOF_REQUIRED'));
+  // A separately captured and verified mock wire remains a valid mock-only
+  // signal, but cannot be inferred from a signed assertion.
+  const observed = evaluateNativeResponsesFinalWireEvidence(evidence, mockProof(evidence));
+  assert.equal(observed._tag, 'Ok');
+  if (observed._tag === 'Ok') assert.equal(observed.value.status, 'MOCK_WIRE_VERIFIED');
+});
