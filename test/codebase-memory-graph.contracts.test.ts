@@ -129,8 +129,9 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   // Do not mistake a successful Cypher invocation for a dependency edge:
   // exercise native cross-file relations from actual ACE TypeScript code.
   const realEdges = await Effect.runPromise(provider.queryGraph(
-    "MATCH (origin)-[r]->(other) WHERE origin.file_path = 'src/bin/ace-runtime.ts' "
-    + 'RETURN DISTINCT other.file_path AS file LIMIT 50'));
+    "MATCH (origin)-[r]->(other) WHERE (origin.file_path = 'src/bin/ace-runtime.ts') "
+    + "AND (type(r) = 'CALLS' OR type(r) = 'IMPORTS' OR type(r) = 'REFERENCES_FILE') "
+    + 'RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50'));
   assert.equal(realEdges._tag, 'Ok', JSON.stringify(realEdges));
   if (realEdges._tag === 'Ok') {
     const files = nativeQueryGraphFiles(root, realEdges.value);
