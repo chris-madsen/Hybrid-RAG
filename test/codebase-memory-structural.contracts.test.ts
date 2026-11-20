@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { Effect } from 'effect';
 import { cbmOutlineToAnalysis, makeCodebaseMemoryStructuralPort } from '../src/adapters/codebase-memory-structural.js';
-import { parseCodebaseMemoryFileOutline } from '../src/adapters/codebase-memory-repo-map.js';
+import { parseCodebaseMemoryFileOutline } from '../src/adapters/codebase-memory-graph.js';
 import { exactUtf8ByteRange } from '../src/domain/utf8-range.js';
 import { ok } from '../src/domain/result.js';
 
