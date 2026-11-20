@@ -96,10 +96,11 @@ test('Vertex empty Europe corpus is a valid empty result, never invented documen
   assert.deepEqual(result, []);
 });
 
-test('Qdrant context emits rendered RepoMap as structural evidence', async () => {
+test('AR02 code-only retrieval never renders an unrequested RepoMap or asserts unverified empty', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ace-repo-map-context-'));
   try {
     const workspaceId = value(makeWorkspaceId('repo-map-context-evidence'));
+    let repoMapRenders = 0;
     const files = makeNodeWorkspacePort({ allowedRoots: [root] });
     const provider = makeQdrantContextProvider({
       workspaceId,
@@ -119,12 +120,15 @@ test('Qdrant context emits rendered RepoMap as structural evidence', async () =>
       },
       repoMap: {
         update: () => Effect.succeed(ok(undefined)),
-        render: () => Effect.succeed(ok({
+        render: () => {
+          repoMapRenders += 1;
+          return Effect.succeed(ok({
           ranked: [],
           rendered: 'src/run.ts:\n  src/run.ts:1 function run()',
           estimatedTokens: 8,
           truncated: false,
-        })),
+          }));
+        },
       } as never,
       newRequestId: () => 'repo-map-context-request',
     });
@@ -134,13 +138,11 @@ test('Qdrant context emits rendered RepoMap as structural evidence', async () =>
       includeDocs: false,
       includeMemory: false,
     }));
-    assert.equal(result._tag, 'Ok');
-    if (result._tag === 'Ok') {
-      const structural = result.value.evidence.find((item) => item.source === 'structural');
-      assert.equal(structural?.content, 'src/run.ts:\n  src/run.ts:1 function run()');
-      assert.equal(structural?.proofClass, 'derived');
-      assert.equal(structural?.freshness, 'unknown', 'aggregate RepoMap is not exact-reread as one source');
-    }
+    assert.equal(repoMapRenders, 0, 'code-only source plan does not authorize RepoMap rendering');
+    // No authoritative indexed snapshot was supplied; a zero-hit code search
+    // must also fail closed rather than certify an unverified empty result.
+    assert.equal(result._tag, 'Err');
+    if (result._tag === 'Err') assert.equal(result.error.code, 'NOT_READY');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
