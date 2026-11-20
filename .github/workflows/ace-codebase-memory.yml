@@ -34,9 +34,8 @@ jobs:
         # Isolated read-only CI job; no repository credentials persist. Upstream
         # installer verifies release artifact checksums before execution.
         run: | # zizmor: ignore[adhoc-packages] version 0.12.1 pinned; native archive checksum verified upstream
-          CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
-          npm install --global "${CBM_PACKAGE}@0.12.1"
-          "${CBM_PACKAGE}" --version
+          npm install --global codebase-memory-mcp@0.12.1
+          codebase-memory-mcp --version
       - name: Typecheck and lint
         run: |
           npm run check
@@ -62,8 +61,7 @@ jobs:
         run: npm ci
       - name: Install pinned upstream Codebase Memory for real LSP evidence
         run: | # zizmor: ignore[adhoc-packages] pinned v0.12.1 verifies native archive checksum
-          CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
-          npm install --global "${CBM_PACKAGE}@0.12.1"
-          "${CBM_PACKAGE}" --version
+          npm install --global codebase-memory-mcp@0.12.1
+          codebase-memory-mcp --version
       - name: Run complete source contracts, build, architecture and nightly property suite
         run: npm run verify:full
