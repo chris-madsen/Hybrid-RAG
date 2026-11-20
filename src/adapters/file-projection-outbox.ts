@@ -1,10 +1,11 @@
-import { mkdir, readFile, readdir, rename, rmdir, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { beginProjection, type EpisodeId, type ProjectionReceipt } from '../domain/memory.js';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import type { ProjectionOutboxPort } from '../application/ports.js';
+import { withMemoryArchiveLock } from './memory-archive-lock.js';
 
 const validReceipt = (value: unknown): value is ProjectionReceipt => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -35,38 +36,37 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
   const pathFor = (key: string): string => join(rootPath, `${Buffer.from(key).toString('base64url')}.json`);
   const deletionPathFor = (episodeId: EpisodeId): string => join(deletionRoot, `${Buffer.from(episodeId).toString('base64url')}.json`);
   const archiveOnlyPathFor = (episodeId: EpisodeId): string => join(archiveOnlyRoot, `${Buffer.from(episodeId).toString('base64url')}.json`);
-  const lockPath = join(rootPath, '.projection-outbox.lock');
-  const sleep = (milliseconds: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, milliseconds); });
+  // Reuse AR04's kernel-backed, SIGKILL-releasing file lock. A stale mkdir
+  // lock from a killed process must never block import or deletion indefinitely.
+  const withLock = <T>(operation: () => Promise<Result<T, DomainError>>): Promise<Result<T, DomainError>> =>
+    withMemoryArchiveLock(rootPath, 'exclusive', operation);
 
-  const withLock = async <T>(operation: () => Promise<Result<T, DomainError>>): Promise<Result<T, DomainError>> => {
-    let acquired = false;
-    for (let attempt = 0; attempt < 667; attempt += 1) {
+  // Proof, graph intent and deletion fences must survive a crash before any
+  // external projection or destructive archive call can follow. Stage/fsync,
+  // publish by rename, then fsync the containing directory (Linux-only lock).
+  const persist = async (
+    path: string,
+    value: unknown,
+    errorPath: string,
+    message: string,
+  ): Promise<Result<void, DomainError>> => {
+    const temporary = `${path}.${randomUUID()}.tmp`;
+    try {
+      const handle = await open(temporary, 'wx', 0o600);
       try {
-        await mkdir(lockPath);
-        acquired = true;
-        break;
-      } catch (cause) {
-        if ((cause as NodeJS.ErrnoException).code !== 'EEXIST') {
-          return err(domainError('PERSISTENCE_FAILED', 'projection_outbox', 'could not acquire projection outbox fence'));
-        }
-        await sleep(30);
+        await handle.writeFile(JSON.stringify(value), 'utf8');
+        await handle.sync();
+      } finally {
+        await handle.close();
       }
-    }
-    if (!acquired) {
-      return err(domainError('PERSISTENCE_FAILED', 'projection_outbox', 'projection outbox fence remained held; refusing an unsafe mutation'));
-    }
-    let result: Result<T, DomainError>;
-    try {
-      result = await operation();
+      await rename(temporary, path);
+      const directory = await open(dirname(path), 'r');
+      try { await directory.sync(); } finally { await directory.close(); }
+      return ok(undefined);
     } catch {
-      result = err(domainError('PERSISTENCE_FAILED', 'projection_outbox', 'projection outbox mutation failed'));
+      await rm(temporary, { force: true }).catch(() => undefined);
+      return err(domainError('PERSISTENCE_FAILED', errorPath, message));
     }
-    try {
-      await rmdir(lockPath);
-    } catch {
-      return err(domainError('PERSISTENCE_FAILED', 'projection_outbox', 'could not release projection outbox fence'));
-    }
-    return result;
   };
 
   const read = async (path: string): Promise<Result<ProjectionReceipt | undefined, DomainError>> => {
@@ -99,17 +99,9 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
     }
   };
 
-  const writeDeletion = async (episodeId: EpisodeId, status: DeletionStatus): Promise<Result<void, DomainError>> => {
-    const path = deletionPathFor(episodeId);
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-      await writeFile(temporary, JSON.stringify({ episodeId, status }), { flag: 'wx' });
-      await rename(temporary, path);
-      return ok(undefined);
-    } catch {
-      return err(domainError('PERSISTENCE_FAILED', 'projection_deletion', 'could not atomically persist projection deletion fence'));
-    }
-  };
+  const writeDeletion = (episodeId: EpisodeId, status: DeletionStatus): Promise<Result<void, DomainError>> =>
+    persist(deletionPathFor(episodeId), { episodeId, status }, 'projection_deletion',
+      'could not durably publish projection deletion fence');
 
   const readArchiveOnly = async (episodeId: EpisodeId): Promise<Result<boolean, DomainError>> => {
     try {
@@ -141,15 +133,8 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
     if (deletion.value !== undefined && receipt.status !== 'tombstoned') {
       return err(domainError('ARCHIVE_TOMBSTONED', 'projection_outbox', 'deletion fence rejects a stale projection receipt'));
     }
-    const path = pathFor(receipt.key);
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-      await writeFile(temporary, JSON.stringify(receipt), { flag: 'wx' });
-      await rename(temporary, path);
-      return ok(undefined);
-    } catch {
-      return err(domainError('PERSISTENCE_FAILED', 'projection_outbox', 'could not atomically persist projection receipt'));
-    }
+    return persist(pathFor(receipt.key), receipt, 'projection_outbox',
+      'could not durably publish projection receipt');
   };
 
   return {
@@ -212,19 +197,36 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
           return err(domainError('INVALID_MEMORY', 'archive_only', 'projection receipt already exists'));
         }
       }
-      try {
-        await writeFile(archiveOnlyPathFor(episodeId),
-          JSON.stringify({ episodeId, status: 'never_projected' }), { flag: 'wx' });
-        return ok(undefined);
-      } catch {
-        return err(domainError('PERSISTENCE_FAILED', 'archive_only', 'could not durably record never-projected proof'));
-      }
+      return persist(archiveOnlyPathFor(episodeId),
+        { episodeId, status: 'never_projected' }, 'archive_only',
+        'could not durably record never-projected proof');
     }),
     isArchiveOnly: (episodeId) => readArchiveOnly(episodeId),
     beginDeletion: (episodeId) => withLock(async () => {
       const existing = await readDeletion(episodeId);
       if (existing._tag === 'Err') return existing;
       if (existing.value !== undefined) return ok(undefined);
+      const archiveOnly = await readArchiveOnly(episodeId);
+      if (archiveOnly._tag === 'Err') return archiveOnly;
+      // Durable graph intent is published BEFORE a provider attempt. A pending,
+      // failed or dead-lettered receipt means an attempt may still materialize;
+      // a Graphiti absence query alone cannot dismiss a concurrent/unknown send.
+      let entries: string[];
+      try {
+        entries = (await readdir(rootPath)).filter((name) => name.endsWith('.json'));
+      } catch {
+        return err(domainError('PERSISTENCE_FAILED', 'projection_deletion', 'could not inspect graph intents before deletion'));
+      }
+      for (const entry of entries) {
+        const found = await read(join(rootPath, entry));
+        if (found._tag === 'Err') return found;
+        const receipt = found.value;
+        if (receipt?.episodeId !== episodeId) continue;
+        if (archiveOnly.value || (receipt.status !== 'projected' && receipt.status !== 'tombstoned')) {
+          return err(domainError('INVALID_MEMORY', 'projection_deletion',
+            'unsettled or contradictory graph projection intent blocks deletion'));
+        }
+      }
       return writeDeletion(episodeId, 'deleting');
     }),
     finalizeDeletion: (episodeId) => withLock(async () => {
