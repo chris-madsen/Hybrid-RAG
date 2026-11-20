@@ -5,7 +5,8 @@ import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import { makeRepoMapSymbol, type RepoMapRankedSymbol, type RepoMapRenderInput, type RepoMapResult } from '../domain/repo-map.js';
-import type { CodeCandidate } from '../domain/retrieval.js';
+import type { CodeCandidate, RankedCandidate } from '../domain/retrieval.js';
+import type { CodeGraphCandidatePort } from '../application/ports.js';
 import type { RepoPath } from '../domain/workspace.js';
 import type { RepoMapService } from '../application/repo-map-service.js';
 
@@ -29,7 +30,7 @@ export interface CodebaseMemoryOptions {
   readonly candidates: () => readonly CodeCandidate[];
 }
 
-export interface CodebaseMemoryRepoMap extends Pick<RepoMapService, 'render'> {
+export interface CodebaseMemoryRepoMap extends Pick<RepoMapService, 'render'>, CodeGraphCandidatePort {
   /** Must complete after source changes and before this graph can be exposed. */
   readonly reindex: () => Effect.Effect<Result<void, DomainError>>;
 }
@@ -136,28 +137,64 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
     }
   });
 
+  const searchRows = async (query: string, limit: number): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
+    if (project === undefined || reindexing !== undefined) {
+      return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
+    }
+    const response = await invoke('search_graph', {
+      project,
+      semantic_query: [query],
+      semantic_limit: Math.min(100, limit),
+      limit: 1,
+      format: 'json',
+      max_output_tokens: 8192,
+    });
+    if (response._tag === 'Err') return response;
+    const hits = semanticRows(root, response.value);
+    return hits === undefined
+      ? err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented semantic result table'))
+      : ok(hits);
+  };
+
+  const search: CodeGraphCandidatePort['search'] = (input) => Effect.promise(async () => {
+    if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 100) {
+      return err(domainError('INVALID_INPUT', 'limit', 'Codebase Memory search limit must be between 1 and 100'));
+    }
+    const native = await searchRows(input.query, input.limit);
+    if (native._tag === 'Err') return native;
+    const candidatesByFile = new Map<RepoPath, CodeCandidate[]>();
+    for (const candidate of options.candidates()) {
+      const list = candidatesByFile.get(candidate.repoPath) ?? [];
+      list.push(candidate);
+      candidatesByFile.set(candidate.repoPath, list);
+    }
+    const found: RankedCandidate[] = [];
+    const seen = new Set<string>();
+    for (const hit of native.value) {
+      const candidates = candidatesByFile.get(hit.file) ?? [];
+      if (candidates.length === 0) continue;
+      // Return only original digest-bearing ACE candidates, not invented
+      // graph nodes. QdrantContextProvider performs an exact source reread.
+      const exact = candidates.find((candidate) =>
+        candidate.symbolName !== undefined && matchesName(hit.qn, candidate.symbolName));
+      const candidate = exact ?? candidates[0]!;
+      if (seen.has(candidate.candidateId)) continue;
+      seen.add(candidate.candidateId);
+      found.push({ candidate, score: hit.score, freshness: 'unknown' });
+      if (found.length >= input.limit) break;
+    }
+    return ok(found);
+  });
+
   const render = (input: RepoMapRenderInput): Effect.Effect<Result<RepoMapResult, DomainError>> =>
     Effect.promise(async () => {
       if (!Number.isSafeInteger(input.tokenBudget) || input.tokenBudget <= 0) {
         return err(domainError('INVALID_INPUT', 'token_budget', 'Codebase Memory context budget must be positive'));
       }
-      if (project === undefined || reindexing !== undefined) {
-        return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
-      }
       const limit = Math.min(50, Math.max(5, Math.floor(input.tokenBudget / 24)));
-      const result = await invoke('search_graph', {
-        project,
-        semantic_query: [input.query],
-        semantic_limit: limit,
-        limit: 1,
-        format: 'json',
-        max_output_tokens: 8192,
-      });
-      if (result._tag === 'Err') return result;
-      const hits = semanticRows(root, result.value);
-      if (hits === undefined) {
-        return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented semantic result table'));
-      }
+      const native = await searchRows(input.query, limit);
+      if (native._tag === 'Err') return native;
+      const hits = native.value;
       const byFile = new Map<RepoPath, CodeCandidate[]>();
       for (const candidate of options.candidates()) {
         const listed = byFile.get(candidate.repoPath) ?? [];
@@ -208,5 +245,5 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
       });
     });
 
-  return { reindex, render };
+  return { reindex, render, search };
 };
