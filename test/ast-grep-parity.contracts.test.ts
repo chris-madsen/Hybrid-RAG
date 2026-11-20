@@ -224,4 +224,15 @@ test('AR08 representative actual source corpus report is pinned and does not pro
   assert.equal(report.status, report.equivalent ? 'equivalent' : 'not_equivalent');
   assert.equal(report.activeDefault, 'cli');
   assert.equal(report.candidatePromotion, 'NOT_APPROVED');
+  // Compact, source-pinned evidence in CI logs; no private code bodies.
+  process.stdout.write('AR08_CORPUS_PARITY ' + JSON.stringify({
+    corpusSha256: report.corpusSha256,
+    files: report.fileCount,
+    matching: report.matchingPathCount,
+    mismatched: report.mismatchedPaths.length,
+    failed: report.failedPaths.length,
+    missing: report.missingPaths.length,
+    parity: report.status,
+    promotion: report.candidatePromotion,
+  }) + '\n');
 });
