@@ -199,7 +199,13 @@ func ApplyNativeResponses(original []byte, decision ResponsesV2Decision) ([]byte
 	return body, nil
 }
 
-func validatePreparedNativeResponses(projected []byte, model string, allowNoContext bool) error {
+// Keep the additive-only validator as a stable boundary for existing callers
+// and tests; no-context is allowed only by the trusted projection decision.
+func validatePreparedNativeResponses(projected []byte, model string) error {
+	return validatePreparedNativeResponsesForDecision(projected, model, false)
+}
+
+func validatePreparedNativeResponsesForDecision(projected []byte, model string, allowNoContext bool) error {
 	after, err := normalizedJSON(projected)
 	if err != nil {
 		return err
@@ -429,7 +435,7 @@ func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req Physica
 	if err != nil || body["store"] != false || body["model"] != req.Model {
 		return invalid, errors.New("physical-send attempt body is not the authorized stateless Responses body")
 	}
-	if err := validatePreparedNativeResponses(req.Body, req.Model, req.NoContextNeeded); err != nil {
+	if err := validatePreparedNativeResponsesForDecision(req.Body, req.Model, req.NoContextNeeded); err != nil {
 		return invalid, fmt.Errorf("physical-send body validation failed: %w", err)
 	}
 	semanticDigest, err := SemanticBodySHA256(req.Body)
