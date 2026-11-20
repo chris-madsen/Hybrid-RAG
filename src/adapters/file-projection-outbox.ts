@@ -27,7 +27,8 @@ const validReceipt = (value: unknown): value is ProjectionReceipt => {
       || typeof receipt.manualRepairCount === 'number' && Number.isSafeInteger(receipt.manualRepairCount) && receipt.manualRepairCount >= 0)
     && (receipt.inflightAttemptId === undefined
       || typeof receipt.inflightAttemptId === 'string' && receipt.inflightAttemptId.trim().length > 0)
-    && (receipt.uncertainGraphAttempt === undefined || typeof receipt.uncertainGraphAttempt === 'boolean');
+    && (receipt.uncertainGraphAttempt === undefined || typeof receipt.uncertainGraphAttempt === 'boolean')
+    && (receipt.graphDispatchAcknowledged === undefined || typeof receipt.graphDispatchAcknowledged === 'boolean');
 };
 
 export const makeFileProjectionOutbox = async (rootPath: string): Promise<ProjectionOutboxPort> => {
@@ -147,6 +148,15 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
     if (prior.value?.uncertainGraphAttempt && !receipt.uncertainGraphAttempt) {
       return err(domainError('INVALID_MEMORY', 'projection_attempt',
         'cannot erase uncertain Graphiti side effects without verification'));
+    }
+    if (receipt.graphDispatchAcknowledged && !prior.value?.graphDispatchAcknowledged
+      && prior.value?.inflightAttemptId === undefined) {
+      return err(domainError('INVALID_MEMORY', 'projection_attempt',
+        'cannot claim a verified graph dispatch without a durable attempt'));
+    }
+    if (prior.value?.graphDispatchAcknowledged && !receipt.graphDispatchAcknowledged) {
+      return err(domainError('INVALID_MEMORY', 'projection_attempt',
+        'cannot erase an acknowledged graph attempt'));
     }
     if (prior.value?.status === 'projected' && receipt.status !== 'projected' && receipt.status !== 'tombstoned') {
       return err(domainError('INVALID_MEMORY', 'projection_outbox', 'cannot demote a verified projection'));
@@ -290,6 +300,7 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
         if (receipt?.episodeId !== episodeId) continue;
         if (archiveOnly.value || receipt.inflightAttemptId !== undefined
           || receipt.uncertainGraphAttempt === true
+          || (receipt.status === 'projected' && receipt.graphDispatchAcknowledged !== true)
           || (receipt.status !== 'projected' && receipt.status !== 'tombstoned')) {
           return err(domainError('INVALID_MEMORY', 'projection_deletion',
             'unsettled or contradictory graph projection intent blocks deletion'));

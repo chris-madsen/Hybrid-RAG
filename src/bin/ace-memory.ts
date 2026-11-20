@@ -209,7 +209,7 @@ const run = async (): Promise<void> => {
         }
         const enqueued = recordProjectionEnqueue(claim.value, retry.value, nowMs, verificationDelayMs);
         if (enqueued._tag === 'Err') throw new Error(enqueued.error.message);
-        const stored = await outbox.put(enqueued.value);
+        const stored = await outbox.put({ ...enqueued.value, graphDispatchAcknowledged: true });
         if (stored._tag === 'Err') throw new Error(stored.error.message);
         retried += 1;
       }

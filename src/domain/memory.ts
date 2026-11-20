@@ -40,6 +40,8 @@ export interface ProjectionReceipt {
   readonly inflightAttemptId?: string;
   /** Provider failure may have had a side effect; never erase this without external proof. */
   readonly uncertainGraphAttempt?: boolean;
+  /** Positive acknowledgement from a dispatch protected by a durable claim. */
+  readonly graphDispatchAcknowledged?: boolean;
 }
 
 export type DecisionState = 'Proposed' | 'Accepted' | 'Rejected' | 'Superseded';

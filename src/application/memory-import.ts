@@ -244,7 +244,7 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         };
         const receipt = recordProjectionEnqueue(base, projected.value, nowMs(), verificationDelayMs);
         if (receipt._tag === 'Err') return receipt;
-        const stored = await input.outbox.put(receipt.value);
+        const stored = await input.outbox.put({ ...receipt.value, graphDispatchAcknowledged: true });
         if (stored._tag === 'Err') return stored;
       }
       outcomes.push({
