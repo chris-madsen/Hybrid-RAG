@@ -103,7 +103,8 @@
     "test:sdd-prepare": "node --test test/sdd-preparation-check.test.mjs",
     "check:sdlc-stage-trial": "node scripts/ace-sdlc-stage-trial-check.mjs",
     "test:sdlc-stage-trial": "node --test test/ace-sdlc-stage-trial.test.mjs",
-    "test:ace-plan-refinement": "node --test test/ace-plan-refinement.test.mjs"
+    "test:ace-plan-refinement": "node --test test/ace-plan-refinement.test.mjs",
+    "probe:ast-grep-parity": "tsx scripts/ast-grep-provider-parity.ts"
   },
   "dependencies": {
     "@ast-grep/cli": "0.51.0",

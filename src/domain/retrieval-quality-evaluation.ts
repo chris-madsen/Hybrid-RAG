@@ -30,6 +30,13 @@ export interface RetrievalHoldoutCase {
   | 'compactness'
   | 'partial_coverage';
   readonly focusedPath?: string;
+  /** Optional pinned, independently labeled source identities for AR08.
+   * A path without its source digest does NOT qualify as recall ground truth.
+   */
+  readonly relevantSourceIdentities?: readonly Readonly<{
+    repoPath: string;
+    sourceDigest: string;
+  }>[];
 }
 
 export interface RetrievalHoldout {
@@ -241,6 +248,16 @@ const validateHoldout = (holdout: RetrievalHoldout): Result<void, DomainError> =
       || new Set(item.relevantCandidateIds).size !== item.relevantCandidateIds.length
       || ids.has(item.id)) {
       return err(domainError('INVALID_BENCHMARK', 'retrieval_holdout', 'holdout cases require unique IDs, queries and non-empty unique labels'));
+    }
+    if (item.relevantSourceIdentities !== undefined && (
+      item.relevantSourceIdentities.length === 0
+      || item.relevantSourceIdentities.some((source) =>
+        source.repoPath.trim().length === 0 || !sha256(source.sourceDigest))
+      || new Set(item.relevantSourceIdentities.map((source) =>
+        source.repoPath)).size !== item.relevantSourceIdentities.length
+    )) {
+      return err(domainError('INVALID_BENCHMARK', 'retrieval_holdout.source_identity',
+        'source-recall labels require unique repository paths and exact source SHA-256 identities'));
     }
     if (item.repositoryId !== undefined && !repositoryIds.has(item.repositoryId)) {
       return err(domainError(

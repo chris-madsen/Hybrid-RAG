@@ -417,3 +417,103 @@ export const renderRepoMap = (
 
 export const renderRepoMapFor = (graph: RepoMapGraph, input: RepoMapRenderInput): RepoMapResult =>
   renderRepoMap(rankRepoMap(graph, input), input.tokenBudget, graph.sourceByPath, input.openFiles);
+
+/**
+ * AR08: observational, *not model-visible*, Qdrant shortlist recall.
+ *
+ * RepoMap can rerank an existing shortlist, but a tag for an unseen file is
+ * not verified code evidence. Compare two real Qdrant queries over the same
+ * query/embeddings, retaining exact candidate and source identity. Changing
+ * the Qdrant limit can change RRF fusion order, so never assume the overfetch
+ * prefix equals the baseline top-K.
+ */
+export interface RepoMapRecallCandidate {
+  readonly candidateId: string;
+  readonly repoPath: RepoPath;
+  readonly sourceDigest: ContentDigest;
+}
+export interface RepoMapRecallSourceLabel {
+  readonly repoPath: RepoPath;
+  readonly sourceDigest: ContentDigest;
+}
+export interface RepoMapShortlistMeasurement {
+  readonly boundary: 'qdrant_shortlist_not_verified_delivery';
+  readonly baselineCandidateCount: number;
+  readonly overfetchCandidateCount: number;
+  /** Exact (path, digest) identities, including different revisions of one path. */
+  readonly baselineDistinctSources: number;
+  readonly overfetchDistinctSources: number;
+  /** Distinct repo paths (different source digests must NOT inflate diversity). */
+  readonly baselineDistinctPaths: number;
+  readonly overfetchDistinctPaths: number;
+  /** Paths absent from baseline, NOT digest changes at a known path. */
+  readonly extraSourcePaths: readonly RepoPath[];
+  /** Existing paths with a new indexed digest need separate drift accounting. */
+  readonly extraSourceRevisions: readonly RepoMapRecallSourceLabel[];
+  readonly baselineCandidatesNotInOverfetch: readonly string[];
+  readonly relevantCandidateRecallAtBaseline: number;
+  readonly relevantCandidateRecallAtOverfetch: number;
+  readonly relevantCandidateIdsOutsideBaseline: readonly string[];
+  /** Null is UNKNOWN rather than an invented zero when no source labels exist. */
+  readonly relevantSourceRecallAtBaseline: number | null;
+  readonly relevantSourceRecallAtOverfetch: number | null;
+  readonly relevantSourcePathsOutsideBaseline: readonly RepoPath[] | null;
+}
+
+const sourceIdentity = (value: RepoMapRecallSourceLabel): string =>
+  JSON.stringify([value.repoPath, value.sourceDigest]);
+
+export const measureRepoMapShortlist = (
+  baseline: readonly RepoMapRecallCandidate[],
+  overfetch: readonly RepoMapRecallCandidate[],
+  relevantCandidateIds: readonly string[],
+  relevantSources?: readonly RepoMapRecallSourceLabel[],
+): RepoMapShortlistMeasurement => {
+  const uniqueSources = (values: readonly RepoMapRecallCandidate[]): ReadonlySet<string> =>
+    new Set(values.map(sourceIdentity));
+  const baseIds = new Set(baseline.map((value) => value.candidateId));
+  const expandedIds = new Set(overfetch.map((value) => value.candidateId));
+  const baseSources = uniqueSources(baseline);
+  const expandedSources = uniqueSources(overfetch);
+  const basePaths = new Set(baseline.map((value) => value.repoPath));
+  const expandedPaths = new Set(overfetch.map((value) => value.repoPath));
+  const relevantCandidates = new Set(relevantCandidateIds);
+  const relevantSourceKeys = relevantSources === undefined
+    ? undefined : new Set(relevantSources.map(sourceIdentity));
+  const sourceHit = (sources: ReadonlySet<string>): number | null => relevantSourceKeys === undefined
+    || relevantSourceKeys.size === 0
+    ? null
+    : [...relevantSourceKeys].filter((key) => sources.has(key)).length / relevantSourceKeys.size;
+  return {
+    boundary: 'qdrant_shortlist_not_verified_delivery',
+    baselineCandidateCount: baseline.length,
+    overfetchCandidateCount: overfetch.length,
+    baselineDistinctSources: baseSources.size,
+    overfetchDistinctSources: expandedSources.size,
+    baselineDistinctPaths: basePaths.size,
+    overfetchDistinctPaths: expandedPaths.size,
+    extraSourcePaths: [...expandedPaths].filter((path) => !basePaths.has(path)).sort(),
+    extraSourceRevisions: overfetch
+      .filter((value) => basePaths.has(value.repoPath) && !baseSources.has(sourceIdentity(value)))
+      .filter((value, index, all) => all.findIndex((other) =>
+        sourceIdentity(other) === sourceIdentity(value)) === index)
+      .map((value) => ({ repoPath: value.repoPath, sourceDigest: value.sourceDigest }))
+      .sort((a, b) => a.repoPath.localeCompare(b.repoPath)
+        || a.sourceDigest.localeCompare(b.sourceDigest)),
+    baselineCandidatesNotInOverfetch: [...baseIds].filter((id) => !expandedIds.has(id)).sort(),
+    relevantCandidateRecallAtBaseline: relevantCandidates.size === 0 ? 0
+      : [...relevantCandidates].filter((id) => baseIds.has(id)).length / relevantCandidates.size,
+    relevantCandidateRecallAtOverfetch: relevantCandidates.size === 0 ? 0
+      : [...relevantCandidates].filter((id) => expandedIds.has(id)).length / relevantCandidates.size,
+    relevantCandidateIdsOutsideBaseline: [...relevantCandidates]
+      .filter((id) => !baseIds.has(id) && expandedIds.has(id)).sort(),
+    relevantSourceRecallAtBaseline: sourceHit(baseSources),
+    relevantSourceRecallAtOverfetch: sourceHit(expandedSources),
+    relevantSourcePathsOutsideBaseline: relevantSourceKeys === undefined || relevantSourceKeys.size === 0
+      ? null
+      : [...new Set(overfetch
+        .filter((value) => relevantSourceKeys.has(sourceIdentity(value))
+          && !baseSources.has(sourceIdentity(value)))
+        .map((value) => value.repoPath))].sort(),
+  };
+};

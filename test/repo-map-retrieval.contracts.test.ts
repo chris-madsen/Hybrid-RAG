@@ -7,7 +7,7 @@ import { resolveExplicitSourceRequirements, type SourceRequirements } from '../s
 import { ok } from '../src/domain/result.js';
 import { makeCandidateId, makeCodeCandidate, type RankedCandidate } from '../src/domain/retrieval.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
-import { makeRepoMapSymbol } from '../src/domain/repo-map.js';
+import { makeRepoMapSymbol, measureRepoMapShortlist } from '../src/domain/repo-map.js';
 import type {
   CodeCandidatePort, SemanticAnalysisPort, WorkspaceFilePort,
 } from '../src/application/ports.js';
@@ -173,4 +173,109 @@ test('AR02 real Qdrant provider excludes stale RepoMap for code-only and refuses
     assert.deepEqual(optionalMap.value.evidence.map((item) => item.source), ['code']);
   }
   assert.equal(mapRenders, 2);
+});
+
+test('AR08 pinned multi-file target outside Qdrant top-K is measured, not fabricated as RepoMap code evidence', () => {
+  const candidates = Array.from({ length: 8 }, (_, index) => {
+    const candidate = ranked(`candidate-${index + 1}`, index + 1, 0.9 - index / 10);
+    return {
+      ...candidate,
+      candidate: {
+        ...candidate.candidate,
+        repoPath: `src/module-${index + 1}.ts` as never,
+        sourceDigest: String(index + 1).repeat(64) as never,
+      },
+    };
+  });
+  const baseline = candidates.slice(0, 3);
+  const widened = candidates;
+  const target = candidates[6]!;
+  const report = measureRepoMapShortlist(
+    baseline.map(({ candidate }) => ({
+      candidateId: candidate.candidateId, repoPath: candidate.repoPath, sourceDigest: candidate.sourceDigest,
+    })),
+    widened.map(({ candidate }) => ({
+      candidateId: candidate.candidateId, repoPath: candidate.repoPath, sourceDigest: candidate.sourceDigest,
+    })),
+    [target.candidate.candidateId],
+    [{ repoPath: target.candidate.repoPath, sourceDigest: target.candidate.sourceDigest }],
+  );
+  assert.equal(report.boundary, 'qdrant_shortlist_not_verified_delivery');
+  assert.equal(report.baselineDistinctSources, 3);
+  assert.equal(report.overfetchDistinctSources, 8);
+  assert.equal(report.relevantCandidateRecallAtBaseline, 0);
+  assert.equal(report.relevantCandidateRecallAtOverfetch, 1);
+  assert.equal(report.relevantSourceRecallAtBaseline, 0);
+  assert.equal(report.relevantSourceRecallAtOverfetch, 1);
+  assert.deepEqual(report.relevantSourcePathsOutsideBaseline, [target.candidate.repoPath]);
+  assert.deepEqual(report.relevantCandidateIdsOutsideBaseline, [target.candidate.candidateId]);
+  const mapHint = {
+    ranked: [{
+      symbol: makeRepoMapSymbol({
+        repoPath: target.candidate.repoPath,
+        name: target.candidate.symbolName ?? 'target',
+        kind: 'function',
+        sourceDigest: target.candidate.sourceDigest,
+        range: target.candidate.range, text: target.candidate.text,
+        references: [],
+      }),
+      score: 100,
+    }],
+    rendered: `${target.candidate.repoPath}: target`,
+    estimatedTokens: 8,
+    truncated: false,
+  };
+  const delivered = applyRepoMapPrior(baseline, mapHint, 3);
+  assert.equal(delivered.length, 3);
+  assert.equal(delivered.some((item) => item.candidate.repoPath === target.candidate.repoPath), false,
+    'a RepoMap reference to an unshortlisted path MUST NOT appear as verified code');
+});
+
+test('AR08 source identity must include digest; no path-only or missing-label recall claim', () => {
+  const current = ranked('fresh', 1, 0.7);
+  const one = [{
+    candidateId: current.candidate.candidateId,
+    repoPath: current.candidate.repoPath,
+    sourceDigest: current.candidate.sourceDigest,
+  }];
+  const unlabeled = measureRepoMapShortlist([], one, [current.candidate.candidateId]);
+  assert.equal(unlabeled.relevantSourceRecallAtOverfetch, null, 'missing labels mean unknown, not a fake zero');
+  assert.equal(unlabeled.relevantCandidateRecallAtOverfetch, 1);
+  const staleLabel = measureRepoMapShortlist([], one, [current.candidate.candidateId], [{
+    repoPath: current.candidate.repoPath, sourceDigest: 'b'.repeat(64) as never,
+  }]);
+  assert.equal(staleLabel.relevantSourceRecallAtOverfetch, 0);
+  assert.deepEqual(staleLabel.relevantSourcePathsOutsideBaseline, []);
+  const rerankedAway = measureRepoMapShortlist(
+    one,
+    [{ ...one[0]!, candidateId: 'other', sourceDigest: 'b'.repeat(64) as never }],
+    [current.candidate.candidateId],
+  );
+  assert.deepEqual(rerankedAway.baselineCandidatesNotInOverfetch, [current.candidate.candidateId],
+    'changing Qdrant fusion depth can reorder/drop a previously observed top-K hit');
+});
+
+test('AR08 an indexed revision change is not falsely counted as discovering a new repository path', () => {
+  const a = [{
+    candidateId: 'old',
+    repoPath: 'src/unchanged-name.ts' as never,
+    sourceDigest: 'a'.repeat(64) as never,
+  }];
+  const b = [{
+    candidateId: 'new',
+    repoPath: a[0]!.repoPath,
+    sourceDigest: 'b'.repeat(64) as never,
+  }];
+  const report = measureRepoMapShortlist(a, b, ['new'], [{
+    repoPath: b[0]!.repoPath, sourceDigest: b[0]!.sourceDigest,
+  }]);
+  assert.deepEqual(report.extraSourcePaths, [],
+    'same path with a different digest is source drift, not path diversity');
+  assert.equal(report.baselineDistinctPaths, 1);
+  assert.equal(report.overfetchDistinctPaths, 1);
+  assert.equal(report.relevantSourceRecallAtBaseline, 0);
+  assert.equal(report.relevantSourceRecallAtOverfetch, 1);
+  assert.deepEqual(report.extraSourceRevisions, [{
+    repoPath: b[0]!.repoPath, sourceDigest: b[0]!.sourceDigest,
+  }]);
 });

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { Effect } from 'effect';
-import { compareStructuralAnalyses, symbolParityFingerprint } from '../src/application/ast-grep-parity.js';
+import { compareStructuralAnalyses, summarizeAstGrepCorpusParity, symbolParityFingerprint } from '../src/application/ast-grep-parity.js';
 import { makeAstGrepStructuralPort } from '../src/adapters/ast-grep-structural.js';
 import type { StructuralAnalysis } from '../src/domain/semantic.js';
 
@@ -161,4 +162,77 @@ test('CLI and NAPI agree on the representative TypeScript fixture', async () => 
     const report = compareStructuralAnalyses(cli.value, napi.value);
     assert.equal(report.equivalent, true, JSON.stringify(report, null, 2));
   }
+});
+
+test('AR08 121-of-125 real-shape corpus disagreements never become equivalent', () => {
+  const paths = Array.from({ length: 125 }, (_, index) => `src/corpus/${String(index).padStart(3, '0')}.ts`);
+  const reports = paths.map((path, index) => compareStructuralAnalyses(
+    analysis({ repoPath: path }),
+    analysis({ repoPath: path, hasSyntaxErrors: index < 121 }),
+  ));
+  const result = summarizeAstGrepCorpusParity(paths, reports);
+  assert.equal(result.status, 'not_equivalent');
+  assert.equal(result.expectedPathCount, 125);
+  assert.equal(result.comparedPathCount, 125);
+  assert.equal(result.matchingPathCount, 4);
+  assert.equal(result.mismatchedPaths.length, 121);
+  const missing = summarizeAstGrepCorpusParity(paths, reports.slice(1));
+  assert.equal(missing.status, 'not_equivalent', 'missing file is not source parity');
+  assert.equal(missing.missingPaths.length, 1);
+  const duplicate = summarizeAstGrepCorpusParity(paths, [...reports, reports[0]!]);
+  assert.equal(duplicate.status, 'not_equivalent', 'double-counted input is not valid corpus coverage');
+  assert.ok(duplicate.failedPaths.includes(paths[0]!));
+  const equal = summarizeAstGrepCorpusParity(paths.slice(121), reports.slice(121));
+  assert.equal(equal.status, 'equivalent', 'positive complete same-source corpus remains possible');
+});
+
+test('AR08 representative actual source corpus report is pinned and does not promote NAPI', () => {
+  // This uses the maintained CLI+NAPI against the current repository's source
+  // bytes, not a mocked corpus. A mismatch is an expected *measured* outcome,
+  // not a CI failure. SOURCE FILES stay unchanged.
+  const result = spawnSync(process.execPath, [
+    '--import', 'tsx', 'scripts/ast-grep-provider-parity.ts', 'src',
+  ], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 120_000,
+    maxBuffer: 8 * 1024 * 1024,
+    env: {
+      ...process.env,
+      ACE_AST_GREP_PARITY_MAX_FILES: '125',
+      ACE_AST_GREP_PARITY_SUMMARY_ONLY: 'true',
+    },
+  });
+  assert.ok(result.status === 0 || result.status === 2, result.stderr);
+  const report = JSON.parse(result.stdout) as {
+    fileCount: number;
+    corpusSha256: string;
+    status: string;
+    equivalent: boolean;
+    mismatchedPaths: string[];
+    failedPaths: string[];
+    missingPaths: string[];
+    matchingPathCount: number;
+    activeDefault: string;
+    candidatePromotion: string;
+  };
+  assert.equal(report.fileCount, 125, 'the real source corpus is deterministic and representative');
+  assert.match(report.corpusSha256, /^[a-f0-9]{64}$/u);
+  assert.equal(report.equivalent,
+    report.mismatchedPaths.length === 0 && report.failedPaths.length === 0
+      && report.missingPaths.length === 0 && report.matchingPathCount === report.fileCount);
+  assert.equal(report.status, report.equivalent ? 'equivalent' : 'not_equivalent');
+  assert.equal(report.activeDefault, 'cli');
+  assert.equal(report.candidatePromotion, 'NOT_APPROVED');
+  // Compact, source-pinned evidence in CI logs; no private code bodies.
+  process.stdout.write('AR08_CORPUS_PARITY ' + JSON.stringify({
+    corpusSha256: report.corpusSha256,
+    files: report.fileCount,
+    matching: report.matchingPathCount,
+    mismatched: report.mismatchedPaths.length,
+    failed: report.failedPaths.length,
+    missing: report.missingPaths.length,
+    parity: report.status,
+    promotion: report.candidatePromotion,
+  }) + '\n');
 });

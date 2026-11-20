@@ -11,6 +11,7 @@ import { makeProcessEmbeddingPort } from '../src/adapters/process-embedding.js';
 import { makeProcessSparseEmbeddingPort } from '../src/adapters/process-sparse-embedding.js';
 import type { CodeRetrievalStrategy } from '../src/domain/retrieval.js';
 import { canonicalBenchmarkCandidateId } from '../src/domain/retrieval-benchmark.js';
+import { measureRepoMapShortlist, type RepoMapRecallCandidate } from '../src/domain/repo-map.js';
 import type { RetrievalHoldout, RetrievalObservation, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 
@@ -33,11 +34,20 @@ const allowedHosts = (process.env.ACE_QDRANT_LOCAL_HOSTS ?? '')
   .filter((value) => value.length > 0);
 const embeddingDimension = Number(process.env.ACE_EMBEDDING_DIMENSION ?? '384');
 const queryLimit = Number(process.env.ACE_RETRIEVAL_ABLATION_LIMIT ?? '10');
+// Optional AR08 ablation. Disabled in normal rank probes and runtime. The
+// additional query uses the SAME local Qdrant collection, query and embedding
+// vectors; it never changes the model-facing candidate selection.
+const overfetchStudyLimit = Number(process.env.ACE_REPOMAP_STUDY_OVERFETCH_LIMIT ?? '0');
 if (!Number.isSafeInteger(embeddingDimension) || embeddingDimension < 1) {
   throw new Error('ACE_EMBEDDING_DIMENSION must be a positive integer');
 }
 if (!Number.isSafeInteger(queryLimit) || queryLimit < 1 || queryLimit > 1000) {
   throw new Error('ACE_RETRIEVAL_ABLATION_LIMIT must be between 1 and 1000');
+}
+if (!Number.isSafeInteger(overfetchStudyLimit)
+  || overfetchStudyLimit < 0 || overfetchStudyLimit > 1000
+  || (overfetchStudyLimit !== 0 && overfetchStudyLimit <= queryLimit)) {
+  throw new Error('ACE_REPOMAP_STUDY_OVERFETCH_LIMIT must be 0 (disabled) or between top-K+1 and 1000');
 }
 
 const holdoutBytes = await readFile(resolve(holdoutArg));
@@ -209,7 +219,54 @@ try {
           qdrant: queryLatencyMs,
         },
       });
+      let repoMapShortlistStudy: Readonly<Record<string, unknown>> | undefined;
+      if (overfetchStudyLimit > 0) {
+        const overfetchStarted = performance.now();
+        const wider = await Effect.runPromise(qdrant.search({
+          workspaceId: workspaceId.value,
+          ...(strategy === 'sparse' ? {} : { vector }),
+          ...(strategy === 'dense' ? {} : { sparseVector }),
+          queryText: item.query,
+          strategy,
+          limit: overfetchStudyLimit,
+          requestId: `rank-probe-${item.id}-${strategy}-overfetch`,
+        }));
+        const overfetchLatencyMs = Math.max(0, performance.now() - overfetchStarted);
+        if (wider._tag === 'Err') {
+          throw new Error(`${item.id}/${strategy}/overfetch: ${wider.error.code}: ${wider.error.message}`);
+        }
+        const describe = (ranked: typeof result.value): readonly RepoMapRecallCandidate[] =>
+          ranked.map(({ candidate }) => ({
+            candidateId: canonicalBenchmarkCandidateId(
+              item.repositoryId ?? repositoryId ?? 'unbound',
+              candidate.repoPath, candidate.sourceDigest, candidate.range,
+            ),
+            repoPath: candidate.repoPath,
+            sourceDigest: candidate.sourceDigest,
+          }));
+        const measured = measureRepoMapShortlist(
+          describe(result.value),
+          describe(wider.value),
+          item.relevantCandidateIds,
+          item.relevantSourceIdentities?.map((source) => ({
+            repoPath: source.repoPath as never,
+            sourceDigest: source.sourceDigest as never,
+          })),
+        );
+        repoMapShortlistStudy = {
+          ...measured,
+          baselineLimit: queryLimit,
+          overfetchLimit: overfetchStudyLimit,
+          baselineQueryLatencyMs: queryLatencyMs,
+          overfetchQueryLatencyMs: overfetchLatencyMs,
+          baselineAndOverfetchSameEmbedding: true,
+          defaultProviderChanged: false,
+          sourceReverifiedAtDelivery: false,
+          activationDecision: 'NOT_PROVEN',
+        };
+      }
       branches[strategy] = {
+        ...(repoMapShortlistStudy === undefined ? {} : { repoMapShortlistStudy }),
         candidateIds: canonicalCandidateIds,
         rawCandidateIds,
         scores: result.value.map((ranked) => ranked.score),
@@ -249,13 +306,14 @@ try {
     workspaceId: workspaceId.value,
     collection,
     queryLimit,
+    ...(overfetchStudyLimit === 0 ? {} : { overfetchStudyLimit }),
     embeddingIdentity: embeddings.identity() ?? null,
     sparseEmbeddingIdentity: sparseEmbeddings.identity() ?? null,
     strategies,
     repositoryId: repositoryId ?? null,
     runs,
     rawObservations,
-    note: 'Evaluation-only rank telemetry. Dense and sparse inference costs are attributed only to the arms that use them; production ace_context issues one configured strategy.',
+    note: 'Evaluation-only rank telemetry. AR08 overfetch uses the same local query/vector but remains an unverified shortlist, not final model delivery. Source recall is null without explicitly digest-bound holdout source labels. No provider promotion or LLM egress.',
   }, null, 2) + '\n', 'utf8');
   process.stdout.write(JSON.stringify({
     output: outputArg,
