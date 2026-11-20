@@ -204,7 +204,7 @@ export const makeAsyncFileMemoryArchive = async (rootPath: string): Promise<Asyn
         return persistence('could not enumerate immutable archive episodes');
       }
     },
-    importEpisode: (episode) => exclusive(async () => {
+    importEpisode: (episode) => exclusive<{ readonly created: boolean; readonly episode: SessionEpisode }>(async () => {
       const checked = makeEpisode(episode);
       if (checked._tag === 'Err') return checked;
       if (checked.value.tombstoned) {
