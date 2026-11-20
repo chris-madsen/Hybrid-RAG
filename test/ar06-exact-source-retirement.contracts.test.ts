@@ -60,7 +60,7 @@ test('AR06 N identical verified Qdrant lookups do not persist any private source
     };
     // Deliberate legacy extra property: pre-AR06 Qdrant code writes a new UUID
     // full-file artifact through this port per request; AR06 must ignore it.
-    const provider = makeQdrantContextProvider({
+    const legacyConfig = {
       workspaceId: workspace.value,
       rootPath: '/repo',
       files,
@@ -69,7 +69,8 @@ test('AR06 N identical verified Qdrant lookups do not persist any private source
       embeddings: { embedMany: () => Effect.succeed(ok([[0.3, 0.7]])) },
       newRequestId: () => 'ar06-request',
       artifacts: makeFileArtifactStore(artifactsRoot),
-    });
+    };
+    const provider = makeQdrantContextProvider(legacyConfig);
     for (let index = 0; index < 12; index += 1) {
       const result = await Effect.runPromise(provider.search({
         workspaceId: workspace.value,
