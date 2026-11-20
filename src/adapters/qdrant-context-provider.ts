@@ -31,8 +31,6 @@ import type {
   WorkspaceFilePort,
 } from '../application/ports.js';
 import type { WorkspaceSync } from '../application/workspace-sync.js';
-import type { RepoMapService } from '../application/repo-map-service.js';
-import type { RepoMapResult } from '../domain/repo-map.js';
 import {
   canonicalBenchmarkCandidateId,
   type RetrievalBenchmarkStageStatus,
@@ -121,8 +119,6 @@ export interface QdrantContextConfig {
   readonly qdrantStableCollection?: boolean;
   /** CBM supplies candidates missing from Qdrant's shortlist; all are exact-read before delivery. */
   readonly codeGraph?: CodeGraphCandidatePort;
-  /** Optional native graph summary (never source-authoritative). */
-  readonly repoMap?: Pick<RepoMapService, 'render'>;
 }
 
 export const embeddingContentKey = (providerIdentity: string, chunk: string): string =>
@@ -171,52 +167,6 @@ export const applyWorkingContextPriors = (
     .map((candidate) => {
       const boost = workingContextBoost(candidate, workingContext, hints);
       return { ...candidate, score: candidate.score + boost * scale };
-    })
-    .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
-    .slice(0, limit);
-};
-
-const repoMapKey = (candidate: RankedCandidate['candidate']): string => [
-  candidate.repoPath,
-  candidate.range.startLine,
-  candidate.range.startColumn ?? '',
-  candidate.range.endLine,
-  candidate.range.endColumn ?? '',
-  candidate.sourceDigest,
-].join(':');
-
-export const applyRepoMapPrior = (
-  candidates: readonly RankedCandidate[],
-  repoMap: RepoMapResult,
-  limit: number,
-): readonly RankedCandidate[] => {
-  const rankByKey = new Map(repoMap.ranked
-    .filter((item) => item.symbol.kind !== 'repo-map-file-anchor')
-    .map((item, index) => [
-      [
-        item.symbol.repoPath,
-        item.symbol.range.startLine,
-        item.symbol.range.startColumn ?? '',
-        item.symbol.range.endLine,
-        item.symbol.range.endColumn ?? '',
-        item.symbol.sourceDigest,
-      ].join(':'),
-      index,
-    ]));
-  // Codebase Memory may identify a relevant file without a declaration that
-  // matches an ast-grep candidate. Apply a bounded FILE prior in that case;
-  // never synthesize a function-to-function relationship or source citation.
-  const fileRank = new Map(repoMap.ranked.flatMap((item, index) =>
-    item.symbol.kind === 'repo-map-file-anchor'
-      ? [[item.symbol.repoPath + '\0' + item.symbol.sourceDigest, index] as const]
-      : []));
-  return [...candidates]
-    .map((candidate) => {
-      const rank = rankByKey.get(repoMapKey(candidate.candidate))
-        ?? fileRank.get(candidate.candidate.repoPath + '\0' + candidate.candidate.sourceDigest);
-      return rank === undefined
-        ? candidate
-        : { ...candidate, score: candidate.score + 0.05 / (rank + 1) };
     })
     .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
     .slice(0, limit);
@@ -996,7 +946,6 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       // includeCode grants access to verified code candidates, NOT permission
       // to compute or publish structural RepoMap text. The caller's source
       // plan independently authorizes the optional structural provider.
-      const useRepoMap = includeCode && sourceIsRequested(requirements.structural);
       let sourceCoverage = initialSourceCoverage(requirements);
       const evidence: RetrievalEvidence[] = [];
       const warnings: string[] = [];
@@ -1006,8 +955,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       // A shortlist is not delivered until the final source revalidation.
       const candidateEvidenceIds = new Map<string, string>();
       let deliveryTraceStartedAtMs: number | undefined;
-      let repoMapResult: RepoMapResult | undefined;
-      let repoMapError: DomainError | undefined;
+      let codeGraphError: DomainError | undefined;
+      let codeGraphHitCount = 0;
       let lspConfirmedCount = 0;
       if (includeCode) {
         const retrievalStrategy = activeConfig.retrievalStrategy
@@ -1166,8 +1115,10 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
                 ],
               });
               if (graphResult._tag === 'Err') {
+                codeGraphError = graphResult.error;
                 warnings.push('Codebase Memory discovery unavailable: ' + graphResult.error.code);
               } else {
+                codeGraphHitCount = graphResult.value.length;
                 const graphSlots = Math.max(1, Math.floor(retrievalLimit / 2));
                 const topScore = result.value[0]?.score ?? 0;
                 const graphCandidates = graphResult.value.slice(0, graphSlots).map((item, rank) => ({
@@ -1189,24 +1140,6 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
               input.workingContextHints,
               discovered.length,
             );
-            if (useRepoMap && activeConfig.repoMap !== undefined) {
-              const repoMap = yield* activeConfig.repoMap.render({
-                query: input.query,
-                openFiles: input.workingContextHints?.openPaths
-                  ?? (requestWorkingContext?.unstagedPaths ?? []),
-                mentionedFiles: input.workingContextHints?.focusedPath === undefined
-                  ? []
-                  : [input.workingContextHints.focusedPath],
-                tokenBudget: Math.max(128, retrievalLimit * 16),
-              });
-              if (repoMap._tag === 'Err') {
-                repoMapError = repoMap.error;
-                warnings.push('RepoMap unavailable: ' + repoMap.error.code);
-              } else {
-                repoMapResult = repoMap.value;
-                prioritized = applyRepoMapPrior(prioritized, repoMap.value, retrievalLimit);
-              }
-            }
             prioritized = prioritized.slice(0, retrievalLimit);
             recordBenchmarkStage(
               activeConfig.benchmarkTrace,
@@ -1673,25 +1606,19 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         );
       }
       if (requirements.structural.requirement !== 'not_requested' && requirements.structural.allowed) {
-        const renderedRepoMap = repoMapResult?.rendered.trim() ?? '';
+        // Native CBM graph is a discovery signal. The referenced original
+        // code is read/digest-verified in the code branch, but graph topology
+        // is never upgraded to an exact-source citation.
         const structuralStatus = !includeCode || codeProviderError !== undefined
+          || activeConfig.codeGraph === undefined || codeGraphError !== undefined
           ? 'unavailable'
-          : activeConfig.repoMap === undefined || repoMapError !== undefined || repoMapResult === undefined
-            ? 'unavailable'
-            : renderedRepoMap.length === 0
-              ? 'empty'
-              : 'partial';
+          : codeGraphHitCount === 0 ? 'empty' : 'partial';
         sourceCoverage = setSourceCoverage(
-          sourceCoverage,
-          'structural',
-          structuralStatus,
-          !includeCode
-            ? 'not_executed'
-            : codeProviderError?.code
-              ?? repoMapError?.code
-              ?? (activeConfig.repoMap === undefined || repoMapResult === undefined
-                ? 'repo_map_unavailable'
-                : renderedRepoMap.length === 0 ? undefined : 'repo_map_not_exact_reread'),
+          sourceCoverage, 'structural', structuralStatus,
+          !includeCode ? 'not_executed'
+            : codeProviderError?.code ?? codeGraphError?.code
+              ?? (activeConfig.codeGraph === undefined ? 'code_graph_unavailable'
+                : codeGraphHitCount === 0 ? undefined : 'native_graph_not_exact_reread'),
         );
       }
       if (lspRequirement.requirement !== 'not_requested' && lspRequirement.allowed) {
