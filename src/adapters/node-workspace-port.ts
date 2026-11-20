@@ -236,7 +236,7 @@ const observeNonGitChanges = async (
         const safePath = await resolveSafePath(rootPath, repoPath);
         if (safePath._tag === 'Err') return safePath;
         const { bytes, metadata: verified } = await readStableWorkspaceFile(safePath.value);
-        if (verified.size !== metadata.size || verified.mtimeMs !== metadata.mtimeMs) {
+        if (verified.size !== metadata.sizeBytes || verified.mtimeMs !== metadata.mtimeMs) {
           // The directory scan raced a content edit: force an exact reread.
           changed.add(repoPath);
           continue;
