@@ -48,18 +48,18 @@ missing graph edge is not evidence that no dependency exists.
 Install pinned upstream native executable for the same account running ACE:
 
 ~~~bash
-CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
-npm install --global "${CBM_PACKAGE}@0.12.1"
-"${CBM_PACKAGE}" --version
+npm install --global codebase-memory-mcp@0.12.1
+codebase-memory-mcp --version
 export ACE_ENABLE_EXPERIMENTAL_QDRANT=true
 # Optional export ACE_CBM_COMMAND=/absolute/path/to/CBM-executable
 npm run gateway:http
 ~~~
 
-The package suffix is assembled solely to satisfy ACE's older lexical
-gateway-only audit of the retired model-tool-protocol abbreviation in
-product names. The pinned upstream installer is permitted in a
-credential-free, read-only CI job. No agent-facing tool server is added.
+The native binary is an explicitly allowed third-party package under
+ACE's gateway-only audit. This **does not** restore any retired agent tool
+transport; CBM is invoked as a local CLI by the ACE runtime. The CI
+installation is pinned to upstream v0.12.1 with the release archive
+verified by the upstream installer.
 
 CBM local cache and ignored paths are independent from ACE's LLM egress
 filters. Review sensitive source in the local index and cache permissions.
