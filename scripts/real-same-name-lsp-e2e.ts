@@ -56,8 +56,7 @@ if (!/^[a-f0-9]{40,64}$/u.test(sourceCommit)) throw new Error('could not resolve
 
 try {
   const files = makeNodeWorkspacePort({ allowedRoots: [parent] });
-  const nativeCommand = process.env.ACE_CBM_COMMAND?.trim()
-    || 'codebase-memory-' + String.fromCharCode(109, 99, 112);
+  const nativeCommand = process.env.ACE_CBM_COMMAND?.trim() || 'codebase-memory-mcp';
   const structuralIdentity = execFileSync(nativeCommand, ['--version'], {
     encoding: 'utf8',
   }).trim();
