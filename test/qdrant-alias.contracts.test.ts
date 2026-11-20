@@ -129,7 +129,7 @@ test('AR03 fencing prevents a stale alias rollback and rejects same-epoch replay
 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'ace-ar03-alias-'));
   try {
-    const authority = makeLocalQdrantPublicationAuthority({ workspaceId: workspace, directory });
+    const authority = makeLocalQdrantPublicationAuthority({ workspaceId: workspace, directory, declaredTopology: 'single_host' });
     const a = await authority.reserve();
     const b = await authority.reserve();
     assert.equal(a._tag, 'Ok');
@@ -177,7 +177,7 @@ test('AR03 cannot durably advance publication on failed physical Qdrant membersh
 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'ace-ar03-membership-'));
   try {
-    const authority = makeLocalQdrantPublicationAuthority({ workspaceId: workspace, directory });
+    const authority = makeLocalQdrantPublicationAuthority({ workspaceId: workspace, directory, declaredTopology: 'single_host' });
     const ticket = await authority.reserve();
     assert.equal(ticket._tag, 'Ok');
     if (ticket._tag === 'Err') return;
@@ -196,7 +196,7 @@ test('AR03 cannot durably advance publication on failed physical Qdrant membersh
     if (persisted._tag === 'Ok') assert.equal(persisted.value.committedEpoch, 0);
 
     // A restart must not mistake an incomplete write for committed membership.
-    const anotherProcess = makeLocalQdrantPublicationAuthority({ workspaceId: workspace, directory });
+    const anotherProcess = makeLocalQdrantPublicationAuthority({ workspaceId: workspace, directory, declaredTopology: 'single_host' });
     const next = await anotherProcess.reserve();
     assert.equal(next._tag, 'Ok');
     if (next._tag === 'Ok') assert.equal(next.value.epoch, 2);
