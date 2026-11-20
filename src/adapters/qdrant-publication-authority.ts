@@ -82,7 +82,7 @@ export const makeLocalQdrantPublicationAuthority = (config: {
   readonly workspaceId: WorkspaceId;
   readonly directory: string;
   /** Explicit operator assertion; never infer a supported topology from a path. */
-  readonly declaredTopology?: string;
+  readonly declaredTopology?: string | undefined;
 }): QdrantPublicationAuthority => {
   const workspaceHash = createHash('sha256').update(String(config.workspaceId)).digest('hex');
   const lockFile = join(config.directory, workspaceHash + '.lock');
