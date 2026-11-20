@@ -65,18 +65,39 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
   const nowMs = input.nowMs ?? Date.now;
   const verificationDelayMs = input.verificationDelayMs ?? retryPolicy.baseDelayMs;
   const archived: ArchivedEpisode[] = [];
+  let admissionPreparationError: DomainError | undefined;
 
   // Phase 1: source truth first. Any archive failure is fatal because ACE cannot
   // honestly claim the original history was preserved.
   for (const episode of input.episodes) {
+    const admission = admitMemoryEpisode(episode, policy);
+    if (input.outbox !== undefined && admissionPreparationError === undefined) {
+      if (admission.kind === 'archive_only' && input.outbox.markArchiveOnly !== undefined) {
+        // WRITE-AHEAD positive proof: the previous created:true -> marker
+        // sequence lost its proof on SIGKILL and created:false replay cannot
+        // honestly infer that an old episode was never sent to Graphiti.
+        // Only mark a genuinely new original; legacy originals with no proof
+        // remain UNKNOWN and require actual graph verification for deletion.
+        const existing = await input.archive.readEpisode(episode.episodeId);
+        if (existing._tag === 'Err' && existing.error.code !== 'FILE_NOT_FOUND') return existing;
+        if (existing._tag === 'Err') {
+          const marked = await input.outbox.markArchiveOnly(episode.episodeId);
+          if (marked._tag === 'Err') admissionPreparationError = marked.error;
+        }
+      } else if (admission.kind === 'project') {
+        // Durable graph intent MUST precede the archive commit and every
+        // possible provider send, including a restart/replay after SIGKILL.
+        const begun = await input.outbox.begin(episode.episodeId, input.extractorVersion);
+        if (begun._tag === 'Err') admissionPreparationError = begun.error;
+      }
+    }
     const saved = await input.archive.importEpisode(episode);
     if (saved._tag === 'Err') return saved;
-    archived.push({
-      episode,
-      created: saved.value.created,
-      admission: admitMemoryEpisode(episode, policy),
-    });
+    archived.push({ episode, created: saved.value.created, admission });
   }
+  // An outbox outage must not lose later originals; after all archives are
+  // written, fail closed before starting ANY Graphiti provider session.
+  if (admissionPreparationError !== undefined) return err(admissionPreparationError);
 
   const outcomes: MemoryImportOutcome[] = [];
   let session: ProjectionSession | undefined;
@@ -86,14 +107,20 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
     for (const item of archived) {
       const { episode, created, admission } = item;
       if (admission.kind === 'archive_only') {
-        // Record positive never-projected proof only for a newly persisted
-        // immutable episode. Absence of a receipt on an older import is NOT
-        // evidence that it was never sent to a graph.
-        if (created && input.outbox?.markArchiveOnly !== undefined) {
-          const marked = await input.outbox.markArchiveOnly(episode.episodeId);
-          if (marked._tag === 'Err') return marked;
-        }
         outcomes.push({ episodeId: episode.episodeId, persisted: created, admission });
+        continue;
+      }
+
+      // An unrecorded Graphiti attempt cannot be fenced against concurrent
+      // deletion or uncertain recovery. Source originals are still archived.
+      if (input.outbox === undefined) {
+        outcomes.push({
+          episodeId: episode.episodeId,
+          persisted: created,
+          admission,
+          projectionStatus: 'incomplete',
+          projectionErrorCode: 'PERSISTENCE_FAILED',
+        });
         continue;
       }
 
@@ -103,6 +130,7 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         if (begun._tag === 'Err') return begun;
         queued = begun.value;
         if (queued.status === 'projected' || queued.status === 'tombstoned' || queued.status === 'dead_letter'
+          || queued.inflightAttemptId !== undefined || queued.uncertainGraphAttempt === true
           || !projectionRetryDue(queued, nowMs())) {
           // A pending acknowledgement can still be awaiting provider
           // materialization, and an incomplete receipt may be in backoff.
@@ -158,6 +186,21 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         }
       }
 
+      // The durable claim prevents two importers from concurrently sending
+      // the same episode and one prematurely enabling archive deletion.
+      const claim = await input.outbox.startAttempt(episode.episodeId, input.extractorVersion);
+      if (claim._tag === 'Err') {
+        outcomes.push({
+          episodeId: episode.episodeId,
+          persisted: created,
+          admission,
+          projectionStatus: 'incomplete',
+          projectionErrorCode: claim.error.code,
+        });
+        continue;
+      }
+      queued = claim.value;
+
       let projected: Result<ProjectionReceipt, DomainError>;
       try {
         projected = await Effect.runPromise(session.projection.project({
@@ -177,7 +220,9 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
       }
       if (projected._tag === 'Err') {
         if (queued !== undefined && input.outbox !== undefined) {
-          const incomplete = scheduleProjectionRetry(queued, nowMs(), projected.error.code, retryPolicy);
+          const incomplete = scheduleProjectionRetry(
+            { ...queued, uncertainGraphAttempt: true }, nowMs(), projected.error.code, retryPolicy,
+          );
           if (incomplete._tag === 'Err') return incomplete;
           const stored = await input.outbox.put(incomplete.value);
           if (stored._tag === 'Err') return stored;
@@ -200,7 +245,7 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         };
         const receipt = recordProjectionEnqueue(base, projected.value, nowMs(), verificationDelayMs);
         if (receipt._tag === 'Err') return receipt;
-        const stored = await input.outbox.put(receipt.value);
+        const stored = await input.outbox.put({ ...receipt.value, graphDispatchAcknowledged: true });
         if (stored._tag === 'Err') return stored;
       }
       outcomes.push({

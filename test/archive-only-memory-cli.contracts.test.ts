@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { importMemoryEpisodes } from '../src/application/memory-import.js';
+import { deleteNeverProjectedArchiveEpisode } from '../src/application/retained-memory.js';
+import { makeWorkspaceId, type ContentDigest } from '../src/domain/workspace.js';
+import type { SessionEpisode } from '../src/domain/memory.js';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,6 +49,10 @@ test('CLI can delete durably never-projected originals without graph, preserving
     const archive = await makeAsyncFileMemoryArchive(archivePath);
     const survivor = await archive.readEpisode(second.value);
     assert.equal(survivor._tag, 'Ok', 'shared immutable source blob must remain available');
+    if (survivor._tag === 'Ok') {
+      assert.equal(survivor.value.contentDigest, createHash('sha256').update(survivor.value.content).digest('hex'),
+        'the surviving shared blob must remain byte- and digest-exact');
+    }
     const deleted = await archive.readEpisode(first.value);
     assert.equal(deleted._tag, 'Err');
     const outbox = await makeFileProjectionOutbox(join(archivePath, 'projection-outbox'));
@@ -79,5 +88,63 @@ test('CLI refuses deletion of an episode whose graph projection status is unknow
     if (id._tag === 'Ok') assert.equal((await archive.readEpisode(id.value))._tag, 'Ok');
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('AR05 real SIGKILL before/after original publication preserves write-ahead proof and shared survivor', async () => {
+  for (const failpoint of ['before-original', 'after-original'] as const) {
+    const root = await mkdtemp(join(tmpdir(), 'ace-ar05-kill-'));
+    try {
+      const killed = spawnSync(process.execPath, [
+        '--import', 'tsx', 'test/fixtures/ar05-archive-only-import-kill.mjs', root, failpoint,
+      ], { cwd: process.cwd(), encoding: 'utf8', timeout: 30_000 });
+      assert.equal(killed.signal, 'SIGKILL', killed.stderr);
+      const archive = await makeAsyncFileMemoryArchive(join(root, 'archive'));
+      const outbox = await makeFileProjectionOutbox(join(root, 'outbox'));
+      const id = makeEpisodeId('ar05-crash-episode');
+      const workspace = makeWorkspaceId('ar05-workspace');
+      if (id._tag === 'Err' || workspace._tag === 'Err') throw new Error('invalid fixture IDs');
+      const bytes = Buffer.from('ar05 shared original source bytes\n', 'utf8');
+      const episode: SessionEpisode = {
+        episodeId: id.value, workspaceId: workspace.value,
+        sessionId: 'ar05-session', sourcePointer: 'codex://ar05/original/1',
+        occurredAtMs: 100, importedAtMs: 101,
+        contentDigest: createHash('sha256').update(bytes).digest('hex') as ContentDigest,
+        content: bytes, searchText: 'ar05 shared original source bytes',
+        memoryHint: 'archive_only', tombstoned: false,
+      };
+      assert.deepEqual(await outbox.isArchiveOnly?.(id.value), { _tag: 'Ok', value: true });
+      if (failpoint === 'before-original') {
+        const premature = await deleteNeverProjectedArchiveEpisode(archive, outbox, id.value);
+        assert.equal(premature._tag, 'Err', 'precommit proof is not an existing archive');
+        assert.deepEqual(await outbox.isDeletionBlocked(id.value), { _tag: 'Ok', value: false });
+      }
+      const survivorId = makeEpisodeId('ar05-survivor');
+      if (survivorId._tag === 'Err') throw new Error(survivorId.error.message);
+      const survivor = { ...episode, episodeId: survivorId.value, sourcePointer: 'codex://ar05/original/2' };
+      assert.equal((await archive.importEpisode(survivor))._tag, 'Ok');
+
+      const replay = await importMemoryEpisodes({
+        episodes: [episode], archive, outbox, extractorVersion: 'ar05-v1',
+        createProjection: async () => { throw new Error('Graphiti must not start'); },
+      });
+      assert.equal(replay._tag, 'Ok');
+      if (replay._tag === 'Ok') {
+        assert.equal(replay.value[0]?.persisted, failpoint === 'before-original');
+      }
+      assert.equal((await deleteNeverProjectedArchiveEpisode(archive, outbox, id.value))._tag, 'Ok');
+      assert.equal((await archive.readEpisode(id.value))._tag, 'Err');
+      const retained = await archive.readEpisode(survivorId.value);
+      assert.equal(retained._tag, 'Ok');
+      if (retained._tag === 'Ok') {
+        assert.deepEqual(Buffer.from(retained.value.content), bytes);
+        assert.equal(retained.value.contentDigest, createHash('sha256').update(retained.value.content).digest('hex'));
+      }
+      // A crash after the original tombstone but before outbox finalization
+      // is a safe idempotent retry, never a second physical deletion.
+      assert.equal((await deleteNeverProjectedArchiveEpisode(archive, outbox, id.value))._tag, 'Ok');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   }
 });
