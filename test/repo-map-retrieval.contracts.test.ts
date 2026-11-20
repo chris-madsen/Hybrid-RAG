@@ -3,14 +3,13 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Effect } from 'effect';
 import { applyRepoMapPrior, makeQdrantContextProvider } from '../src/adapters/qdrant-context-provider.js';
-import { domainError } from '../src/domain/errors.js';
 import { resolveExplicitSourceRequirements, type SourceRequirements } from '../src/domain/source-coverage.js';
-import { ok, err } from '../src/domain/result.js';
+import { ok } from '../src/domain/result.js';
 import { makeCandidateId, makeCodeCandidate, type RankedCandidate } from '../src/domain/retrieval.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import { makeRepoMapSymbol } from '../src/domain/repo-map.js';
 import type {
-  ArtifactStore, CodeCandidatePort, SemanticAnalysisPort, WorkspaceFilePort,
+  CodeCandidatePort, SemanticAnalysisPort, WorkspaceFilePort,
 } from '../src/application/ports.js';
 import type { RepoMapService } from '../src/application/repo-map-service.js';
 
@@ -116,12 +115,6 @@ test('AR02 real Qdrant provider excludes stale RepoMap for code-only and refuses
     observeChanges: () => { throw Error('no metadata observer in this fixture'); },
     readExact: () => Effect.succeed(ok({ bytes: Buffer.from(source), digest: digest as never })),
   };
-  const artifacts: ArtifactStore = {
-    storeExact: () => Effect.succeed(ok({
-      handle: 'source-fixture', digest: digest as never, sizeBytes: Buffer.byteLength(source),
-    })),
-    readRange: () => Effect.succeed(err(domainError('ARTIFACT_NOT_FOUND', 'handle', 'not used'))),
-  };
   const qdrant: CodeCandidatePort = {
     upsert: () => Effect.succeed(ok(undefined)),
     search: () => Effect.succeed(ok([{ candidate: candidate.value, score: 0.8, freshness: 'current' }])),
@@ -145,7 +138,7 @@ test('AR02 real Qdrant provider excludes stale RepoMap for code-only and refuses
   };
   const provider = makeQdrantContextProvider({
     workspaceId: workspace.value, rootPath: '/repo',
-    files: filePort, artifacts, qdrant, semantics, repoMap,
+    files: filePort, qdrant, semantics, repoMap,
     embeddings: { embedMany: () => Effect.succeed(ok([[0.2, 0.8]])) },
     newRequestId: () => 'ar02-test-request',
   });
