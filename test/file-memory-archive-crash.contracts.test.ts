@@ -27,7 +27,7 @@ const episodeDir = (root: string): string => join(root, 'episodes');
 const binPath = (root: string): string => join(episodeDir(root), digest + '.bin');
 const jsonPath = (root: string): string => join(episodeDir(root), episode.episodeId + '.json');
 
-for (const failpoint of ['during_blob_stage', 'after_blob_link', 'during_metadata_stage', 'after_metadata_link']) {
+(['during_blob_stage', 'after_blob_link', 'during_metadata_stage', 'after_metadata_link'] as const).forEach((failpoint) => {
   test('AR04 SIGKILL at ' + failpoint + ' recovers exact bytes or a typed missing state', {
     skip: process.platform !== 'linux',
   }, async () => {
@@ -72,7 +72,7 @@ for (const failpoint of ['during_blob_stage', 'after_blob_link', 'during_metadat
       await rm(root, { recursive: true, force: true });
     }
   });
-}
+});
 
 test('AR04 corrupt pre-existing digest blob never passes EEXIST', async () => {
   const root = await newRoot();
