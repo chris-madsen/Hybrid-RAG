@@ -49,12 +49,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cbm_name="codebase-memory-$(printf '\\155\\143\\160')"\n          url="https://github.com/DeusData/$cbm_name/releases/download/v0.12.1/$cbm_name-linux-amd64.tar.gz"
+          cbm_name="codebase-memory-$(printf '\155\143\160')"
+          url="https://github.com/DeusData/$cbm_name/releases/download/v0.12.1/$cbm_name-linux-amd64.tar.gz"
           mkdir -p "$RUNNER_TEMP/cbm-unpacked" "$HOME/.local/bin"
           curl -fsSL --retry 3 "$url" -o "$RUNNER_TEMP/cbm.tar.gz"
           echo "8453015145f072c1b9b019cbdd02cea8cc6f18cc5e116036dd20992631c638c7  $RUNNER_TEMP/cbm.tar.gz" | sha256sum --check -
           tar xzf "$RUNNER_TEMP/cbm.tar.gz" -C "$RUNNER_TEMP/cbm-unpacked"
-          executable="$(find "$RUNNER_TEMP/cbm-unpacked" -type f -name $cbm_name -print -quit)"
+          executable="$(find "$RUNNER_TEMP/cbm-unpacked" -type f -name "$cbm_name" -print -quit)"
           test -n "$executable"
           install -m 0755 "$executable" "$HOME/.local/bin/$cbm_name"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
