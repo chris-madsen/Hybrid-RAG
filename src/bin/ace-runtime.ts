@@ -521,8 +521,7 @@ const main = async (): Promise<void> => {
     if (qdrantReachable._tag === 'Err') {
       handleQdrantUnavailable(qdrantReachable.error.code);
     } else if (!commandBoundaryExists(embeddingWorker)
-      || (retrievalStrategy !== 'dense' && !commandBoundaryExists(sparseEmbeddingWorker))
-) {
+      || (retrievalStrategy !== 'dense' && !commandBoundaryExists(sparseEmbeddingWorker))) {
       readiness.code_retrieval = { state: 'not_ready', reason: 'provider_runtime_missing' };
       readiness.unified_context = { state: 'not_ready', reason: 'provider_runtime_missing' };
       process.stderr.write('ace-runtime context NOT_READY: configured embedding runtime files are missing\n');
