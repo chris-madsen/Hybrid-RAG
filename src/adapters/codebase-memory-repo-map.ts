@@ -139,6 +139,60 @@ const lexicalRows = (root: string, response: unknown): readonly NativeGraphRow[]
 export const parseCodebaseMemorySemanticRows = semanticRows;
 export const parseCodebaseMemoryLexicalRows = lexicalRows;
 
+/** Decode native CBM grouped trace_path response, not traversal logic. */
+export const nativeTraceQualifiedNames = (value: unknown): readonly string[] => {
+  const root = object(value);
+  const names: string[] = [];
+  for (const side of ['callees', 'callers'] as const) {
+    const trace = object(root?.[side]);
+    if (!Array.isArray(trace?.groups)) continue;
+    for (const groupValue of trace.groups) {
+      const group = object(groupValue);
+      if (typeof group?.qn_prefix !== 'string' || !Array.isArray(group.rows)) continue;
+      for (const row of group.rows) {
+        if (!Array.isArray(row) || typeof row[0] !== 'string') continue;
+        const qn = group.qn_prefix.length ? group.qn_prefix + '.' + row[0] : row[0];
+        if (qn && names.length < 64) names.push(qn);
+      }
+    }
+  }
+  return names;
+};
+
+/** Native query_graph always reports columns/rows; file values need validation. */
+export const nativeQueryGraphFiles = (root: string, value: unknown): readonly RepoPath[] | undefined => {
+  const o = object(value);
+  if (o === undefined || !Array.isArray(o.columns) || !Array.isArray(o.rows)) return undefined;
+  const index = o.columns.indexOf('file');
+  if (index < 0) return undefined;
+  const paths: RepoPath[] = [];
+  for (const row of o.rows) {
+    if (!Array.isArray(row) || typeof row[index] !== 'string') return undefined;
+    const owned = ownedPath(root, row[index]);
+    if (owned !== undefined) paths.push(owned);
+  }
+  return paths;
+};
+
+/** Impact results may contain nested source-path records; decode only explicit fields. */
+const nativeImpactFiles = (root: string, result: unknown): readonly RepoPath[] => {
+  const files: RepoPath[] = [];
+  const collect = (value: unknown, depth: number): void => {
+    if (depth > 10 || files.length >= 150) return;
+    if (Array.isArray(value)) { for (const item of value) collect(item, depth + 1); return; }
+    const o = object(value);
+    if (o === undefined) return;
+    for (const [key, item] of Object.entries(o)) {
+      if (['file_path', 'repo_path', 'file'].includes(key) && typeof item === 'string') {
+        const path = ownedPath(root, item);
+        if (path !== undefined) files.push(path);
+      } else if (typeof item === 'object' && item !== null) collect(item, depth + 1);
+    }
+  };
+  collect(result, 0);
+  return files;
+};
+
 const matchesName = (qualifiedName: string, name: string): boolean =>
   qualifiedName === name || qualifiedName.endsWith('.' + name)
   || qualifiedName.endsWith('#' + name) || qualifiedName.endsWith('/' + name);
@@ -289,22 +343,57 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
     }
     const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()));
     if (native._tag === 'Err') return native;
-    const found: RankedCandidate[] = [];
+    const direct: RankedCandidate[] = [];
     const seen = new Set<string>();
     for (const hit of native.value) {
       const candidates = candidatesByFile.get(hit.file) ?? [];
       if (candidates.length === 0) continue;
-      // Return only original digest-bearing ACE candidates, not invented
-      // graph nodes. QdrantContextProvider performs an exact source reread.
       const exact = candidates.find((candidate) =>
         candidate.symbolName !== undefined && matchesName(hit.qn, candidate.symbolName));
       const candidate = exact ?? candidates[0]!;
       if (seen.has(candidate.candidateId)) continue;
       seen.add(candidate.candidateId);
-      found.push({ candidate, score: hit.score, freshness: 'unknown' });
-      if (found.length >= input.limit) break;
+      direct.push({ candidate, score: hit.score, freshness: 'unknown' });
+      if (direct.length >= input.limit) break;
     }
-    return ok(found);
+
+    // All call graph traversal is delegated to CBM. ACE only decodes explicit
+    // qualified names and requests their source locations from native Cypher.
+    const seeds = native.value.filter((hit) => candidatesByFile.has(hit.file)).slice(0, 3);
+    const relatedNames: string[] = [];
+    for (const seed of seeds) {
+      const traced = await Effect.runPromise(trace(seed.qn));
+      if (traced._tag === 'Ok') relatedNames.push(...nativeTraceQualifiedNames(traced.value));
+    }
+    const qns = [...new Set([...seeds.map((hit) => hit.qn), ...relatedNames])]
+      .filter((qn) => /^[\w./:$#-]+$/u.test(qn)).slice(0, 40);
+    const linkedPaths: RepoPath[] = [];
+    if (qns.length > 0) {
+      const predicate = qns.map((qn) => "n.qualified_name = '" + qn + "'").join(' OR ');
+      const query = 'MATCH (n) WHERE ' + predicate
+        + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 50';
+      const graph = await Effect.runPromise(queryGraph(query));
+      if (graph._tag === 'Ok') {
+        linkedPaths.push(...(nativeQueryGraphFiles(root, graph.value) ?? []));
+      }
+    }
+    if ((input.changedPaths?.length ?? 0) > 0) {
+      // CBM detects changed symbols and blast radius via its own git/graph.
+      const impact = await Effect.runPromise(detectChanges('HEAD~1'));
+      if (impact._tag === 'Ok') linkedPaths.push(...nativeImpactFiles(root, impact.value));
+    }
+
+    const linked: RankedCandidate[] = [];
+    for (const file of linkedPaths) {
+      const candidate = candidatesByFile.get(file)?.[0];
+      if (candidate === undefined || seen.has(candidate.candidateId)) continue;
+      seen.add(candidate.candidateId);
+      linked.push({ candidate, score: 1, freshness: 'unknown' });
+      if (linked.length >= input.limit) break;
+    }
+    if (linked.length === 0) return ok(direct.slice(0, input.limit));
+    const directSlots = Math.max(1, Math.ceil(input.limit * 0.6));
+    return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
   });
 
   const render = (input: RepoMapRenderInput): Effect.Effect<Result<RepoMapResult, DomainError>> =>
