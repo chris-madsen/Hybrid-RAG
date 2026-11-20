@@ -61,7 +61,7 @@ test('AR03 two OS processes: B publishes epoch 2 while A is paused at epoch 1; A
   const workspace = 'ar03-single-authority-workspace';
   const first = spawn(process.execPath, childArgs('pause', lockDir, physical, workspace));
   try {
-    assert.match(await awaitOutput(first, 'READY '), /READY 1/u);
+    assert.match(await awaitOutput(first, 'READY 1\n'), /READY 1/u);
     const next = await execFileAsync(process.execPath, childArgs('publish', lockDir, physical, workspace));
     assert.match(next.stdout, /Ok 2/u);
     const committed = JSON.parse(await readFile(physical, 'utf8')) as { epoch: number };
@@ -89,7 +89,7 @@ test('AR03 SIGKILL releases the kernel lock; fresh process may reserve and commi
   const workspace = 'ar03-crash-recovery-workspace';
   const holder = spawn(process.execPath, childArgs('hold', lockDir, physical, workspace));
   try {
-    await awaitOutput(holder, 'LOCK_HELD');
+    await awaitOutput(holder, 'LOCK_HELD\n');
     const closed = new Promise<void>((resolveClose) => holder.once('close', () => resolveClose()));
     holder.kill('SIGKILL');
     await closed;
