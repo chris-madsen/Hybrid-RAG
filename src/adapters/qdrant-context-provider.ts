@@ -37,6 +37,7 @@ import {
   type RetrievalBenchmarkTraceSink,
 } from '../domain/retrieval-benchmark.js';
 import type { CodeCandidate } from '../domain/retrieval.js';
+import type { SemanticDefinition } from '../domain/semantic.js';
 import {
   workingContextFromSnapshot,
   type RepoPath,
@@ -1240,6 +1241,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         }
       }
 
+      const lspDocumentSymbolsByPath = new Map<RepoPath, Result<readonly SemanticDefinition[], DomainError>>();
       const fullSources = new Map<RepoPath, {
         readonly bytes: Uint8Array;
         readonly digest: string;
@@ -1306,23 +1308,57 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         if (evidenceId._tag === 'Err') return evidenceId;
         // Even a partial response must never present an unverified indexed snippet as direct evidence.
         if (!verified || verifiedText === undefined) continue;
+        // CBM's get_file_outline is source-authoritative for declarations,
+        // but its wire format reports inclusive LINES rather than identifier
+        // columns. Obtain exact selection ranges from the existing, independent
+        // native LSP documentSymbol API; do not add an ACE identifier parser.
+        let nativeSelection: SemanticDefinition | undefined;
+        if (useLsp && candidate.semanticAnchor === undefined
+          && candidate.symbolName !== undefined
+          && activeConfig.semantics.documentSymbols !== undefined) {
+          let documentSymbols = lspDocumentSymbolsByPath.get(candidate.repoPath);
+          if (documentSymbols === undefined) {
+            documentSymbols = yield* activeConfig.semantics.documentSymbols({
+              repoPath: candidate.repoPath, requestId: requestId.value,
+              ...(activeConfig.semanticSnapshotIdentity === undefined
+                ? {} : { snapshotIdentity: activeConfig.semanticSnapshotIdentity }),
+            });
+            lspDocumentSymbolsByPath.set(candidate.repoPath, documentSymbols);
+          }
+          if (documentSymbols._tag === 'Ok') {
+            const matches = documentSymbols.value.filter((item) =>
+              item.name === candidate.symbolName
+              && item.location.repoPath === candidate.repoPath
+              && item.location.startLine >= candidate.range.startLine
+              && item.location.startLine <= candidate.range.endLine
+              && item.location.endLine <= candidate.range.endLine);
+            if (matches.length === 1) nativeSelection = matches[0];
+          } else {
+            warnings.push(candidate.repoPath + ': native LSP document symbols unavailable ('
+              + documentSymbols.error.code + ')');
+          }
+        }
+        const semanticLine = candidate.semanticAnchor?.line ?? nativeSelection?.location.startLine;
+        const semanticEndLine = candidate.semanticAnchor?.endLine ?? nativeSelection?.location.endLine;
         const semanticColumn = candidate.semanticAnchor === undefined
-          ? undefined
+          ? nativeSelection?.location.startColumn
           : utf16ColumnAtUtf8Byte(full.bytes, candidate.semanticAnchor.line, candidate.semanticAnchor.byteColumn);
         const semanticEndColumn = candidate.semanticAnchor === undefined
-          ? undefined
+          ? nativeSelection?.location.endColumn
           : utf16ColumnAtUtf8Byte(full.bytes, candidate.semanticAnchor.endLine, candidate.semanticAnchor.endByteColumn);
         if (useLsp) {
-          if (candidate.semanticAnchor === undefined || semanticColumn === undefined || semanticEndColumn === undefined) {
-            warnings.push(candidate.repoPath + ': exact structural identifier anchor is unavailable for requested LSP enrichment');
+          if (semanticLine === undefined || semanticEndLine === undefined
+            || semanticColumn === undefined || semanticEndColumn === undefined) {
+            warnings.push(candidate.repoPath + ': no unique source-bound identifier selection from CBM/LSP');
             failed.push('lsp');
           } else {
             const definitions = yield* activeConfig.semantics.definition({
               repoPath: candidate.repoPath,
-              line: candidate.semanticAnchor.line,
+              line: semanticLine,
               column: semanticColumn,
               requestId: requestId.value,
-              ...(activeConfig.semanticSnapshotIdentity === undefined ? {} : { snapshotIdentity: activeConfig.semanticSnapshotIdentity }),
+              ...(activeConfig.semanticSnapshotIdentity === undefined
+                ? {} : { snapshotIdentity: activeConfig.semanticSnapshotIdentity }),
             });
             if (definitions._tag === 'Err') {
               warnings.push(candidate.repoPath + ': language service unavailable (' + definitions.error.code + ')');
@@ -1330,11 +1366,12 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
             } else {
               const lspConfirmed = definitions.value.some((entry) =>
                 entry.location.repoPath === candidate.repoPath
-              && entry.location.startLine === candidate.semanticAnchor?.line
-              && entry.location.startColumn === semanticColumn
-              && entry.location.endLine === candidate.semanticAnchor?.endLine
-              && entry.location.endColumn === semanticEndColumn
-              && (candidate.symbolName === undefined || entry.name === undefined || entry.name === candidate.symbolName));
+                && entry.location.startLine === semanticLine
+                && entry.location.startColumn === semanticColumn
+                && entry.location.endLine === semanticEndLine
+                && entry.location.endColumn === semanticEndColumn
+                && (candidate.symbolName === undefined || entry.name === undefined
+                  || entry.name === candidate.symbolName));
               if (!lspConfirmed) {
                 warnings.push(candidate.repoPath + ': LSP definition does not agree with the selected structural node');
                 failed.push('lsp');
