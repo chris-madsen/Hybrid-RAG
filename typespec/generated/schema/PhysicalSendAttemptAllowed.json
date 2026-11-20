@@ -1,0 +1,47 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "PhysicalSendAttemptAllowed.json",
+    "type": "object",
+    "properties": {
+        "kind": {
+            "type": "string",
+            "const": "ALLOW"
+        },
+        "attemptId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "bodySha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+        },
+        "provider": {
+            "type": "string",
+            "minLength": 1
+        },
+        "model": {
+            "type": "string",
+            "minLength": 1
+        },
+        "destination": {
+            "type": "string",
+            "minLength": 1
+        },
+        "reasonCode": {
+            "type": "string",
+            "const": "AUTHORIZED"
+        }
+    },
+    "required": [
+        "kind",
+        "attemptId",
+        "bodySha256",
+        "provider",
+        "model",
+        "destination",
+        "reasonCode"
+    ],
+    "unevaluatedProperties": {
+        "not": {}
+    }
+}

@@ -10,23 +10,43 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/chris-madsen/Mult-agent-AI-Orchestration/integrations/bifrost/ace-connector"
+	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	"github.com/maximhq/bifrost/core/schemas"
 )
 
 const (
-	workspaceKey          schemas.BifrostContextKey = "ace.workspace_id"
-	physicalRequestIDKey  schemas.BifrostContextKey = "ace.projection.physical_request_id"
-	sessionCorrelationKey schemas.BifrostContextKey = "ace.projection.session_correlation"
-	pinnedBifrostCommit                             = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
+	workspaceKey               schemas.BifrostContextKey = "ace.workspace_id"
+	physicalRequestIDKey       schemas.BifrostContextKey = "ace.projection.physical_request_id"
+	sessionCorrelationKey      schemas.BifrostContextKey = "ace.projection.session_correlation"
+	pinnedBifrostCommit                                  = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
+	physicalSendMaxHeaderBytes                           = 64 * 1024
 )
 
 var projectionClient connector.Client
 var defaultWorkspaceID string
+
+type projectionBindingKey struct{}
+
+type projectionBinding struct {
+	requestID                  string
+	attemptGroupID             string
+	sessionID                  string
+	workspaceID                string
+	dataClass                  string
+	provider                   string
+	model                      string
+	preparedBodySHA256         string
+	preparedBodySemanticSHA256 string
+	projectionReceipt          string
+	noContextNeeded            bool
+	deadlineEpochMs            int64
+}
 
 // Set only by scripts/build-bifrost-ace-plugin.sh from the exact clean ACE checkout.
 var aceSourceCommit = "unknown"
@@ -124,9 +144,15 @@ func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string
 	if !okSession {
 		return "", "", "", "", nil, errors.New("coding-harness session correlation is unavailable")
 	}
+	if rawModel != strings.TrimSpace(rawModel) {
+		return "", "", "", "", nil, errors.New("native Responses model must not contain surrounding whitespace")
+	}
 	provider, normalizedModel := schemas.ParseModelString(rawModel, "")
 	if provider == "" || normalizedModel == "" {
 		return "", "", "", "", nil, errors.New("ACE Gateway requires an explicit Bifrost provider/model route")
+	}
+	if queryProvider := strings.TrimSpace(req.CaseInsensitiveQueryLookup("provider")); queryProvider != "" && !strings.EqualFold(queryProvider, string(provider)) {
+		return "", "", "", "", nil, errors.New("native Responses provider query conflicts with the explicit model route")
 	}
 	providerIdentity := string(provider)
 	// Bifröst can attest the exact HTTP request it observes, but it cannot
@@ -216,7 +242,7 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	if !singleWorkspaceAllowed(req) {
 		return errorResponse(403, "ACE workspace binding differs from the isolated connector workspace"), nil
 	}
-	requestID, session, provider, _, attestation, err := requestBoundIdentity(req, req.Body, rawModel)
+	requestID, session, provider, normalizedModel, attestation, err := requestBoundIdentity(req, req.Body, rawModel)
 	if err != nil {
 		return errorResponse(409, "native Responses request identity is unavailable"), nil
 	}
@@ -225,13 +251,21 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	if ctx == nil {
 		return errorResponse(503, "native Responses request context is unavailable"), nil
 	}
+	normalizedModelJSON, err := json.Marshal(normalizedModel)
+	if err != nil {
+		return errorResponse(400, "native Responses model could not be normalized"), nil
+	}
+	normalizedBody, err := providerUtils.SetRawJSONField(req.Body, "model", normalizedModelJSON)
+	if err != nil {
+		return errorResponse(400, "native Responses model normalization failed"), nil
+	}
 	var requestCtx context.Context = ctx
 	deadline := time.Now().Add(30 * time.Second).UnixMilli()
 	decision, projected, err := projectionClient.ProjectNativeResponsesAndApply(requestCtx, connector.ResponsesV2Request{
 		RequestID: requestID, AttemptGroupID: requestID, AgentSessionID: session,
 		WorkspaceID: defaultWorkspaceID, DataClass: "private",
-		Provider: provider, Model: rawModel, Query: query, DeadlineEpochMs: deadline,
-		Body: req.Body, Attestation: attestation,
+		Provider: provider, Model: normalizedModel, Query: query, DeadlineEpochMs: deadline,
+		Body: normalizedBody, Attestation: attestation,
 	})
 	if err != nil {
 		var denied *connector.ProjectionDeniedError
@@ -243,8 +277,64 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	if decision.Kind != "PREPARED" {
 		return errorResponse(409, "native Responses projection is not prepared"), nil
 	}
+	semanticDigest, err := connector.SemanticBodySHA256(projected)
+	if err != nil {
+		return errorResponse(409, "native Responses projection could not be bound to provider semantics"), nil
+	}
+	binding := projectionBinding{
+		requestID: requestID, attemptGroupID: requestID, sessionID: session,
+		workspaceID: defaultWorkspaceID, dataClass: "private", provider: provider,
+		model: normalizedModel, preparedBodySHA256: decision.ProjectedBodySHA256,
+		preparedBodySemanticSHA256: semanticDigest, projectionReceipt: decision.ProjectionReceipt,
+		noContextNeeded: decision.ReasonCode == "VERIFIED_NO_CONTEXT_NEEDED",
+		deadlineEpochMs: deadline,
+	}
+	guard := schemas.PhysicalSendGuard{
+		MaxSerializedRequestBytes: int(connector.DefaultMaxBodyBytes) + physicalSendMaxHeaderBytes,
+		AuthorizationDeadline:     time.UnixMilli(binding.deadlineEpochMs),
+		Authorize: func(attemptCtx context.Context, attempt schemas.PhysicalSendAttempt) error {
+			if attempt.Provider != schemas.ModelProvider(binding.provider) || attempt.Model != binding.model ||
+				attempt.Method != http.MethodPost {
+				return providerUtils.NewPhysicalSendAuthorizationError(403, "ROUTE_BINDING_MISMATCH", nil)
+			}
+			if attempt.BodySHA256 != sha256Hex(attempt.Body) {
+				return providerUtils.NewPhysicalSendAuthorizationError(403, "WIRE_BODY_DIGEST_MISMATCH", nil)
+			}
+			physicalDecision, authorizeErr := projectionClient.AuthorizeNativeResponsesAttempt(attemptCtx, connector.PhysicalSendV2Request{
+				SchemaVersion: "ace.gateway.v2", RequestID: binding.requestID,
+				AttemptGroupID: binding.attemptGroupID, AgentSessionID: binding.sessionID,
+				WorkspaceID: binding.workspaceID, DataClass: binding.dataClass,
+				Provider: binding.provider, Model: binding.model, AttemptID: attempt.AttemptID,
+				Method: attempt.Method, Destination: attempt.Destination, Body: attempt.Body,
+				BodySHA256: attempt.BodySHA256, PreparedBodySHA256: binding.preparedBodySHA256,
+				PreparedBodySemanticSHA256: binding.preparedBodySemanticSHA256,
+				ProjectionReceipt:          binding.projectionReceipt, DeadlineEpochMs: binding.deadlineEpochMs,
+				NoContextNeeded: binding.noContextNeeded,
+			})
+			if authorizeErr != nil {
+				return providerUtils.NewPhysicalSendAuthorizationError(503, "AUTHORIZATION_UNAVAILABLE", authorizeErr)
+			}
+			if physicalDecision.Kind != "ALLOW" {
+				return providerUtils.NewPhysicalSendAuthorizationError(403, physicalDecision.ReasonCode, nil)
+			}
+			return nil
+		},
+	}
+	if !ctx.SetPhysicalSendGuard(guard) {
+		return errorResponse(409, "native Responses physical-send guard could not be installed"), nil
+	}
+	ctx.SetTrustedValue(projectionBindingKey{}, binding)
+	if req.Query == nil {
+		req.Query = make(map[string]string)
+	}
+	for key := range req.Query {
+		if strings.EqualFold(key, "provider") {
+			delete(req.Query, key)
+		}
+	}
+	req.Query["provider"] = provider
 	req.Body = projected
-	return nil, nil // PreLLMHook still blocks every physical model attempt
+	return nil, nil
 }
 
 func nativeResponsesQuery(raw json.RawMessage) (string, bool) {
@@ -311,11 +401,25 @@ func blockProviderAttempt(req *schemas.BifrostRequest, reason string) (*schemas.
 	}, nil
 }
 
-// Defense in depth: the HTTP hook is not an authorization receipt.
-// Every normalized model attempt must be blocked until the native Responses
-// per-physical-send guard is implemented and proved on a pinned Bifrost.
-func PreLLMHook(_ *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
-	return blockProviderAttempt(req, "ACE provider dispatch disabled until native Responses is certified")
+// PreLLMHook admits only the request carrying the request-scoped physical-send
+// guard. The terminal transport invokes that guard for every serialized attempt.
+func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
+	if ctx == nil || req == nil || req.ResponsesRequest == nil {
+		return blockProviderAttempt(req, "ACE native Responses binding is unavailable")
+	}
+	binding, ok := ctx.TrustedValue(projectionBindingKey{}).(projectionBinding)
+	if !ok {
+		return blockProviderAttempt(req, "ACE native Responses projection receipt is unavailable")
+	}
+	guard, ok := ctx.PhysicalSendGuard()
+	if !ok || guard.Authorize == nil {
+		return blockProviderAttempt(req, "ACE physical-send authorization guard is unavailable")
+	}
+	provider, model, _ := req.GetRequestFields()
+	if provider != schemas.ModelProvider(binding.provider) || model != binding.model {
+		return blockProviderAttempt(req, "ACE native Responses provider/model binding changed")
+	}
+	return req, nil, nil
 }
 
 func PostLLMHook(ctx *schemas.BifrostContext, response *schemas.BifrostResponse, bifrostErr *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError, error) {

@@ -89,6 +89,57 @@ test('gateway HTTP does not accept unverified final-delivery claims', async () =
   assert.equal(result.statusCode, 501);
 });
 
+test('attempt authorization is a distinct authenticated Gateway decision route', async () => {
+  const body = {
+    schemaVersion: 'ace.gateway.v2', attemptId: 'bf-attempt-' + 'a'.repeat(32),
+    bodySha256: 'b'.repeat(64), requestId: 'ace-' + 'c'.repeat(32),
+  };
+  let calls = 0;
+  const decisionService = {
+    authorizePhysicalSend: (value: unknown) => {
+      calls += 1;
+      assert.deepEqual(value, body);
+      return Effect.succeed(ok({
+        kind: 'BLOCK' as const, attemptId: body.attemptId,
+        bodySha256: body.bodySha256, reasonCode: 'PROJECTION_RECEIPT_INVALID',
+      }));
+    },
+  };
+  const result = await handleGatewayProjectionHttp(
+    decisionService, 'POST', '/internal/ace-gateway/v2/authorize-attempt', JSON.stringify(body),
+  );
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.kind, 'BLOCK');
+  assert.equal(result.body.reasonCode, 'PROJECTION_RECEIPT_INVALID');
+  assert.equal(calls, 1);
+
+  const server = createGatewayProjectionServer(decisionService, { authToken: 'attempt-test-secret' });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const url = `http://127.0.0.1:${address.port}/internal/ace-gateway/v2/authorize-attempt`;
+  try {
+    const anonymous = await fetch(url, { method: 'POST', body: JSON.stringify(body) });
+    assert.equal(anonymous.status, 401);
+    const authorized = await fetch(url, {
+      method: 'POST', headers: { Authorization: 'Bearer attempt-test-secret' }, body: JSON.stringify(body),
+    });
+    assert.equal(authorized.status, 200);
+    const decision = await authorized.json() as { kind: string; attemptId: string };
+    assert.equal(decision.kind, 'BLOCK');
+    assert.equal(decision.attemptId, body.attemptId);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  const missingAuthorizer = await handleGatewayProjectionHttp(
+    service, 'POST', '/internal/ace-gateway/v2/authorize-attempt', JSON.stringify(body),
+  );
+  assert.equal(missingAuthorizer.statusCode, 503);
+});
+
 test('gateway allows Base64 and JSON framing beyond the raw four MiB body limit', () => {
   const rawBytes = 4 * 1024 * 1024;
   const encodedBytes = Buffer.alloc(rawBytes).toString('base64').length;

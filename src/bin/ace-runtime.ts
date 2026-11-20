@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -76,6 +76,7 @@ import {
 import { verifyCompiledRuntimeProvenance } from '../application/runtime-provenance.js';
 import { makeContextTransformService } from '../application/context-transform-service.js';
 import { makeContextAssembler } from '../application/context-assembler.js';
+import { makeGatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
 import { makeRepoMapService, type RepoMapService } from '../application/repo-map-service.js';
 import {
   makeLspServerDescriptor,
@@ -1093,6 +1094,9 @@ const main = async (): Promise<void> => {
   const gatewayAllowedLlmProviders = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON', [])
     .map((provider) => provider.trim().toLowerCase())
     .filter((provider) => provider.length > 0);
+  const gatewayAllowedLlmDestinations = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON', [])
+    .map((destination) => destination.trim())
+    .filter((destination) => destination.length > 0);
   const gatewayExternalLlmOptIn = process.env.ACE_GATEWAY_EXTERNAL_LLM_OPT_IN === 'true';
   const gatewayPolicy = {
     ...defaultLocalPolicy(registered.value.workspaceId),
@@ -1134,12 +1138,21 @@ const main = async (): Promise<void> => {
   const gatewaySecurity = {
     policy: gatewayPolicy,
     allowedProviders: gatewayAllowedLlmProviders,
+    allowedDestinations: gatewayAllowedLlmDestinations,
+    // Projection receipts are intentionally process-scoped. After a restart,
+    // any in-flight Bifröst attempt fails closed and must prepare again.
+    receiptSigningKey: randomBytes(32).toString('base64url'),
     clock: ports.clock,
     audit: makeFileAuditSink(resolve(stateDirectory, 'gateway-policy-audit.jsonl')),
   };
   const contextProvider = contextBridge ?? unavailableContext;
   try {
-    await runGatewayProjectionHttp(makeResponsesProjectionService(contextProvider, gatewaySecurity));
+    const projection = makeResponsesProjectionService(contextProvider, gatewaySecurity);
+    const attemptAuthorization = makeGatewayAttemptAuthorizationService(gatewaySecurity);
+    await runGatewayProjectionHttp({
+      projectResponses: projection.projectResponses,
+      authorizePhysicalSend: attemptAuthorization.authorizePhysicalSend,
+    });
   } finally {
     let cleanupError: unknown;
     try {

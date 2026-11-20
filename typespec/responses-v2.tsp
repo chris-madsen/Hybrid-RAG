@@ -58,6 +58,9 @@ namespace ACE.ResponsesV2 {
     @pattern("^[a-f0-9]{64}$") baseBodySha256: string;
     @pattern("^[a-f0-9]{64}$") projectedBodySha256: string;
     @pattern("^[A-Za-z0-9+/]+={0,2}$") bodyBase64: string;
+    @minLength(1)
+    @maxLength(16384)
+    projectionReceipt: string;
     reasonCode: "VERIFIED_CONTEXT_ADDED" | "VERIFIED_NO_CONTEXT_NEEDED";
   }
 
@@ -99,6 +102,56 @@ namespace ACE.ResponsesV2 {
     };
   }
 
+  @jsonSchema
+  model PhysicalSendAttemptRequest {
+    schemaVersion: "ace.gateway.v2";
+    @minLength(1) requestId: string;
+    @minLength(1) attemptGroupId: string;
+    @minLength(1) agentSessionId: string;
+    @minLength(1) workspaceId: string;
+    dataClass: "private" | "project_document" | "public";
+    @minLength(1) provider: string;
+    @minLength(1) `model`: string;
+    @minLength(1) attemptId: string;
+    @minLength(1) method: string;
+    @minLength(1) destination: string;
+    @pattern("^[A-Za-z0-9+/]+={0,2}$")
+    @maxLength(5592408)
+    bodyBase64: string;
+    @pattern("^[a-f0-9]{64}$") bodySha256: string;
+    @pattern("^[a-f0-9]{64}$") preparedBodySha256: string;
+    @minLength(1)
+    @maxLength(16384)
+    projectionReceipt: string;
+    @minValue(1) deadlineEpochMs: int64;
+  }
+
+  @jsonSchema
+  @discriminated(#{ envelope: "none", discriminatorPropertyName: "kind" })
+  union PhysicalSendAttemptDecision {
+    ALLOW: PhysicalSendAttemptAllowed;
+    BLOCK: PhysicalSendAttemptBlocked;
+  }
+
+  @jsonSchema
+  model PhysicalSendAttemptAllowed {
+    kind: "ALLOW";
+    @minLength(1) attemptId: string;
+    @pattern("^[a-f0-9]{64}$") bodySha256: string;
+    @minLength(1) provider: string;
+    @minLength(1) `model`: string;
+    @minLength(1) destination: string;
+    reasonCode: "AUTHORIZED";
+  }
+
+  @jsonSchema
+  model PhysicalSendAttemptBlocked {
+    kind: "BLOCK";
+    @minLength(1) attemptId: string;
+    @pattern("^[a-f0-9]{64}$") bodySha256: string;
+    reasonCode: string;
+  }
+
   model GatewayError {
     @statusCode status: 400 | 401 | 404 | 405 | 409 | 413 | 501 | 503;
     error: { code: string; message: string };
@@ -120,4 +173,8 @@ namespace ACE.ResponsesV2 {
   @post
   @route("/internal/ace-gateway/v2/project")
   op project(@body request: ProjectionRequest): ProjectionDecision | GatewayError;
+
+  @post
+  @route("/internal/ace-gateway/v2/authorize-attempt")
+  op authorizePhysicalSend(@body request: PhysicalSendAttemptRequest): PhysicalSendAttemptDecision | GatewayError;
 }
