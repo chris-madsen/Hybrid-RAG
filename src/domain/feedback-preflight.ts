@@ -180,7 +180,7 @@ export const inspectHermesBifrostEndpoint = (input: {
   } catch {
     return { status: 'invalid_configuration', reason: 'Hermes Bifröst endpoint is not a safe HTTP(S) URL' };
   }
-  const host = parsed.hostname.toLowerCase();
+  const host = parsed.hostname.toLowerCase().replace(/\.+$/u, '');
   if (host === 'openai.com' || host.endsWith('.openai.com')
     || host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) {
     return { status: 'invalid_configuration', reason: 'direct OpenAI/Codex endpoints bypass Bifröst and are prohibited' };
@@ -188,7 +188,8 @@ export const inspectHermesBifrostEndpoint = (input: {
   const approvedLocalHosts = new Set([
     'localhost', '127.0.0.1', '[::1]', 'host.docker.internal', 'bifrost', 'bifrost-gateway',
   ]);
-  const operatorAllowed = new Set((input.allowedHosts ?? []).map((value) => value.trim().toLowerCase()));
+  const operatorAllowed = new Set((input.allowedHosts ?? [])
+    .map((value) => value.trim().toLowerCase().replace(/\.+$/u, '')));
   if (!approvedLocalHosts.has(host) && !operatorAllowed.has(host)) {
     return { status: 'invalid_configuration',
       reason: 'Bifröst host is not an approved local or explicitly allowlisted endpoint' };

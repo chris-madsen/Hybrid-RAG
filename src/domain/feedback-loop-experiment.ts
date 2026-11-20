@@ -2,6 +2,10 @@ import { domainError, type DomainError } from './errors.js';
 import { err, ok, type Result } from './result.js';
 import type { HermesContextEvidence } from './hermes-context-evidence.js';
 import { isFeedbackReasoningEffort, type FeedbackReasoningEffort } from './feedback-harbor-config.js';
+import {
+  validateNativeResponsesStreamReceipt,
+  type NativeResponsesStreamReceipt,
+} from './native-responses-stream-receipt.js';
 
 export type FeedbackArm = 'native' | 'ace_optional';
 export type FeedbackQuality = 'pass' | 'fail' | 'unknown';
@@ -65,12 +69,20 @@ export interface FeedbackUsage {
   readonly cachedInputTokens?: number;
   /** Provider-reported output tokens. */
   readonly outputTokens?: number;
+  /** Reasoning output is a subset of output tokens and is never added again. */
+  readonly reasoningOutputTokens?: number;
   readonly costUsd?: number;
 }
 
 export interface FeedbackArtifactHash {
   readonly path: string;
   readonly sha256: string;
+}
+
+export interface FeedbackFinalWireAttemptBinding {
+  readonly requestId: string;
+  readonly attemptId: string;
+  readonly status: 'REAL_PROVIDER_CANDIDATE';
 }
 
 export interface FeedbackTrialObservation {
@@ -84,9 +96,9 @@ export interface FeedbackTrialObservation {
   readonly usage: FeedbackUsage;
   readonly durationMs?: number;
   readonly nativeFileReads?: number;
-  /** Total user-facing ACE calls, including exact ace_expand reads. */
+  /** Total ACE interactions observed in the trial; not proof of model-bound delivery. */
   readonly observedAceCalls: number;
-  /** ace_context calls only. Undefined preserves legacy observations where every ACE call was a context call. */
+  /** Gateway projection requests only; undefined preserves legacy trial summaries. */
   readonly observedAceContextCalls?: number;
   /** Legacy explicit ace_context request IDs; these do not prove model-bound Gateway delivery. */
   readonly observedAceRequestIds: readonly string[];
@@ -98,6 +110,10 @@ export interface FeedbackTrialObservation {
   readonly gatewayProjectionRequestIds?: readonly string[];
   /** Request IDs found in the ACE provider trace for this trial. */
   readonly providerTraceRequestIds: readonly string[];
+  /** Request/attempt references from C07's signature-checked candidate index; not provider certification. */
+  readonly finalWireAttemptBindings?: readonly FeedbackFinalWireAttemptBinding[];
+  /** Redacted stream terminal summaries; the current evaluator marks these NOT_CERTIFIED. */
+  readonly nativeResponsesStreamReceipts?: readonly NativeResponsesStreamReceipt[];
   readonly rawArtifactHashes: readonly FeedbackArtifactHash[];
 }
 
@@ -110,10 +126,12 @@ export interface FeedbackTaskRow {
   readonly nativeInputTokens: number | null;
   readonly nativeCachedInputTokens: number | null;
   readonly nativeOutputTokens: number | null;
+  readonly nativeReasoningOutputTokens?: number | null;
   readonly nativeTotalTokens: number | null;
   readonly aceInputTokens: number | null;
   readonly aceCachedInputTokens: number | null;
   readonly aceOutputTokens: number | null;
+  readonly aceReasoningOutputTokens?: number | null;
   readonly aceTotalTokens: number | null;
   readonly nativeCostUsd: number | null;
   readonly aceCostUsd: number | null;
@@ -137,6 +155,8 @@ export interface FeedbackReport {
   readonly aceCachedInputTokens: number | null;
   readonly nativeOutputTokens: number | null;
   readonly aceOutputTokens: number | null;
+  readonly nativeReasoningOutputTokens?: number | null;
+  readonly aceReasoningOutputTokens?: number | null;
   readonly nativeTotalTokens: number | null;
   readonly aceTotalTokens: number | null;
   readonly tokenRatio: number | null;
@@ -180,6 +200,10 @@ const feedbackQuality = (value: unknown): value is FeedbackQuality => value === 
 const nullablePositiveInteger = (value: unknown): value is number | null => value === null || positiveInteger(value);
 const nullableNonNegativeInteger = (value: unknown): value is number | null => value === null || nonNegativeInteger(value);
 const nullableNonNegativeNumber = (value: unknown): value is number | null => value === null || nonNegativeNumber(value);
+const totalMatches = (input: number | null, output: number | null, total: number | null): boolean =>
+  input === null || output === null ? total === null : total === input + output;
+const subsetWithin = (subset: number | null | undefined, total: number | null): boolean =>
+  subset === undefined || subset === null || total === null || subset <= total;
 
 export const validateFeedbackReport = (value: unknown, path = 'feedback_report'): Result<FeedbackReport, DomainError> => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return invalid(path, 'feedback report must be an object');
@@ -191,12 +215,22 @@ export const validateFeedbackReport = (value: unknown, path = 'feedback_report')
     || !nullablePositiveInteger(report.nativeInputTokens) || !nullablePositiveInteger(report.aceInputTokens)
     || !nullableNonNegativeInteger(report.nativeCachedInputTokens) || !nullableNonNegativeInteger(report.aceCachedInputTokens)
     || !nullablePositiveInteger(report.nativeOutputTokens) || !nullablePositiveInteger(report.aceOutputTokens)
+    || report.nativeReasoningOutputTokens !== undefined && !nullableNonNegativeInteger(report.nativeReasoningOutputTokens)
+    || report.aceReasoningOutputTokens !== undefined && !nullableNonNegativeInteger(report.aceReasoningOutputTokens)
     || !nullablePositiveInteger(report.nativeTotalTokens) || !nullablePositiveInteger(report.aceTotalTokens)
     || !(report.tokenRatio === null || typeof report.tokenRatio === 'number' && Number.isFinite(report.tokenRatio) && report.tokenRatio > 0)
     || !nullableNonNegativeNumber(report.nativeCostUsd) || !nullableNonNegativeNumber(report.aceCostUsd)
     || !nonNegativeInteger(report.aceObservedCalls) || !nonNegativeInteger(report.aceCorrelatedCalls)
     || (report.aceCorrelatedCalls as number) > (report.aceObservedCalls as number) || typeof report.aceNotUsed !== 'boolean') {
     return invalid(path, 'feedback report counters, status or quality fields are malformed');
+  }
+  if (!totalMatches(report.nativeInputTokens as number | null, report.nativeOutputTokens as number | null, report.nativeTotalTokens as number | null)
+    || !totalMatches(report.aceInputTokens as number | null, report.aceOutputTokens as number | null, report.aceTotalTokens as number | null)
+    || !subsetWithin(report.nativeCachedInputTokens as number | null, report.nativeInputTokens as number | null)
+    || !subsetWithin(report.aceCachedInputTokens as number | null, report.aceInputTokens as number | null)
+    || !subsetWithin(report.nativeReasoningOutputTokens as number | null | undefined, report.nativeOutputTokens as number | null)
+    || !subsetWithin(report.aceReasoningOutputTokens as number | null | undefined, report.aceOutputTokens as number | null)) {
+    return invalid(path, 'feedback token totals must equal input plus output; cached and reasoning counters are subsets');
   }
   for (const [index, valueAt] of report.rows.entries()) {
     if (typeof valueAt !== 'object' || valueAt === null || Array.isArray(valueAt)) return invalid(`${path}.rows[${index}]`, 'task row must be an object');
@@ -205,15 +239,27 @@ export const validateFeedbackReport = (value: unknown, path = 'feedback_report')
       || !(row.aceCalled === null || typeof row.aceCalled === 'boolean')
       || !['correlated', 'ACE_NOT_USED', 'UNKNOWN'].includes(String(row.aceCorrelation))
       || !nullablePositiveInteger(row.nativeInputTokens) || !nullableNonNegativeInteger(row.nativeCachedInputTokens)
-      || !nullablePositiveInteger(row.nativeOutputTokens) || !nullablePositiveInteger(row.nativeTotalTokens)
+      || !nullablePositiveInteger(row.nativeOutputTokens)
+      || row.nativeReasoningOutputTokens !== undefined && !nullableNonNegativeInteger(row.nativeReasoningOutputTokens)
+      || !nullablePositiveInteger(row.nativeTotalTokens)
       || !nullablePositiveInteger(row.aceInputTokens) || !nullableNonNegativeInteger(row.aceCachedInputTokens)
-      || !nullablePositiveInteger(row.aceOutputTokens) || !nullablePositiveInteger(row.aceTotalTokens)
+      || !nullablePositiveInteger(row.aceOutputTokens)
+      || row.aceReasoningOutputTokens !== undefined && !nullableNonNegativeInteger(row.aceReasoningOutputTokens)
+      || !nullablePositiveInteger(row.aceTotalTokens)
       || !nullableNonNegativeNumber(row.nativeCostUsd) || !nullableNonNegativeNumber(row.aceCostUsd)
       || !['no_regression', 'regression', 'unknown'].includes(String(row.qualityDelta))
       || !(row.tokenRatio === null || typeof row.tokenRatio === 'number' && Number.isFinite(row.tokenRatio) && row.tokenRatio > 0)
       || !nullableNonNegativeNumber(row.durationNativeMs) || !nullableNonNegativeNumber(row.durationAceMs)
       || !nullableNonNegativeInteger(row.nativeFileReads) || !feedbackStatus(row.status)) {
       return invalid(`${path}.rows[${index}]`, 'task row fields are malformed');
+    }
+    if (!totalMatches(row.nativeInputTokens as number | null, row.nativeOutputTokens as number | null, row.nativeTotalTokens as number | null)
+      || !totalMatches(row.aceInputTokens as number | null, row.aceOutputTokens as number | null, row.aceTotalTokens as number | null)
+      || !subsetWithin(row.nativeCachedInputTokens as number | null, row.nativeInputTokens as number | null)
+      || !subsetWithin(row.aceCachedInputTokens as number | null, row.aceInputTokens as number | null)
+      || !subsetWithin(row.nativeReasoningOutputTokens as number | null | undefined, row.nativeOutputTokens as number | null)
+      || !subsetWithin(row.aceReasoningOutputTokens as number | null | undefined, row.aceOutputTokens as number | null)) {
+      return invalid(`${path}.rows[${index}]`, 'task token totals must equal input plus output; cached and reasoning counters are subsets');
     }
   }
   return ok(value as FeedbackReport);
@@ -377,14 +423,19 @@ const validateUsage = (usage: FeedbackUsage, path: string): Result<void, DomainE
     ['inputTokens', usage.inputTokens],
     ['cachedInputTokens', usage.cachedInputTokens],
     ['outputTokens', usage.outputTokens],
+    ['reasoningOutputTokens', usage.reasoningOutputTokens],
   ];
   for (const [name, value] of values) {
-    if (value !== undefined && (name === 'cachedInputTokens' ? !nonNegativeInteger(value) : !positiveInteger(value))) {
-      return invalid(`${path}.${name}`, 'provider token counters must be positive; cached input may be zero but never negative/fractional');
+    if (value !== undefined && !nonNegativeInteger(value)) {
+      return invalid(`${path}.${name}`, 'provider token counters must be non-negative safe integers; zero is valid for failed or cancelled attempts');
     }
   }
   if (usage.inputTokens !== undefined && usage.cachedInputTokens !== undefined && usage.cachedInputTokens > usage.inputTokens) {
     return invalid(`${path}.cachedInputTokens`, 'cached input tokens cannot exceed input tokens');
+  }
+  if (usage.outputTokens !== undefined && usage.reasoningOutputTokens !== undefined
+    && usage.reasoningOutputTokens > usage.outputTokens) {
+    return invalid(`${path}.reasoningOutputTokens`, 'reasoning output tokens cannot exceed output tokens');
   }
   if (usage.costUsd !== undefined && !nonNegativeNumber(usage.costUsd)) return invalid(`${path}.costUsd`, 'cost must be a finite non-negative number');
   return ok(undefined);
@@ -423,9 +474,36 @@ const validateObservation = (observation: FeedbackTrialObservation, path: string
     return invalid(`${path}.hermesContextEvidence`, 'Hermes evidence request IDs must be non-empty');
   }
   if (observation.observedAceRequestIds.length > observedContextCalls) return invalid(`${path}.observedAceRequestIds`, 'request IDs cannot exceed observed ace_context calls');
+  const finalWireAttempts = observation.finalWireAttemptBindings ?? [];
+  const streamReceipts = observation.nativeResponsesStreamReceipts ?? [];
+  const checkedStreamReceipts = streamReceipts.map((receipt) => validateNativeResponsesStreamReceipt(receipt));
+  const invalidStreamReceipt = checkedStreamReceipts.find((checked) => checked._tag === 'Err');
+  if (invalidStreamReceipt?._tag === 'Err') return invalid(`${path}.nativeResponsesStreamReceipts`, invalidStreamReceipt.error.message);
+  const streams = checkedStreamReceipts.flatMap((checked) => checked._tag === 'Ok' ? [checked.value] : []);
+  if (finalWireAttempts.some((attempt) => typeof attempt !== 'object' || attempt === null
+    || !/^ace-[a-f0-9]{32}$/u.test(attempt.requestId)
+    || !/^bf-attempt-[a-f0-9]{32}$/u.test(attempt.attemptId)
+    || attempt.status !== 'REAL_PROVIDER_CANDIDATE')) {
+    return invalid(`${path}.finalWireAttemptBindings`, 'C07 final-wire attempt index is malformed or not candidate-only');
+  }
+  const attemptIds = finalWireAttempts.map((attempt) => attempt.attemptId);
+  if (new Set(attemptIds).size !== attemptIds.length) {
+    return invalid(`${path}.finalWireAttemptBindings`, 'final-wire attempt IDs must be unique within a trial');
+  }
+  const projectionRequestIds = new Set([
+    ...observation.observedAceRequestIds,
+    ...(observation.gatewayProjectionRequestIds ?? []),
+  ]);
+  if (finalWireAttempts.some((attempt) => !projectionRequestIds.has(attempt.requestId))) {
+    return invalid(`${path}.finalWireAttemptBindings`, 'final-wire attempt request IDs must match an observed Gateway projection');
+  }
+  if (streams.some((receipt) => !projectionRequestIds.has(receipt.requestId))) {
+    return invalid(`${path}.nativeResponsesStreamReceipts`, 'stream receipt request IDs must match an observed Gateway projection');
+  }
   if (observation.arm === 'native' && (observation.observedAceCalls !== 0 || observedContextCalls !== 0
     || observation.observedAceRequestIds.length > 0 || observation.providerTraceRequestIds.length > 0
-    || (observation.gatewayProjectionRequestIds?.length ?? 0) > 0)) {
+    || (observation.gatewayProjectionRequestIds?.length ?? 0) > 0
+    || finalWireAttempts.length > 0 || streams.length > 0)) {
     return invalid(path, 'native arm must not contain ACE calls or provider trace requests');
   }
   const artifacts = validateFeedbackArtifactHashes(observation.rawArtifactHashes, `${path}.rawArtifactHashes`);
@@ -437,19 +515,30 @@ const mapByTask = (observations: readonly FeedbackTrialObservation[], arm: Feedb
   const result = new Map<string, FeedbackTrialObservation>();
   const trialIds = new Set<string>();
   const requestIds = new Set<string>();
+  const attemptIds = new Set<string>();
   for (const [index, observation] of observations.entries()) {
     const checked = validateObservation(observation, `${arm}.observations[${index}]`);
     if (checked._tag === 'Err') return checked;
     if (observation.arm !== arm || result.has(observation.taskId) || trialIds.has(observation.trialId)) {
       return invalid(`${arm}.observations[${index}]`, 'trial/task IDs must be unique and belong to the declared arm');
     }
-    for (const requestId of [
+    // One real request can appear in several independent evidence channels
+    // within the SAME trial. That is a candidate correlation, not replay.
+    // A request ID reused by ANOTHER trial remains forbidden.
+    const trialRequestIds = new Set([
       ...observation.observedAceRequestIds,
       ...(observation.contextTransformRequestIds ?? []),
       ...(observation.gatewayProjectionRequestIds ?? []),
-    ]) {
-      if (requestIds.has(requestId)) return invalid(`${arm}.observations[${index}].requestIds`, 'ACE request IDs must not be duplicated');
+    ]);
+    for (const requestId of trialRequestIds) {
+      if (requestIds.has(requestId)) return invalid(`${arm}.observations[${index}].requestIds`, 'ACE request IDs must not be reused across trials');
       requestIds.add(requestId);
+    }
+    for (const attempt of observation.finalWireAttemptBindings ?? []) {
+      if (attemptIds.has(attempt.attemptId)) {
+        return invalid(`${arm}.observations[${index}].attemptIds`, 'final-wire attempt IDs must be unique across trials');
+      }
+      attemptIds.add(attempt.attemptId);
     }
     trialIds.add(observation.trialId);
     result.set(observation.taskId, observation);
@@ -457,7 +546,7 @@ const mapByTask = (observations: readonly FeedbackTrialObservation[], arm: Feedb
   return ok(result);
 };
 
-const tokenValue = (usage: FeedbackUsage, field: 'inputTokens' | 'cachedInputTokens' | 'outputTokens'): number | null => usage[field] ?? null;
+const tokenValue = (usage: FeedbackUsage, field: 'inputTokens' | 'cachedInputTokens' | 'outputTokens' | 'reasoningOutputTokens'): number | null => usage[field] ?? null;
 const totalTokens = (usage: FeedbackUsage): number | null => usage.inputTokens === undefined || usage.outputTokens === undefined
   ? null
   : usage.inputTokens + usage.outputTokens;
@@ -471,7 +560,6 @@ const sumOptional = (values: readonly (number | undefined)[]): number | null => 
 const correlationFor = (observation: FeedbackTrialObservation): 'correlated' | 'ACE_NOT_USED' | 'UNKNOWN' => {
   const transformIds = observation.contextTransformRequestIds ?? [];
   const gatewayProjectionIds = observation.gatewayProjectionRequestIds ?? [];
-  const providerIds = new Set(observation.providerTraceRequestIds);
   if (transformIds.length > 0) {
     // Hermes receipts and providerTraceRequestIds correlate ACE's INTERNAL
     // retrieval/search operation. They do NOT attest the model-bound LLM
@@ -489,7 +577,11 @@ const correlationFor = (observation: FeedbackTrialObservation): 'correlated' | '
   if (observation.observedAceCalls === 0) return 'ACE_NOT_USED';
   const observedContextCalls = observation.observedAceContextCalls ?? observation.observedAceCalls;
   if (observedContextCalls === 0 || observation.observedAceRequestIds.length !== observedContextCalls) return 'UNKNOWN';
-  return observation.observedAceRequestIds.every((requestId) => providerIds.has(requestId)) ? 'correlated' : 'UNKNOWN';
+  // Gateway request IDs and ACE provider-trace IDs identify projection and
+  // retrieval work, respectively. Neither proves that the projected body was
+  // sent to the model on a verified final provider attempt. Keep this UNKNOWN
+  // until C08 receives independently verified final-wire receipts.
+  return 'UNKNOWN';
 };
 
 const rowStatus = (native: FeedbackTrialObservation, ace: FeedbackTrialObservation, qualityDelta: FeedbackTaskRow['qualityDelta'], correlation: FeedbackTaskRow['aceCorrelation']): FeedbackStatus => {
@@ -521,10 +613,12 @@ const rowFor = (taskId: string, native: FeedbackTrialObservation, ace: FeedbackT
     nativeInputTokens: tokenValue(native.usage, 'inputTokens'),
     nativeCachedInputTokens: tokenValue(native.usage, 'cachedInputTokens'),
     nativeOutputTokens: tokenValue(native.usage, 'outputTokens'),
+    nativeReasoningOutputTokens: tokenValue(native.usage, 'reasoningOutputTokens'),
     nativeTotalTokens: nativeTotal,
     aceInputTokens: tokenValue(ace.usage, 'inputTokens'),
     aceCachedInputTokens: tokenValue(ace.usage, 'cachedInputTokens'),
     aceOutputTokens: tokenValue(ace.usage, 'outputTokens'),
+    aceReasoningOutputTokens: tokenValue(ace.usage, 'reasoningOutputTokens'),
     aceTotalTokens: aceTotal,
     nativeCostUsd: native.usage.costUsd ?? null,
     aceCostUsd: ace.usage.costUsd ?? null,
@@ -553,18 +647,24 @@ export const reconcileFeedbackTrials = (input: {
   const ace = mapByTask(input.ace, 'ace_optional');
   if (ace._tag === 'Err') return ace;
   const globalTrialIds = new Set<string>();
+  const globalAttemptIds = new Set<string>();
   for (const observation of [...input.native, ...input.ace]) {
     if (globalTrialIds.has(observation.trialId)) return invalid('trials.trialId', 'trial IDs must be unique across both arms');
     globalTrialIds.add(observation.trialId);
+    for (const attempt of observation.finalWireAttemptBindings ?? []) {
+      if (globalAttemptIds.has(attempt.attemptId)) return invalid('trials.attemptId', 'final-wire attempt IDs must be unique across both arms');
+      globalAttemptIds.add(attempt.attemptId);
+    }
   }
   const globalRequestIds = new Set<string>();
   for (const observation of [...input.native, ...input.ace]) {
-    for (const requestId of [
+    const trialRequestIds = new Set([
       ...observation.observedAceRequestIds,
       ...(observation.contextTransformRequestIds ?? []),
       ...(observation.gatewayProjectionRequestIds ?? []),
-    ]) {
-      if (globalRequestIds.has(requestId)) return invalid('trials.requestId', 'ACE request IDs must be unique across both arms');
+    ]);
+    for (const requestId of trialRequestIds) {
+      if (globalRequestIds.has(requestId)) return invalid('trials.requestId', 'ACE request IDs must be unique across trials and arms');
       globalRequestIds.add(requestId);
     }
   }
@@ -614,21 +714,16 @@ export const reconcileFeedbackTrials = (input: {
     aceCachedInputTokens: sumKnown(rows.map((row) => row.aceCachedInputTokens)),
     nativeOutputTokens: sumKnown(rows.map((row) => row.nativeOutputTokens)),
     aceOutputTokens: sumKnown(rows.map((row) => row.aceOutputTokens)),
+    nativeReasoningOutputTokens: sumKnown(rows.map((row) => row.nativeReasoningOutputTokens ?? null)),
+    aceReasoningOutputTokens: sumKnown(rows.map((row) => row.aceReasoningOutputTokens ?? null)),
     nativeTotalTokens: nativeTotal,
     aceTotalTokens: aceTotal,
     tokenRatio,
     nativeCostUsd: sumOptional(input.native.map((item) => item.usage.costUsd)),
     aceCostUsd: sumOptional(input.ace.map((item) => item.usage.costUsd)),
     aceObservedCalls: input.ace.reduce((sum, item) => sum + item.observedAceCalls, 0),
-    aceCorrelatedCalls: input.ace.reduce((sum, trial) => {
-      if ((trial.gatewayProjectionRequestIds?.length ?? 0) > 0) return sum;
-      const providerIds = new Set(trial.providerTraceRequestIds);
-      const gatewayCorrelated = trial.observedAceRequestIds.filter((id) => providerIds.has(id)).length;
-      // A bridge providerRequestId is a retrieval trace ID, NOT an LLM egress ID.
-      // Count only verifiable Gateway/backend calls; pending real provider-bound
-      // observation Hermes transforms must not be promoted to correlated.
-      return sum + gatewayCorrelated;
-    }, 0),
+    // Neither internal provider traces nor projection IDs prove final provider egress.
+    aceCorrelatedCalls: 0,
     aceNotUsed,
   });
 };

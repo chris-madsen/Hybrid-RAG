@@ -239,3 +239,135 @@ export const evaluateNativeResponsesStreamEvidence = (
     trustLimitation: 'unsigned_local_summary',
   });
 };
+
+const receiptKeys = new Set([
+  'evidenceStatus', 'streamStatus', 'requestId', 'attemptId', 'sourceCommit', 'bifrostCommit',
+  'aceRuntimeSha256', 'bifrostPluginSha256', 'pluginOrderSha256', 'provider', 'model',
+  'destinationSha256', 'finalWireBodySha256', 'serializedRequestSha256', 'eventCount',
+  'eventSequence', 'usage', 'reasonCodes', 'trustLimitation',
+]);
+
+/** Shape validation only; this preserves the unsigned receipt's NOT_CERTIFIED state. */
+export const validateNativeResponsesStreamReceipt = (
+  raw: unknown,
+): Result<NativeResponsesStreamReceipt, DomainError> => {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return rejected('stream_receipt', 'stream receipt must be an object');
+  }
+  const input = raw as Record<string, unknown>;
+  const eventSequence = input.eventSequence;
+  const usage = input.usage;
+  const reasonCodes = input.reasonCodes;
+  if (Object.keys(input).some((key) => !receiptKeys.has(key))
+    || input.evidenceStatus !== 'NOT_CERTIFIED'
+    || !['completed', 'failed', 'incomplete', 'cancelled', 'truncated', 'partial'].includes(String(input.streamStatus))
+    || !/^ace-[a-f0-9]{32}$/u.test(String(input.requestId))
+    || !/^bf-attempt-[a-f0-9]{32}$/u.test(String(input.attemptId))
+    || !commitSha(input.sourceCommit) || !commitSha(input.bifrostCommit)
+    || !sha256Hex(input.aceRuntimeSha256) || !sha256Hex(input.bifrostPluginSha256)
+    || !sha256Hex(input.pluginOrderSha256) || !safeIdentity(input.provider) || !safeIdentity(input.model)
+    || !sha256Hex(input.destinationSha256) || !sha256Hex(input.finalWireBodySha256)
+    || !sha256Hex(input.serializedRequestSha256)
+    || !isNonNegativeSafeInteger(input.eventCount) || !Array.isArray(eventSequence)
+    || input.eventCount !== eventSequence.length || eventSequence.length > 100_000
+    || !Array.isArray(reasonCodes)
+    || !reasonCodes.every((reason) => typeof reason === 'string' && /^[A-Z0-9_]{1,128}$/u.test(reason))
+    || new Set(reasonCodes).size !== reasonCodes.length
+    || input.trustLimitation !== 'unsigned_local_summary') {
+    return rejected('stream_receipt', 'stream receipt identity, status, count, or trust limitation is invalid');
+  }
+
+  const normalizedEvents: NativeResponsesStreamEventSummary[] = [];
+  let previousSequence = -1;
+  for (const [index, rawEvent] of eventSequence.entries()) {
+    if (typeof rawEvent !== 'object' || rawEvent === null || Array.isArray(rawEvent)) {
+      return rejected(`stream_receipt.eventSequence[${index}]`, 'stream receipt event must be an object');
+    }
+    const event = rawEvent as Record<string, unknown>;
+    if (Object.keys(event).some((key) => !eventKeys.has(key))
+      || !isNonNegativeSafeInteger(event.sequenceNumber)
+      || (event.sequenceNumber as number) <= previousSequence
+      || typeof event.type !== 'string' || !/^(?:response(?:\.[a-z0-9_]+)+|error)$/u.test(event.type)
+      || (event.itemIdSha256 !== undefined && !sha256Hex(event.itemIdSha256))
+      || (event.callIdSha256 !== undefined && !sha256Hex(event.callIdSha256))) {
+      return rejected(`stream_receipt.eventSequence[${index}]`, 'stream receipt event summary is invalid');
+    }
+    if ((index === 0 && event.sequenceNumber !== 0 && event.sequenceNumber !== 1)
+      || (index > 0 && event.sequenceNumber !== previousSequence + 1)) {
+      return rejected(`stream_receipt.eventSequence[${index}]`, 'stream receipt event sequence is not contiguous');
+    }
+    previousSequence = event.sequenceNumber as number;
+    normalizedEvents.push({
+      sequenceNumber: event.sequenceNumber as number,
+      type: event.type,
+      ...(event.itemIdSha256 === undefined ? {} : { itemIdSha256: event.itemIdSha256 as string }),
+      ...(event.callIdSha256 === undefined ? {} : { callIdSha256: event.callIdSha256 as string }),
+    });
+  }
+
+  let normalizedUsage: NativeResponsesStreamUsage;
+  if (typeof usage !== 'object' || usage === null || Array.isArray(usage)) {
+    return rejected('stream_receipt.usage', 'stream receipt usage must be an object');
+  }
+  const rawUsage = usage as Record<string, unknown>;
+  if (rawUsage.status === 'unknown') {
+    if (Object.keys(rawUsage).some((key) => key !== 'status' && key !== 'reason')
+      || rawUsage.reason !== 'usage_not_reported') {
+      return rejected('stream_receipt.usage', 'unknown usage reason is invalid');
+    }
+    normalizedUsage = { status: 'unknown', reason: 'usage_not_reported' };
+  } else if (rawUsage.status === 'observed') {
+    if (Object.keys(rawUsage).some((key) => !['status', 'inputTokens', 'outputTokens', 'totalTokens'].includes(key))) {
+      return rejected('stream_receipt.usage', 'observed usage contains an unsupported field');
+    }
+    for (const key of ['inputTokens', 'outputTokens', 'totalTokens'] as const) {
+      if (!(rawUsage[key] === null || isNonNegativeSafeInteger(rawUsage[key]))) {
+        return rejected('stream_receipt.usage', 'observed usage counters must be non-negative integers or unknown');
+      }
+    }
+    if (typeof rawUsage.inputTokens === 'number' && typeof rawUsage.outputTokens === 'number'
+      && typeof rawUsage.totalTokens === 'number'
+      && rawUsage.totalTokens < rawUsage.inputTokens + rawUsage.outputTokens) {
+      return rejected('stream_receipt.usage', 'total usage cannot be below input plus output');
+    }
+    normalizedUsage = {
+      status: 'observed',
+      inputTokens: rawUsage.inputTokens as number | null,
+      outputTokens: rawUsage.outputTokens as number | null,
+      totalTokens: rawUsage.totalTokens as number | null,
+    };
+  } else {
+    return rejected('stream_receipt.usage', 'stream receipt usage status is invalid');
+  }
+
+  const streamStatus = input.streamStatus as NativeResponsesStreamStatus;
+  const terminalType = normalizedEvents.at(-1)?.type;
+  if ((streamStatus === 'completed' && terminalType !== 'response.completed')
+    || (streamStatus === 'failed' && terminalType !== 'response.failed' && terminalType !== 'error')
+    || (streamStatus === 'incomplete' && terminalType !== 'response.incomplete')
+    || (streamStatus !== 'completed' && streamStatus !== 'failed' && streamStatus !== 'incomplete'
+      && terminalTypes.has(String(terminalType)))) {
+    return rejected('stream_receipt.streamStatus', 'stream receipt status contradicts its terminal event sequence');
+  }
+  return ok({
+    evidenceStatus: 'NOT_CERTIFIED',
+    streamStatus,
+    requestId: input.requestId as string,
+    attemptId: input.attemptId as string,
+    sourceCommit: input.sourceCommit,
+    bifrostCommit: input.bifrostCommit,
+    aceRuntimeSha256: input.aceRuntimeSha256,
+    bifrostPluginSha256: input.bifrostPluginSha256,
+    pluginOrderSha256: input.pluginOrderSha256,
+    provider: input.provider,
+    model: input.model,
+    destinationSha256: input.destinationSha256,
+    finalWireBodySha256: input.finalWireBodySha256,
+    serializedRequestSha256: input.serializedRequestSha256,
+    eventCount: input.eventCount,
+    eventSequence: normalizedEvents,
+    usage: normalizedUsage,
+    reasonCodes: [...reasonCodes] as string[],
+    trustLimitation: 'unsigned_local_summary',
+  });
+};
