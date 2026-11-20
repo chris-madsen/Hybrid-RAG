@@ -333,6 +333,30 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       : ok(fallback);
   };
 
+  /**
+   * Ask CBM to traverse real outgoing and incoming edges, not just resolve
+   * the seed symbol itself. Both sides are bounded and remain candidate hints
+   * until ACE rereads the original file. Never infer an edge in this adapter.
+   */
+  const adjacentNativeFiles = async (files: readonly RepoPath[]): Promise<readonly RepoPath[]> => {
+    const owned = [...new Set(files)].filter((file) => /^[\\w./-]+$/u.test(file)).slice(0, 8);
+    if (owned.length === 0) return [];
+    const predicate = owned.map((file) => "origin.file_path = '" + file + "'").join(' OR ');
+    const queries = [
+      'MATCH (origin)-[r]->(other) WHERE ' + predicate
+        + ' RETURN DISTINCT other.file_path AS file LIMIT 50',
+      'MATCH (other)-[r]->(origin) WHERE ' + predicate
+        + ' RETURN DISTINCT other.file_path AS file LIMIT 50',
+    ];
+    const result: RepoPath[] = [];
+    for (const query of queries) {
+      const traversed = await Effect.runPromise(queryGraph(query));
+      if (traversed._tag !== 'Ok') continue;
+      result.push(...(nativeQueryGraphFiles(root, traversed.value) ?? []));
+    }
+    return result;
+  };
+
   const search: CodeGraphCandidatePort['search'] = (input) => Effect.promise(async () => {
     if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 100) {
       return err(domainError('INVALID_INPUT', 'limit', 'Codebase Memory search limit must be between 1 and 100'));
@@ -369,7 +393,9 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     }
     const qns = [...new Set([...seeds.map((hit) => hit.qn), ...relatedNames])]
       .filter((qn) => /^[\w./:$#-]+$/u.test(qn)).slice(0, 40);
-    const linkedPaths: RepoPath[] = [];
+    const linkedPaths: RepoPath[] = [
+      ...(await adjacentNativeFiles(seeds.map((seed) => seed.file))),
+    ];
     if (qns.length > 0) {
       const predicate = qns.map((qn) => "n.qualified_name = '" + qn + "'").join(' OR ');
       const query = 'MATCH (n) WHERE ' + predicate
@@ -387,6 +413,9 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       const edited = [...new Set(input.changedPaths ?? [])].filter((file) =>
         candidatesByFile.has(file) && /^[\w./-]+$/u.test(file)).slice(0, 12);
       if (edited.length > 0) {
+        // Dirty source files may themselves reference changed neighbors even
+        // when CBM's CALLS trace cannot resolve dynamic or aliased symbols.
+        linkedPaths.push(...await adjacentNativeFiles(edited));
         const byPath = edited.map((file) => "n.file_path = '" + file + "'").join(' OR ');
         const symbols = await Effect.runPromise(queryGraph(
           'MATCH (n) WHERE ' + byPath
