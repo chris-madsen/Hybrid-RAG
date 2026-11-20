@@ -8,6 +8,8 @@ import {
 import { ok } from '../src/domain/result.js';
 import { makeWorkspaceId, type WorkspaceRecord } from '../src/domain/workspace.js';
 import type { ContextBundle } from '../src/domain/retrieval.js';
+import type { ContextProvider } from '../src/application/ports.js';
+import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 
 const workspaceId = makeWorkspaceId('00000000-0000-4000-8000-000000000001');
 if (workspaceId._tag === 'Err') throw new Error(workspaceId.error.message);
@@ -37,6 +39,9 @@ const request: AceTransformRequest = {
   sourceObligations: { required: ['code'] },
 };
 
+const explicitPlan = resolveExplicitSourceRequirements({ required: ['code'] });
+if (explicitPlan._tag === 'Err') throw new Error(explicitPlan.error.message);
+
 const bundle = (overrides: Partial<ContextBundle> = {}): ContextBundle => ({
   requestId: 'request-1' as ContextBundle['requestId'],
   query: request.query,
@@ -52,6 +57,7 @@ const bundle = (overrides: Partial<ContextBundle> = {}): ContextBundle => ({
   warnings: [],
   partialSources: [],
   complete: true,
+  sourcePlan: explicitPlan.value,
   ...overrides,
 });
 
@@ -76,6 +82,72 @@ test('transforms a request into bounded source-attributed context without mutati
   assert.deepEqual(result.value.selectedEvidenceIds, ['evidence-1']);
   assert.equal(result.value.sourceCommit, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
   assert.match(result.value.receiptId, /^ace-transform-/u);
+});
+
+test('AR02 model transform requests code-only and cannot pack an unrequested stale RepoMap', async () => {
+  const code = bundle().evidence[0];
+  assert.ok(code);
+  const staleMap: ContextBundle['evidence'][number] = {
+    ...code,
+    evidenceId: 'stale-repo-map' as never,
+    source: 'structural',
+    citation: 'repo-map:unverified',
+    content: 'SENSITIVE_STALE_MAP_TEXT',
+    freshness: 'unknown',
+    proofClass: 'derived',
+  };
+  let receivedPlan: Parameters<ContextProvider['search']>[0]['sourceRequirements'];
+  const service = makeContextTransformService({
+    ids: { newRequestId: () => 'request-generated' },
+    store: { get: () => Effect.succeed(ok(workspace)) },
+    context: { search: (input) => {
+      receivedPlan = input.sourceRequirements;
+      return Effect.succeed(ok(bundle({
+        evidence: [code, staleMap], complete: true, warnings: [], partialSources: [],
+      })));
+    } },
+  });
+  const output = await Effect.runPromise(service.transform(request));
+  assert.equal(receivedPlan?.code.requirement, 'required');
+  assert.equal(receivedPlan?.structural.requirement, 'not_requested');
+  assert.equal(receivedPlan?.documentation.requirement, 'not_requested');
+  assert.equal(output._tag, 'Ok');
+  if (output._tag === 'Err') return;
+  assert.equal(output.value.status, 'ready');
+  assert.deepEqual(output.value.evidence.map((item) => item.source), ['code']);
+  assert.deepEqual(output.value.selectedEvidenceIds, [String(code.evidenceId)]);
+  assert.equal(output.value.contextText.includes('SENSITIVE_STALE_MAP_TEXT'), false);
+});
+
+test('AR02 rejects a provider which silently overrides the explicit code-only source plan', async () => {
+  const service = makeContextTransformService({
+    ids: { newRequestId: () => 'request-generated' },
+    store: { get: () => Effect.succeed(ok(workspace)) },
+    context: { search: () => Effect.succeed(ok(bundle({
+      sourcePlan: {
+        code: { requirement: 'required', allowed: true },
+        structural: { requirement: 'optional', allowed: true },
+        documentation: { requirement: 'not_requested', allowed: true },
+        memory: { requirement: 'not_requested', allowed: true },
+      },
+    }))) },
+  });
+  const output = await Effect.runPromise(service.transform(request));
+  assert.equal(output._tag, 'Err');
+  if (output._tag === 'Err') {
+    assert.equal(output.error.code, 'NOT_READY');
+    assert.equal(output.error.path, 'source_plan');
+  }
+});
+
+test('AR02 refuses legacy provider output that omits the requested source plan', async () => {
+  const withoutPlan = bundle({ sourcePlan: undefined });
+  const output = await Effect.runPromise(makeContextTransformService(makePorts(withoutPlan)).transform(request));
+  assert.equal(output._tag, 'Err');
+  if (output._tag === 'Err') {
+    assert.equal(output.error.code, 'NOT_READY');
+    assert.equal(output.error.path, 'source_plan');
+  }
 });
 
 test('rejects a non-positive token budget before provider search', async () => {
