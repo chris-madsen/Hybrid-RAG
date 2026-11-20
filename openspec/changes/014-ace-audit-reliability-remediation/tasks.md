@@ -21,21 +21,21 @@ Automatically sized via §ace-to-tickets§ rules: ten coherent **vertical** one-
 
 ## Canonical phase tracker
 
-- [ ] AR01 — Trustworthy non-Git snapshots and verified-empty; phase brief link added by stage X.
-- [ ] AR02 — Source-plan-gated RepoMap projection; phase brief link added by stage X.
-- [ ] AR03 — Authoritative cross-process Qdrant publication; phase brief link added by stage X.
-- [ ] AR04 — Crash-recoverable immutable archive bytes; phase brief link added by stage X.
-- [ ] AR05 — Durable archive-only proof and safe deletion; phase brief link added by stage X.
-- [ ] AR06 — Remove unreachable source copies and legacy digest/expand paths; phase brief link added by stage X.
-- [ ] AR07 — Monotone rankings and truthful delivery/provider traces; phase brief link added by stage X.
-- [ ] AR08 — Evidence-led RepoMap recall and AST extraction decision; phase brief link added by stage X.
-- [ ] AR09 — Bound serial Python embedding-worker timeout; phase brief link added by stage X.
-- [ ] AR10 — Join Harbor usage and task acceptance evidence; phase brief link added by stage X.
+- [ ] AR01 — Trustworthy non-Git snapshots and verified-empty; see [AR01](phases/AR01.md).
+- [ ] AR02 — Source-plan-gated RepoMap projection; see [AR02](phases/AR02.md).
+- [ ] AR03 — Authoritative cross-process Qdrant publication; see [AR03](phases/AR03.md).
+- [ ] AR04 — Crash-recoverable immutable archive bytes; see [AR04](phases/AR04.md).
+- [ ] AR05 — Durable archive-only proof and safe deletion; see [AR05](phases/AR05.md).
+- [ ] AR06 — Remove unreachable source copies and legacy digest/expand paths; see [AR06](phases/AR06.md).
+- [ ] AR07 — Monotone rankings and truthful delivery/provider traces; see [AR07](phases/AR07.md).
+- [ ] AR08 — Evidence-led RepoMap recall and AST extraction decision; see [AR08](phases/AR08.md).
+- [ ] AR09 — Bound serial Python embedding-worker timeout; see [AR09](phases/AR09.md).
+- [ ] AR10 — Join Harbor usage and task acceptance evidence; see [AR10](phases/AR10.md).
 
 Check boxes remain empty until code actually implements that slice and its required tests/review gates pass. A green structural phase check does not mark a task implemented.
 
 
-**Staged artifact rule:** this P-stage ledger defines authoritative IDs, AC ownership and the DAG but does not link as-yet-uncreated phase files. Stage X adds the actual relative `phases/<ID>.md` links alongside its ten executable briefs. Therefore a standalone P PR has no broken links; the final X tree satisfies the full phase-plan checker. Do not claim X readiness from this P-only tree.
+**Staged artifact rule:** P deliberately omitted unresolved phase links; this X-stage version adds the ten concrete `phases/<ID>.md` links after publishing those briefs. This is the one canonical task ledger, not another tracker. The X-stage checker must verify all links, hashes and acceptance ownership before implementation.
 
 ## Phase implementation contracts and evidence boundaries
 
