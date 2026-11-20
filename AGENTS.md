@@ -96,12 +96,13 @@ Evidence used to close a gate must identify, as applicable, the **source commit,
 
 **Harness-neutral intent-first entry / resume (all R/S/A/P/X/I/V stages):** For any coding harness/agent using ACE rules (currently Hermes), the **latest explicit owner request selects the entry stage**; a new session never implies starting R automatically. "Research" enters R, "write requirements" S, "architecture" A, "split tasks" P, "phase briefs/synthesis" X, "implement" I and "verify/review" V; "continue" resumes the **verified last active stage**, not always I. Check only the selected stage's prerequisite artifacts/source hashes and reuse valid upstream R/S/A/P/X outputs. A scoped input change triggers only owning-stage repair, never whole-pipeline recreation. **T2 G02 and provider-egress approval are binding at their dependent action**, not automatic vetoes on provisional planning and not supplied by a plan filename. An explicit implement request with accepted canonical tasks/phase enters I directly, with RED/GREEN and reviews, not a new Research/architecture/dual-plan run. Follow `docs/operations/implementation-entry-resume.md` and existing stage command skills; no extra orchestrator, automatic human approval, or model-provider bypass.
 
+**Owner-directed implementation (T2):** An explicit owner request to `implement <phase>` against a current canonical design, tasks DAG and executable phase brief authorizes **in-scope offline code, tests and an ordinary PR** without repeating G02 approval of already specified architecture. Record the owner instruction and reuse the existing crosswalk; plan existence alone is not permission. Generic `G02=REVIEW_REQUIRED` or unchecked predecessor checkboxes **do not block independent code authoring**. A **specific new unresolved material architectural decision** requires owner G02 *for the affected edit*; continue other in-scope work. DAG dependencies govern final integration, real-agent/provider testing and acceptance. Separate provider/model/data permissions and egress authorization remain mandatory for external calls. Offline code authorization never implies a security bypass, new architecture approval or production release.
+
 
 **Operational SDLC for every repository change:** follow
 `docs/operations/ai-assisted-sdlc.md`. Choose T0/T1/T2 by risk, route through
 `docs/research/sdlc/PROMPTS-ACE.md` and read the complete stage command.
-For material T2 changes, obtain the G02 Design Consistency crosswalk and
-explicit owner decisions **before implementation**; for implementation perform
+For material T2 changes, reuse the G02 Design Consistency crosswalk and explicit owner instruction for an existing phase; obtain a fresh G02 owner decision only before an edit introducing a **new unresolved material architecture choice**. For implementation perform
 four distinct BUILD/ARCH/SEC/PLAN reviews backed by observed evidence.
 This is the established one-agent process, not a new orchestrator or authority
 over accepted ADR/OpenSpec. The optional local diagnostic

@@ -89,12 +89,11 @@ Read .agents/skills/ace-stage-handoff/SKILL.md and
 docs/operations/staged-sdlc-pipeline.md in full. In one authorized active
 agent session, perform R -> S Requirements -> A Architecture ->
 P auto-sized To-tickets -> X detailed phase plans sequentially.
-After a reviewable stage, create a new stacked Draft PR targeting the
+After a reviewable stage, create a new stacked ordinary Ready-for-review PR targeting the
 preceding stage branch and continue planning without waiting for merge.
 Store the parent HEAD and actual input artifact fingerprints; on upstream
 review change mark descendants STALE and reconcile before promoting.
-Never start T2 implementation without observed owner G02 and a separate
-explicit implementation request, or real egress without permission.
+An explicit owner request to implement an existing canonical phase authorizes its in-scope offline code; do not demand repeated G02 approval. New unresolved material architecture decisions still require specific G02, and real egress requires separate authorization.
 If the host cannot continue work, preserve a progress-checkpoint handoff;
 do not promise background execution.
 ```
@@ -142,11 +141,9 @@ G02 and material decisions are actually approved.
 ```text
 Read root AGENTS.md, the entire approved plan/design and the FULL
 source/commands/implement_backend.md file. Before any code, run
-check:ace-phase-plan for the selected linked mini-plan and verify actual
-owner G02 decision and provider egress permissions where needed.
+check:ace-phase-plan for the selected linked mini-plan and record the explicit owner phase implementation request. Reuse existing G02 crosswalk; ask only for a new unresolved material architectural decision. Provider/model/data egress permissions apply to actual external calls, not offline code.
 Implement only phase <ID>,
-after checking current branch/HEAD, active PRs, dependencies, current
-code and actual required test owner. Use ACE TypeScript + Effect rules,
+after checking current branch/HEAD, active PRs, stable code-level interfaces, acceptance dependencies separately, current code and required test owner. Incomplete predecessor acceptance may defer integration/live E2E but must not block independent offline implementation. Use ACE TypeScript + Effect rules,
 and only relevant standards from source/standards/.
 
 First get a deterministic RED regression when practical. Make the smallest
