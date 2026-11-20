@@ -274,9 +274,9 @@ export const deadLetterProjection = (
 export const repairProjection = (
   receipt: ProjectionReceipt,
 ): Result<ProjectionReceipt, DomainError> => {
-  if (receipt.inflightAttemptId !== undefined) {
+  if (receipt.inflightAttemptId !== undefined || receipt.uncertainGraphAttempt === true) {
     return err(domainError('INVALID_MEMORY', 'projection_repair',
-      'cannot reset a graph attempt that may still complete after a process crash'));
+      'cannot reset a graph attempt with an unresolved external side effect'));
   }
   if (receipt.status !== 'dead_letter' && receipt.status !== 'incomplete') {
     return err(domainError('INVALID_MEMORY', 'projection_repair', 'only failed projection receipts may be manually repaired'));

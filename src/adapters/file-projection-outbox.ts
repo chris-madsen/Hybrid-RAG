@@ -205,6 +205,13 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
         return err(domainError('INVALID_MEMORY', 'projection_attempt',
           'a terminal projection cannot start a new graph attempt'));
       }
+      // An incomplete attempt marked uncertain may have reached Graphiti and
+      // could still materialize after process failure. A retry based only on
+      // local backoff would send a second graph write without reconciliation.
+      if (current.value.uncertainGraphAttempt === true) {
+        return err(domainError('INVALID_MEMORY', 'projection_attempt',
+          'unresolved Graphiti outcome cannot be retried without external reconciliation'));
+      }
       const deletion = await readDeletion(episodeId);
       if (deletion._tag === 'Err') return deletion;
       if (deletion.value !== undefined) {

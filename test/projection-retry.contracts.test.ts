@@ -132,3 +132,10 @@ test('AR05 manual repair cannot clear a crash-persisted in-flight graph attempt'
   assert.equal(reset._tag, 'Err');
   if (reset._tag === 'Err') assert.equal(reset.error.code, 'INVALID_MEMORY');
 });
+
+test('AR05 manual repair cannot reset a settled-but-uncertain graph result', () => {
+  const failed: ProjectionReceipt = { ...receipt(), status: 'incomplete', uncertainGraphAttempt: true };
+  const repaired = repairProjection(failed);
+  assert.equal(repaired._tag, 'Err');
+  if (repaired._tag === 'Err') assert.equal(repaired.error.code, 'INVALID_MEMORY');
+});

@@ -130,7 +130,7 @@ test('AR05 graph attempts are exclusive across extractor versions and survive re
   assert.equal((await restarted.beginDeletion(episodeId))._tag, 'Err');
 });
 
-test('AR05 uncertain Graphiti attempt stays undeletable across retries and cannot be erased', async () => {
+test('AR05 uncertain Graphiti outcome blocks automatic retry and manual clearing after restart', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ace-ar05-uncertain-'));
   const outbox = await makeFileProjectionOutbox(root);
   const episodeId = 'ar05-uncertain-episode' as never;
@@ -145,19 +145,19 @@ test('AR05 uncertain Graphiti attempt stays undeletable across retries and canno
   assert.equal((await outbox.put(failed))._tag, 'Ok');
   const restarted = await makeFileProjectionOutbox(root);
   const replay = await restarted.startAttempt(episodeId, 'extractor');
-  assert.equal(replay._tag, 'Ok');
-  if (replay._tag === 'Err') return;
-  const illegallyClean = await restarted.put({
-    ...replay.value, status: 'projected', uncertainGraphAttempt: false,
-    graphDispatchAcknowledged: true,
-  });
-  assert.equal(illegallyClean._tag, 'Err', 'later success cannot erase prior uncertainty');
+  assert.equal(replay._tag, 'Err',
+    'after restart a late Graphiti send may still materialize: no second dispatch');
+  if (replay._tag === 'Err') assert.equal(replay.error.code, 'INVALID_MEMORY');
+  const stored = await restarted.get(failed.key);
+  assert.equal(stored._tag, 'Ok');
+  if (stored._tag !== 'Ok' || stored.value === undefined) return;
+  assert.equal(stored.value.uncertainGraphAttempt, true);
   assert.equal((await restarted.put({
-    ...replay.value, status: 'projected', uncertainGraphAttempt: true,
+    ...stored.value, status: 'projected', uncertainGraphAttempt: false,
     graphDispatchAcknowledged: true,
-  }))._tag, 'Ok');
-  const deletion = await restarted.beginDeletion(episodeId);
-  assert.equal(deletion._tag, 'Err', 'unknown earlier side effect needs independent resolution');
+  }))._tag, 'Err', 'unknown outcome cannot become verified success by receipt update');
+  assert.equal((await restarted.beginDeletion(episodeId))._tag, 'Err',
+    'absence or elapsed retry deadline is not resolution of an unknown external side effect');
 });
 
 test('AR05 old projected receipt without a protected acknowledgement is not deletion proof', async () => {
