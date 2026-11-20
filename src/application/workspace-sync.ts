@@ -102,10 +102,11 @@ export const observeWorkspaceManifest = (
     files: current.files.map((file) => ({
       repoPath: file.repoPath,
       sizeBytes: file.sizeBytes,
+      sourceDigest: file.sourceDigest,
       ...(file.mtimeMs === undefined ? {} : { mtimeMs: file.mtimeMs }),
     })),
   };
-  const observation = yield* files.observeChanges(rootPath, baseline);
+  const observation = yield* files.observeChanges(rootPath, baseline, includePath);
   if (observation._tag === 'Err') return observation;
 
   const byPath = new Map(current.files.map((file) => [file.repoPath, { ...file }] as const));
