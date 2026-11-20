@@ -1159,6 +1159,11 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
               const graphResult = yield* activeConfig.codeGraph.search({
                 query: input.query,
                 limit: retrievalLimit,
+                changedPaths: [
+                  ...(requestWorkingContext?.stagedPaths ?? []),
+                  ...(requestWorkingContext?.unstagedPaths ?? []),
+                  ...(requestWorkingContext?.untrackedPaths ?? []),
+                ],
               });
               if (graphResult._tag === 'Err') {
                 warnings.push('Codebase Memory discovery unavailable: ' + graphResult.error.code);
