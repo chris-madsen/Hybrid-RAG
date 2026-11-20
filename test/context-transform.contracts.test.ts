@@ -8,6 +8,7 @@ import {
 import { ok } from '../src/domain/result.js';
 import { makeWorkspaceId, type WorkspaceRecord } from '../src/domain/workspace.js';
 import type { ContextBundle } from '../src/domain/retrieval.js';
+import type { ContextProvider } from '../src/application/ports.js';
 
 const workspaceId = makeWorkspaceId('00000000-0000-4000-8000-000000000001');
 if (workspaceId._tag === 'Err') throw new Error(workspaceId.error.message);
@@ -90,7 +91,7 @@ test('AR02 model transform requests code-only and cannot pack an unrequested sta
     freshness: 'unknown',
     proofClass: 'derived',
   };
-  let receivedPlan: Parameters<import('../src/application/ports.js').ContextProvider['search']>[0]['sourceRequirements'];
+  let receivedPlan: Parameters<ContextProvider['search']>[0]['sourceRequirements'];
   const service = makeContextTransformService({
     ids: { newRequestId: () => 'request-generated' },
     store: { get: () => Effect.succeed(ok(workspace)) },
