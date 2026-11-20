@@ -278,9 +278,10 @@ export const makeAsyncFileMemoryArchive = async (rootPath: string): Promise<Asyn
         if (!isMissing(cause)) return persistence('could not inspect archive tombstone');
       }
       const stored = await readCommitted(id.value);
-      return stored._tag === 'Ok' && stored.value === undefined
+      if (stored._tag === 'Err') return stored;
+      return stored.value === undefined
         ? missing(`episode:${episodeId}`)
-        : stored;
+        : ok(stored.value);
     },
     deleteEpisode: (episodeId) => exclusive(async () => {
       const id = makeEpisodeId(episodeId);
