@@ -124,10 +124,10 @@ test('AR02 code-only retrieval never renders an unrequested RepoMap or asserts u
         render: () => {
           repoMapRenders += 1;
           return Effect.succeed(ok({
-          ranked: [],
-          rendered: 'src/run.ts:\n  src/run.ts:1 function run()',
-          estimatedTokens: 8,
-          truncated: false,
+            ranked: [],
+            rendered: 'src/run.ts:\n  src/run.ts:1 function run()',
+            estimatedTokens: 8,
+            truncated: false,
           }));
         },
       } as never,
