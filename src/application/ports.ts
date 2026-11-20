@@ -92,6 +92,15 @@ export interface CodePoint {
   readonly embeddingKey?: string;
 }
 
+/** External code-graph discovery. Graph nodes are hints, never verified source
+ * evidence; consumers must read/hash the original workspace before delivery. */
+export interface CodeGraphCandidatePort {
+  readonly search: (input: {
+    readonly query: string;
+    readonly limit: number;
+  }) => Effect.Effect<Result<readonly RankedCandidate[], DomainError>>;
+}
+
 export interface CodeCandidatePort {
   readonly search: (input: {
     readonly workspaceId: WorkspaceId;
