@@ -65,6 +65,10 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   });
   const indexed = await Effect.runPromise(provider.reindex());
   assert.equal(indexed._tag, 'Ok', JSON.stringify(indexed));
+  // ACE may republish the same revision after a restart or a no-op sync.
+  // Native CBM's second index must remain usable without an index rebuild.
+  const second = await Effect.runPromise(provider.reindex());
+  assert.equal(second._tag, 'Ok', JSON.stringify(second));
   const found = await Effect.runPromise(provider.search({ query: 'compareStructuralAnalyses', limit: 100 }));
   assert.equal(found._tag, 'Ok', JSON.stringify(found));
   if (found._tag === 'Ok') {
