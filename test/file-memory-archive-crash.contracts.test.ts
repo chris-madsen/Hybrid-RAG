@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import test from 'node:test';
 import { makeAsyncFileMemoryArchive } from '../src/adapters/file-memory-archive.js';
 import { createLocalMemoryBackup } from '../src/adapters/local-memory-backup.js';
@@ -167,6 +167,29 @@ test('AR04 no-follow blob validation refuses symbolic links', async () => {
     assert.equal(imported._tag, 'Err');
     if (imported._tag === 'Err') assert.equal(imported.error.code, 'PERSISTENCE_FAILED');
     assert.deepEqual(await readFile(external), bytes);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(external, { force: true });
+  }
+});
+
+test('AR04 deletion rejects forged digest paths before tombstoning or touching files outside archive', async () => {
+  const root = await newRoot();
+  const external = root + '-outside.bin';
+  try {
+    const archive = await makeAsyncFileMemoryArchive(root);
+    await writeFile(external, 'DO NOT DELETE');
+    // The old delete path read unvalidated JSON and used contentDigest as a
+    // filesystem path. Traversal could remove a file outside episodes/.
+    const forgedDigest = '../../' + basename(root) + '-outside';
+    await writeFile(jsonPath(root), JSON.stringify({
+      ...episode, content: undefined, contentDigest: forgedDigest,
+    }));
+    const deletion = await archive.deleteEpisode(episode.episodeId);
+    assert.equal(deletion._tag, 'Err');
+    if (deletion._tag === 'Err') assert.equal(deletion.error.code, 'PERSISTENCE_FAILED');
+    assert.equal(await readFile(external, 'utf8'), 'DO NOT DELETE');
+    assert.equal((await readdir(join(root, 'tombstones'))).length, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(external, { force: true });
