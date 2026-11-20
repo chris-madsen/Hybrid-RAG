@@ -75,7 +75,6 @@ import { makeContextTransformService } from '../application/context-transform-se
 import { makeContextAssembler } from '../application/context-assembler.js';
 import { makeGatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
 import { validateNativeResponsesStreamingRoutes } from '../application/gateway-security-contract.js';
-import type { RepoMapService } from '../application/repo-map-service.js';
 import {
   makeLspServerDescriptor,
   makeLspServerRegistry,
@@ -636,7 +635,7 @@ const main = async (): Promise<void> => {
             candidates: () => codebaseMemoryCandidates,
           });
           const structural = makeCodebaseMemoryStructuralPort(codebaseMemory);
-          let activeRepoMap: Pick<RepoMapService, 'render'> | undefined;
+          let activeCodeGraph: typeof codebaseMemory | undefined;
           let latestBuild: LocalCodeIndexBuild | undefined;
           const publicationAuthority = makeLocalQdrantPublicationAuthority({
             workspaceId: registered.value.workspaceId,
@@ -717,7 +716,7 @@ const main = async (): Promise<void> => {
             // the same source verification and manifest fences apply to
             // both graph discovery and Qdrant publication.
             codebaseMemoryCandidates = build.index.candidates;
-            activeRepoMap = codebaseMemory;
+            activeCodeGraph = codebaseMemory;
             // Pinned Claw descriptors + existing vscode-jsonrpc/registry:
             // each installed language server owns only its known extensions.
             const lspOverridden = [
@@ -965,7 +964,7 @@ const main = async (): Promise<void> => {
               },
               history,
               ...(documentation === undefined ? {} : { documentation }),
-              ...(activeRepoMap === undefined ? {} : { repoMap: activeRepoMap, codeGraph: codebaseMemory }),
+              ...(activeCodeGraph === undefined ? {} : { codeGraph: activeCodeGraph }),
             });
           };
           const publishBuild = async (
