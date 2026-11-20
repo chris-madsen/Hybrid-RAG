@@ -26,7 +26,7 @@ Use the same local host, user and project checkout that runs the ACE
 Gateway. Install the maintained upstream package with a **pinned version**:
 
 ```bash
-CBM_PACKAGE="codebase-memory-$(printf '\\155\\143\\160')"
+CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
 npm install --global "${CBM_PACKAGE}@0.12.1"
 "${CBM_PACKAGE}" --version
 ```
