@@ -23,6 +23,11 @@ import {
 
 const revision = 'a'.repeat(40);
 const digest = (character: string): string => character.repeat(64);
+const finalWireCandidate = (requestId: string) => ({
+  status: 'REAL_PROVIDER_CANDIDATE',
+  requestId,
+  attemptId: `bf-attempt-${'b'.repeat(32)}`,
+} as const);
 
 const manifest: FeedbackTaskManifest = {
   schemaVersion: 1,
@@ -56,17 +61,21 @@ const observation = (
 const reconcile = (native = observation('native'), ace = observation('ace_optional')) =>
   reconcileFeedbackTrials({ taskManifest: manifest, native: [native], ace: [ace] });
 
-test('feedback loop reports correlated paired usage without counting cached input twice', () => {
+test('feedback loop retains paired usage but does not attribute it without final-wire evidence', () => {
   const result = reconcile(undefined, observation('ace_optional', {
-    usage: { inputTokens: 40, cachedInputTokens: 10, outputTokens: 10, costUsd: 0.005 },
+    usage: { inputTokens: 40, cachedInputTokens: 10, outputTokens: 10, reasoningOutputTokens: 4, costUsd: 0.005 },
   }));
   assert.equal(result._tag, 'Ok');
-  assert.equal(result.value.status, 'PASS');
+  if (result._tag === 'Err') throw new Error(result.error.message);
+  assert.equal(result.value.status, 'UNKNOWN');
   assert.equal(result.value.qualityGate, 'pass');
   assert.equal(result.value.nativeTotalTokens, 120);
   assert.equal(result.value.aceTotalTokens, 50);
   assert.equal(result.value.aceCachedInputTokens, 10);
-  assert.equal(result.value.tokenRatio, 2.4);
+  assert.equal(result.value.aceReasoningOutputTokens, 4);
+  assert.equal(result.value.aceTotalTokens, 50, 'cached and reasoning subsets are not added to input/output totals');
+  assert.equal(result.value.rows[0]?.aceCorrelation, 'UNKNOWN');
+  assert.equal(result.value.tokenRatio, null);
 });
 
 test('optional ACE with no calls is ACE_NOT_USED and cannot claim token savings', () => {
@@ -116,10 +125,21 @@ test('failed trial evidence is retained and missing usage remains UNKNOWN', () =
   assert.equal(result.value.rows[0]?.nativeTotalTokens, null);
 });
 
-test('invalid zero token counters are rejected instead of becoming a measured zero', () => {
-  const result = reconcile(observation('native', { usage: { inputTokens: 0, outputTokens: 20 } }));
-  assert.equal(result._tag, 'Err');
-  assert.match(result.error.message, /token counters/u);
+test('observed zero tokens are valid but missing tokens stay unknown, and subsets cannot exceed totals', () => {
+  const result = reconcile(observation('native', { quality: 'fail', usage: { inputTokens: 0, outputTokens: 0 } }));
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Err') return;
+  assert.equal(result.value.rows[0]?.nativeTotalTokens, 0);
+  assert.equal(result.value.status, 'UNKNOWN');
+  assert.equal(result.value.tokenRatio, null);
+  const negative = reconcile(observation('native', { usage: { inputTokens: -1, outputTokens: 20 } }));
+  assert.equal(negative._tag, 'Err');
+  const invalidReasoningSubset = reconcile(undefined, observation('ace_optional', {
+    usage: { inputTokens: 20, outputTokens: 10, reasoningOutputTokens: 11 },
+  }));
+  assert.equal(invalidReasoningSubset._tag, 'Err');
+  if (invalidReasoningSubset._tag === 'Ok') return;
+  assert.match(invalidReasoningSubset.error.message, /reasoning output tokens cannot exceed output tokens/u);
 });
 
 test('missing raw artifact hash is rejected', () => {
@@ -145,7 +165,36 @@ test('duplicate trial and request IDs are invalid', () => {
 });
 
 
-test('multiple ACE calls are counted as calls, not as one correlated task', () => {
+test('the same request ID may appear in several evidence channels of one trial, but not another trial', () => {
+  const joined = reconcile(undefined, observation('ace_optional', {
+    gatewayProjectionRequestIds: ['request-1'],
+    contextTransformRequestIds: ['request-1'],
+    observedAceContextCalls: 1,
+    observedAceCalls: 2,
+  }));
+  assert.equal(joined._tag, 'Ok');
+  if (joined._tag === 'Ok') {
+    assert.equal(joined.value.rows[0]?.aceCorrelation, 'UNKNOWN',
+      'cross-channel identity overlap is not signed proof of delivery');
+  }
+  const twoTasks = {
+    ...manifest, tasks: [...manifest.tasks, {
+      id: 'task-2', sourceRevision: revision, sourceDigest: digest('c'), taskDigest: digest('d'),
+    }],
+  };
+  const repeated = reconcileFeedbackTrials({
+    taskManifest: twoTasks,
+    native: [observation('native'), observation('native', { taskId: 'task-2', trialId: 'native-trial-2' })],
+    ace: [
+      observation('ace_optional'),
+      observation('ace_optional', { taskId: 'task-2', trialId: 'ace-trial-2',
+        observedAceRequestIds: ['request-1'] }),
+    ],
+  });
+  assert.equal(repeated._tag, 'Err', 'request identity replay across trials must fail closed');
+});
+
+test('multiple ACE calls remain uncorrelated without model-bound final-wire evidence', () => {
   const result = reconcile(undefined, observation('ace_optional', {
     observedAceCalls: 3,
     observedAceRequestIds: ['request-1', 'request-2', 'request-3'],
@@ -153,12 +202,12 @@ test('multiple ACE calls are counted as calls, not as one correlated task', () =
   }));
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Err') return;
-  assert.equal(result.value.status, 'PASS');
+  assert.equal(result.value.status, 'UNKNOWN');
   assert.equal(result.value.aceObservedCalls, 3);
-  assert.equal(result.value.aceCorrelatedCalls, 3);
+  assert.equal(result.value.aceCorrelatedCalls, 0);
 });
 
-test('partially correlated requests are counted individually but not marked complete', () => {
+test('internal provider-trace overlap does not count as partial final-wire correlation', () => {
   const result = reconcile(undefined, observation('ace_optional', {
     observedAceCalls: 3,
     observedAceRequestIds: ['request-1', 'request-2', 'request-3'],
@@ -168,11 +217,11 @@ test('partially correlated requests are counted individually but not marked comp
   if (result._tag === 'Err') return;
   assert.equal(result.value.status, 'UNKNOWN');
   assert.equal(result.value.aceObservedCalls, 3);
-  assert.equal(result.value.aceCorrelatedCalls, 2);
+  assert.equal(result.value.aceCorrelatedCalls, 0);
   assert.equal(result.value.tokenRatio, null);
 });
 
-test('ace_expand counts as ACE usage without breaking provider correlation for ace_context', () => {
+test('ace_expand and ace_context calls do not imply model-bound provider delivery', () => {
   const result = reconcile(undefined, observation('ace_optional', {
     observedAceCalls: 2,
     observedAceRequestIds: ['request-1'],
@@ -181,10 +230,10 @@ test('ace_expand counts as ACE usage without breaking provider correlation for a
   } as Partial<FeedbackTrialObservation> & { readonly observedAceContextCalls: number }));
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Err') return;
-  assert.equal(result.value.status, 'PASS');
+  assert.equal(result.value.status, 'UNKNOWN');
   assert.equal(result.value.aceObservedCalls, 2);
-  assert.equal(result.value.aceCorrelatedCalls, 1);
-  assert.equal(result.value.rows[0]?.aceCorrelation, 'correlated');
+  assert.equal(result.value.aceCorrelatedCalls, 0);
+  assert.equal(result.value.rows[0]?.aceCorrelation, 'UNKNOWN');
 });
 
 test('Hermes retrieval trace cannot stand in for model-bound ContextEngine delivery', () => {
@@ -220,13 +269,15 @@ test('Hermes retrieval trace cannot stand in for model-bound ContextEngine deliv
   assert.equal(result.value.tokenRatio, null);
 });
 
-test('automatic Gateway projections are not ACE tool calls or retrieval-trace delivery proof', () => {
+test('automatic Gateway projections and unpinned provider candidates remain non-attributable', () => {
+  const requestId = `ace-${'a'.repeat(32)}`;
   const result = reconcile(undefined, observation('ace_optional', {
     observedAceCalls: 0,
     observedAceContextCalls: 0,
     observedAceRequestIds: [],
-    gatewayProjectionRequestIds: ['ace-gateway-request-1'],
-    providerTraceRequestIds: ['ace-gateway-request-1'],
+    gatewayProjectionRequestIds: [requestId],
+    providerTraceRequestIds: [requestId],
+    finalWireAttemptBindings: [finalWireCandidate(requestId)],
   }));
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Err') return;
@@ -404,10 +455,12 @@ test('holdout mutation and duplicate IDs are rejected before trials are reconcil
 test('feedback report validator rejects malformed rows and zero economic counters', () => {
   const reconciled = reconcile();
   assert.equal(reconciled._tag, 'Ok');
+  if (reconciled._tag === 'Err') return;
   assert.equal(validateFeedbackReport(reconciled.value)._tag, 'Ok');
   assert.equal(validateFeedbackReport({ ...reconciled.value, rows: [] })._tag, 'Err');
   assert.equal(validateFeedbackReport({ ...reconciled.value, nativeTotalTokens: 0 })._tag, 'Err');
   assert.equal(validateFeedbackReport({ ...reconciled.value, qualityRegressionTaskIds: [7] })._tag, 'Err');
+  assert.equal(validateFeedbackReport({ ...reconciled.value, nativeTotalTokens: (reconciled.value.nativeTotalTokens ?? 0) + 1 })._tag, 'Err');
 });
 
 

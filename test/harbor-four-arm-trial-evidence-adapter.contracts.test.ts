@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { readHarborFourArmTrialObservations } from '../src/adapters/harbor-four-arm-trial-evidence.js';
+import { readHarborFeedbackTrialObservations } from '../src/adapters/harbor-feedback-trial-evidence.js';
+import { evaluateNativeResponsesStreamEvidence } from '../src/domain/native-responses-stream-receipt.js';
 
 const withTrial = async (fn: (root: string, dir: string, aggregate: string) => Promise<void>): Promise<void> => {
   const root = await mkdtemp(join(tmpdir(), 'ace-gateway-trial-'));
@@ -57,6 +59,22 @@ test('Gateway projection is distinct from model-invoked ACE tools and final-prov
   });
 });
 
+test('Harbor timeout remains a failed trial observation instead of aborting the denominator', async () => {
+  await withTrial(async (_, dir, aggregate) => {
+    await writeFile(join(dir, 'result.json'), JSON.stringify({
+      trial_id: 't1', task_name: 'task-1',
+      started_at: '2026-11-14T10:00:00Z', finished_at: '2026-11-14T10:01:00Z',
+      verifier_result: null, exception_info: { type: 'VerifierTimeoutError' }, timed_out: true,
+      agent_result: { n_input_tokens: 120 },
+    }));
+    const [trial] = await readHarborFourArmTrialObservations('native', aggregate);
+    assert.equal(trial?.success, false);
+    assert.equal(trial?.timedOut, true);
+    assert.equal(trial?.rawInputTokens, 120);
+    assert.equal(trial?.rawOutputTokens, null);
+  });
+});
+
 test('malformed, duplicate and native-contaminating projection receipts fail closed', async () => {
   await withTrial(async (_, dir, aggregate) => {
     const path = join(dir, 'agent', 'ace-responses-projection.jsonl');
@@ -68,5 +86,52 @@ test('malformed, duplicate and native-contaminating projection receipts fail clo
     await writeFile(path, JSON.stringify(record) + '\n' + JSON.stringify(record) + '\n');
     await assert.rejects(readHarborFourArmTrialObservations('dense', aggregate), /duplicate native Responses projection/u);
     await assert.rejects(readHarborFourArmTrialObservations('native', aggregate), /native baseline contains/u);
+  });
+});
+
+test('feedback adapter binds unsigned stream summaries to the exact Gateway projection request', async () => {
+  await withTrial(async (_, dir, aggregate) => {
+    const requestId = `ace-${'a'.repeat(32)}`;
+    const attemptId = `bf-attempt-${'b'.repeat(32)}`;
+    const projection = {
+      schemaVersion: 'ace.gateway.v2', requestId, kind: 'PREPARED',
+      baseBodySha256: 'a'.repeat(64), projectedBodySha256: 'b'.repeat(64),
+      bodyBase64: 'e30=', reasonCode: 'VERIFIED_CONTEXT_ADDED',
+    };
+    await writeFile(join(dir, 'agent', 'ace-responses-projection.jsonl'), `${JSON.stringify(projection)}\n`);
+    const streamResult = evaluateNativeResponsesStreamEvidence({
+      schemaVersion: 1,
+      requestId,
+      attemptId,
+      sourceCommit: '1'.repeat(40),
+      bifrostCommit: '2'.repeat(40),
+      aceRuntimeSha256: '3'.repeat(64),
+      bifrostPluginSha256: '4'.repeat(64),
+      pluginOrderSha256: '5'.repeat(64),
+      provider: 'openai',
+      model: 'gpt-test',
+      destinationSha256: '6'.repeat(64),
+      finalWireBodySha256: 'a'.repeat(64),
+      serializedRequestSha256: 'c'.repeat(64),
+      streamTrueVerified: true,
+      storeFalseVerified: true,
+      protectedItemsVerified: true,
+      events: [{ sequenceNumber: 0, type: 'response.completed' }],
+      transportOutcome: 'terminal',
+      usage: { inputTokens: 8, outputTokens: 5, totalTokens: 13 },
+    });
+    assert.equal(streamResult._tag, 'Ok');
+    if (streamResult._tag === 'Err') return;
+    await writeFile(join(dir, 'agent', 'ace-native-responses-stream-receipts.jsonl'), `${JSON.stringify(streamResult.value)}\n`);
+
+    const [trial] = await readHarborFeedbackTrialObservations('ace_optional', aggregate);
+    assert.deepEqual(trial?.gatewayProjectionRequestIds, [requestId]);
+    assert.equal(trial?.nativeResponsesStreamReceipts[0]?.evidenceStatus, 'NOT_CERTIFIED');
+
+    await writeFile(join(dir, 'agent', 'ace-native-responses-stream-receipts.jsonl'), `${JSON.stringify({
+      ...streamResult.value,
+      requestId: `ace-${'d'.repeat(32)}`,
+    })}\n`);
+    await assert.rejects(readHarborFeedbackTrialObservations('ace_optional', aggregate), /not bound to a retained Gateway projection request/u);
   });
 });
