@@ -119,18 +119,37 @@ export const makeAsyncFileMemoryArchive = async (rootPath: string): Promise<Asyn
   const publishImmutable = async (
     finalPath: string,
     bytes: Uint8Array,
+    kind: 'blob' | 'metadata',
     inspectExisting: () => Promise<Result<void, DomainError>>,
   ): Promise<Result<void, DomainError>> => {
     const staged = join(episodesPath, `.ar04-${randomUUID()}.stage`);
     try {
       const file = await open(staged, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
       try {
+        // Dual opt-in destructive failpoint for deterministic OS-process crash
+        // tests only. Production never enables this and never kills itself.
+        const failpoint = process.env.ACE_ARCHIVE_TEST_FAILPOINT;
+        if (failpoint !== undefined && failpoint.trim() !== ''
+          && process.env.ACE_ENABLE_TEST_FAILPOINTS !== 'true') {
+          throw new Error('ACE_ARCHIVE_TEST_FAILPOINT requires ACE_ENABLE_TEST_FAILPOINTS=true');
+        }
+        const partialStage = failpoint === `during_${kind}_stage`;
+        if (partialStage) {
+          await file.writeFile(bytes.subarray(0, Math.max(1, Math.floor(bytes.byteLength / 2))));
+          process.kill(process.pid, 'SIGKILL');
+          throw new Error('archive test failpoint did not terminate process');
+        }
         await file.writeFile(bytes);
         await file.sync();
       } finally { await file.close(); }
       try {
         await link(staged, finalPath);
         await syncEpisodesDirectory();
+        if (process.env.ACE_ENABLE_TEST_FAILPOINTS === 'true'
+          && process.env.ACE_ARCHIVE_TEST_FAILPOINT === `after_${kind}_link`) {
+          process.kill(process.pid, 'SIGKILL');
+          throw new Error('archive test failpoint did not terminate process');
+        }
       } catch (cause) {
         if ((cause as NodeJS.ErrnoException).code !== 'EEXIST') throw cause;
         return await inspectExisting();
@@ -221,13 +240,13 @@ export const makeAsyncFileMemoryArchive = async (rootPath: string): Promise<Asyn
         return ok({ created: false, episode: stored });
       }
       const verifiedBlob = await publishImmutable(contentPath(checked.value.contentDigest),
-        checked.value.content, async () => {
+        checked.value.content, 'blob', async () => {
           const verified = await verifyBlob(checked.value.contentDigest, checked.value.content);
           return verified._tag === 'Err' ? verified : ok(undefined);
         });
       if (verifiedBlob._tag === 'Err') return verifiedBlob;
       const serialized = new TextEncoder().encode(JSON.stringify({ ...checked.value, content: undefined }));
-      const savedMetadata = await publishImmutable(metadataPath(checked.value.episodeId), serialized, async () => {
+      const savedMetadata = await publishImmutable(metadataPath(checked.value.episodeId), serialized, 'metadata', async () => {
         const current = await readCommitted(checked.value.episodeId);
         if (current._tag === 'Err') return current;
         if (current.value === undefined) return persistence('episode metadata disappeared during publication');
