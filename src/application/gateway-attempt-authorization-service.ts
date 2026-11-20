@@ -97,6 +97,12 @@ export const makeGatewayAttemptAuthorizationService = (
       const receipt = verifyProjectionReceipt(request.projectionReceipt, security.receiptSigningKey, now);
       if (receipt._tag === 'Err') return yield* sendBlock(request, 'PROJECTION_RECEIPT_INVALID', security);
       const claims = receipt.value;
+      // A valid HMAC is not a perpetual policy permit. Reject receipts
+      // minted before (or for a different version than) the policy currently
+      // governing this physical send, even if its other bindings still match.
+      if (claims.policyVersion !== security.policy.policyVersion) {
+        return yield* sendBlock(request, 'PROJECTION_POLICY_VERSION_MISMATCH', security);
+      }
       if (claims.requestId !== request.requestId
         || claims.attemptGroupId !== request.attemptGroupId
         || claims.agentSessionId !== request.agentSessionId

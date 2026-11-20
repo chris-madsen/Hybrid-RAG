@@ -257,7 +257,7 @@ export interface AsyncMemoryArchivePort extends MemoryArchivePort {
 export interface ExactRead {
   readonly bytes: Uint8Array;
   readonly digest: ContentDigest;
-  /** Metadata from the same race-checked read, used by cheap non-Git baselines. */
+  /** Metadata from the same race-checked read, used by non-Git reconciliation. */
   readonly sizeBytes?: number;
   readonly mtimeMs?: number;
 }
@@ -281,13 +281,20 @@ export interface WorkspaceChangeBaseline {
     readonly repoPath: RepoPath;
     readonly sizeBytes: number;
     readonly mtimeMs?: number;
+    /** Exact digest of the indexed bytes; missing legacy digests require reconciliation. */
+    readonly sourceDigest?: ContentDigest;
   }[];
 }
 
 export interface WorkspaceFilePort {
   readonly canonicalizeRoot: (candidate: string) => Effect.Effect<Result<string, DomainError>>;
   readonly snapshot: (rootPath: string, observedAtMs: number) => Effect.Effect<Result<WorkspaceSnapshot, DomainError>>;
-  readonly observeChanges: (rootPath: string, previous?: string | WorkspaceChangeBaseline) => Effect.Effect<Result<WorkspaceChangeObservation, DomainError>>;
+  readonly observeChanges: (
+    rootPath: string,
+    previous?: string | WorkspaceChangeBaseline,
+    /** Scope applied before non-Git exact reads: do not hash excluded private paths. */
+    includePath?: (repoPath: RepoPath) => boolean,
+  ) => Effect.Effect<Result<WorkspaceChangeObservation, DomainError>>;
   readonly readExact: (rootPath: string, repoPath: RepoPath) => Effect.Effect<Result<ExactRead, DomainError>>;
 }
 

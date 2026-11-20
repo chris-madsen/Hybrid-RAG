@@ -174,6 +174,23 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   assert.equal(sourceOnly.value.kind, 'BLOCK');
   if (sourceOnly.value.kind === 'BLOCK') assert.equal(sourceOnly.value.reasonCode, 'DATA_CLASS_DENIED');
 
+  const revisedPolicySecurity: GatewayProjectionSecurity = {
+    ...security,
+    policy: {
+      ...security.policy,
+      policyVersion: security.policy.policyVersion + 1,
+    },
+  };
+  const stalePolicy = await Effect.runPromise(makeGatewayAttemptAuthorizationService(revisedPolicySecurity)
+    .authorizePhysicalSend(attempt('bf-attempt-' + '6'.repeat(32))));
+  assert.equal(stalePolicy._tag, 'Ok');
+  if (stalePolicy._tag === 'Ok') {
+    assert.equal(stalePolicy.value.kind, 'BLOCK');
+    if (stalePolicy.value.kind === 'BLOCK') {
+      assert.equal(stalePolicy.value.reasonCode, 'PROJECTION_POLICY_VERSION_MISMATCH');
+    }
+  }
+
   const restrictedModelSecurity: GatewayProjectionSecurity = {
     ...security,
     allowedModelsByProvider: { openai: ['openai/another-model'] },
@@ -456,7 +473,7 @@ test('completed empty retrieval and unavailable retrieval have different outcome
     workspaceId: workspaceId.value, rootPath: '/workspace',
     observationEpoch: 1, createdAtMs: 1,
   };
-  const makeSearch = (complete: boolean, partialSources: string[] = []) =>
+  const makeSearch = (complete: boolean, partialSources: string[] = [], proof = true) =>
     makeContextTransformService({
       ids: { newRequestId: () => 'search-generated-id' },
       store: { get: () => Effect.succeed(ok(workspace)) },
@@ -464,6 +481,10 @@ test('completed empty retrieval and unavailable retrieval have different outcome
         requestId: 'search-empty' as ContextBundle['requestId'],
         query: 'summarize the task', evidence: [], warnings: [],
         partialSources, complete,
+        ...(proof ? { sourceCoverage: [{
+          source: 'code' as const, requirement: 'required' as const,
+          status: complete ? 'satisfied' as const : 'unavailable' as const,
+        }] } : {}),
       })) },
     });
   const body = { ...native, input: [{ role: 'user', content: 'summarize the task' }] };
@@ -474,6 +495,12 @@ test('completed empty retrieval and unavailable retrieval have different outcome
     assert.equal(success.value.kind, 'PREPARED');
     if (success.value.kind === 'PREPARED') assert.equal(success.value.bodyBase64, request.bodyBase64);
   }
+  // A provider's complete:true flag is not itself a source-observation receipt.
+  const unverified = await Effect.runPromise(make({
+    context: makeSearch(true, [], false),
+  }).projectResponses(request));
+  assert.equal(unverified._tag, 'Ok');
+  if (unverified._tag === 'Ok') assert.equal(unverified.value.kind, 'BLOCK');
   const unavailable = await Effect.runPromise(make({
     context: makeSearch(false, ['code']),
   }).projectResponses(request));

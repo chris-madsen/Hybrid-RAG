@@ -165,9 +165,16 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
     // Gateway can preserve the original request without injecting filler.
     // Missing/partial/denied/stale required sources must still fail closed.
     if (projected.evidence.length === 0) {
+      // A complete flag alone is not evidence that required code was actually
+      // observed. Only the retrieval owner can certify an exact, current,
+      // successful zero-hit code search; missing coverage fails closed.
+      const codeCoverage = projected.sourceCoverage?.find((entry) =>
+        entry.source === 'code' && entry.requirement === 'required');
       if (!projected.complete || projected.warnings.length > 0
         || projected.partialSources.length > 0
-        || (projected.sourceCoverage !== undefined && !sourceCoverageComplete(projected.sourceCoverage))) {
+        || codeCoverage?.status !== 'satisfied'
+        || (projected.indexCoverage?.failedPaths ?? 0) > 0
+        || !sourceCoverageComplete(projected.sourceCoverage ?? [])) {
         return err(domainError('NOT_READY', 'context', 'ACE evidence is missing or incomplete'));
       }
       return ok({
