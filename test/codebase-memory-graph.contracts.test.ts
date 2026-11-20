@@ -109,10 +109,23 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   // synthetic fixture: native CBM -> source-checked symbol spans -> Qdrant
   // candidate inventory (vectors are tested by the existing Qdrant suite).
   const files = makeNodeWorkspacePort({ allowedRoots: [root] });
+  const observed = await Effect.runPromise(files.snapshot(root, Date.now()));
+  assert.equal(observed._tag, 'Ok', JSON.stringify(observed._tag === 'Err' ? observed.error : 'ok'));
+  if (observed._tag === 'Err') return;
+  // CBM indexed the FULL REAL ACE repository above. The candidate-extraction
+  // smoke reads a bounded, pinned subset of real source files, avoiding
+  // hundreds of per-file native CLI invocations in a short PR CI job.
+  const included = observed.value.files.filter((file) =>
+    file.repoPath.startsWith('src/') && file.repoPath.endsWith('.ts'));
+  const selected = [
+    ...included.filter((file) => file.repoPath === 'src/adapters/qdrant-context-provider.ts'),
+    ...included.filter((file) => file.repoPath !== 'src/adapters/qdrant-context-provider.ts').slice(0, 17),
+  ];
   const built = await Effect.runPromise(buildLocalCodeIndex(
     files, 'cbm-actual-source-smoke' as never, root,
     { generation: 1, structural: makeCodebaseMemoryStructuralPort(provider),
-      parserVersion: 'codebase-memory/0.12.1', extensions: ['.ts'] },
+      parserVersion: 'codebase-memory/0.12.1', extensions: ['.ts'],
+      snapshot: { ...observed.value, files: selected } },
   ));
   assert.equal(built._tag, 'Ok', JSON.stringify(built._tag === 'Err' ? built.error : 'ok'));
   if (built._tag === 'Ok') {
