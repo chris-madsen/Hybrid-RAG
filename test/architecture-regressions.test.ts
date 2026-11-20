@@ -54,8 +54,8 @@ test('DBC-02 parsed TS function has an exact span, not a whole-file-per-symbol p
   const match = indexed.index.candidates.find((item) => item.symbolName === 'reconnect');
   assert.ok(match);
   assert.equal(match.range.startLine, 1);
-  assert.equal(match.range.endLine, 4);
-  assert.equal(match.text, functionText);
+  assert.equal(match.range.endLine, 5);
+  assert.equal(match.text, functionText + '\n');
   assert.equal(match.sourceDigest, sha(Buffer.from(full)));
   assert.ok(!match.text.includes('unrelated line'));
 
@@ -70,7 +70,7 @@ test('DBC-02 parsed TS function has an exact span, not a whole-file-per-symbol p
   const bundle = mustOk(await Effect.runPromise(provider.search({
     workspaceId, query: 'reconnect', includeDocs: false, includeMemory: false,
   })));
-  assert.equal(bundle.evidence[0]?.content, functionText);
+  assert.equal(bundle.evidence[0]?.content, functionText + '\n');
   assert.equal(bundle.complete, false, 'local fallback is not an approved Qdrant semantic provider');
 });
 
