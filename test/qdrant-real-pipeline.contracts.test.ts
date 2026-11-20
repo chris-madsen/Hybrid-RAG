@@ -616,7 +616,7 @@ test('snapshot maintenance scrolls request only the payload fields they consume'
   assert.deepEqual(requests.map((body) => body.with_vector), [false, true]);
 });
 
-test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippet and exact expansion handle', async () => {
+test('AR06 Qdrant→filesystem→LSP emits verified snippet and digest without a non-callable artifact handle', async () => {
   let upserts = 0;
   let searches = 0;
   let definitions = 0;
@@ -642,8 +642,12 @@ test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippe
     snapshot: () => { throw new Error('query must not snapshot repository'); },
     readExact: () => Effect.succeed(ok({ bytes: source, digest: digest as never })),
   };
+  let storedCopies = 0;
   const artifacts: ArtifactStore = {
-    storeExact: () => Effect.succeed(ok({ handle: 'full-file-handle', digest: digest as never, sizeBytes: source.length })),
+    storeExact: () => {
+      storedCopies += 1;
+      return Effect.succeed(ok({ handle: 'full-file-handle', digest: digest as never, sizeBytes: source.length }));
+    },
     readRange: () => Effect.succeed(err(domainError('ARTIFACT_NOT_FOUND', 'handle', 'not needed'))),
   };
   const semantics: SemanticAnalysisPort = {
@@ -682,14 +686,13 @@ test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippe
   assert.equal(definitions, 1);
   assert.equal(context.complete, true);
   assert.equal(context.evidence[0]?.freshness, 'current');
-  assert.equal(context.evidence[0]?.expansionHandle, 'full-file-handle');
-  const spanOffset = Number(context.evidence[0]?.expansionCursor);
-  const spanLength = context.evidence[0]?.expansionMaxBytes ?? 0;
-  assert.ok(Number.isSafeInteger(spanOffset));
-  assert.ok(spanLength > 0);
-  assert.equal(source.subarray(spanOffset, spanOffset + spanLength).toString('utf8'), candidate.text,
-    'one precise expansion range restores only the verified AST symbol, not the entire file');
-  assert.equal(context.evidence[0]?.content, source.toString('utf8').trim());
+  assert.equal(context.evidence[0]?.expansionHandle, undefined);
+  assert.equal(context.evidence[0]?.expansionCursor, undefined);
+  assert.equal(context.evidence[0]?.expansionMaxBytes, undefined);
+  assert.equal(storedCopies, 0, 'no unreachable full-file artifact may be written during retrieval');
+  assert.equal(context.evidence[0]?.sourceDigest, digest);
+  assert.equal(context.evidence[0]?.content, source.toString('utf8').trim(),
+    'the verified AST symbol remains exact and self-contained');
 });
 
 
@@ -852,7 +855,7 @@ test('multiple Qdrant symbols from one file cause one initial read plus one fina
     workspaceId, query: 'reconnect function', includeDocs: false, includeMemory: false,
   })));
   assert.equal(exactReads, 2, 'initial source read and end-of-request freshness revalidation only');
-  assert.equal(storedSources, 1, 'exact original stored once per distinct file');
+  assert.equal(storedSources, 0, 'AR06 keeps exact source in request-local memory; no private UUID blob is stored');
   assert.equal(context.evidence.length, 2, 'distinct evidence IDs remain visible under the merged core provenance contract');
   assert.ok(context.evidence.every((item) => item.freshness === 'current'));
 });

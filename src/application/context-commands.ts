@@ -232,6 +232,9 @@ export const makeContextCommands = (ports: ContextCommandPorts) => ({
           return notReady('unified_context');
         }
         case 'context_expand': {
+          // Retained only for explicit host-side legacy artifact access; the
+          // native agent Gateway does not register context_expand as a tool.
+          // Qdrant no longer issues new UUID file-artifact handles.
           const input = decode(ExpandInput, call.arguments);
           if (isErr(input)) return responseError(input);
           const range = yield* ports.artifacts.readRange(input.value.handle, input.value.cursor, input.value.max_bytes);

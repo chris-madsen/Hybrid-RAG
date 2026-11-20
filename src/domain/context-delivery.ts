@@ -12,9 +12,10 @@ import { sha256 } from './retrieval-benchmark.js';
  * User-visible retrieval intent is a delivery choice, not a different trust
  * level: source verification/coverage happen BEFORE projection.
  *
- * "locate" is a navigation-first response. "inspect" returns the complete
- * verified snippet bodies. Neither mode imposes a byte/token ceiling on
- * ace_expand, which remains an exact, paginated original-byte transport.
+ * "locate" is a navigation-first response. "inspect" returns complete
+ * verified snippets. The Native Responses route has NO model-callable expansion
+ * command; without a reachable reader no source body may be silently dropped
+ * in favor of an unresolvable handle.
  */
 export type ContextDeliveryIntent = 'locate' | 'inspect';
 
@@ -95,36 +96,41 @@ const structuralOutline = (item: RetrievalEvidence): string | undefined => {
   ].filter((value): value is string => value !== undefined && value.length > 0).join(' ');
 };
 
-const fnv1a64 = (value: string, seed: bigint): string => {
-  let hash = seed;
-  for (const byte of new TextEncoder().encode(value)) {
-    hash ^= BigInt(byte);
-    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
-  }
-  return hash.toString(16).padStart(16, '0');
-};
-
-const stableReceiptDigest = (value: string): string => [
-  0xcbf29ce484222325n,
-  0x84222325cbf29ce4n,
-  0x9e3779b185ebca87n,
-  0xd6e8feb86659fd93n,
-].map((seed) => fnv1a64(value, seed)).join('');
-
-const bundleIdentity = (bundle: ContextBundle): BundleId => stableReceiptDigest(JSON.stringify({
-  query: bundle.query,
-  evidence: bundle.evidence.map((item) => [
-    item.evidenceId,
-    item.source,
-    item.citation,
-    item.sourceDigest ?? null,
-    item.sourceRevision ?? null,
-    item.content,
-    item.freshness,
-  ]),
-  partialSources: [...bundle.partialSources].sort(),
-  complete: bundle.complete,
-})) as BundleId;
+/**
+ * Bundle identity v2. Domain separation changes old unversioned FNV IDs,
+ * so a client holding an old ID receives the exact bytes again rather than
+ * an unverified known-reference claim. Wire value remains 64 hex chars.
+ * Receipt-v1 SHA-256 identities are unchanged for existing sources.
+ */
+const bundleIdentity = (bundle: ContextBundle, receiptScope: string | undefined): BundleId =>
+  sha256('ace-bundle-v2\0' + JSON.stringify({
+    // Whole-bundle reuse is strictly workspace scoped. An equal-looking
+    // citation in another workspace is not evidence already seen by this one.
+    receiptScope: receiptScope?.trim() ?? null,
+    query: bundle.query,
+    evidence: bundle.evidence.map((item) => [
+      item.evidenceId,
+      item.source,
+      item.citation,
+      item.sourceDigest ?? null,
+      item.sourceRevision ?? null,
+      item.content,
+      item.freshness,
+      item.proofClass,
+      item.contentDelivery ?? null,
+      item.conflictKey ?? null,
+      item.conflictValue ?? null,
+      item.structuralKind ?? null,
+      item.structuralName ?? null,
+    ]),
+    warnings: [...bundle.warnings].sort(),
+    partialSources: [...bundle.partialSources].sort(),
+    sourcePlan: bundle.sourcePlan ?? null,
+    sourceCoverage: bundle.sourceCoverage ?? null,
+    indexCoverage: bundle.indexCoverage ?? null,
+    conflicts: bundle.conflicts ?? null,
+    complete: bundle.complete,
+  })) as BundleId;
 
 export interface ContextReceiptInput {
   readonly knownEvidenceIds?: readonly string[];
@@ -267,10 +273,11 @@ const suppressKnownEvidence = (
     const exactReceiptKnown = receiptScope !== undefined
       && item.receiptId !== undefined
       && known.has(item.receiptId);
-    const legacyEvidenceKnown = receiptMatchesBundle
+    const legacyEvidenceKnown = receiptScope !== undefined && receiptMatchesBundle
       && knownEvidenceIds.length > 0
       && known.has(item.evidenceId);
-    const wholeBundleKnown = receiptMatchesBundle && knownEvidenceIds.length === 0;
+    const wholeBundleKnown = receiptScope !== undefined
+      && receiptMatchesBundle && knownEvidenceIds.length === 0;
     if ((!exactReceiptKnown && !legacyEvidenceKnown && !wholeBundleKnown) || item.content.length === 0) return item;
     return {
       ...item,
@@ -323,7 +330,11 @@ export const projectContextForDelivery = (
     : (() => {
       let inlinedCode = 0;
       const evidence: RetrievalEvidence[] = sourceAwareBundle.evidence.map((item) => {
-        if (item.source !== 'code' || item.expansionHandle === undefined) return item;
+        if (item.source !== 'code' || item.expansionHandle === undefined) {
+          // No callable expansion route exists for this evidence. Keep the
+          // full verified span on the model-visible delivery surface.
+          return item;
+        }
         inlinedCode += 1;
 
         // Inline the top two ranked symbol bodies when short enough to be a
@@ -345,7 +356,7 @@ export const projectContextForDelivery = (
   // Recompute from the projected evidence instead of trusting an upstream
   // optional id: a caller may reuse a ContextBundle object after source bytes
   // or delivery projection changed.
-  const bundleId = bundleIdentity(projected);
+  const bundleId = bundleIdentity(projected, receipts.receiptScope);
   const knownEvidenceIds = receipts.knownEvidenceIds ?? [];
   const receiptEvidence = projected.evidence.map((item) => {
     const receiptId = receiptIdFor(item, intent, receipts.receiptScope);
@@ -385,16 +396,13 @@ export const contextTransportText = (bundle: ContextCarrier): string => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
     const item = value as Record<string, unknown>;
     if (typeof item.citation !== 'string') return [];
-    const span = typeof item.expansionCursor === 'string' && typeof item.expansionMaxBytes === 'number'
-      ? ` cursor=${item.expansionCursor}, max_bytes=${item.expansionMaxBytes}`
-      : '';
     const mode = item.contentDelivery === 'expand'
-      ? ` [exact body via ace_expand(handle${span})]`
+      ? ' [exact body requires a separately authorized host source reader]'
       : item.contentDelivery === 'known_reference'
-        ? ` [body omitted: exact source already visible in native input or covered by receipt${typeof item.expansionHandle === 'string' ? `; exact body via ace_expand(handle${span})` : ''}]`
+        ? ' [body already visible in native input or covered by an exact receipt]'
         : '';
-    // Do not mirror snippet text here: structuredContent owns verified code
-    // bodies. Text is a compact navigation map only.
+    // The actual verified snippet belongs in structuredContent; the source
+    // map must not advertise a retired model-invoked expansion tool.
     return [`- ${item.citation}${mode}`];
   });
   const warnings = Array.isArray(bundle.warnings) ? bundle.warnings : [];
@@ -402,6 +410,6 @@ export const contextTransportText = (bundle: ContextCarrier): string => {
     `ACE source map: ${evidence.length} cited items, complete=${bundle.complete === true}.`,
     ...sources,
     ...(warnings.length === 0 ? [] : [`Warnings: ${warnings.map(String).join('; ')}`]),
-    'Use structuredContent for verified inlined snippets; for a cited symbol call ace_expand(handle, cursor=expansionCursor, max_bytes=expansionMaxBytes, format=utf8). Omit cursor/max_bytes only when the full original file is needed.',
+    'Use structuredContent for verified snippets; for additional source use authorized native host file access and reverify the cited path and source digest. No model-invoked ACE expansion tool is installed.',
   ].join('\n');
 };

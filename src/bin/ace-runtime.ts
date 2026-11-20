@@ -9,7 +9,6 @@ import { Effect } from 'effect';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
-import { makeFileArtifactStore } from '../adapters/file-artifact-store.js';
 import { makeFileAuditSink } from '../adapters/file-audit-sink.js';
 import { makeGitHistoryPort } from '../adapters/git-history.js';
 import { makeHostWorkspacePort, makeMtlsHostHelperTransport } from '../adapters/host-worktree-helper.js';
@@ -274,7 +273,6 @@ const main = async (): Promise<void> => {
     .filter((value) => value.length > 0)
     .map((value) => resolve(value));
   const stateDirectory = optionalPath(process.env.ACE_STATE_DIR, `${homedir()}/.local/state/ace`);
-  const artifactDirectory = optionalPath(process.env.ACE_ARTIFACT_DIR, `${stateDirectory}/artifacts`);
   const configuredWorkspaceId = process.env.ACE_WORKSPACE_ID?.trim();
   const helperUrl = process.env.ACE_WORKTREE_HELPER_URL?.trim();
   let files: WorkspaceFilePort;
@@ -350,7 +348,6 @@ const main = async (): Promise<void> => {
   const embeddingWorkerArgs = configuredStringArray('ACE_EMBEDDING_WORKER_ARGS_JSON', []);
   const sparseEmbeddingWorkerArgs = configuredStringArray('ACE_SPARSE_EMBEDDING_WORKER_ARGS_JSON', []);
   const rerankerWorkerArgs = configuredStringArray('ACE_RERANKER_WORKER_ARGS_JSON', []);
-  const artifacts = makeFileArtifactStore(artifactDirectory);
   const providerTrace = makeFileProviderTrace(process.env.ACE_PROVIDER_TRACE_FILE);
   const benchmarkTracePath = process.env.ACE_BENCHMARK_TRACE_FILE?.trim();
   const benchmarkRepositoryId = process.env.ACE_BENCHMARK_REPOSITORY_ID?.trim();
@@ -998,7 +995,6 @@ const main = async (): Promise<void> => {
               qdrant,
               embeddings,
               ...(sparseEmbeddings === undefined ? {} : { sparseEmbeddings }),
-              artifacts,
               semantics,
               newRequestId: () => randomUUID(),
               ...(indexed.value.reused ? {} : { generation: buildGeneration }),
