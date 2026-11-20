@@ -98,6 +98,7 @@ test('Graphiti lifecycle gate proves projection, provenance recall, purge and to
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Err') throw new Error(result.error.message);
   assert.equal(result.value.projectionObserved, true);
+  assert.equal(result.value.projectionAttempts, 1, 'materialization confirmation must not count as another provider attempt');
   assert.equal(result.value.provenanceHitCount, 1);
   assert.equal(result.value.purgeVerified, true);
   assert.equal(result.value.archiveTombstoneVerified, true);
