@@ -618,6 +618,7 @@ test('snapshot maintenance scrolls request only the payload fields they consume'
 });
 
 test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippet and exact expansion handle', async () => {
+  const benchmark = createRetrievalBenchmarkTraceCollector('ar07-positive');
   let upserts = 0;
   let searches = 0;
   let definitions = 0;
@@ -674,6 +675,7 @@ test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippe
   const provider = makeQdrantContextProvider({
     workspaceId, rootPath: '/repo', files, qdrant, embeddings, artifacts, semantics, newRequestId: () => 'qdrant-request',
     workspaceManifest, workspaceSync,
+    benchmarkTrace: benchmark,
   });
   const context = mustOk(await Effect.runPromise(provider.search({
     workspaceId, query: 'retry database connection', includeDocs: false, includeMemory: false,
@@ -683,6 +685,12 @@ test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippe
   assert.equal(definitions, 1);
   assert.equal(context.complete, true);
   assert.equal(context.evidence[0]?.freshness, 'current');
+  const deliveryEvents = benchmark.events.filter((event) => event.stage === 'delivered');
+  assert.equal(deliveryEvents.length, 2);
+  assert.equal(deliveryEvents[0]?.status, 'unavailable');
+  assert.equal(deliveryEvents[1]?.status, 'executed');
+  assert.deepEqual(deliveryEvents[1]?.candidates.map((entry) => entry.runtimeCandidateId),
+    [candidate.candidateId], 'only final exact-source-verified candidates enter the delivered trace');
   assert.equal(context.evidence[0]?.expansionHandle, 'full-file-handle');
   const spanOffset = Number(context.evidence[0]?.expansionCursor);
   const spanLength = context.evidence[0]?.expansionMaxBytes ?? 0;
