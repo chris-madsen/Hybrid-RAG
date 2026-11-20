@@ -339,7 +339,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
    * until ACE rereads the original file. Never infer an edge in this adapter.
    */
   const adjacentNativeFiles = async (files: readonly RepoPath[]): Promise<readonly RepoPath[]> => {
-    const owned = [...new Set(files)].filter((file) => /^[\\w./-]+$/u.test(file)).slice(0, 8);
+    const owned = [...new Set(files)].filter((file) => /^[\w./-]+$/u.test(file)).slice(0, 8);
     if (owned.length === 0) return [];
     const predicate = owned.map((file) => "origin.file_path = '" + file + "'").join(' OR ');
     const queries = [
