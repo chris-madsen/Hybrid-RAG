@@ -9,6 +9,7 @@ import { ok } from '../src/domain/result.js';
 import { makeWorkspaceId, type WorkspaceRecord } from '../src/domain/workspace.js';
 import type { ContextBundle } from '../src/domain/retrieval.js';
 import type { ContextProvider } from '../src/application/ports.js';
+import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 
 const workspaceId = makeWorkspaceId('00000000-0000-4000-8000-000000000001');
 if (workspaceId._tag === 'Err') throw new Error(workspaceId.error.message);
@@ -38,6 +39,9 @@ const request: AceTransformRequest = {
   sourceObligations: { required: ['code'] },
 };
 
+const explicitPlan = resolveExplicitSourceRequirements({ required: ['code'] });
+if (explicitPlan._tag === 'Err') throw new Error(explicitPlan.error.message);
+
 const bundle = (overrides: Partial<ContextBundle> = {}): ContextBundle => ({
   requestId: 'request-1' as ContextBundle['requestId'],
   query: request.query,
@@ -53,6 +57,7 @@ const bundle = (overrides: Partial<ContextBundle> = {}): ContextBundle => ({
   warnings: [],
   partialSources: [],
   complete: true,
+  sourcePlan: explicitPlan.value,
   ...overrides,
 });
 
@@ -128,6 +133,16 @@ test('AR02 rejects a provider which silently overrides the explicit code-only so
     }))) },
   });
   const output = await Effect.runPromise(service.transform(request));
+  assert.equal(output._tag, 'Err');
+  if (output._tag === 'Err') {
+    assert.equal(output.error.code, 'NOT_READY');
+    assert.equal(output.error.path, 'source_plan');
+  }
+});
+
+test('AR02 refuses legacy provider output that omits the requested source plan', async () => {
+  const withoutPlan = bundle({ sourcePlan: undefined });
+  const output = await Effect.runPromise(makeContextTransformService(makePorts(withoutPlan)).transform(request));
   assert.equal(output._tag, 'Err');
   if (output._tag === 'Err') {
     assert.equal(output.error.code, 'NOT_READY');
