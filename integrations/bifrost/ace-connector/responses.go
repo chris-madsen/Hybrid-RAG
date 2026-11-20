@@ -442,11 +442,15 @@ func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req Physica
 	if req.BodySHA256 != hex.EncodeToString(sum[:]) {
 		return invalid, errors.New("physical-send attempt body digest mismatch")
 	}
+	// A changed provider/model still must carry a valid stateless native
+	// Responses body. Only the prepared-body semantic equality is inapplicable
+	// to a changed route (which is separately denied and audited). Never send
+	// arbitrary JSON, store:true or a mismatched body model for that audit.
+	body, err := normalizedJSON(req.Body)
+	if err != nil || body["store"] != false || body["model"] != req.Model {
+		return invalid, errors.New("physical-send attempt body is not the authorized stateless Responses body")
+	}
 	if !routeChanged {
-		body, err := normalizedJSON(req.Body)
-		if err != nil || body["store"] != false || body["model"] != req.Model {
-			return invalid, errors.New("physical-send attempt body is not the authorized stateless Responses body")
-		}
 		if err := validatePreparedNativeResponsesForDecision(req.Body, req.Model, req.NoContextNeeded); err != nil {
 			return invalid, fmt.Errorf("physical-send body validation failed: %w", err)
 		}
