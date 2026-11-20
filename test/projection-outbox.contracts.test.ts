@@ -78,9 +78,8 @@ test('projection outbox deletion fence rejects stale receipts and survives resta
   const claim = await outbox.startAttempt(episodeId, 'extractor-v1');
   assert.equal(claim._tag, 'Ok');
   if (claim._tag === 'Err') return;
-  assert.equal((await outbox.put({
-    ...claim.value, status: 'projected', graphDispatchAcknowledged: true,
-  }))._tag, 'Ok');
+  const settled = { ...claim.value, status: 'projected' as const, graphDispatchAcknowledged: true };
+  assert.equal((await outbox.put(settled))._tag, 'Ok');
   assert.equal((await outbox.beginDeletion(episodeId))._tag, 'Ok');
   const stale = await outbox.put({ ...begun.value, status: 'projected' });
   assert.equal(stale._tag, 'Err');
@@ -89,7 +88,7 @@ test('projection outbox deletion fence rejects stale receipts and survives resta
   assert.deepEqual(blocked, { _tag: 'Ok', value: true });
 
   assert.equal((await outbox.finalizeDeletion(episodeId))._tag, 'Ok');
-  assert.equal((await outbox.put({ ...begun.value, status: 'tombstoned' }))._tag, 'Ok');
+  assert.equal((await outbox.put({ ...settled, status: 'tombstoned' }))._tag, 'Ok');
   const restarted = await makeFileProjectionOutbox(root);
   const repeatedBegin = await restarted.begin(episodeId, 'extractor-v1');
   assert.equal(repeatedBegin._tag, 'Err');
