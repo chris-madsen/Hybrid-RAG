@@ -78,6 +78,62 @@ test('transforms a request into bounded source-attributed context without mutati
   assert.match(result.value.receiptId, /^ace-transform-/u);
 });
 
+test('AR02 model transform requests code-only and cannot pack an unrequested stale RepoMap', async () => {
+  const code = bundle().evidence[0];
+  assert.ok(code);
+  const staleMap: ContextBundle['evidence'][number] = {
+    ...code,
+    evidenceId: 'stale-repo-map' as never,
+    source: 'structural',
+    citation: 'repo-map:unverified',
+    content: 'SENSITIVE_STALE_MAP_TEXT',
+    freshness: 'unknown',
+    proofClass: 'derived',
+  };
+  let receivedPlan: Parameters<import('../src/application/ports.js').ContextProvider['search']>[0]['sourceRequirements'];
+  const service = makeContextTransformService({
+    ids: { newRequestId: () => 'request-generated' },
+    store: { get: () => Effect.succeed(ok(workspace)) },
+    context: { search: (input) => {
+      receivedPlan = input.sourceRequirements;
+      return Effect.succeed(ok(bundle({
+        evidence: [code, staleMap], complete: true, warnings: [], partialSources: [],
+      })));
+    } },
+  });
+  const output = await Effect.runPromise(service.transform(request));
+  assert.equal(receivedPlan?.code.requirement, 'required');
+  assert.equal(receivedPlan?.structural.requirement, 'not_requested');
+  assert.equal(receivedPlan?.documentation.requirement, 'not_requested');
+  assert.equal(output._tag, 'Ok');
+  if (output._tag === 'Err') return;
+  assert.equal(output.value.status, 'ready');
+  assert.deepEqual(output.value.evidence.map((item) => item.source), ['code']);
+  assert.deepEqual(output.value.selectedEvidenceIds, [String(code.evidenceId)]);
+  assert.equal(output.value.contextText.includes('SENSITIVE_STALE_MAP_TEXT'), false);
+});
+
+test('AR02 rejects a provider which silently overrides the explicit code-only source plan', async () => {
+  const service = makeContextTransformService({
+    ids: { newRequestId: () => 'request-generated' },
+    store: { get: () => Effect.succeed(ok(workspace)) },
+    context: { search: () => Effect.succeed(ok(bundle({
+      sourcePlan: {
+        code: { requirement: 'required', allowed: true },
+        structural: { requirement: 'optional', allowed: true },
+        documentation: { requirement: 'not_requested', allowed: true },
+        memory: { requirement: 'not_requested', allowed: true },
+      },
+    }))) },
+  });
+  const output = await Effect.runPromise(service.transform(request));
+  assert.equal(output._tag, 'Err');
+  if (output._tag === 'Err') {
+    assert.equal(output.error.code, 'NOT_READY');
+    assert.equal(output.error.path, 'source_plan');
+  }
+});
+
 test('rejects a non-positive token budget before provider search', async () => {
   let called = false;
   const ports = makePorts();
