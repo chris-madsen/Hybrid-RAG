@@ -135,6 +135,7 @@ test('zero-hit code search detects source mutation after vector retrieval and be
     }],
   });
   let mutatedDuringQuery = false;
+  let mutateOnQuery = true;
   let observations = 0;
   const workspaceSync: WorkspaceSync = {
     initialize: () => Effect.succeed(ok({
@@ -162,7 +163,7 @@ test('zero-hit code search detects source mutation after vector retrieval and be
   const qdrant: CodeCandidatePort = {
     upsert: () => Effect.succeed(ok(undefined)),
     search: () => {
-      mutatedDuringQuery = true;
+      if (mutateOnQuery) mutatedDuringQuery = true;
       return Effect.succeed(ok([]));
     },
   };
@@ -179,4 +180,20 @@ test('zero-hit code search detects source mutation after vector retrieval and be
   assert.equal(result._tag, 'Err');
   if (result._tag === 'Err') assert.equal(result.error.code, 'NOT_READY');
   assert.equal(observations, 2, 'source must be observed both before and after zero-hit retrieval');
+
+  // The same zero-hit provider must still report a verified empty success
+  // when the authoritative working tree truly remains unchanged.
+  mutateOnQuery = false;
+  mutatedDuringQuery = false;
+  observations = 0;
+  const trulyEmpty = await Effect.runPromise(provider.search({
+    workspaceId, query: 'new source after initial observation',
+    includeDocs: false, includeMemory: false,
+  }));
+  assert.equal(trulyEmpty._tag, 'Ok');
+  if (trulyEmpty._tag === 'Ok') {
+    assert.equal(trulyEmpty.value.complete, true);
+    assert.deepEqual(trulyEmpty.value.evidence, []);
+  }
+  assert.equal(observations, 2);
 });
