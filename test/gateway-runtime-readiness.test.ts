@@ -49,7 +49,7 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       ACE_GATEWAY_EXTERNAL_LLM_OPT_IN: 'true',
       ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
       ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: '{"mock":["mock"]}',
-      ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_conversation","private_source"]',
+      ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source"]',
     },
     stdio: ['ignore', 'ignore', 'pipe'],
   });

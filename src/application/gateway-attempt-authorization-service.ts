@@ -132,13 +132,22 @@ export const makeGatewayAttemptAuthorizationService = (
       try { body = JSON.parse(bodyText) as unknown; } catch {
         return yield* sendBlock(request, 'FINAL_BODY_INVALID', security);
       }
-      if (typeof body !== 'object' || body === null || Array.isArray(body)
-        || (body as Record<string, unknown>).model !== request.model
-        || (body as Record<string, unknown>).store !== false
-        || ((body as Record<string, unknown>).stream !== undefined && (body as Record<string, unknown>).stream !== false)
-        || ['previous_response_id', 'conversation', 'conversation_id', 'thread_id']
-          .some((field) => (body as Record<string, unknown>)[field] !== undefined)) {
+      if (typeof body !== 'object' || body === null || Array.isArray(body)) {
         return yield* sendBlock(request, 'FINAL_BODY_NOT_CERTIFIED', security);
+      }
+      const finalBody = body as Record<string, unknown>;
+      const streamValue = finalBody.stream;
+      if (finalBody.model !== request.model || finalBody.store !== false
+        || (streamValue !== undefined && typeof streamValue !== 'boolean')
+        || ['previous_response_id', 'conversation', 'conversation_id', 'thread_id']
+          .some((field) => finalBody[field] !== undefined)) {
+        return yield* sendBlock(request, 'FINAL_BODY_NOT_CERTIFIED', security);
+      }
+      if (streamValue === true && !security.allowedStreamingRoutes.some((route) =>
+        route.provider === request.provider.toLowerCase()
+        && route.model === request.model
+        && route.destination === request.destination)) {
+        return yield* sendBlock(request, 'STREAMING_ROUTE_NOT_ALLOWED', security);
       }
       const secretDetected = containsLikelySecret(bodyText);
       const workspace = makeWorkspaceId(request.workspaceId);

@@ -28,8 +28,7 @@ fi
 mkdir -p "$temp_root"
 build_root=$(mktemp -d "$temp_root/ace-bifrost-plugin.XXXXXX")
 trap 'rm -rf "$build_root"' EXIT
-cp integrations/bifrost/ace-connector/plugin/main.go "$build_root/main.go"
-cp integrations/bifrost/ace-connector/plugin/main_test.go "$build_root/main_test.go"
+cp integrations/bifrost/ace-connector/plugin/*.go "$build_root/"
 cat > "$build_root/go.mod" <<EOF
 module ace-gateway-projection-plugin
 

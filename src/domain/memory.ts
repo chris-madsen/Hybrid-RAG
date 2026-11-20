@@ -36,6 +36,12 @@ export interface ProjectionReceipt {
   readonly lastErrorCode?: string;
   readonly deadLetteredAtMs?: number;
   readonly manualRepairCount?: number;
+  /** Persisted cross-process Graphiti attempt claim; crash preserves in-flight status. */
+  readonly inflightAttemptId?: string;
+  /** Provider failure may have had a side effect; never erase this without external proof. */
+  readonly uncertainGraphAttempt?: boolean;
+  /** Positive acknowledgement from a dispatch protected by a durable claim. */
+  readonly graphDispatchAcknowledged?: boolean;
 }
 
 export type DecisionState = 'Proposed' | 'Accepted' | 'Rejected' | 'Superseded';
@@ -268,6 +274,10 @@ export const deadLetterProjection = (
 export const repairProjection = (
   receipt: ProjectionReceipt,
 ): Result<ProjectionReceipt, DomainError> => {
+  if (receipt.inflightAttemptId !== undefined || receipt.uncertainGraphAttempt === true) {
+    return err(domainError('INVALID_MEMORY', 'projection_repair',
+      'cannot reset a graph attempt with an unresolved external side effect'));
+  }
   if (receipt.status !== 'dead_letter' && receipt.status !== 'incomplete') {
     return err(domainError('INVALID_MEMORY', 'projection_repair', 'only failed projection receipts may be manually repaired'));
   }

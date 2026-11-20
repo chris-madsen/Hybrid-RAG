@@ -5,7 +5,7 @@ import { exportCodexHistory } from '../adapters/codex-session-history.js';
 import { makeAsyncFileMemoryArchive } from '../adapters/file-memory-archive.js';
 import { makeFileProjectionOutbox } from '../adapters/file-projection-outbox.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
-import { deleteEpisodeWithProjection } from '../application/retained-memory.js';
+import { deleteEpisodeWithProjection, deleteNeverProjectedArchiveEpisode } from '../application/retained-memory.js';
 import {
   deadLetterProjection,
   defaultProjectionRetryPolicy,
@@ -91,17 +91,8 @@ const run = async (): Promise<void> => {
     const archiveOnly = await outbox.isArchiveOnly?.(episodeId.value);
     if (archiveOnly?._tag === 'Err') throw new Error(archiveOnly.error.message);
     if (archiveOnly?._tag === 'Ok' && archiveOnly.value) {
-      const receipts = await outbox.list();
-      if (receipts._tag === 'Err') throw new Error(receipts.error.message);
-      if (receipts.value.some((receipt) => receipt.episodeId === episodeId.value)) {
-        throw new Error('archive-only proof conflicts with an existing graph projection receipt');
-      }
-      const fenced = await outbox.beginDeletion(episodeId.value);
-      if (fenced._tag === 'Err') throw new Error(fenced.error.message);
-      const deleted = await archive.deleteEpisode(episodeId.value);
+      const deleted = await deleteNeverProjectedArchiveEpisode(archive, outbox, episodeId.value);
       if (deleted._tag === 'Err') throw new Error(deleted.error.message);
-      const finalized = await outbox.finalizeDeletion(episodeId.value);
-      if (finalized._tag === 'Err') throw new Error(finalized.error.message);
       process.stdout.write(JSON.stringify({
         episode_id: episodeId.value, purged: false, archive_only_deleted: true,
       }) + '\n');
@@ -151,6 +142,12 @@ const run = async (): Promise<void> => {
       let deadLettered = 0;
       for (const receipt of receipts.value) {
         if (receipt.status === 'projected' || receipt.status === 'tombstoned' || receipt.status === 'dead_letter') continue;
+        if (receipt.inflightAttemptId !== undefined) {
+          // A killed/unknown provider attempt may still materialize; do not
+          // create another physical send or silently clear its durable claim.
+          deferred += 1;
+          continue;
+        }
         const nowMs = Date.now();
         if (!projectionRetryDue(receipt, nowMs)) {
           deferred += 1;
@@ -188,6 +185,8 @@ const run = async (): Promise<void> => {
           missingOriginal += 1;
           continue;
         }
+        const claim = await outbox.startAttempt(receipt.episodeId, receipt.extractorVersion);
+        if (claim._tag === 'Err') throw new Error(claim.error.message);
         const retry = await Effect.runPromise(graphiti.projection.project({
           episodeId: original.value.episodeId,
           occurredAtMs: original.value.occurredAtMs,
@@ -199,16 +198,18 @@ const run = async (): Promise<void> => {
           }],
         }));
         if (retry._tag === 'Err') {
-          const failed = scheduleProjectionRetry(receipt, nowMs, retry.error.code, retryPolicy);
+          const failed = scheduleProjectionRetry(
+            { ...claim.value, uncertainGraphAttempt: true }, nowMs, retry.error.code, retryPolicy,
+          );
           if (failed._tag === 'Err') throw new Error(failed.error.message);
           const stored = await outbox.put(failed.value);
           if (stored._tag === 'Err') throw new Error(stored.error.message);
           if (failed.value.status === 'dead_letter') deadLettered += 1;
           continue;
         }
-        const enqueued = recordProjectionEnqueue(receipt, retry.value, nowMs, verificationDelayMs);
+        const enqueued = recordProjectionEnqueue(claim.value, retry.value, nowMs, verificationDelayMs);
         if (enqueued._tag === 'Err') throw new Error(enqueued.error.message);
-        const stored = await outbox.put(enqueued.value);
+        const stored = await outbox.put({ ...enqueued.value, graphDispatchAcknowledged: true });
         if (stored._tag === 'Err') throw new Error(stored.error.message);
         retried += 1;
       }

@@ -16,7 +16,6 @@ import {
   type RetrievalEvidence,
 } from '../domain/retrieval.js';
 import type {
-  ArtifactStore,
   CodeCandidatePort,
   CodePoint,
   DocumentationPort,
@@ -80,7 +79,6 @@ export interface QdrantContextConfig {
   readonly embeddings: VectorEmbeddingPort;
   /** Client-side sparse embeddings are mandatory for sparse/hybrid self-hosted Qdrant queries. */
   readonly sparseEmbeddings?: SparseEmbeddingPort;
-  readonly artifacts: ArtifactStore;
   readonly semantics: SemanticAnalysisPort;
   readonly newRequestId: () => string;
   readonly generation?: number;
@@ -1264,17 +1262,16 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       const fullSources = new Map<RepoPath, {
         readonly bytes: Uint8Array;
         readonly digest: string;
-        readonly handle: string;
-        readonly sizeBytes: number;
       }>();
       const stalePaths: RepoPath[] = [];
 
       const initialFailures = new Map<RepoPath, string>();
       for (const ranked of rankedResults) {
         const candidate = ranked.candidate;
-        // One authoritative exact read and one immutable artifact per source,
-        // not one read per Qdrant symbol. All selected sources are revalidated
-        // a second time at the request boundary below.
+        // One authoritative exact workspace read per path, not per symbol.
+        // Stop duplicating private full-file bytes into UUID artifacts with
+        // no model-reachable Native Responses expansion consumer. Revalidate
+        // the exact source again at the final request boundary.
         let full = fullSources.get(candidate.repoPath);
         if (full === undefined) {
           const priorError = initialFailures.get(candidate.repoPath);
@@ -1293,14 +1290,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
             failed.push('code');
             continue;
           }
-          const stored = yield* activeConfig.artifacts.storeExact(read.value.bytes);
-          if (stored._tag === 'Err') return stored;
-          full = {
-            bytes: read.value.bytes,
-            digest: read.value.digest,
-            handle: stored.value.handle,
-            sizeBytes: stored.value.sizeBytes,
-          };
+          full = { bytes: read.value.bytes, digest: read.value.digest };
           fullSources.set(candidate.repoPath, full);
         }
         // Both the digest AND the byte-exact AST slice must match. Never deliver
@@ -1376,13 +1366,9 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         const baseEvidence = evidenceFromCandidate({ ...ranked, freshness }, evidenceId.value);
         evidence.push({
           ...baseEvidence,
+          // Source identity remains the canonical path + verified digest,
+          // never a UUID handle from an unreachable model-invoked tool.
           content: verifiedText,
-          expansionHandle: full.handle,
-          expansionTotalBytes: full.sizeBytes,
-          ...(exactSpan === undefined ? {} : {
-            expansionCursor: String(exactSpan.offset),
-            expansionMaxBytes: exactSpan.length,
-          }),
         });
       }
 

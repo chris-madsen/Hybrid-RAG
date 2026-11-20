@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
-import { finishProjection, type ProjectionReceipt, type SessionEpisode } from '../domain/memory.js';
+import { finishProjection, recordProjectionEnqueue, type ProjectionReceipt, type SessionEpisode } from '../domain/memory.js';
 import { err, ok, type Result } from '../domain/result.js';
 import type {
   GraphProjectionPort,
@@ -81,34 +81,46 @@ export const runGraphitiLifecycleGate = async (
     return err(domainError('INVALID_INPUT', 'graphiti_lifecycle', 'query, extractor version and request id are required'));
   }
 
-  const archived = await input.archive.importEpisode(input.episode);
-  if (archived._tag === 'Err') return archived;
-
+  // Durable intent precedes the original commit and every possible graph
+  // send; a kill at either boundary can never be mistaken for no projection.
   const queued = await input.outbox.begin(input.episode.episodeId, input.extractorVersion);
   if (queued._tag === 'Err') return queued;
+  const archived = await input.archive.importEpisode(input.episode);
+  if (archived._tag === 'Err') return archived;
   if (queued.value.status === 'tombstoned') {
     return err(domainError('ARCHIVE_TOMBSTONED', 'projection_outbox', 'tombstoned projection cannot be reused for a lifecycle gate'));
   }
 
-  const projected = await Effect.runPromise(input.projection.project({
-    episodeId: input.episode.episodeId,
-    occurredAtMs: input.episode.occurredAtMs,
-    extractorVersion: input.extractorVersion,
-    claims: [{
-      original_digest: input.episode.contentDigest,
-      text: input.episode.searchText,
-      original_pointer: input.episode.sourcePointer,
-    }],
-  }));
+  const claim = await input.outbox.startAttempt(input.episode.episodeId, input.extractorVersion);
+  if (claim._tag === 'Err') return claim;
+  let projected: Result<ProjectionReceipt, DomainError>;
+  try {
+    projected = await Effect.runPromise(input.projection.project({
+      episodeId: input.episode.episodeId,
+      occurredAtMs: input.episode.occurredAtMs,
+      extractorVersion: input.extractorVersion,
+      claims: [{
+        original_digest: input.episode.contentDigest,
+        text: input.episode.searchText,
+        original_pointer: input.episode.sourcePointer,
+      }],
+    }));
+  } catch {
+    projected = err(domainError('EXTERNAL_UNAVAILABLE', 'graphiti_projection',
+      'Graphiti execution failed after durable attempt reservation'));
+  }
   if (projected._tag === 'Err') {
-    const incomplete = finishProjection(queued.value, 'incomplete');
+    const incomplete = finishProjection({ ...claim.value, uncertainGraphAttempt: true }, 'incomplete');
     const stored = await input.outbox.put(incomplete);
     return stored._tag === 'Err' ? stored : projected;
   }
 
+  const bound = recordProjectionEnqueue(claim.value, projected.value, Date.now(), 0);
+  if (bound._tag === 'Err') return bound;
   const pendingReceipt: ProjectionReceipt = {
-    ...projected.value,
-    attempts: Math.max(projected.value.attempts, queued.value.attempts + 1),
+    ...bound.value,
+    status: 'pending',
+    graphDispatchAcknowledged: true,
   };
   const storedPending = await input.outbox.put(pendingReceipt);
   if (storedPending._tag === 'Err') return storedPending;
@@ -123,7 +135,11 @@ export const runGraphitiLifecycleGate = async (
   );
   if (observable._tag === 'Err') return observable;
 
-  const completed = finishProjection(pendingReceipt, 'projected');
+  const { inflightAttemptId: settledClaim, ...settled } = pendingReceipt;
+  void settledClaim;
+  // Materialization verification changes state but is not another Graphiti
+  // dispatch. Keep attempts and totalAttempts from the acknowledged send.
+  const completed: ProjectionReceipt = { ...settled, status: 'projected' };
   const storedCompleted = await input.outbox.put(completed);
   if (storedCompleted._tag === 'Err') return storedCompleted;
 

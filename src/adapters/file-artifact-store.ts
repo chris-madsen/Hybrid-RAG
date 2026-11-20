@@ -19,6 +19,12 @@ const nodeErrorCode = (cause: unknown): string | undefined => {
 
 const digest = (bytes: Uint8Array) => makeContentDigest(createHash('sha256').update(bytes).digest('hex'));
 
+/**
+ * Legacy explicit-host artifact reader retained for already-issued UUID
+ * handles. Native Responses / Qdrant no longer instantiates or writes this
+ * store: UUID private file copies had no model-reachable expansion reader.
+ * This port is NOT a model-invoked tool or an alternative Gateway route.
+ */
 export const makeFileArtifactStore = (directory: string): ArtifactStore => ({
   storeExact: (bytes) =>
     recoverResult(Effect.tryPromise<Result<ArtifactReference, DomainError>, DomainError>({
