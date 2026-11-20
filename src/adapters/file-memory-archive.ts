@@ -256,7 +256,7 @@ export const makeAsyncFileMemoryArchive = async (rootPath: string): Promise<Asyn
           && current.value.sessionId === expected.sessionId
           && current.value.sourcePointer === expected.sourcePointer
           && current.value.occurredAtMs === expected.occurredAtMs
-          && current.value.importedAtMs === expected.importedAtMs
+          // Retry import timestamps must not overwrite the original record.
           && current.value.searchText === expected.searchText
           && current.value.memoryHint === expected.memoryHint
           ? ok(undefined)
