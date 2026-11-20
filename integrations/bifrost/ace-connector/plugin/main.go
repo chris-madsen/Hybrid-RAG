@@ -293,8 +293,7 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 		MaxSerializedRequestBytes: int(connector.DefaultMaxBodyBytes) + physicalSendMaxHeaderBytes,
 		AuthorizationDeadline:     time.UnixMilli(binding.deadlineEpochMs),
 		Authorize: func(attemptCtx context.Context, attempt schemas.PhysicalSendAttempt) error {
-			if attempt.Provider != schemas.ModelProvider(binding.provider) || attempt.Model != binding.model ||
-				attempt.Method != http.MethodPost {
+			if attempt.Method != http.MethodPost {
 				return providerUtils.NewPhysicalSendAuthorizationError(403, "ROUTE_BINDING_MISMATCH", nil)
 			}
 			if attempt.BodySHA256 != sha256Hex(attempt.Body) {
@@ -304,8 +303,10 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 				SchemaVersion: "ace.gateway.v2", RequestID: binding.requestID,
 				AttemptGroupID: binding.attemptGroupID, AgentSessionID: binding.sessionID,
 				WorkspaceID: binding.workspaceID, DataClass: binding.dataClass,
-				Provider: binding.provider, Model: binding.model, AttemptID: attempt.AttemptID,
-				Method: attempt.Method, Destination: attempt.Destination, Body: attempt.Body,
+				Provider: string(attempt.Provider), Model: attempt.Model,
+				ExpectedProvider: binding.provider, ExpectedModel: binding.model,
+				AttemptID: attempt.AttemptID,
+				Method:    attempt.Method, Destination: attempt.Destination, Body: attempt.Body,
 				BodySHA256: attempt.BodySHA256, PreparedBodySHA256: binding.preparedBodySHA256,
 				PreparedBodySemanticSHA256: binding.preparedBodySemanticSHA256,
 				ProjectionReceipt:          binding.projectionReceipt, DeadlineEpochMs: binding.deadlineEpochMs,
@@ -407,7 +408,7 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	if ctx == nil || req == nil || req.ResponsesRequest == nil {
 		return blockProviderAttempt(req, "ACE native Responses binding is unavailable")
 	}
-	binding, ok := ctx.TrustedValue(projectionBindingKey{}).(projectionBinding)
+	_, ok := ctx.TrustedValue(projectionBindingKey{}).(projectionBinding)
 	if !ok {
 		return blockProviderAttempt(req, "ACE native Responses projection receipt is unavailable")
 	}
@@ -415,10 +416,9 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	if !ok || guard.Authorize == nil {
 		return blockProviderAttempt(req, "ACE physical-send authorization guard is unavailable")
 	}
-	provider, model, _ := req.GetRequestFields()
-	if provider != schemas.ModelProvider(binding.provider) || model != binding.model {
-		return blockProviderAttempt(req, "ACE native Responses provider/model binding changed")
-	}
+	// Do not decide a route-changing fallback from normalized request fields here.
+	// The terminal transport has the actual provider, model, destination and bytes;
+	// it submits those facts to ACE, which audits the receipt-bound denial before write.
 	return req, nil, nil
 }
 
