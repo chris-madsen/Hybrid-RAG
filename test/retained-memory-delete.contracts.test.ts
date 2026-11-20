@@ -99,6 +99,27 @@ test('purge or verification outage never tombstones the archive', async () => {
   }
 });
 
+test('AR05 deletion refuses an unfinished graph intent before graph purge or archive deletion', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar05-concurrent-'));
+  const outbox = await makeFileProjectionOutbox(root);
+  const begun = await outbox.begin(episodeId, 'graph-before-delete');
+  assert.equal(begun._tag, 'Ok');
+  const deleted = { value: 0 };
+  let purges = 0;
+  const result = await Effect.runPromise(deleteEpisodeWithProjection(
+    archiveFixture(deleted),
+    graphFixture(() => { purges += 1; return Effect.succeed(ok(undefined)); }),
+    { isPresent: () => Effect.succeed(ok(false)) },
+    episodeId,
+    { deletionFence: outbox, verificationDelayMs: 0 },
+  ));
+  assert.equal(result._tag, 'Err');
+  if (result._tag === 'Err') assert.equal(result.error.code, 'INVALID_MEMORY');
+  assert.equal(purges, 0, 'do not pretend a Graphiti absence check can settle an in-flight send');
+  assert.equal(deleted.value, 0);
+  assert.deepEqual(await outbox.isDeletionBlocked(episodeId), { _tag: 'Ok', value: false });
+});
+
 test('deletion fence is durable before purge and blocks in-flight projection persistence', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ace-retained-delete-fence-'));
   const outbox = await makeFileProjectionOutbox(root);

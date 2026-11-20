@@ -64,6 +64,8 @@ const inMemoryArchive = (): { readonly archive: AsyncMemoryArchivePort; readonly
 
 interface ProjectionCalls { created: number; projected: number; occurredAtMs?: number }
 
+const freshOutbox = async () => makeFileProjectionOutbox(await mkdtemp(join(tmpdir(), 'ace-memory-intent-')));
+
 const projectionSession = (calls: ProjectionCalls): { projection: GraphProjectionPort; close: () => Promise<void> } => {
   calls.created += 1;
   const projection: GraphProjectionPort = {
@@ -108,6 +110,7 @@ test('MAC-02 durable decision is projected once while raw episode remains archiv
   const result = await importMemoryEpisodes({
     episodes: [episode('decision', 'We decided to use the local retrieval index going forward.')],
     archive: local.archive,
+    outbox: await freshOutbox(),
     createProjection: async () => projectionSession(calls),
     extractorVersion: 'test-extractor',
   });
@@ -181,6 +184,7 @@ test('MAC-08 Graphiti failure never prevents later originals from being archived
       episode('later-decision', 'We decided to keep Graphiti local-first.'),
     ],
     archive: local.archive,
+    outbox: await freshOutbox(),
     createProjection: async () => ({ projection: failedProjection, close: async () => undefined }),
     extractorVersion: 'test-extractor',
   });
@@ -214,6 +218,7 @@ test('MAC-09 unexpected provider Effect failure is an incomplete projection, not
       episode('second-decision', 'We decided to use local graph memory.'),
     ],
     archive: local.archive,
+    outbox: await freshOutbox(),
     extractorVersion: 'test-extractor',
     createProjection: async () => ({ projection: faultyProjection, close: async () => { closed = true; } }),
   });
@@ -257,4 +262,23 @@ test('MAC-10 reimport honors durable projection outbox retry deadline', async ()
   });
   assert.equal(due._tag, 'Ok');
   assert.equal(calls.projected, 1);
+});
+
+test('AR05 graph projection without a durable outbox is refused before any provider call', async () => {
+  const local = inMemoryArchive();
+  const calls = { created: 0, projected: 0 };
+  const result = await importMemoryEpisodes({
+    episodes: [episode('unfenced-decision', 'We decided to keep the original memory.')],
+    archive: local.archive,
+    createProjection: async () => projectionSession(calls),
+    extractorVersion: 'test-extractor',
+  });
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Ok') {
+    assert.equal(result.value[0]?.projectionStatus, 'incomplete');
+    assert.equal(result.value[0]?.projectionErrorCode, 'PERSISTENCE_FAILED');
+  }
+  assert.equal(local.episodes.size, 1, 'immutable original is still archived');
+  assert.equal(calls.created, 0);
+  assert.equal(calls.projected, 0);
 });

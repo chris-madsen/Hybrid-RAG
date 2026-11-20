@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,6 +45,10 @@ test('CLI can delete durably never-projected originals without graph, preserving
     const archive = await makeAsyncFileMemoryArchive(archivePath);
     const survivor = await archive.readEpisode(second.value);
     assert.equal(survivor._tag, 'Ok', 'shared immutable source blob must remain available');
+    if (survivor._tag === 'Ok') {
+      assert.equal(survivor.value.contentDigest, createHash('sha256').update(survivor.value.content).digest('hex'),
+        'the surviving shared blob must remain byte- and digest-exact');
+    }
     const deleted = await archive.readEpisode(first.value);
     assert.equal(deleted._tag, 'Err');
     const outbox = await makeFileProjectionOutbox(join(archivePath, 'projection-outbox'));
