@@ -657,6 +657,20 @@ const main = async (): Promise<void> => {
             directory: process.env.ACE_QDRANT_PUBLICATION_DIR?.trim() ?? '',
             declaredTopology: process.env.ACE_QDRANT_WRITER_TOPOLOGY?.trim(),
           });
+          const confirmEmptyQdrantBootstrap = async (): Promise<Result<boolean, DomainError>> => {
+            const collection = qdrantCollectionName(workspaceKey, embeddingFingerprint, retrievalFingerprint);
+            const ensured = await Effect.runPromise(ensureQdrantCollection(
+              collection, effectiveEmbedding.dimension, qdrantSdk,
+              retrievalStrategy === 'dense' ? 'dense' : 'hybrid',
+            ));
+            if (ensured._tag === 'Err') return ensured;
+            const counted = await Effect.runPromise(qdrantSdk.countPoints(collection, {
+              exact: true,
+              filter: { must: [{ key: 'workspace_id', match: { value: registered.value.workspaceId } }] },
+            }));
+            if (counted._tag === 'Err') return counted;
+            return ok(counted.value === 0);
+          };
           let workspaceSync: WorkspaceSync | undefined;
           let latestPublished: QdrantContextConfig | undefined;
           let semanticSnapshot: {
@@ -1070,7 +1084,7 @@ const main = async (): Promise<void> => {
               unchanged: 0,
             }
             : undefined;
-          const initialTicket = await publicationAuthority.reserve();
+          const initialTicket = await publicationAuthority.reserve(confirmEmptyQdrantBootstrap);
           const initialEpoch = initialTicket._tag === 'Ok' ? initialTicket.value.epoch : generation;
           const built = initialTicket._tag === 'Err'
             ? initialTicket
@@ -1120,7 +1134,7 @@ const main = async (): Promise<void> => {
                   ),
                   rebuild: ({ nextManifest, delta }) => Effect.promise(async () => {
                     if (latestBuild === undefined) return err(domainError('NOT_READY', 'workspace_sync', 'initial retrieval snapshot is not available'));
-                    const ticket = await publicationAuthority.reserve();
+                    const ticket = await publicationAuthority.reserve(confirmEmptyQdrantBootstrap);
                     if (ticket._tag === 'Err') return ticket;
                     const rebuildGeneration = ticket.value.epoch;
                     const rebuilt = await Effect.runPromise(buildLocalCodeIndex(
