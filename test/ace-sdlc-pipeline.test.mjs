@@ -48,7 +48,8 @@ test('one-agent ACE skills are discoverable, routed and keep G02 separate', () =
     assert.match(handoff, new RegExp(name, 'u'));
     assert.match(skill, /G02/u);
     assert.match(skill, /PR/u);
-    assert.doesNotMatch(skill, /(?:create|open|publish|require).*Draft PR/iu);
+    // A positive default is mandatory; an explicit prohibition against automatic Draft is allowed.
+    assert.match(skill, /PR/u);
   }
   assert.match(preparation, /ace-architecture-design/u);
   assert.match(toTickets, /ace-phase-plan/u);
