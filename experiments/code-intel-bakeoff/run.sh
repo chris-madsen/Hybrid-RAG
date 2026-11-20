@@ -73,12 +73,19 @@ if [ "$engine" = cbm ]; then
   run_case cli-help "$cbm_exe" cli --help
   run_case index-initial "$cbm_exe" cli index_repository --repo-path "$snapshot"
   run_case projects "$cbm_exe" cli list_projects
-  # Default project name is the checkout directory; verify the projects output.
-  project="$(basename "$snapshot")"
+  # CBM project ID is a canonicalized root path, not merely basename.
+  project="$(python3 - "$out/index-initial.stdout" <<'PY'
+import json,sys
+with open(sys.argv[1],encoding='utf8') as handle:
+    print(json.load(handle)['project'])
+PY
+)"
+  printf '%s\n' "$project" > "$out/effective-cbm-project.txt"
   run_case index-status "$cbm_exe" cli index_status --project "$project"
   run_case symbol-real "$cbm_exe" cli search_graph --project "$project" --name-pattern '.*compareStructuralAnalyses.*'
   run_case symbol-fixture "$cbm_exe" cli search_graph --project "$project" --name-pattern '.*dispatchCollide.*'
   run_case graph-baseline "$cbm_exe" cli query_graph --project "$project" --query "MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'dispatchCollide' RETURN f.name,g.name LIMIT 30"
+  run_case graph-any-rel-baseline "$cbm_exe" cli query_graph --project "$project" --query "MATCH (f:Function)-[r]->(g) WHERE f.name = 'dispatchCollide' RETURN type(r),g.name LIMIT 30"
   run_case trace-baseline "$cbm_exe" cli trace_path --project "$project" --function-name dispatchCollide --direction both
 elif [ "$engine" = cgc-tree ] || [ "$engine" = cgc-scip ]; then
   run_case version cgc --version
@@ -108,11 +115,13 @@ sha256sum "$snapshot/src/__ace_bakeoff_consumer.ts" > "$out/changed-fixture.sha2
 
 if [ "$engine" = cbm ]; then
   run_case index-after-edit "$cbm_exe" cli index_repository --repo-path "$snapshot"
-  run_case graph-after-edit "$cbm_exe" cli query_graph --project "$(basename "$snapshot")" --query "MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'dispatchCollide' RETURN f.name,g.name LIMIT 30"
-  run_case trace-after-edit "$cbm_exe" cli trace_path --project "$(basename "$snapshot")" --function-name dispatchCollide --direction both
+  run_case graph-after-edit "$cbm_exe" cli query_graph --project "$project" --query "MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'dispatchCollide' RETURN f.name,g.name LIMIT 30"
+  run_case graph-any-rel-after-edit "$cbm_exe" cli query_graph --project "$project" --query "MATCH (f:Function)-[r]->(g) WHERE f.name = 'dispatchCollide' RETURN type(r),g.name LIMIT 30"
+  run_case trace-after-edit "$cbm_exe" cli trace_path --project "$project" --function-name dispatchCollide --direction both
 else
-  # This explicitly measures repeated indexing, NOT proof of a live watcher delta.
-  run_case index-after-edit cgc index "$snapshot"
+  # CGC skips already-indexed repositories by default; --force is essential.
+  # This explicitly measures forced reindexing, NOT live watcher convergence.
+  run_case index-after-edit cgc index "$snapshot" --force
   run_case graph-after-edit cgc query "MATCH (f:Function)-[:CALLS]->(g) WHERE f.name = 'dispatchCollide' RETURN f.name,g.name LIMIT 30"
   run_case calls-after-edit cgc analyze calls dispatchCollide
 fi
