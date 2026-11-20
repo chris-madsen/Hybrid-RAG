@@ -123,6 +123,37 @@ test('does not report a successful transform when the provider returns no eviden
   assert.equal(result.error.code, 'NOT_READY');
 });
 
+test('verified-empty code search requires explicit, satisfied required-source coverage', async () => {
+  const current = bundle({
+    evidence: [], complete: true, partialSources: [], warnings: [],
+    sourceCoverage: [{ source: 'code', requirement: 'required', status: 'satisfied' }],
+  });
+  const approved = await Effect.runPromise(makeContextTransformService(makePorts(current)).transform(request));
+  assert.equal(approved._tag, 'Ok');
+  if (approved._tag === 'Ok') {
+    assert.equal(approved.value.status, 'ready');
+    assert.equal(approved.value.contextText, '');
+    assert.deepEqual(approved.value.selectedEvidenceIds, []);
+  }
+  for (const unverified of [
+    bundle({ evidence: [], complete: true }),
+    bundle({ evidence: [], complete: true, sourceCoverage: [] }),
+    bundle({ evidence: [], complete: true, sourceCoverage: [
+      { source: 'code', requirement: 'optional', status: 'satisfied' },
+    ] }),
+    bundle({ evidence: [], complete: true, sourceCoverage: [
+      { source: 'code', requirement: 'required', status: 'empty' },
+    ] }),
+    bundle({ evidence: [], complete: true, sourceCoverage: [
+      { source: 'code', requirement: 'required', status: 'unavailable' },
+    ] }),
+  ]) {
+    const denied = await Effect.runPromise(makeContextTransformService(makePorts(unverified)).transform(request));
+    assert.equal(denied._tag, 'Err', 'unverified empty must not prepare a native response');
+    if (denied._tag === 'Err') assert.equal(denied.error.code, 'NOT_READY');
+  }
+});
+
 test('host-provided model token counter improves measurement but is not a readiness gate', async () => {
   const service = makeContextTransformService({
     ...makePorts(),
