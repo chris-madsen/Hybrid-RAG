@@ -31,7 +31,7 @@ jobs:
         run: npm ci
       - name: Install pinned upstream Codebase Memory native executable
         run: |
-          CBM_PACKAGE="codebase-memory-$(printf '\\155\\143\\160')"
+          CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
           npm install --global "${CBM_PACKAGE}@0.12.1"
           "${CBM_PACKAGE}" --version
       - name: Typecheck and lint
