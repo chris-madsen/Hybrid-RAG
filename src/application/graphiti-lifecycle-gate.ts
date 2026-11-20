@@ -120,7 +120,6 @@ export const runGraphitiLifecycleGate = async (
   const pendingReceipt: ProjectionReceipt = {
     ...bound.value,
     status: 'pending',
-    inflightAttemptId: claim.value.inflightAttemptId,
     graphDispatchAcknowledged: true,
   };
   const storedPending = await input.outbox.put(pendingReceipt);
