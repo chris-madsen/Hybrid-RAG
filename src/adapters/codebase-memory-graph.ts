@@ -387,12 +387,16 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       'HTTP_CALLS', 'GRPC_CALLS', 'ASYNC_CALLS', 'HANDLES', 'SPAWNS',
       'EMITS', 'LISTENS_ON', 'READS', 'WRITES', 'USES_TYPE',
     ];
-    const edgePredicate = dependencyRelations.map((name) => "type(r) = '" + name + "'").join(' OR ');
+    // CBM 0.12.1 parses relationship alternation inside [:TYPE1|TYPE2].
+    // Its WHERE parser intentionally rejects type(r), even though type(r)
+    // is available as a RETURN expression. Never silently swallow that error
+    // and call an unfiltered semantic edge a dependency.
+    const relation = dependencyRelations.join('|');
     const predicate = owned.map((file) => "origin.file_path = '" + file + "'").join(' OR ');
     const queries = [
-      'MATCH (origin)-[r]->(other) WHERE (' + predicate + ') AND (' + edgePredicate + ')'
+      'MATCH (origin)-[r:' + relation + ']->(other) WHERE (' + predicate + ')'
         + ' RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50',
-      'MATCH (other)-[r]->(origin) WHERE (' + predicate + ') AND (' + edgePredicate + ')'
+      'MATCH (other)-[r:' + relation + ']->(origin) WHERE (' + predicate + ')'
         + ' RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50',
     ];
     const result: NativeGraphTarget[] = [];
