@@ -29,7 +29,7 @@ const publish = async (ticket) => authority.publish({
 });
 
 const reserve = async () => {
-  const ticket = await authority.reserve();
+  const ticket = await authority.reserve(async () => ok(true));
   if (ticket._tag === 'Err') throw Error(ticket.error.message);
   return ticket.value;
 };
