@@ -96,7 +96,6 @@ test('AR05 archive-only proof is present BEFORE original commit and survives cre
       assert.equal(committed._tag, 'Ok');
       commitCount += 1;
       throw new Error('injected crash after durable original commit');
-      return committed;
     },
   };
   await assert.rejects(importMemoryEpisodes({
