@@ -958,7 +958,7 @@ const main = async (): Promise<void> => {
                   : `${effectiveSparseEmbedding.provider}|model=${effectiveSparseEmbedding.model}|runtime=${effectiveSparseEmbedding.runtimeVersion}|artifact=${effectiveSparseEmbedding.artifactDigest}`,
                 qdrant: process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2',
                 structural: cbmStructuralIdentity,
-                code_graph: activeRepoMap === undefined ? 'codebase-memory/not_ready' : 'codebase-memory/v0.12.1',
+                code_graph: activeCodeGraph === undefined ? 'codebase-memory/not_ready' : 'codebase-memory/v0.12.1',
                 semantic: semanticProviderVersion,
                 reranker: rerankerModel === undefined ? 'disabled' : `fastembed/cross-encoder|model=${rerankerModel}`,
               },
