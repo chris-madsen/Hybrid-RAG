@@ -136,6 +136,25 @@ test('AR04 immutable retry validates identity and ordinary backup excludes the i
   }
 });
 
+test('AR04 repeated Codex import retains first importedAtMs without overwriting the original', async () => {
+  const root = await newRoot();
+  try {
+    const archive = await makeAsyncFileMemoryArchive(root);
+    const first = await archive.importEpisode(episode);
+    assert.equal(first._tag, 'Ok');
+    const repeated = await archive.importEpisode({ ...episode, importedAtMs: 50_000 });
+    assert.equal(repeated._tag, 'Ok', 'an import attempt timestamp is not part of source identity');
+    if (repeated._tag === 'Ok') {
+      assert.equal(repeated.value.created, false);
+      assert.equal(repeated.value.episode.importedAtMs, 101);
+      assert.deepEqual(Buffer.from(repeated.value.episode.content), bytes);
+    }
+    const stored = await archive.readEpisode(episode.episodeId);
+    assert.equal(stored._tag, 'Ok');
+    if (stored._tag === 'Ok') assert.equal(stored.value.importedAtMs, 101);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('AR04 no-follow blob validation refuses symbolic links', async () => {
   const root = await newRoot();
   const external = root + '-external';
