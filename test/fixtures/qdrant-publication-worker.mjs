@@ -14,6 +14,7 @@ if (workspace._tag === 'Err') process.exit(3);
 const authority = makeLocalQdrantPublicationAuthority({
   workspaceId: workspace.value,
   directory,
+  declaredTopology: 'single_host',
 });
 const indexKey = createHash('sha256').update('candidate-' + mode).digest('hex');
 
