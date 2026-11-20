@@ -24,7 +24,10 @@ const validReceipt = (value: unknown): value is ProjectionReceipt => {
     && (receipt.deadLetteredAtMs === undefined
       || typeof receipt.deadLetteredAtMs === 'number' && Number.isSafeInteger(receipt.deadLetteredAtMs) && receipt.deadLetteredAtMs >= 0)
     && (receipt.manualRepairCount === undefined
-      || typeof receipt.manualRepairCount === 'number' && Number.isSafeInteger(receipt.manualRepairCount) && receipt.manualRepairCount >= 0);
+      || typeof receipt.manualRepairCount === 'number' && Number.isSafeInteger(receipt.manualRepairCount) && receipt.manualRepairCount >= 0)
+    && (receipt.inflightAttemptId === undefined
+      || typeof receipt.inflightAttemptId === 'string' && receipt.inflightAttemptId.trim().length > 0)
+    && (receipt.uncertainGraphAttempt === undefined || typeof receipt.uncertainGraphAttempt === 'boolean');
 };
 
 export const makeFileProjectionOutbox = async (rootPath: string): Promise<ProjectionOutboxPort> => {
@@ -133,7 +136,26 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
     if (deletion.value !== undefined && receipt.status !== 'tombstoned') {
       return err(domainError('ARCHIVE_TOMBSTONED', 'projection_outbox', 'deletion fence rejects a stale projection receipt'));
     }
-    return persist(pathFor(receipt.key), receipt, 'projection_outbox',
+    const path = pathFor(receipt.key);
+    const prior = await read(path);
+    if (prior._tag === 'Err') return prior;
+    if (prior.value?.inflightAttemptId !== undefined
+      && receipt.inflightAttemptId !== prior.value.inflightAttemptId) {
+      return err(domainError('INVALID_MEMORY', 'projection_attempt',
+        'only the durable dispatch owner may settle an in-flight graph attempt'));
+    }
+    if (prior.value?.uncertainGraphAttempt && !receipt.uncertainGraphAttempt) {
+      return err(domainError('INVALID_MEMORY', 'projection_attempt',
+        'cannot erase uncertain Graphiti side effects without verification'));
+    }
+    if (prior.value?.status === 'projected' && receipt.status !== 'projected' && receipt.status !== 'tombstoned') {
+      return err(domainError('INVALID_MEMORY', 'projection_outbox', 'cannot demote a verified projection'));
+    }
+    // Put settles the claim under the same OS lock. SIGKILL before this write
+    // leaves an in-flight marker and a conservative deletion barrier.
+    const { inflightAttemptId: discardedClaim, ...settled } = receipt;
+    void discardedClaim;
+    return persist(path, settled, 'projection_outbox',
       'could not durably publish projection receipt');
   };
 
@@ -160,6 +182,50 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
       });
     },
     put: (receipt) => withLock(() => putUnlocked(receipt)),
+    startAttempt: (episodeId, extractorVersion) => withLock(async () => {
+      const candidate = beginProjection([], episodeId, extractorVersion);
+      if (candidate._tag === 'Err') return candidate;
+      const current = await read(pathFor(candidate.value.key));
+      if (current._tag === 'Err') return current;
+      if (current.value === undefined) {
+        return err(domainError('INVALID_MEMORY', 'projection_attempt',
+          'no durable graph projection intent exists for this episode'));
+      }
+      if (current.value.status !== 'pending' && current.value.status !== 'incomplete') {
+        return err(domainError('INVALID_MEMORY', 'projection_attempt',
+          'a terminal projection cannot start a new graph attempt'));
+      }
+      const deletion = await readDeletion(episodeId);
+      if (deletion._tag === 'Err') return deletion;
+      if (deletion.value !== undefined) {
+        return err(domainError('ARCHIVE_TOMBSTONED', 'projection_attempt',
+          'deletion fence blocks new graph attempt'));
+      }
+      const archiveOnly = await readArchiveOnly(episodeId);
+      if (archiveOnly._tag === 'Err') return archiveOnly;
+      if (archiveOnly.value) {
+        return err(domainError('ARCHIVE_TOMBSTONED', 'projection_attempt',
+          'never-projected episode cannot be sent to Graphiti'));
+      }
+      let names: string[];
+      try {
+        names = (await readdir(rootPath)).filter((name) => name.endsWith('.json'));
+      } catch {
+        return err(domainError('PERSISTENCE_FAILED', 'projection_attempt', 'could not inspect active attempts'));
+      }
+      for (const name of names) {
+        const observed = await read(join(rootPath, name));
+        if (observed._tag === 'Err') return observed;
+        if (observed.value?.episodeId === episodeId && observed.value.inflightAttemptId !== undefined) {
+          return err(domainError('INVALID_MEMORY', 'projection_attempt',
+            'a Graphiti attempt is already in-flight for this episode'));
+        }
+      }
+      const reserved = { ...current.value, inflightAttemptId: randomUUID() };
+      const stored = await persist(pathFor(reserved.key), reserved, 'projection_attempt',
+        'could not durably reserve graph attempt before dispatch');
+      return stored._tag === 'Err' ? stored : ok(reserved);
+    }),
     get: (key) => read(pathFor(key)),
     list: async () => {
       try {
@@ -222,7 +288,9 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
         if (found._tag === 'Err') return found;
         const receipt = found.value;
         if (receipt?.episodeId !== episodeId) continue;
-        if (archiveOnly.value || (receipt.status !== 'projected' && receipt.status !== 'tombstoned')) {
+        if (archiveOnly.value || receipt.inflightAttemptId !== undefined
+          || receipt.uncertainGraphAttempt === true
+          || (receipt.status !== 'projected' && receipt.status !== 'tombstoned')) {
           return err(domainError('INVALID_MEMORY', 'projection_deletion',
             'unsettled or contradictory graph projection intent blocks deletion'));
         }

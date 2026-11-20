@@ -36,6 +36,10 @@ export interface ProjectionReceipt {
   readonly lastErrorCode?: string;
   readonly deadLetteredAtMs?: number;
   readonly manualRepairCount?: number;
+  /** Persisted cross-process Graphiti attempt claim; crash preserves in-flight status. */
+  readonly inflightAttemptId?: string;
+  /** Provider failure may have had a side effect; never erase this without external proof. */
+  readonly uncertainGraphAttempt?: boolean;
 }
 
 export type DecisionState = 'Proposed' | 'Accepted' | 'Rejected' | 'Superseded';

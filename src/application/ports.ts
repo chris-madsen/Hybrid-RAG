@@ -217,6 +217,8 @@ export interface DecisionHistoryPort {
 export interface ProjectionOutboxPort {
   readonly begin: (episodeId: EpisodeId, extractorVersion: string) => Promise<Result<ProjectionReceipt, DomainError>>;
   readonly put: (receipt: ProjectionReceipt) => Promise<Result<void, DomainError>>;
+  /** Reserve one durable, exclusive per-episode Graphiti dispatch before sending. */
+  readonly startAttempt: (episodeId: EpisodeId, extractorVersion: string) => Promise<Result<ProjectionReceipt, DomainError>>;
   readonly get: (key: ProjectionKey) => Promise<Result<ProjectionReceipt | undefined, DomainError>>;
   readonly list: () => Promise<Result<readonly ProjectionReceipt[], DomainError>>;
   /** Optional durable proof that a newly archived episode was never projected. */
