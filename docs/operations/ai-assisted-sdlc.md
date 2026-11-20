@@ -17,7 +17,7 @@ One line in an authorization guard can be T2. Do not classify by diff size alone
 
 ## Start at the owner-requested stage (including any existing artifact)
 
-Before selecting a stage, read [universal harness-neutral stage entry/resume](implementation-entry-resume.md). **A new harness session is not a new SDLC project.** Select the current owner-requested R/S/A/P/X/I/V stage, reuse verified prior-stage artifacts and enter that stage directly. "Requirements" enters S, "architecture" enters A, "tickets" P, "phase details" X, "implement" I, "review" V, and "continue" resumes whichever stage the actual branch/PR/checkpoint confirms. Do **not** rerun Research, Requirements, Architecture or dual-plan A/B/C synthesis for already fresh outputs. If something is stale or absent, correct *only that owning stage and affected descendants*. Material T2 G02 blocks dependent implementation, not provisional planning. Full R→X is the fallback for truly new scope or an explicitly requested restart.
+Before selecting a stage, read [universal harness-neutral stage entry/resume](implementation-entry-resume.md). **A new harness session is not a new SDLC project.** Select the current owner-requested R/S/A/P/X/I/V stage, reuse verified prior-stage artifacts and enter that stage directly. "Requirements" enters S, "architecture" enters A, "tickets" P, "phase details" X, "implement" I, "review" V, and "continue" resumes whichever stage the actual branch/PR/checkpoint confirms. Do **not** rerun Research, Requirements, Architecture or dual-plan A/B/C synthesis for already fresh outputs. If something is stale or absent, correct *only that owning stage and affected descendants*. Only a **new unresolved material T2 G02 decision** blocks the affected edit. An explicit owner instruction to implement an existing canonical phase permits in-scope offline code without repeating architecture approval; real egress and final acceptance stay separately gated. Full R→X is the fallback for truly new scope or an explicitly requested restart.
 ## 0. Universal preflight
 1. Confirm repository, current branch, base and HEAD SHA.
 2. Check dirty worktree; preserve all unrelated files.
@@ -86,7 +86,7 @@ Full procedure: [design_feature.md](../research/sdlc/source/commands/design_feat
 - Map acceptance to test oracles.
 - Add events/persistence/API documents only when relevant.
 - Reuse existing OpenSpec design/ADR rather than duplicating an entire docs tree.
-- If owner decisions remain, do not continue as though approved.
+- If a **new unresolved material architecture choice** is necessary for an edit, obtain that decision before the edit; continue independent owner-directed planned offline code.
 
 **Exit:** design with testable behavior and accepted material decisions.
 
@@ -110,7 +110,7 @@ Each phase describes:
 ## 4. Implement stage
 Full procedure: [implement_backend.md](../research/sdlc/source/commands/implement_backend.md). This is a **complete detailed prompt**, not merely a 4-step mnemonic.
 
-- Read complete approved phase and current code again.
+- Read the selected current canonical phase and code; the owner's explicit implementation instruction authorizes its planned offline scope without asking to approve the same design again.
 - Obtain RED if appropriate; distinguish confirmed repro from hypothesis.
 - Implement smallest cohesive slice in TypeScript+Effect or approved boundary.
 - Run narrow relevant checks in the edit loop, normally `npm run test:affected`.

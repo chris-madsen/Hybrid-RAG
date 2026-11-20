@@ -73,11 +73,15 @@ test('T1 plan presence never implies owner approval or test execution', () => fi
   assert.equal(data.checks.find((x) => x.id === 'G00-TASK').status, 'REVIEW_REQUIRED');
 }));
 
-test('T2 implementation without G02 evidence fails closed', () => fixture((root) => {
+test('T2 owner-directed offline phase code is not blocked solely by an omitted G02 path', () => fixture((root) => {
   run('git', ['switch', '-q', '-c', 'codex/local-2'], root);
   const { code, data } = preflight(root, ['--tier', 'T2', '--stage', 'implement', '--task-id', 'local-2', '--plan', 'docs/plans/fixture-plan.md']);
-  assert.equal(code, 2);
-  assert.equal(data.checks.find((x) => x.id === 'G02').status, 'BLOCKED');
+  assert.equal(code, 0);
+  assert.equal(data.verdict, 'REVIEW_REQUIRED');
+  assert.equal(data.canonical.g02.status, 'NOT_PROVIDED');
+  assert.equal(data.checks.find((x) => x.id === 'G02').status, 'REVIEW_REQUIRED');
+  assert.match(data.checks.find((x) => x.id === 'G02').reason, /in-scope offline phase code may proceed/);
+  assert.match(data.next.join(' '), /explicit owner request/);
 }));
 
 test('existing T2 crosswalk remains REVIEW_REQUIRED, never automatic G02 PASS', () => fixture((root) => {
@@ -85,6 +89,14 @@ test('existing T2 crosswalk remains REVIEW_REQUIRED, never automatic G02 PASS', 
   const { code, data } = preflight(root, ['--tier', 'T2', '--stage', 'implement', '--task-id', 'local-2', '--plan', 'docs/plans/fixture-plan.md', '--g02', 'docs/plans/fixture-plan.md']);
   assert.equal(code, 0);
   assert.equal(data.verdict, 'REVIEW_REQUIRED');
+  assert.equal(data.checks.find((x) => x.id === 'G02').status, 'REVIEW_REQUIRED');
+}));
+
+test('T2 with missing canonical plan still blocks despite permissive offline G02 diagnostic', () => fixture((root) => {
+  run('git', ['switch', '-q', '-c', 'codex/local-2'], root);
+  const { code, data } = preflight(root, ['--tier', 'T2', '--stage', 'implement', '--task-id', 'local-2']);
+  assert.equal(code, 2);
+  assert.equal(data.checks.find((x) => x.id === 'G00-PLAN').status, 'BLOCKED');
   assert.equal(data.checks.find((x) => x.id === 'G02').status, 'REVIEW_REQUIRED');
 }));
 

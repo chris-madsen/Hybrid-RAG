@@ -18,7 +18,7 @@ Usage: node scripts/sdlc-preflight.mjs --tier T0|T1|T2 --stage research|design|p
 Options:
   --task-id <id>       Existing task identity; required before implementation
   --plan <path>        Existing canonical OpenSpec tasks or docs/plans plan
-  --g02 <path>         Existing owner-reviewed G02 crosswalk for T2 implementation
+  --g02 <path>         Optional existing G02 crosswalk (diagnostic; not a per-phase code permit)
   --root <directory>   Repo root (default: current working directory)
   --json               Print machine-readable evidence
   --help               Show help
@@ -133,10 +133,14 @@ export const inspect = (options) => {
       add('G00-PLAN', 'BLOCKED', 'Implementation requires an existing canonical --plan file');
     } else add('G00-PLAN', 'REVIEW_REQUIRED', 'Plan exists; agent must confirm requirements/owner acceptance');
     if (options.tier === 'T2') {
-      add('G02', evidence.canonical.g02.status === 'PRESENT_NOT_APPROVED' ? 'REVIEW_REQUIRED' : 'BLOCKED',
-        evidence.canonical.g02.status === 'PRESENT_NOT_APPROVED'
-          ? 'G02 evidence path exists; owner decision and semantics NOT verified'
-          : 'T2 code requires an existing --g02 crosswalk with explicit owner approval');
+      const g02PathStatus = evidence.canonical.g02.status;
+      const invalidG02Path = g02PathStatus === 'INVALID_PATH' || g02PathStatus === 'MISSING';
+      add('G02', invalidG02Path ? 'BLOCKED' : 'REVIEW_REQUIRED',
+        invalidG02Path
+          ? 'Explicit --g02 path is invalid or missing; fix the supplied path before proceeding'
+          : g02PathStatus === 'PRESENT_NOT_APPROVED'
+            ? 'Crosswalk exists; inspect specific new material architecture decisions. Owner-directed in-scope offline phase code does not require repeated G02'
+            : 'No --g02 supplied; find accepted design when available. Owner-directed in-scope offline phase code may proceed; new material architecture decisions still require explicit G02');
     }
   } else if (options.tier === 'T2') add('G02', 'REVIEW_REQUIRED', 'Complete the G02 owner/acceptance/decision/test crosswalk before code');
   else add('G02', options.tier === 'T0' ? 'N/A' : 'REVIEW_REQUIRED', options.tier === 'T0' ? 'No mandatory T2 design gate' : 'Use concise T1 invariant/RED/GREEN crosswalk');
@@ -153,6 +157,10 @@ export const inspect = (options) => {
   evidence.next.push('Read AGENTS.md, docs/operations/ai-assisted-sdlc.md and the entire stage command selected through PROMPTS-ACE.md');
   evidence.next.push('Check accepted ADR/OpenSpec, current runtime composition and active overlapping PRs; this script does not check remote PRs');
   if (options.taskId) evidence.next.push('Run npm run worktree:preflight -- --task-id <approved-task-id> --json before worktree mutation');
+  if (options.stage === 'implement' && options.tier === 'T2') {
+    evidence.next.push('Record the explicit owner request for this canonical phase; REVIEW_REQUIRED G02 is not an automatic STOP for in-scope offline code');
+    evidence.next.push('Identify any genuinely new unresolved material design decision before that edit; defer unauthorized egress, dependent integration and phase acceptance');
+  }
   evidence.next.push('Keep BUILD/ARCH/SEC/PLAN and actual provider evidence separate; a declaration is never a test PASS');
   evidence.verdict = evidence.checks.some((x) => x.status === 'BLOCKED') ? 'BLOCKED'
     : evidence.checks.some((x) => x.status === 'REVIEW_REQUIRED') ? 'REVIEW_REQUIRED'
@@ -167,7 +175,7 @@ const render = (result) => {
     ...result.checks.map((c) => `[${c.status}] ${c.id}: ${c.reason}`),
     'Next (not performed):',
     ...result.next.map((n) => `  - ${n}`),
-    'This is not permission to skip G02, four review gates, PR CI, real-provider E2E or human approval.',
+    'This is not G02 approval for new decisions, a security/egress permit, CI PASS or real-provider E2E; preserve four review gates and human release approval.',
   ];
   return lines.join('\n');
 };
