@@ -64,7 +64,7 @@ export const parseCodebaseMemoryFileOutline = (
     if (!Array.isArray(row) || typeof row[ni] !== 'string'
       || typeof row[li] !== 'string' || typeof row[ri] !== 'string'
       || typeof row[qi] !== 'string') return undefined;
-    const match = /^(\\d+)-(\\d+)$/u.exec(row[ri]);
+    const match = /^(\d+)-(\d+)$/u.exec(row[ri]);
     if (!match) continue; // Non-source graph nodes have no byte-addressable range.
     const startLine = Number(match[1]), endLine = Number(match[2]);
     if (!Number.isSafeInteger(startLine) || !Number.isSafeInteger(endLine)
