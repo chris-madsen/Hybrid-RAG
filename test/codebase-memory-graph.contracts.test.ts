@@ -101,7 +101,11 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   const graph = await Effect.runPromise(provider.queryGraph(
     'MATCH (n:Function) RETURN n.name AS name LIMIT 5'));
   assert.equal(graph._tag, 'Ok', JSON.stringify(graph));
-  const trace = await Effect.runPromise(provider.trace('makeQdrantContextProvider'));
+  const exactGraphSymbol = outline._tag === 'Ok'
+    ? outline.value.find((item) => item.name === 'makeQdrantContextProvider')?.qualifiedName
+    : undefined;
+  assert.ok(exactGraphSymbol, 'real CBM must return the declaration qualified name');
+  const trace = await Effect.runPromise(provider.trace(exactGraphSymbol!));
   assert.equal(trace._tag, 'Ok', JSON.stringify(trace));
   const impact = await Effect.runPromise(provider.detectChanges('HEAD~1'));
   assert.equal(impact._tag, 'Ok', JSON.stringify(impact));
