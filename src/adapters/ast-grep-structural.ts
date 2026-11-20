@@ -26,6 +26,9 @@ export interface AstGrepStructuralOptions {
 
 export type AstGrepProvider = 'cli' | 'napi' | 'auto';
 
+// CLI is the canonical provider. The NAPI and hybrid/auto paths remain
+// explicit operator experiments; extraction support is not corpus parity
+// evidence and cannot silently promote the alternative to production.
 export const configuredAstGrepProvider = (value: string | undefined): AstGrepProvider => {
   const provider = value?.trim() || 'cli';
   if (provider !== 'cli' && provider !== 'napi' && provider !== 'auto') {

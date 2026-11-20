@@ -511,3 +511,21 @@ test('multi-repository holdout rejects fake coverage and unbound cases', () => {
   };
   assert.equal(evaluateRetrievalStrategy(unbound, runForOne)._tag, 'Err');
 });
+
+test('AR08 frozen source-recall labels require exact digest/path and cannot silently turn into hints', () => {
+  const invalid = evaluateRetrievalStrategy({
+    ...holdout,
+    cases: holdout.cases.map((item, index) => index === 0
+      ? { ...item, relevantSourceIdentities: [{ repoPath: 'src/code.ts', sourceDigest: 'not-sha256' }] }
+      : item),
+  }, run);
+  assert.equal(invalid._tag, 'Err');
+  if (invalid._tag === 'Err') assert.equal(invalid.error.path, 'retrieval_holdout.source_identity');
+  const valid = evaluateRetrievalStrategy({
+    ...holdout,
+    cases: holdout.cases.map((item, index) => index === 0
+      ? { ...item, relevantSourceIdentities: [{ repoPath: 'src/code.ts', sourceDigest: 'a'.repeat(64) }] }
+      : item),
+  }, run);
+  assert.equal(valid._tag, 'Ok', 'validated source labels do not alter independent candidate scoring');
+});
