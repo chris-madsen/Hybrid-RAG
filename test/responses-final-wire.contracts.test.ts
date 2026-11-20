@@ -35,7 +35,9 @@ const manifest = (
   destinationSha256: digest('d'),
   ingressBodySha256: digest('e'),
   preparedBodySha256: digest('f'),
+  preparedBodySemanticSha256: digest('f'),
   finalWireBodySha256: digest('f'),
+  finalWireBodySemanticSha256: digest('f'),
   serializedRequestSha256: digest('7'),
   capturePoint: 'mock-server-after-tls-decryption',
   physicalSendAuthorized: true,
@@ -84,11 +86,20 @@ test('final-wire evidence rejects raw prompt or body fields', () => {
 });
 
 test('a body changed after ACE preparation cannot be certified as final wire', () => {
-  const evidence = manifest({ finalWireBodySha256: digest('8') });
+  const evidence = manifest({ finalWireBodySemanticSha256: digest('8') });
   const result = evaluateNativeResponsesFinalWireEvidence(evidence, mockProof(evidence));
   if (result._tag !== 'Ok') throw new Error(result.error.message);
   assert.equal(result.value.status, 'NOT_CERTIFIED');
-  assert.ok(result.value.reasonCodes.includes('FINAL_BODY_MISMATCH'));
+  assert.ok(result.value.reasonCodes.includes('FINAL_BODY_SEMANTIC_MISMATCH'));
+});
+
+test('Bifrost JSON serialization may change raw formatting but not final body semantics', () => {
+  const evidence = manifest({ finalWireBodySha256: digest('8') });
+  const result = evaluateNativeResponsesFinalWireEvidence(evidence, mockProof(evidence));
+  if (result._tag !== 'Ok') throw new Error(result.error.message);
+  assert.equal(result.value.status, 'MOCK_WIRE_VERIFIED');
+  assert.equal(result.value.preparedBodySha256, digest('f'));
+  assert.equal(result.value.finalWireBodySha256, digest('8'));
 });
 
 test('unobserved plugin order, missing guard or unsupported wire mode remains uncertified', () => {
@@ -105,7 +116,7 @@ test('unobserved plugin order, missing guard or unsupported wire mode remains un
   }
 });
 
-test('a synthetic signed provider manifest is promoted only after trusted-key verification', () => {
+test('a synthetic signed provider manifest remains a candidate without pinned signer/runtime identity', () => {
   const evidence = manifest({
     evidenceKind: 'real_provider',
     capturePoint: 'contextTransport-before-tls-write',
@@ -124,11 +135,13 @@ test('a synthetic signed provider manifest is promoted only after trusted-key ve
     payloadBase64: payloadBytes.toString('base64'),
     signatureBase64: sign(null, payloadBytes, privateKey).toString('base64'),
   };
-  const trustedPublicKey = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+  const verificationPublicKey = publicKey.export({ type: 'spki', format: 'pem' }).toString();
   const verified = verifyFinalWireEvidenceEnvelope(
-    envelope, trustedPublicKey, evaluateNativeResponsesFinalWireEvidence,
+    envelope, verificationPublicKey, evaluateNativeResponsesFinalWireEvidence,
   );
-  assert.equal(verified.receipt.status, 'REAL_PROVIDER_WIRE_VERIFIED');
+  assert.equal(verified.receipt.status, 'REAL_PROVIDER_CANDIDATE');
+  assert.ok(verified.receipt.reasonCodes.includes('SIGNER_IDENTITY_NOT_OPERATOR_PINNED'));
+  assert.ok(verified.receipt.reasonCodes.includes('CURRENT_RUNTIME_IDENTITY_NOT_BOUND'));
 });
 
 test('tampered or unsigned final-wire manifests fail closed', () => {
@@ -146,19 +159,19 @@ test('tampered or unsigned final-wire manifests fail closed', () => {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const signedBytes = Buffer.from(JSON.stringify(evidence), 'utf8');
   const signatureBase64 = sign(null, signedBytes, privateKey).toString('base64');
-  const trustedPublicKey = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+  const verificationPublicKey = publicKey.export({ type: 'spki', format: 'pem' }).toString();
   const tamperedBytes = Buffer.from(JSON.stringify({ ...evidence, pluginOrderVerified: false }), 'utf8');
 
   assert.throws(() => verifyFinalWireEvidenceEnvelope({
     schemaVersion: 1,
     payloadBase64: tamperedBytes.toString('base64'),
     signatureBase64,
-  }, trustedPublicKey, evaluateNativeResponsesFinalWireEvidence), /signature/u);
+  }, verificationPublicKey, evaluateNativeResponsesFinalWireEvidence), /signature/u);
   assert.throws(() => verifyFinalWireEvidenceEnvelope({
     schemaVersion: 1,
     payloadBase64: signedBytes.toString('base64'),
     signatureBase64: '',
-  }, trustedPublicKey, evaluateNativeResponsesFinalWireEvidence), /signature/u);
+  }, verificationPublicKey, evaluateNativeResponsesFinalWireEvidence), /signature/u);
   const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
   assert.throws(() => verifyFinalWireEvidenceEnvelope({
     schemaVersion: 1,

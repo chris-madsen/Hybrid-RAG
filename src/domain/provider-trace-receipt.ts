@@ -187,7 +187,9 @@ export interface NativeResponsesFinalWireEvidence {
   readonly destinationSha256: string;
   readonly ingressBodySha256: string;
   readonly preparedBodySha256: string;
+  readonly preparedBodySemanticSha256: string;
   readonly finalWireBodySha256: string;
+  readonly finalWireBodySemanticSha256: string;
   readonly serializedRequestSha256: string;
   readonly capturePoint: 'contextTransport-before-tls-write' | 'mock-server-after-tls-decryption';
   readonly physicalSendAuthorized: boolean;
@@ -212,11 +214,7 @@ export type NativeResponsesFinalWireProof = Readonly<{
 }>;
 
 export interface NativeResponsesFinalWireReceipt {
-  readonly status:
-  | 'MOCK_WIRE_VERIFIED'
-  | 'REAL_PROVIDER_CANDIDATE'
-  | 'REAL_PROVIDER_WIRE_VERIFIED'
-  | 'NOT_CERTIFIED';
+  readonly status: 'MOCK_WIRE_VERIFIED' | 'REAL_PROVIDER_CANDIDATE' | 'NOT_CERTIFIED';
   readonly requestId: string;
   readonly attemptId: string;
   readonly sourceCommit: string;
@@ -231,7 +229,9 @@ export interface NativeResponsesFinalWireReceipt {
   readonly destinationSha256: string;
   readonly ingressBodySha256: string;
   readonly preparedBodySha256: string;
+  readonly preparedBodySemanticSha256: string;
   readonly finalWireBodySha256: string;
+  readonly finalWireBodySemanticSha256: string;
   readonly serializedRequestSha256: string;
   readonly providerAcknowledgement: Readonly<{
     kind: 'mock' | 'real_provider';
@@ -247,7 +247,8 @@ const finalWireFields = new Set([
   'schemaVersion', 'evidenceKind', 'sourceCommit', 'bifrostCommit', 'aceRuntimeSha256',
   'bifrostPluginSha256', 'pluginOrderSha256', 'requestId', 'attemptId', 'protocol', 'provider',
   'model', 'dataClass', 'destinationSha256', 'ingressBodySha256',
-  'preparedBodySha256', 'finalWireBodySha256', 'serializedRequestSha256', 'capturePoint',
+  'preparedBodySha256', 'preparedBodySemanticSha256', 'finalWireBodySha256',
+  'finalWireBodySemanticSha256', 'serializedRequestSha256', 'capturePoint',
   'physicalSendAuthorized', 'pluginOrderVerified', 'storeFalseVerified', 'nonStreamingVerified',
   'protectedItemsVerified', 'providerAcknowledgement',
 ]);
@@ -279,7 +280,8 @@ export const evaluateNativeResponsesFinalWireEvidence = (
     || !sha256Hex(input.aceRuntimeSha256) || !sha256Hex(input.bifrostPluginSha256)
     || !sha256Hex(input.pluginOrderSha256) || !sha256Hex(input.destinationSha256)
     || !sha256Hex(input.ingressBodySha256) || !sha256Hex(input.preparedBodySha256)
-    || !sha256Hex(input.finalWireBodySha256) || !sha256Hex(input.serializedRequestSha256)) {
+    || !sha256Hex(input.preparedBodySemanticSha256) || !sha256Hex(input.finalWireBodySha256)
+    || !sha256Hex(input.finalWireBodySemanticSha256) || !sha256Hex(input.serializedRequestSha256)) {
     return finalWireRejected('final_wire.digest', 'final-wire evidence requires pinned commits and SHA-256 digests');
   }
   if (typeof input.requestId !== 'string' || !/^ace-[a-f0-9]{32}$/u.test(input.requestId)
@@ -327,7 +329,9 @@ export const evaluateNativeResponsesFinalWireEvidence = (
   if (input.evidenceKind === 'real_provider' && input.provider.toLowerCase() === 'mock') {
     reasons.push('MOCK_PROVIDER_CANNOT_BE_REAL');
   }
-  if (input.preparedBodySha256 !== input.finalWireBodySha256) reasons.push('FINAL_BODY_MISMATCH');
+  if (input.preparedBodySemanticSha256 !== input.finalWireBodySemanticSha256) {
+    reasons.push('FINAL_BODY_SEMANTIC_MISMATCH');
+  }
   if (acknowledgement.requestId !== input.requestId || acknowledgement.attemptId !== input.attemptId) {
     reasons.push('ATTEMPT_ACK_MISMATCH');
   }
@@ -367,7 +371,9 @@ export const evaluateNativeResponsesFinalWireEvidence = (
     destinationSha256: input.destinationSha256,
     ingressBodySha256: input.ingressBodySha256,
     preparedBodySha256: input.preparedBodySha256,
+    preparedBodySemanticSha256: input.preparedBodySemanticSha256,
     finalWireBodySha256: input.finalWireBodySha256,
+    finalWireBodySemanticSha256: input.finalWireBodySemanticSha256,
     serializedRequestSha256: input.serializedRequestSha256,
     providerAcknowledgement: {
       kind: acknowledgement.kind,

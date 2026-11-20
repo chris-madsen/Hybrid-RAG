@@ -3,13 +3,11 @@ import type {
   NativeResponsesFinalWireReceipt,
 } from '../src/domain/provider-trace-receipt.js';
 
-export type VerifiedFinalWireReceipt = Omit<NativeResponsesFinalWireReceipt, 'status'> & Readonly<{
-  status: NativeResponsesFinalWireReceipt['status'] | 'REAL_PROVIDER_WIRE_VERIFIED';
-}>;
+export type VerifiedFinalWireReceipt = NativeResponsesFinalWireReceipt;
 
 export declare function verifyFinalWireEvidenceEnvelope(
   raw: unknown,
-  trustedPublicKeyPem: string,
+  verificationPublicKeyPem: string,
   evaluateEvidence: (
     payload: unknown,
     proof: NativeResponsesFinalWireProof,

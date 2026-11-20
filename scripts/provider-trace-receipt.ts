@@ -25,8 +25,8 @@ if (bundleArg === undefined || traceArg === undefined || outputArg === undefined
 }
 if (evidenceArgs.length !== 0 && (evidenceArgs.length !== 4
   || evidenceArgs[0] !== '--final-wire'
-  || evidenceArgs[2] !== '--trusted-public-key')) {
-  throw new Error('Optional final-wire arguments must be --final-wire <manifest.json> --trusted-public-key <public-key.pem>');
+  || evidenceArgs[2] !== '--verification-public-key')) {
+  throw new Error('Optional final-wire arguments must be --final-wire <manifest.json> --verification-public-key <public-key.pem>');
 }
 
 const bundlePath = containedPath(bundleArg);
@@ -74,9 +74,9 @@ let finalWireEvidence:
   | undefined;
 if (evidenceArgs.length === 4) {
   const manifestPath = containedPath(evidenceArgs[1] as string);
-  const trustedPublicKeyPath = resolve(evidenceArgs[3] as string);
-  const [manifestBytes, trustedPublicKeyBytes] = await Promise.all([
-    readFile(manifestPath), readFile(trustedPublicKeyPath),
+  const verificationPublicKeyPath = resolve(evidenceArgs[3] as string);
+  const [manifestBytes, verificationPublicKeyBytes] = await Promise.all([
+    readFile(manifestPath), readFile(verificationPublicKeyPath),
   ]);
   let envelope: unknown;
   try {
@@ -86,7 +86,7 @@ if (evidenceArgs.length === 4) {
   }
   const verified = verifyFinalWireEvidenceEnvelope(
     envelope,
-    trustedPublicKeyBytes.toString('utf8'),
+    verificationPublicKeyBytes.toString('utf8'),
     evaluateNativeResponsesFinalWireEvidence,
   );
   const finalWireReceipt = bindNativeResponsesFinalWireReceiptToContext(
@@ -130,8 +130,4 @@ process.stdout.write(JSON.stringify({
 if (process.env.ACE_REQUIRE_TRACE_RECEIPT_COMPLETE === 'true'
   && receipt.value.receipt !== 'provider-trace-complete') {
   process.exitCode = 2;
-}
-if (process.env.ACE_REQUIRE_FINAL_WIRE_VERIFIED === 'true'
-  && finalWireEvidence?.receipt.status !== 'REAL_PROVIDER_WIRE_VERIFIED') {
-  process.exitCode = 3;
 }

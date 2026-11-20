@@ -7,15 +7,15 @@ const canonicalBase64 = (value) => typeof value === 'string'
   && /^[A-Za-z0-9+/]+={0,2}$/u.test(value)
   && Buffer.from(value, 'base64').toString('base64') === value;
 
-// The trusted public key is supplied out of band; the manifest cannot choose its verifier.
-export const verifyFinalWireEvidenceEnvelope = (raw, trustedPublicKeyPem, evaluateEvidence) => {
+// The verification key is supplied separately; signature integrity alone is not provider trust.
+export const verifyFinalWireEvidenceEnvelope = (raw, verificationPublicKeyPem, evaluateEvidence) => {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)
     || Object.keys(raw).some((key) => !finalWireEnvelopeFields.has(key))
     || raw.schemaVersion !== 1
     || !canonicalBase64(raw.payloadBase64)
-    || typeof trustedPublicKeyPem !== 'string'
-    || !trustedPublicKeyPem.includes('-----BEGIN PUBLIC KEY-----')
-    || trustedPublicKeyPem.includes('PRIVATE KEY')
+    || typeof verificationPublicKeyPem !== 'string'
+    || !verificationPublicKeyPem.includes('-----BEGIN PUBLIC KEY-----')
+    || verificationPublicKeyPem.includes('PRIVATE KEY')
     || typeof evaluateEvidence !== 'function') {
     throw new Error('final-wire evidence envelope is invalid');
   }
@@ -29,9 +29,9 @@ export const verifyFinalWireEvidenceEnvelope = (raw, trustedPublicKeyPem, evalua
   }
   let publicKey;
   try {
-    publicKey = createPublicKey(trustedPublicKeyPem);
+    publicKey = createPublicKey(verificationPublicKeyPem);
   } catch {
-    throw new Error('final-wire trusted public key is invalid');
+    throw new Error('final-wire verification public key is invalid');
   }
   if (publicKey.asymmetricKeyType !== 'ed25519' || !verifySignature(null, payloadBytes, publicKey, signature)) {
     throw new Error('final-wire evidence signature verification failed');
@@ -65,7 +65,14 @@ export const verifyFinalWireEvidenceEnvelope = (raw, trustedPublicKeyPem, evalua
   }
   const receipt = evaluated.value.status === 'REAL_PROVIDER_CANDIDATE'
     && proof.kind === 'signed-provider-capture'
-    ? { ...evaluated.value, status: 'REAL_PROVIDER_WIRE_VERIFIED' }
+    ? {
+      ...evaluated.value,
+      reasonCodes: [...new Set([
+        ...evaluated.value.reasonCodes,
+        'SIGNER_IDENTITY_NOT_OPERATOR_PINNED',
+        'CURRENT_RUNTIME_IDENTITY_NOT_BOUND',
+      ])],
+    }
     : evaluated.value;
   return { payload, proof, receipt };
 };
