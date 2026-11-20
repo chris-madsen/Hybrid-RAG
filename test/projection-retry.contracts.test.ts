@@ -121,3 +121,14 @@ test('explicit non-materialization dead letter is terminal until manual repair',
   assert.equal(dead.value.deadLetteredAtMs, 500);
   assert.equal(projectionRetryDue(dead.value, 1_000), false);
 });
+
+test('AR05 manual repair cannot clear a crash-persisted in-flight graph attempt', () => {
+  const claimed: ProjectionReceipt = {
+    ...receipt(),
+    status: 'incomplete',
+    inflightAttemptId: 'durable-attempt-before-crash',
+  };
+  const reset = repairProjection(claimed);
+  assert.equal(reset._tag, 'Err');
+  if (reset._tag === 'Err') assert.equal(reset.error.code, 'INVALID_MEMORY');
+});

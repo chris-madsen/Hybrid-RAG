@@ -274,6 +274,10 @@ export const deadLetterProjection = (
 export const repairProjection = (
   receipt: ProjectionReceipt,
 ): Result<ProjectionReceipt, DomainError> => {
+  if (receipt.inflightAttemptId !== undefined) {
+    return err(domainError('INVALID_MEMORY', 'projection_repair',
+      'cannot reset a graph attempt that may still complete after a process crash'));
+  }
   if (receipt.status !== 'dead_letter' && receipt.status !== 'incomplete') {
     return err(domainError('INVALID_MEMORY', 'projection_repair', 'only failed projection receipts may be manually repaired'));
   }
