@@ -142,9 +142,9 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
     // pending intent to tombstoned, then trick beginDeletion into treating
     // the fabricated receipt as positive evidence of completed projection.
     if (receipt.status === 'tombstoned') {
-      const deletion = await readDeletion(receipt.episodeId);
-      if (deletion._tag === 'Err') return deletion;
-      if (deletion.value !== 'tombstoned') {
+      const finalizedFence = await readDeletion(receipt.episodeId);
+      if (finalizedFence._tag === 'Err') return finalizedFence;
+      if (finalizedFence.value !== 'tombstoned') {
         return err(domainError('INVALID_MEMORY', 'projection_outbox',
           'graph receipt tombstone requires completed durable archive deletion'));
       }
