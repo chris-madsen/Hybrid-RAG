@@ -116,6 +116,30 @@ test('native policy/Effect produces additive context without mutating function/r
   if (receipt._tag === 'Ok') assert.equal(receipt.value.projectedBodySha256, response.value.projectedBodySha256);
 });
 
+test('AR02 Native Responses blocks a ready transform that includes unrequested RepoMap evidence', async () => {
+  const context: ContextTransformService = {
+    transform: () => Effect.succeed(ok({
+      ...example,
+      evidence: [{
+        evidenceId: 'unverified-map' as never,
+        source: 'structural',
+        citation: 'repo-map:stale',
+        content: 'SENSITIVE_STALE_MAP_TEXT',
+        proofClass: 'derived',
+        freshness: 'unknown',
+      }],
+    })),
+  };
+  const response = await Effect.runPromise(make({ context }).projectResponses(req()));
+  assert.equal(response._tag, 'Ok');
+  if (response._tag === 'Ok') {
+    assert.equal(response.value.kind, 'BLOCK');
+    if (response.value.kind === 'BLOCK') {
+      assert.equal(response.value.reasonCode, 'UNREQUESTED_SOURCE_EVIDENCE');
+    }
+  }
+});
+
 test('physical-send authorization binds each attempt, consumes IDs once, and fails closed after restart', async () => {
   const requestId = 'ace-' + 'a'.repeat(32);
   const projectionRequest = req({ requestId, attemptGroupId: requestId }, { ...native, stream: false });
