@@ -53,7 +53,81 @@ const error = (statusCode: number, code: string, message: string): GatewayProjec
   body: { error: { code, message } },
 });
 
-export const handleGatewayProjectionHttp = async (
+type GatewayRouteId = 'health' | 'capabilities' | 'record-delivery' | 'project' | 'authorize-attempt' | 'not-found' | 'method-not-allowed';
+
+const gatewayRouteId = (method: string, path: string): GatewayRouteId => {
+  switch (`${method} ${path}`) {
+    case 'GET /internal/ace-gateway/v2/health': return 'health';
+    case 'GET /internal/ace-gateway/v2/capabilities': return 'capabilities';
+    case 'POST /internal/ace-gateway/v2/record-delivery': return 'record-delivery';
+    case 'POST /internal/ace-gateway/v2/project': return 'project';
+    case 'POST /internal/ace-gateway/v2/authorize-attempt': return 'authorize-attempt';
+    default: return method === 'POST' ? 'not-found' : 'method-not-allowed';
+  }
+};
+
+const healthRoute = async (): Promise<GatewayProjectionHttpResponse> => {
+  const wire: GeneratedGatewayHealth = {
+    schemaVersion, liveness: 'ready', readiness: 'adapter_implemented', providerWire: 'not_certified',
+  };
+  return json(wire as unknown as Readonly<Record<string, unknown>>);
+};
+
+const capabilitiesRoute = async (maxBodyBytes: number): Promise<GatewayProjectionHttpResponse> => {
+  const wire: GeneratedGatewayCapabilities = {
+    schemaVersion,
+    // No provider generation route is advertised until final-wire certification.
+    routes: [],
+    maxBodyBytes,
+    projectionModes: ['gateway'],
+    providerWireCertification: 'not_certified',
+  };
+  return json(wire as unknown as Readonly<Record<string, unknown>>);
+};
+
+const recordDeliveryRoute = async (): Promise<GatewayProjectionHttpResponse> => {
+  const unavailable: GeneratedDeliveryNotCertified = {
+    error: { code: 'PROVIDER_WIRE_NOT_CERTIFIED', message: 'delivery recording requires a verified final-send integration' },
+  };
+  return error(501, unavailable.error.code, unavailable.error.message);
+};
+
+const projectRoute = async (
+  service: GatewayProjectionHttpService,
+  body: string,
+  signal?: AbortSignal,
+): Promise<GatewayProjectionHttpResponse> => {
+  if (!service.projectResponses) return error(503, 'RESPONSES_NOT_READY', 'native Responses projector is not configured');
+  let payload: unknown;
+  try { payload = JSON.parse(body) as unknown; } catch {
+    return error(400, 'INVALID_JSON', 'native Responses request must be JSON');
+  }
+  const response = await Effect.runPromise(service.projectResponses(payload), { signal });
+  if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
+  // A policy denial is a typed projection decision, not an out-of-schema
+  // error. The Go connector must still refuse BLOCK and never dispatch.
+  return json(response.value);
+};
+
+const authorizeAttemptRoute = async (
+  service: GatewayProjectionHttpService,
+  body: string,
+  signal?: AbortSignal,
+): Promise<GatewayProjectionHttpResponse> => {
+  if (!service.authorizePhysicalSend) return error(503, 'ATTEMPT_AUTHORIZATION_NOT_READY', 'physical-send authorization is not configured');
+  let payload: unknown;
+  try { payload = JSON.parse(body) as unknown; } catch {
+    return error(400, 'INVALID_JSON', 'physical-send authorization must be JSON');
+  }
+  const response = await Effect.runPromise(service.authorizePhysicalSend(payload), { signal });
+  if (response._tag === 'Err') {
+    const status = response.error.code === 'INVALID_INPUT' ? 400 : 503;
+    return error(status, response.error.code, response.error.message);
+  }
+  return json(response.value);
+};
+
+export const handleGatewayProjectionHttp = (
   service: GatewayProjectionHttpService,
   method: string,
   path: string,
@@ -61,58 +135,15 @@ export const handleGatewayProjectionHttp = async (
   maxBodyBytes = defaultMaxBodyBytes,
   signal?: AbortSignal,
 ): Promise<GatewayProjectionHttpResponse> => {
-  if (method === 'GET' && path === '/internal/ace-gateway/v2/health') {
-    const wire: GeneratedGatewayHealth = {
-      schemaVersion, liveness: 'ready', readiness: 'adapter_implemented', providerWire: 'not_certified',
-    };
-    return json(wire as unknown as Readonly<Record<string, unknown>>);
+  switch (gatewayRouteId(method, path)) {
+    case 'health': return healthRoute();
+    case 'capabilities': return capabilitiesRoute(maxBodyBytes);
+    case 'record-delivery': return recordDeliveryRoute();
+    case 'project': return projectRoute(service, body, signal);
+    case 'authorize-attempt': return authorizeAttemptRoute(service, body, signal);
+    case 'method-not-allowed': return Promise.resolve(error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method'));
+    case 'not-found': return Promise.resolve(error(404, 'NOT_FOUND', 'unknown Gateway v2 endpoint'));
   }
-  if (method === 'GET' && path === '/internal/ace-gateway/v2/capabilities') {
-    const wire: GeneratedGatewayCapabilities = {
-      schemaVersion,
-      // No provider generation route is advertised until final-wire certification.
-      routes: [],
-      maxBodyBytes,
-      projectionModes: ['gateway'],
-      providerWireCertification: 'not_certified',
-    };
-    return json(wire as unknown as Readonly<Record<string, unknown>>);
-  }
-  if (method !== 'POST') return error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method');
-  if (path === '/internal/ace-gateway/v2/record-delivery') {
-    const unavailable: GeneratedDeliveryNotCertified = {
-      error: { code: 'PROVIDER_WIRE_NOT_CERTIFIED', message: 'delivery recording requires a verified final-send integration' },
-    };
-    return error(501, unavailable.error.code, unavailable.error.message);
-  }
-  if (path === '/internal/ace-gateway/v2/project') {
-    if (!service.projectResponses) return error(503, 'RESPONSES_NOT_READY', 'native Responses projector is not configured');
-    let payload: unknown;
-    try { payload = JSON.parse(body) as unknown; } catch {
-      return error(400, 'INVALID_JSON', 'native Responses request must be JSON');
-    }
-    const response = await Effect.runPromise(service.projectResponses(payload), { signal });
-    if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
-    // A policy denial is a typed projection decision, not an out-of-schema
-    // error. The Go connector must still refuse BLOCK and never dispatch.
-    if (response.value.kind === 'BLOCK') return json(response.value);
-    // Internal context transformation only. This result is not a provider-send permit.
-    return json(response.value);
-  }
-  if (path === '/internal/ace-gateway/v2/authorize-attempt') {
-    if (!service.authorizePhysicalSend) return error(503, 'ATTEMPT_AUTHORIZATION_NOT_READY', 'physical-send authorization is not configured');
-    let payload: unknown;
-    try { payload = JSON.parse(body) as unknown; } catch {
-      return error(400, 'INVALID_JSON', 'physical-send authorization must be JSON');
-    }
-    const response = await Effect.runPromise(service.authorizePhysicalSend(payload));
-    if (response._tag === 'Err') {
-      const status = response.error.code === 'INVALID_INPUT' ? 400 : 503;
-      return error(status, response.error.code, response.error.message);
-    }
-    return json(response.value);
-  }
-  return error(404, 'NOT_FOUND', 'unknown Gateway v2 endpoint');
 };
 
 const writeResponse = (response: ServerResponse, result: GatewayProjectionHttpResponse): void => {

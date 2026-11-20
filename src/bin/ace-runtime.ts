@@ -53,7 +53,7 @@ import {
 import { makeVertexRagRetrievalPort } from '../adapters/vertex-rag.js';
 import { makeFileWorkspaceStore } from '../adapters/file-workspace-store.js';
 import type { WorkspaceFilePort } from '../application/ports.js';
-import { defaultLocalPolicy } from '../domain/policy.js';
+import { defaultLocalPolicy, type DataClass } from '../domain/policy.js';
 import { makeWorkspaceId, type RepoPath, type WorkspaceId } from '../domain/workspace.js';
 import { isSensitiveSourcePath } from '../domain/sensitive-path.js';
 import { structuralLanguageForPath } from '../domain/structural-language.js';
@@ -112,6 +112,31 @@ const configuredStringArray = (name: string, fallback: readonly string[]): reado
     throw new Error(`${name} must be a JSON array of strings`);
   }
   return parsed;
+};
+
+const configuredStringArrayMap = (name: string): Readonly<Record<string, readonly string[]>> => {
+  const raw = process.env[name]?.trim();
+  if (raw === undefined || raw.length === 0) return Object.freeze(Object.create(null) as Record<string, readonly string[]>);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (cause) {
+    throw new Error(`${name} must be a JSON object mapping providers to model arrays`, { cause });
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${name} must be a JSON object mapping providers to model arrays`);
+  }
+  const result = Object.create(null) as Record<string, readonly string[]>;
+  for (const [rawProvider, rawModels] of Object.entries(parsed)) {
+    const provider = rawProvider.trim().toLowerCase();
+    if (!provider || Object.prototype.hasOwnProperty.call(result, provider)
+      || !Array.isArray(rawModels)
+      || !rawModels.every((model) => typeof model === 'string' && model.trim().length > 0)) {
+      throw new Error(`${name} must map unique provider names to non-empty model ID arrays`);
+    }
+    result[provider] = Object.freeze(rawModels.map((model: string) => model.trim()));
+  }
+  return Object.freeze(result);
 };
 
 const configuredLanguageIds = (name: string): Readonly<Record<string, string>> | undefined => {
@@ -1097,13 +1122,23 @@ const main = async (): Promise<void> => {
   const gatewayAllowedLlmDestinations = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON', [])
     .map((destination) => destination.trim())
     .filter((destination) => destination.length > 0);
+  const gatewayAllowedLlmModelsByProvider = configuredStringArrayMap('ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON');
+  const configuredGatewayDataClasses = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON', [])
+    .map((dataClass) => dataClass.trim());
+  const allowedGatewayDataClasses = new Set<Exclude<DataClass, 'secret'>>([
+    'private_source', 'private_conversation', 'project_document', 'public',
+  ]);
+  if (configuredGatewayDataClasses.some((dataClass) => !allowedGatewayDataClasses.has(dataClass as Exclude<DataClass, 'secret'>))) {
+    throw new Error('ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON contains an unsupported or secret data class');
+  }
+  const gatewayAllowedLlmDataClasses = [...new Set(configuredGatewayDataClasses)] as Exclude<DataClass, 'secret'>[];
   const gatewayExternalLlmOptIn = process.env.ACE_GATEWAY_EXTERNAL_LLM_OPT_IN === 'true';
   const gatewayPolicy = {
     ...defaultLocalPolicy(registered.value.workspaceId),
     cloudOptIn: gatewayExternalLlmOptIn,
     allowedCloudProviders: gatewayExternalLlmOptIn ? ['other_external'] as const : [],
     allowedCloudDataClassesByProvider: gatewayExternalLlmOptIn
-      ? { other_external: ['private_source', 'project_document', 'public'] as const }
+      ? { other_external: gatewayAllowedLlmDataClasses }
       : {},
   };
 
@@ -1138,6 +1173,7 @@ const main = async (): Promise<void> => {
   const gatewaySecurity = {
     policy: gatewayPolicy,
     allowedProviders: gatewayAllowedLlmProviders,
+    allowedModelsByProvider: gatewayAllowedLlmModelsByProvider,
     allowedDestinations: gatewayAllowedLlmDestinations,
     // Projection receipts are intentionally process-scoped. After a restart,
     // any in-flight Bifröst attempt fails closed and must prepare again.

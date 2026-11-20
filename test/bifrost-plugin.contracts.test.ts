@@ -7,6 +7,8 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   const plugin = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
   const workflow = await readFile('.github/workflows/ace-contracts.yml', 'utf8');
   assert.match(script, /BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1/u);
+  assert.match(script, /OUTPUT:=\$temp_root\/ace-gateway-projection\.so/u);
+  assert.match(script, /mktemp -d "\$temp_root\/ace-bifrost-plugin\./u);
   assert.match(script, /status --porcelain --untracked-files=all/u);
   assert.match(script, /Bifrost source checkout must be clean/u);
   assert.match(script, /go 1\.27\.4/u);
@@ -14,6 +16,8 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(script, /main_test\.go/u);
   assert.match(workflow, /BIFROST_SOURCE_ROOT:\s+\$\{\{\s*runner\.temp\s*\}\}\/bifrost-src/u);
   assert.match(workflow, /git -C "\$source_root" fetch --no-tags --depth=1 origin "\$BIFROST_COMMIT"/u);
+  assert.match(workflow, /scripts\/build-bifrost-ace-plugin\.sh\|\.github\/workflows\/ace-contracts\.yml/u);
+  assert.match(workflow, /node=true; go=true/u);
   assert.match(script, /test -tags=bifrost_plugin -count=1/u);
   assert.match(script, /-buildmode=plugin/u);
   assert.match(script, /-X main\.aceSourceCommit=\$ace_commit/u);

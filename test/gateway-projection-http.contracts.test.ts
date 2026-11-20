@@ -82,6 +82,10 @@ test('native Responses projection returns a typed denial until dispatch is certi
   const missing = await handleGatewayProjectionHttp(service, 'POST', '/unknown', '{}');
   assert.equal(missing.statusCode, 404);
   assert.equal(projectCalls, 1, 'unknown endpoints must not invoke the projection service');
+  const unsupportedMethod = await handleGatewayProjectionHttp(
+    service, 'GET', '/internal/ace-gateway/v2/project', '{}',
+  );
+  assert.equal(unsupportedMethod.statusCode, 405);
 });
 
 test('gateway HTTP does not accept unverified final-delivery claims', async () => {

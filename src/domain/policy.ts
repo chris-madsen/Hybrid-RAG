@@ -45,7 +45,7 @@ export interface SafePhysicalSendAuditDetails {
   readonly model: string;
   readonly method: string;
   readonly destinationSha256: string;
-  readonly dataClass: string;
+  readonly dataClasses: readonly Exclude<DataClass, 'secret'>[];
   readonly bodySha256: string;
   readonly preparedBodySha256: string;
   readonly projectionReceiptSha256: string;

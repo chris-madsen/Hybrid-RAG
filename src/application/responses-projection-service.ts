@@ -44,6 +44,19 @@ const permitProjection = (
       if (denied._tag === 'Err') return denied;
       return ok({ allowed: false, reasonCode: 'POLICY_DENIED' });
     }
+    const modelProvider = req.provider.toLowerCase();
+    const allowedModels = Object.prototype.hasOwnProperty.call(security.allowedModelsByProvider, modelProvider)
+      ? security.allowedModelsByProvider[modelProvider] ?? []
+      : [];
+    if (!allowedModels.includes(req.model)) {
+      const denied = yield* security.audit.append({
+        occurredAtMs: security.clock.nowMs(), correlationId: req.requestId,
+        component: 'gateway-responses-projection', category: 'policy',
+        policyVersion: security.policy.policyVersion, outcome: 'denied', reasonCode: 'MODEL_NOT_ALLOWED',
+      });
+      if (denied._tag === 'Err') return denied;
+      return ok({ allowed: false, reasonCode: 'MODEL_NOT_ALLOWED' });
+    }
     const authorized = yield* authorizeAndAudit(security.policy, {
       workspaceId: workspace.value, operation: 'gateway_llm_projection',
       destination: 'other_external', dataClasses: classify(req),

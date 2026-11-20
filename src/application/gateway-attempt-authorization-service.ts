@@ -5,7 +5,7 @@ import type {
   PhysicalSendAttemptRequest as GeneratedPhysicalSendAttemptRequest,
 } from '../generated/ace-gateway/v2/types.gen.js';
 import type { DomainError } from '../domain/errors.js';
-import type { SafePhysicalSendAuditDetails } from '../domain/policy.js';
+import type { DataClass, SafePhysicalSendAuditDetails } from '../domain/policy.js';
 import { containsLikelySecret } from '../domain/sensitive-text.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
 import { authorizeAndAudit } from './policy-service.js';
@@ -52,15 +52,20 @@ const attemptAuditDetails = (
   model: request.model,
   method: request.method,
   destinationSha256: createHash('sha256').update(request.destination, 'utf8').digest('hex'),
-  dataClass: request.dataClass,
+  dataClasses: dataClassesFor(request.dataClass),
   bodySha256: request.bodySha256,
   preparedBodySha256: request.preparedBodySha256,
   projectionReceiptSha256: createHash('sha256').update(request.projectionReceipt, 'utf8').digest('hex'),
 });
 
-const dataClassesFor = (dataClass: GeneratedPhysicalSendAttemptRequest['dataClass']) => {
-  const sourceClass = dataClass === 'private' ? 'private_source' : dataClass;
-  return sourceClass === 'private_source' ? ['private_source'] as const : [sourceClass, 'private_source'] as const;
+const dataClassesFor = (
+  dataClass: GeneratedPhysicalSendAttemptRequest['dataClass'],
+): readonly Exclude<DataClass, 'secret'>[] => {
+  // The provider body carries both the agent's private conversation and ACE source context.
+  const sourceClass: Exclude<DataClass, 'secret'> = dataClass === 'private' ? 'private_source' : dataClass;
+  return sourceClass === 'private_source'
+    ? [sourceClass, 'private_conversation']
+    : [sourceClass, 'private_source', 'private_conversation'];
 };
 
 const makeSingleUseAttemptRegistry = (): ((attemptId: string, expiresAtMs: number, nowMs: number) => boolean) => {
@@ -109,6 +114,11 @@ export const makeGatewayAttemptAuthorizationService = (
       if (!security.allowedProviders.some((provider) => provider.toLowerCase() === request.provider.toLowerCase())) {
         return yield* sendBlock(request, 'PROVIDER_NOT_ALLOWED', security);
       }
+      const modelProvider = request.provider.toLowerCase();
+      const allowedModels = Object.prototype.hasOwnProperty.call(security.allowedModelsByProvider, modelProvider)
+        ? security.allowedModelsByProvider[modelProvider] ?? []
+        : [];
+      if (!allowedModels.includes(request.model)) return yield* sendBlock(request, 'MODEL_NOT_ALLOWED', security);
       if (!security.allowedDestinations.includes(request.destination)) {
         return yield* sendBlock(request, 'DESTINATION_NOT_ALLOWED', security);
       }

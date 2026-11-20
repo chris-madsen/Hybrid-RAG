@@ -69,6 +69,7 @@ interface MakeOptions {
   readonly result?: Partial<AceTransformResult>;
   readonly deny?: boolean;
   readonly allowedProviders?: readonly string[];
+  readonly allowedModelsByProvider?: Readonly<Record<string, readonly string[]>>;
   readonly allowedDataClasses?: readonly Exclude<DataClass, 'secret'>[];
   readonly allowedDestinations?: readonly string[];
   readonly context?: ContextTransformService;
@@ -85,6 +86,7 @@ const makeSecurity = (options: MakeOptions = {}): GatewayProjectionSecurity => {
   return {
     policy,
     allowedProviders: options.allowedProviders ?? ['openai'],
+    allowedModelsByProvider: options.allowedModelsByProvider ?? { openai: [native.model] },
     allowedDestinations: options.allowedDestinations ?? ['https://api.openai.com/v1/responses'],
     receiptSigningKey: 'test-projection-receipt-secret',
     clock: { nowMs: () => Date.now() },
@@ -119,6 +121,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   const projectionRequest = req({ requestId, attemptGroupId: requestId }, { ...native, stream: false });
   const auditRecords: SafeAuditRecord[] = [];
   const security = makeSecurity({
+    allowedDataClasses: ['private_source', 'private_conversation'],
     audit: { append: (record) => {
       auditRecords.push(record);
       return Effect.succeed(ok(undefined));
@@ -153,8 +156,34 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   assert.equal(allowedAudit?.physicalSend?.bodySha256, projection.value.projectedBodySha256);
   assert.equal(allowedAudit?.physicalSend?.preparedBodySha256, projection.value.projectedBodySha256);
   assert.equal(allowedAudit?.physicalSend?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
+  assert.deepEqual(allowedAudit?.physicalSend?.dataClasses, ['private_source', 'private_conversation']);
   assert.equal(allowedAudit?.physicalSend?.destinationSha256, hash('https://api.openai.com/v1/responses'));
   assert.equal(JSON.stringify(allowedAudit).includes('https://api.openai.com/v1/responses'), false);
+
+  const sourceOnlySecurity: GatewayProjectionSecurity = {
+    ...security,
+    policy: {
+      ...security.policy,
+      allowedCloudDataClassesByProvider: { other_external: ['private_source'] },
+    },
+  };
+  const sourceOnly = await Effect.runPromise(makeGatewayAttemptAuthorizationService(sourceOnlySecurity)
+    .authorizePhysicalSend(attempt('bf-attempt-' + '4'.repeat(32))));
+  assert.equal(sourceOnly._tag, 'Ok');
+  if (sourceOnly._tag === 'Err') return;
+  assert.equal(sourceOnly.value.kind, 'BLOCK');
+  if (sourceOnly.value.kind === 'BLOCK') assert.equal(sourceOnly.value.reasonCode, 'DATA_CLASS_DENIED');
+
+  const restrictedModelSecurity: GatewayProjectionSecurity = {
+    ...security,
+    allowedModelsByProvider: { openai: ['openai/another-model'] },
+  };
+  const restrictedModel = await Effect.runPromise(makeGatewayAttemptAuthorizationService(restrictedModelSecurity)
+    .authorizePhysicalSend(attempt('bf-attempt-' + '5'.repeat(32))));
+  assert.equal(restrictedModel._tag, 'Ok');
+  if (restrictedModel._tag === 'Err') return;
+  assert.equal(restrictedModel.value.kind, 'BLOCK');
+  if (restrictedModel.value.kind === 'BLOCK') assert.equal(restrictedModel.value.reasonCode, 'MODEL_NOT_ALLOWED');
 
   const replay = await Effect.runPromise(authorization.authorizePhysicalSend(
     attempt('bf-attempt-' + 'b'.repeat(32)),
@@ -316,6 +345,7 @@ test('provider allowlist, cloud opt-in, and private-source policy deny before re
   } };
   for (const service of [
     make({ context, allowedProviders: ['another-provider'] }),
+    make({ context, allowedModelsByProvider: { openai: ['openai/another-model'] } }),
     make({ context, deny: true }),
     make({ context, allowedDataClasses: ['public'] }),
   ]) {
