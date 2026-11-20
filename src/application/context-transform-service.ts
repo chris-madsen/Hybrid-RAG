@@ -158,9 +158,10 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
     // allowed to turn a legacy optional map into a successful model request.
     const returnedPlan = searched.value.sourcePlan;
     if (returnedPlan !== undefined
-      && (returnedPlan.code.requirement !== 'required'
-        || !returnedPlan.code.allowed
-        || returnedPlan.structural.requirement !== 'not_requested')) {
+      && (Object.keys(returnedPlan).length !== Object.keys(sourcePlan.value).length
+        || (Object.keys(sourcePlan.value) as Array<keyof typeof sourcePlan.value>).some((source) =>
+          returnedPlan[source]?.requirement !== sourcePlan.value[source]?.requirement
+          || returnedPlan[source]?.allowed !== sourcePlan.value[source]?.allowed))) {
       return err(domainError('NOT_READY', 'source_plan', 'retrieval provider ignored the code-only source plan'));
     }
     // Defense in depth at the model boundary: even if a provider accidentally
