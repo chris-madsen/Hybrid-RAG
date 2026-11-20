@@ -46,6 +46,22 @@ test('Gateway-only audit rejects old protocol in content and filenames', () => {
     const badPath = exec(process.execPath, [script], root);
     assert.equal(badPath.status, 1, badPath.stdout);
     assert.equal(JSON.parse(badPath.stdout).matches.some((x) => x.fileNameMatch), true);
+
+    // A third-party local indexing CLI must not be misclassified as an
+    // obsolete model-invoked transport. Only its exact brand is exempt.
+    rmSync(join(root, 'docs', 'obsolete-'+retiredToken+'.md'));
+    writeFileSync(join(root, 'src', 'native-code-index.ts'),
+      "export const executable = 'codebase-memory-" + retiredToken + "';\n");
+    assert.equal(exec('git', ['add', '-A'], root).status, 0);
+    const nativeCliAllowed = exec(process.execPath, [script], root);
+    assert.equal(nativeCliAllowed.status, 0, nativeCliAllowed.stdout);
+    assert.equal(JSON.parse(nativeCliAllowed.stdout).matchingFiles, 0);
+
+    writeFileSync(join(root, 'src', 'retired-provider.ts'),
+      "export const obsoleteToolProtocol = '" + retiredToken + "';\n");
+    assert.equal(exec('git', ['add', '.'], root).status, 0);
+    const stillRejected = exec(process.execPath, [script], root);
+    assert.equal(stillRejected.status, 1, stillRejected.stdout);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
