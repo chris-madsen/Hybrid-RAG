@@ -360,7 +360,7 @@ export const buildLocalCodeIndex = (
         continue;
       }
       if (structuralLanguageForPath(observation.repoPath) === undefined) {
-        warnings.push(observation.repoPath + ': ast-grep language not configured for this language');
+        warnings.push(observation.repoPath + ': CBM source-language scope not configured for this extension');
         coverageFailures.push({ repoPath: observation.repoPath, kind: 'unsupported_parser' });
         continue;
       }
@@ -372,7 +372,7 @@ export const buildLocalCodeIndex = (
         repoPath: item.repoPath, source: item.bytes,
       })));
     if (batched !== undefined && batched.length !== pendingStructural.length) {
-      return err(domainError('INVALID_EXTERNAL_RESPONSE', 'ast_grep', 'batch must return exactly one result per input'));
+      return err(domainError('INVALID_EXTERNAL_RESPONSE', 'codebase_memory', 'batch must return exactly one result per input'));
     }
     for (const [position, pending] of pendingStructural.entries()) {
       // The batch parser consumes the exact bytes read through WorkspaceFilePort,
