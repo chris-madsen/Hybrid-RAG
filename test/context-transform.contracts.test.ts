@@ -283,3 +283,20 @@ test('transform delivers reference-only evidence when native input already conta
       'the source reference must reduce model-visible context bytes for repeated code');
   }
 });
+
+test('AR07 Gateway provider labels follow resolved Rust/Python LSP, never TS default', async () => {
+  let semantic = 'rust-analyzer:rust-analyzer/1.2.3';
+  const service = makeContextTransformService({
+    ...makePorts(), providerIdentities: () => ({ semantic }),
+  });
+  const rust = await Effect.runPromise(service.transform(request));
+  assert.equal(rust._tag, 'Ok');
+  if (rust._tag === 'Ok') {
+    assert.equal(rust.value.providerIdentities.semantic, semantic);
+    assert.doesNotMatch(JSON.stringify(rust.value.providerIdentities), /typescript-language-server/u);
+  }
+  semantic = 'pyright:pyright/1.1.0';
+  const next = await Effect.runPromise(service.transform({ ...request, requestId: 'request-2' }));
+  assert.equal(next._tag, 'Ok');
+  if (next._tag === 'Ok') assert.equal(next.value.providerIdentities.semantic, semantic);
+});

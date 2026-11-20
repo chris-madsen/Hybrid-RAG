@@ -160,13 +160,18 @@ export const applyWorkingContextPriors = (
   workingContext: WorkingContext | undefined,
   hints: WorkingContextHints | undefined,
   limit: number,
-): readonly RankedCandidate[] => [...candidates]
-  .map((candidate) => {
-    const boost = workingContextBoost(candidate, workingContext, hints);
-    return { ...candidate, score: candidate.score * (1 + boost) };
-  })
-  .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
-  .slice(0, limit);
+): readonly RankedCandidate[] => {
+  // Additive, score-calibrated priors: multiplying a negative cosine score
+  // would demote the preferred candidate; raw additive 0.1 distorts RRF.
+  const scale = Math.min(1, Math.max(0.01, ...candidates.map((item) => Math.abs(item.score))));
+  return [...candidates]
+    .map((candidate) => {
+      const boost = workingContextBoost(candidate, workingContext, hints);
+      return { ...candidate, score: candidate.score + boost * scale };
+    })
+    .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
+    .slice(0, limit);
+};
 
 const repoMapKey = (candidate: RankedCandidate['candidate']): string => [
   candidate.repoPath,
@@ -985,6 +990,9 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       const failed: string[] = [];
       let codeProviderError: DomainError | undefined;
       let rankedResults: readonly RankedCandidate[] = [];
+      // A shortlist is not delivered until the final source revalidation.
+      const candidateEvidenceIds = new Map<string, string>();
+      let deliveryTraceStartedAtMs: number | undefined;
       let repoMapResult: RepoMapResult | undefined;
       let repoMapError: DomainError | undefined;
       let lspConfirmedCount = 0;
@@ -1241,15 +1249,9 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
                 );
               }
             }
-            recordBenchmarkStage(
-              activeConfig.benchmarkTrace,
-              activeConfig.benchmarkProviderIdentities,
-              requestId.value,
-              'delivered',
-              rankedResults,
-              retrievalStartedAtMs,
-              activeConfig.benchmarkRepositoryId,
-            );
+            // Delayed: ranked Qdrant candidates may become stale during
+            // documentation/memory lookup before final exact worktree reread.
+            deliveryTraceStartedAtMs = retrievalStartedAtMs;
           }
         }
         if (codeProviderError !== undefined) {
@@ -1364,6 +1366,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           }
         }
         const baseEvidence = evidenceFromCandidate({ ...ranked, freshness }, evidenceId.value);
+        candidateEvidenceIds.set(String(candidate.candidateId), String(evidenceId.value));
         evidence.push({
           ...baseEvidence,
           // Source identity remains the canonical path + verified digest,
@@ -1666,6 +1669,29 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         complete: sourceCoverageComplete(sourceCoverage),
         ...(activeConfig.coverage === undefined ? {} : { indexCoverage: activeConfig.coverage }),
       };
+      if (includeCode && codeProviderError === undefined && deliveryTraceStartedAtMs !== undefined) {
+        const finalVerifiedIds = new Set(covered.evidence
+          .filter((item) => item.source === 'code'
+            && item.freshness === 'current' && item.proofClass === 'direct')
+          .map((item) => String(item.evidenceId)));
+        const verifiedRanks = rankedResults.filter((ranked) => {
+          const evidenceId = candidateEvidenceIds.get(String(ranked.candidate.candidateId));
+          return evidenceId !== undefined && finalVerifiedIds.has(evidenceId);
+        });
+        // A final exact-source-verified retrieval observation, not a physical
+        // Bifröst/model send. Zero hits from an executed search score as misses.
+        const incompleteVerification = failed.includes('code') || stalePaths.length > 0;
+        recordBenchmarkStage(
+          activeConfig.benchmarkTrace,
+          activeConfig.benchmarkProviderIdentities,
+          requestId.value,
+          'delivered',
+          incompleteVerification ? [] : verifiedRanks,
+          deliveryTraceStartedAtMs,
+          activeConfig.benchmarkRepositoryId,
+          incompleteVerification ? 'unavailable' : 'executed',
+        );
+      }
       return ok(covered);
     }) as Effect.Effect<Result<ContextBundle, DomainError>>;
   /* eslint-enable @typescript-eslint/indent */

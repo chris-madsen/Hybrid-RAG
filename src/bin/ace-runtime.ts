@@ -85,7 +85,7 @@ import {
   makeLspServerRegistry,
 } from '../application/lsp/server-registry.js';
 import { knownLspServers, selectInstalledLspServersForPaths } from '../application/lsp/claw-discovery.js';
-import { makeRoutedLspSession } from '../application/lsp/routed-semantic.js';
+import { makeRoutedLspSession, resolvedLspProviderLabel } from '../application/lsp/routed-semantic.js';
 import { makeResponsesProjectionService } from '../application/responses-projection-service.js';
 import { runGatewayProjectionHttp } from '../transport/gateway-projection-http.js';
 
@@ -375,6 +375,9 @@ const main = async (): Promise<void> => {
   const scopeFingerprint = process.env.ACE_INDEX_SCOPE_FINGERPRINT?.trim()
     || createHash('sha256').update('ace-scope/default-v1', 'utf8').digest('hex');
   let context: ReturnType<typeof makeQdrantContextProvider> | undefined;
+  // Provider provenance follows committed workspace publication, not an
+  // unobserved default LS from process configuration.
+  let activeContextProviderIdentities: Readonly<Record<string, string>> | undefined;
   let effectiveStructuralProviderIdentity = astGrepProvider === 'napi'
     ? process.env.ACE_AST_GREP_NAPI_VERSION?.trim() || 'ast-grep/napi@0.51.0'
     : process.env.ACE_AST_GREP_VERSION?.trim() || 'ast-grep/0.51.0';
@@ -816,10 +819,12 @@ const main = async (): Promise<void> => {
                   serverName: plan.serverName, snapshotIdentity: sourceKey,
                 }))
                 : Promise.resolve(undefined)));
-            const semanticProviderVersion = serverPlans.map((plan, index) => {
+            const semanticProviderVersion = resolvedLspProviderLabel(serverPlans.flatMap((plan, index) => {
               const identity = providerIdentities[index];
-              return `${plan.serverName}:${identity?._tag === 'Ok' ? identity.value.version : 'unavailable'}`;
-            }).join('|');
+              return identity?._tag === 'Ok'
+                ? [{ name: plan.serverName, version: identity.value.version }]
+                : [];
+            }));
             const configIdentity = build.workspaceManifest.files
               .filter((file) => /^tsconfig(?:\..+)?\.json$/u.test(file.repoPath))
               .map((file) => `${file.repoPath}:${file.sourceDigest}`).sort().join('|') || 'absent';
@@ -1191,6 +1196,7 @@ const main = async (): Promise<void> => {
                     if (nextIndexKey === undefined) return err(domainError('NOT_READY', 'workspace_sync', 'synchronized publication has no index key'));
                     latestBuild = rebuilt.value;
                     latestPublished = nextPublished.value;
+                    activeContextProviderIdentities = nextPublished.value.benchmarkProviderIdentities;
                     return ok({
                       workspaceId: registered.value.workspaceId,
                       workspaceManifest: nextPublished.value.workspaceManifest ?? rebuilt.value.workspaceManifest,
@@ -1200,6 +1206,7 @@ const main = async (): Promise<void> => {
                     });
                   }),
                 });
+                activeContextProviderIdentities = published.value.benchmarkProviderIdentities;
                 const candidateContext = makeQdrantContextProvider({
                   ...published.value,
                   reconcile: reconcileRuntime,
@@ -1273,13 +1280,7 @@ const main = async (): Promise<void> => {
       store,
       context,
       assembler: makeContextAssembler(),
-      providerIdentities: {
-        dense: process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx',
-        sparse: process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25',
-        qdrant: process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2',
-        structural: effectiveStructuralProviderIdentity,
-        semantic: process.env.ACE_LSP_VERSION?.trim() || 'typescript-language-server/6.0.2',
-      },
+      providerIdentities: () => activeContextProviderIdentities ?? {},
     });
   // The LLM Gateway is the single agent-facing context-delivery owner.
   // There is no model-invoked fallback, even when the provider is not ready.

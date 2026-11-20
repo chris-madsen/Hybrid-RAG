@@ -21,6 +21,7 @@ import { err, ok, type Result } from '../src/domain/result.js';
 import { domainError } from '../src/domain/errors.js';
 import { exactUtf8Span, utf16ColumnAtUtf8Byte } from '../src/domain/utf8-range.js';
 import { makeWorkspaceSync } from '../src/application/workspace-sync.js';
+import { createRetrievalBenchmarkTraceCollector } from '../src/domain/retrieval-benchmark.js';
 import { workspaceManifestFromSnapshot } from '../src/domain/workspace-manifest.js';
 import type { ProviderTraceEvent } from '../src/domain/provider-trace.js';
 import type {
@@ -616,7 +617,8 @@ test('snapshot maintenance scrolls request only the payload fields they consume'
   assert.deepEqual(requests.map((body) => body.with_vector), [false, true]);
 });
 
-test('AR06 Qdrant→filesystem→LSP emits verified snippet and digest without a non-callable artifact handle', async () => {
+test('AR06+AR07 Qdrant emits exact verified content without artifacts and truthful delivery trace', async () => {
+  const benchmark = createRetrievalBenchmarkTraceCollector('ar07-positive');
   let upserts = 0;
   let searches = 0;
   let definitions = 0;
@@ -677,6 +679,7 @@ test('AR06 Qdrant→filesystem→LSP emits verified snippet and digest without a
   const provider = makeQdrantContextProvider({
     workspaceId, rootPath: '/repo', files, qdrant, embeddings, artifacts, semantics, newRequestId: () => 'qdrant-request',
     workspaceManifest, workspaceSync,
+    benchmarkTrace: benchmark,
   });
   const context = mustOk(await Effect.runPromise(provider.search({
     workspaceId, query: 'retry database connection', includeDocs: false, includeMemory: false,
@@ -686,6 +689,12 @@ test('AR06 Qdrant→filesystem→LSP emits verified snippet and digest without a
   assert.equal(definitions, 1);
   assert.equal(context.complete, true);
   assert.equal(context.evidence[0]?.freshness, 'current');
+  const delivered = benchmark.events.filter((item) => item.stage === 'delivered');
+  assert.equal(delivered.length, 2);
+  assert.equal(delivered[0]?.status, 'unavailable');
+  assert.equal(delivered[1]?.status, 'executed');
+  assert.deepEqual(delivered[1]?.candidates.map((item) => item.runtimeCandidateId),
+    [candidate.candidateId], 'only post-reread verified code is delivered');
   assert.equal(context.evidence[0]?.expansionHandle, undefined);
   assert.equal(context.evidence[0]?.expansionCursor, undefined);
   assert.equal(context.evidence[0]?.expansionMaxBytes, undefined);
@@ -987,6 +996,7 @@ test('shared UTF-8 ranges preserve Cyrillic, combining marks, emoji, CRLF and mu
 
 // A slow optional provider must not open a post-verification edit window.
 test('DBC-05 final worktree revalidation runs after documentation retrieval', async () => {
+  const benchmark = createRetrievalBenchmarkTraceCollector('ar07-race');
   let edited = false;
   let reads = 0;
   const changed = Buffer.from('export function reconnect(): string { return "changed"; }\n');
@@ -1035,6 +1045,7 @@ test('DBC-05 final worktree revalidation runs after documentation retrieval', as
     workspaceId, rootPath: '/repo', files, qdrant, artifacts, semantics, documentation,
     embeddings: { embedMany: () => Effect.succeed(ok([[1, 0]])) },
     newRequestId: () => 'docs-race-request',
+    benchmarkTrace: benchmark,
   });
   const result = mustOk(await Effect.runPromise(provider.search({
     workspaceId, query: 'reconnect', includeDocs: true, includeMemory: false,
@@ -1045,6 +1056,11 @@ test('DBC-05 final worktree revalidation runs after documentation retrieval', as
   assert.equal(result.partialSources.includes('documentation'), false);
   assert.equal(result.evidence.find((item) => item.source === 'code')?.freshness, 'changed_during_request');
   assert.equal(result.evidence.find((item) => item.source === 'code')?.proofClass, 'uncertain');
+  const delivered = benchmark.events.filter((item) => item.stage === 'delivered');
+  assert.equal(delivered.length, 2);
+  assert.equal(delivered[0]?.status, 'unavailable');
+  assert.equal(delivered[1]?.status, 'unavailable');
+  assert.deepEqual(delivered[1]?.candidates, [], 'stale ranked code must not be credited');
 });
 
 

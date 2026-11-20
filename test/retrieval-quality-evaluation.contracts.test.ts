@@ -364,6 +364,37 @@ test('release-grade multi-repository holdout binds exact repositories and case o
   if (metrics._tag === 'Err') throw new Error(metrics.error.message);
   assert.equal(metrics.value.repositoryCount, 2);
 
+  const inflatedFromShortlist = evaluateRetrievalStrategy(multi, {
+    ...multiRun,
+    observations: multiRun.observations.map((item, index) => index === 0
+      ? { ...item, retrievedCandidateIds: ['shortlisted-but-never-delivered'] }
+      : item),
+  });
+  assert.equal(inflatedFromShortlist._tag, 'Err',
+    'a stale shortlist cannot receive recall credit that final delivered ranks did not earn');
+  if (inflatedFromShortlist._tag === 'Err') {
+    assert.equal(inflatedFromShortlist.error.code, 'INVALID_BENCHMARK');
+    assert.equal(inflatedFromShortlist.error.path, 'retrieval_run.stage_ranks');
+  }
+
+  const observedZeroHit = evaluateRetrievalStrategy(multi, {
+    ...multiRun,
+    observations: multiRun.observations.map((item, index) => index === 0
+      ? {
+        ...item,
+        retrievedCandidateIds: [],
+        stageRanks: { ...item.stageRanks!, delivered: [] },
+        stageStatuses: { ...item.stageStatuses!, delivered: 'executed' as const },
+      }
+      : item),
+  });
+  assert.equal(observedZeroHit._tag, 'Ok',
+    'executed-but-empty stage must be scored as a miss, not rejected or skipped');
+  if (observedZeroHit._tag === 'Ok') {
+    assert.ok(observedZeroHit.value.recallAt5 < metrics.value.recallAt5);
+    assert.ok(observedZeroHit.value.missedCriticalCaseIds.includes('repo-a-case'));
+  }
+
   const sparseUnavailable = evaluateRetrievalStrategy(multi, {
     ...multiRun,
     observations: multiRun.observations.map((item) => ({

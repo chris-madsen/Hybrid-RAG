@@ -119,3 +119,35 @@ test('working-context priors reorder close candidates but do not overwhelm a mat
   assert.equal(strong[0]?.candidate.repoPath, 'src/strong.ts');
 });
 
+
+test('AR07 working prior is monotone across negative, zero and positive cosine scores', () => {
+  const hints = { focusedPath: 'src/focus.ts' as RepoPath };
+  for (const score of [-1, -0.8, -0.01, 0, 0.01, 0.8, 1]) {
+    const preferred = candidate('preferred', 'src/focus.ts', score);
+    const untouched = candidate('untouched', 'src/other.ts', score);
+    const ranked = applyWorkingContextPriors([untouched, preferred], undefined, hints, 2);
+    const selected = ranked.find((item) => item.candidate.candidateId === preferred.candidate.candidateId);
+    assert.ok(selected);
+    assert.ok(selected.score > score, String(score));
+    assert.ok(selected.score - score <= 0.1 + Number.EPSILON);
+    assert.equal(ranked.find((item) => item.candidate.candidateId === untouched.candidate.candidateId)?.score, score);
+  }
+  const negative = applyWorkingContextPriors([
+    candidate('preferred', 'src/focus.ts', -0.8),
+    candidate('other', 'src/other.ts', -0.79),
+  ], undefined, hints, 2);
+  assert.equal(negative[0]?.candidate.candidateId, 'preferred');
+});
+
+test('AR07 additive prior is calibrated to small fused RRF scores, not raw cosine scale', () => {
+  const hints = { focusedPath: 'src/focus.ts' as RepoPath };
+  const source = candidate('rrf', 'src/focus.ts', 0.015);
+  const result = applyWorkingContextPriors([
+    candidate('other', 'src/other.ts', 0.014), source,
+  ], undefined, hints, 2);
+  const favored = result.find((item) => item.candidate.candidateId === source.candidate.candidateId);
+  assert.ok(favored);
+  assert.ok(favored.score > source.score);
+  assert.ok(favored.score - source.score < 0.003,
+    'small RRF scores must not receive a cosine-sized absolute boost');
+});
