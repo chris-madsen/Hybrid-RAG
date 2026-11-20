@@ -207,7 +207,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     try {
       // Git variables supplied by an embedding runner or isolated harness must
       // not redirect CBM's source discovery to an unrelated checkout.
-      const env = { ...process.env, CBM_ALLOWED_ROOT: root };
+      const env: NodeJS.ProcessEnv = { ...process.env, CBM_ALLOWED_ROOT: root };
       delete env.GIT_DIR;
       delete env.GIT_WORK_TREE;
       const { stdout } = await exec(command, ['cli', '--quiet', tool, JSON.stringify(args)], {
