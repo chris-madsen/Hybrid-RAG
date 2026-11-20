@@ -33,7 +33,46 @@ export interface CodebaseMemoryOptions {
 export interface CodebaseMemoryRepoMap extends Pick<RepoMapService, 'render'>, CodeGraphCandidatePort {
   /** Must complete after source changes and before this graph can be exposed. */
   readonly reindex: () => Effect.Effect<Result<void, DomainError>>;
+  /** Upstream file declaration inventory; parser stays entirely in native CBM. */
+  readonly outline: (filePath: RepoPath) => Effect.Effect<Result<readonly NativeOutlineRow[], DomainError>>;
+  readonly trace: (qualifiedName: string) => Effect.Effect<Result<unknown, DomainError>>;
+  readonly queryGraph: (cypher: string) => Effect.Effect<Result<unknown, DomainError>>;
+  readonly detectChanges: (since: string) => Effect.Effect<Result<unknown, DomainError>>;
 }
+
+export interface NativeOutlineRow {
+  readonly name: string;
+  readonly label: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly qualifiedName: string;
+}
+
+export const parseCodebaseMemoryFileOutline = (
+  file: RepoPath,
+  value: unknown,
+): readonly NativeOutlineRow[] | undefined => {
+  const o = object(value);
+  if (o === undefined || o.file_path !== file || !Array.isArray(o.cols)
+    || !Array.isArray(o.rows) || typeof o.total !== 'number'
+    || typeof o.has_more !== 'boolean' || o.has_more) return undefined;
+  const ni = o.cols.indexOf('name'), li = o.cols.indexOf('label');
+  const ri = o.cols.indexOf('lines'), qi = o.cols.indexOf('qn');
+  if ([ni,li,ri,qi].some(i => i < 0)) return undefined;
+  const rows: NativeOutlineRow[] = [];
+  for (const row of o.rows) {
+    if (!Array.isArray(row) || typeof row[ni] !== 'string'
+      || typeof row[li] !== 'string' || typeof row[ri] !== 'string'
+      || typeof row[qi] !== 'string') return undefined;
+    const match = /^(\\d+)-(\\d+)$/u.exec(row[ri]);
+    if (!match) continue; // Non-source graph nodes have no byte-addressable range.
+    const startLine = Number(match[1]), endLine = Number(match[2]);
+    if (!Number.isSafeInteger(startLine) || !Number.isSafeInteger(endLine)
+      || startLine < 1 || endLine < startLine) return undefined;
+    rows.push({ name: row[ni], label: row[li], startLine, endLine, qualifiedName: row[qi] });
+  }
+  return rows;
+};
 
 interface NativeGraphRow {
   readonly qn: string;
@@ -160,6 +199,49 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
     }
   });
 
+  const outline = (filePath: RepoPath): Effect.Effect<Result<readonly NativeOutlineRow[], DomainError>> =>
+    Effect.promise(async () => {
+      if (project === undefined || reindexing !== undefined) {
+        return err(domainError('NOT_READY', 'codebase_memory', 'native graph must be indexed before extracting symbols'));
+      }
+      const rows: NativeOutlineRow[] = [];
+      // Native API has stable pagination; no truncated file can silently be
+      // considered fully indexed. The cap is an explicit coverage failure.
+      for (let offset = 0; offset < 4000; offset += 200) {
+        const output = await invoke('get_file_outline', {
+          project, file_path: filePath, limit: 200, offset, format: 'json',
+        });
+        if (output._tag === 'Err') return output;
+        const o = object(output.value);
+        if (o === undefined || o.file_path !== filePath || !Array.isArray(o.cols)
+          || !Array.isArray(o.rows) || typeof o.has_more !== 'boolean') {
+          return err(domainError('INVALID_EXTERNAL_RESPONSE', 'codebase_memory.outline', 'invalid native file outline'));
+        }
+        // Per-page parse must not pretend an incomplete page is complete.
+        const page = parseCodebaseMemoryFileOutline(filePath, { ...o, has_more: false });
+        if (page === undefined) return err(domainError('INVALID_EXTERNAL_RESPONSE', 'codebase_memory.outline', 'invalid native outline table'));
+        rows.push(...page);
+        if (!o.has_more) return ok(rows);
+        if (o.rows.length === 0) break;
+      }
+      return err(domainError('NOT_READY', 'codebase_memory.outline', 'native file outline exceeded bounded pagination'));
+    });
+  const trace: CodebaseMemoryRepoMap['trace'] = (qualifiedName) => Effect.promise(async () =>
+    project === undefined
+      ? err(domainError('NOT_READY', 'codebase_memory.trace', 'no published graph'))
+      : invoke('trace_path', { project, function_name: qualifiedName, direction: 'both',
+        depth: 2, limit: 24, format: 'json', max_output_tokens: 4096 }));
+  const queryGraph: CodebaseMemoryRepoMap['queryGraph'] = (cypher) => Effect.promise(async () =>
+    project === undefined
+      ? err(domainError('NOT_READY', 'codebase_memory.graph', 'no published graph'))
+      : invoke('query_graph', { project, query: cypher, max_rows: 50,
+        format: 'json', max_output_tokens: 6000 }));
+  const detectChanges: CodebaseMemoryRepoMap['detectChanges'] = (since) => Effect.promise(async () =>
+    project === undefined
+      ? err(domainError('NOT_READY', 'codebase_memory.impact', 'no published graph'))
+      : invoke('detect_changes', { project, since, scope: 'impact',
+        direction: 'both', depth: 2, format: 'json' }));
+
   const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
@@ -284,5 +366,5 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
       });
     });
 
-  return { reindex, render, search };
+  return { reindex, render, search, outline, trace, queryGraph, detectChanges };
 };
