@@ -10,6 +10,9 @@
 
 The earlier focused appendices remain useful for [gateway and physical delivery](2026-11-19-astra-delivery.md), [retrieval/source integrity](2026-11-19-astra-retrieval.md), and [memory lifecycle, deployment, economics and SDLC](2026-11-19-astra-lifecycle-evaluation.md). The existing G*/B*/R* table below is the delivery/economics priority register, **not** the complete cross-subsystem ranking; consult the static review for F1–F13 and the build-versus-buy catalogue.
 
+**Implementation-grade follow-up (20 November):** [ACE remediation engineering decisions](2026-11-20-ace-remediation-engineering-decisions.md) adds a compact decision matrix, primary vendor mechanisms, explicit "reuse or remove" boundaries, migration alternatives, crash and concurrency counterexamples, and an ordered acceptance plan. **This supplement is not proof of execution or owner approval.** Key corrections: Qdrant alias swaps are atomic but not generation CAS; memory archive-only proof must survive interrupted first import; non-Git unknown freshness cannot authorize `VERIFIED_NO_CONTEXT_NEEDED`; avoid constructing new file/transaction/GC machinery when unused paths can be deleted. Evaluate SQLite only if the minimal file protocol becomes more complex than a proven transactional metadata/outbox store.
+
+
 **Baseline:** `bd170d197dcafc5cd30d0b8d6220ba6eca4fde5b`, fetched and fast-forward checked against `origin/main`. The difference from the brief's `5f6d941` is the audit prompt alone (#289). At inspection #285 was merged at `5f6d941` (deduplication, not dispatch). #286 `06e333d` was open against main (lexical research); #287 `2a944a8` was open **against #286's branch** (benchmark, not runtime). #288 `8358c26` was open against main (individual-send authorization). None of these three open changes is credited to main. Recheck these identities before acting on a different revision.
 
 ## B. Architecture scorecard
