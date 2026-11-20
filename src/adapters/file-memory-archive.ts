@@ -286,14 +286,12 @@ export const makeAsyncFileMemoryArchive = async (rootPath: string): Promise<Asyn
     deleteEpisode: (episodeId) => exclusive(async () => {
       const id = makeEpisodeId(episodeId);
       if (id._tag === 'Err') return id;
-      const existing = await (async () => {
-        try {
-          return JSON.parse(await readFile(metadataPath(episodeId), 'utf8')) as Omit<SessionEpisode, 'content'>;
-        } catch (error) {
-          return isMissing(error) ? undefined : null;
-        }
-      })();
-      if (existing === null) return err(domainError('PERSISTENCE_FAILED', 'archive', 'could not read episode metadata'));
+      // Deletion is a destructive operation: never derive a blob path from
+      // unvalidated on-disk JSON. Reuse the same no-follow, digest-verified
+      // immutable reader as imports and normal reads before any tombstone.
+      const committed = await readCommitted(id.value);
+      if (committed._tag === 'Err') return committed;
+      const existing = committed.value;
       if (existing === undefined) {
         try { await readFile(tombstonePath(episodeId)); return ok(undefined); } catch (error) {
           return isMissing(error) ? missing(`episode:${episodeId}`) : err(domainError('PERSISTENCE_FAILED', 'archive', 'could not inspect tombstone'));
