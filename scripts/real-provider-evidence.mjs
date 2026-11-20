@@ -52,8 +52,12 @@ export const verifyFinalWireEvidenceEnvelope = (raw, verificationPublicKeyPem, e
   const signerKeySha256 = createHash('sha256')
     .update(publicKey.export({ type: 'spki', format: 'der' }))
     .digest('hex');
+  // A caller can sign arbitrary mock claims with its own key; that is
+  // signature integrity, not an independent mock-server capture. Preserve
+  // the distinction so a self-signed JSON manifest cannot certify mock wire.
   const proof = payload.evidenceKind === 'mock'
-    ? { kind: 'mock-capture', finalWireBodySha256: payload.finalWireBodySha256,
+    ? { kind: 'signed-manifest-only', signerKeySha256,
+      finalWireBodySha256: payload.finalWireBodySha256,
       serializedRequestSha256: payload.serializedRequestSha256 }
     : { kind: 'signed-provider-capture', signerKeySha256,
       finalWireBodySha256: payload.finalWireBodySha256,
