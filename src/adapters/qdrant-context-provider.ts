@@ -962,6 +962,11 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           }
         }
       }
+      // Remember the source/index generation that this search actually used.
+      // A concurrent writer must not promote a newer generation while this
+      // request still certifies an empty result against the older index.
+      const sourceAtSearchStart = activeConfig.workspaceManifest;
+      const indexKeyAtSearchStart = activeConfig.indexKey;
       const requestId = makeRequestId(activeConfig.newRequestId());
       if (requestId._tag === 'Err') return requestId;
       const includeCode = input.includeCode ?? true;
@@ -1601,6 +1606,44 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         }
       }
       const merged = mergeEvidence(requestId.value, input.query, evidence, warnings, failed);
+      // Unlike cited results, an empty result has no selected file to exact-
+      // re-read at the end of a slow query. Re-observe the authoritative
+      // workspace now; an unchanged index from request start is necessary
+      // before we can certify that source evidence was truly absent.
+      if (includeCode && requirements.code.requirement === 'required'
+        && requirements.code.allowed && merged.evidence.length === 0) {
+        if (sourceAtSearchStart === undefined) {
+          return err(domainError('NOT_READY', 'workspace_manifest',
+            'empty code retrieval lacks an authoritative source snapshot'));
+        }
+        if (activeConfig.indexKey !== indexKeyAtSearchStart
+          || activeConfig.workspaceManifest === undefined
+          || !workspaceManifestEqual(activeConfig.workspaceManifest, sourceAtSearchStart)) {
+          return err(domainError('NOT_READY', 'workspace_manifest',
+            'code index generation changed during empty retrieval'));
+        }
+        if (activeConfig.workspaceSync !== undefined) {
+          const finalObservation = yield* activeConfig.workspaceSync.refresh();
+          if (finalObservation._tag === 'Err') return finalObservation;
+          if (finalObservation.value.refreshed
+            || (indexKeyAtSearchStart !== undefined
+              && finalObservation.value.state.indexKey !== indexKeyAtSearchStart)
+            || !workspaceManifestEqual(finalObservation.value.state.workspaceManifest, sourceAtSearchStart)) {
+            return err(domainError('NOT_READY', 'workspace_manifest',
+              'source changed during empty code retrieval'));
+          }
+        } else {
+          const finalSnapshot = yield* activeConfig.files.snapshot(activeConfig.rootPath, Date.now());
+          if (finalSnapshot._tag === 'Err') return finalSnapshot;
+          const finalManifest = workspaceManifestFromSnapshot(
+            finalSnapshot.value, activeConfig.scopeFingerprint ?? sourceAtSearchStart.scopeFingerprint,
+          );
+          if (!workspaceManifestEqual(finalManifest, sourceAtSearchStart)) {
+            return err(domainError('NOT_READY', 'workspace_manifest',
+              'source changed during empty code retrieval'));
+          }
+        }
+      }
       if (requirements.code.requirement !== 'not_requested' && requirements.code.allowed) {
         sourceCoverage = setSourceCoverage(
           sourceCoverage,
