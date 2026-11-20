@@ -272,6 +272,21 @@ func TestPhysicalSendRouteChangeIsAuditedAndCannotBeAllowed(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Fatalf("expected two local denial checks, got %d", calls.Load())
 	}
+	for _, body := range [][]byte{
+		[]byte(`{"model":"azure/different-model","store":true,"input":"question"}`),
+		[]byte(`{"model":"gpt-test","store":false,"input":"question"}`),
+		[]byte(`{"model":"azure/different-model","store":false,"input":"question"`),
+	} {
+		request.Body = body
+		request.BodySHA256 = digest(body)
+		request.AttemptID = "bf-attempt-" + strings.Repeat("e", 32)
+		if _, err := client.AuthorizeNativeResponsesAttempt(context.Background(), request); err == nil {
+			t.Fatal("malformed or non-stateless fallback body reached the authorization endpoint")
+		}
+		if calls.Load() != 2 {
+			t.Fatalf("bad fallback body reached ACE authorization endpoint: calls=%d", calls.Load())
+		}
+	}
 }
 
 func TestSemanticBodySHA256IgnoresObjectOrderButPreservesNumberLexemes(t *testing.T) {
