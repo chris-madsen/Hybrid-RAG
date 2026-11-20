@@ -231,7 +231,7 @@ export const makeAsyncFileMemoryArchive = async (rootPath: string): Promise<Asyn
           || stored.sessionId !== expected.sessionId
           || stored.sourcePointer !== expected.sourcePointer
           || stored.occurredAtMs !== expected.occurredAtMs
-          || stored.importedAtMs !== expected.importedAtMs
+          // importedAtMs belongs to the FIRST durable import, not a retry.
           || stored.searchText !== expected.searchText
           || stored.memoryHint !== expected.memoryHint
           || Buffer.compare(Buffer.from(stored.content), Buffer.from(expected.content)) !== 0) {
