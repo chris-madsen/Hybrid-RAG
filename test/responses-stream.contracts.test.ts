@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, symlinkSync, writeFileSync, rmSync, linkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { validateNativeResponsesStreamingRoutes } from '../src/application/gateway-security-contract.js';
 import {
@@ -153,4 +157,41 @@ test('stream route allowlist requires a unique canonical HTTPS Responses route',
   assert.throws(() => validateNativeResponsesStreamingRoutes([{
     provider: 'openai', model: 'gpt-test', destination: 'https://api.openai.com/v1/responses', unexpectedField: 'unrecognized',
   }]), /only provider, model, and destination/u);
+});
+
+test('C06 streaming evaluator rejects internally contradictory usage totals', () => {
+  assert.equal(evaluateNativeResponsesStreamEvidence(evidence({
+    usage: { inputTokens: 20, outputTokens: 15, totalTokens: 18 },
+  }))._tag, 'Err');
+});
+
+test('C06 receipt CLI never overwrites input via symlink or hardlink output alias', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'ace-native-stream-'));
+  try {
+    const input = join(directory, 'evidence.json');
+    const alias = join(directory, 'output-symlink.json');
+    const hardlink = join(directory, 'output-hardlink.json');
+    const goodOutput = join(directory, 'receipt.json');
+    const bytes = JSON.stringify(evidence()) + '\n';
+    writeFileSync(input, bytes);
+    const invoke = (output: string) => spawnSync(process.execPath, [
+      '--import', 'tsx', 'scripts/native-responses-stream-receipt.ts', input, output,
+    ], { cwd: process.cwd(), encoding: 'utf8', timeout: 30_000 });
+    symlinkSync(input, alias);
+    const symlinkResult = invoke(alias);
+    assert.notEqual(symlinkResult.status, 0, symlinkResult.stdout);
+    assert.equal(readFileSync(input, 'utf8'), bytes);
+    linkSync(input, hardlink);
+    const hardlinkResult = invoke(hardlink);
+    assert.notEqual(hardlinkResult.status, 0, hardlinkResult.stdout);
+    assert.equal(readFileSync(input, 'utf8'), bytes);
+    const success = invoke(goodOutput);
+    assert.equal(success.status, 0, success.stderr);
+    const parsed = JSON.parse(readFileSync(goodOutput, 'utf8')) as { streamStatus: string };
+    assert.equal(parsed.streamStatus, 'completed');
+    const noOverwrite = invoke(goodOutput);
+    assert.notEqual(noOverwrite.status, 0, 'receipt output is exclusive and cannot replace prior evidence');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

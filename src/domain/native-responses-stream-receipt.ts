@@ -164,6 +164,13 @@ export const evaluateNativeResponsesStreamEvidence = (
         return rejected('stream_evidence.usage', 'observed usage fields must be non-negative safe integers');
       }
     }
+    if (isNonNegativeSafeInteger(rawUsage.totalTokens)
+      && isNonNegativeSafeInteger(rawUsage.inputTokens)
+      && isNonNegativeSafeInteger(rawUsage.outputTokens)
+      && rawUsage.totalTokens < rawUsage.inputTokens + rawUsage.outputTokens) {
+      return rejected('stream_evidence.usage',
+        'reported total tokens cannot be smaller than combined input and output usage');
+    }
     if (Object.values(rawUsage).some((value) => value !== undefined)) {
       usage = {
         status: 'observed',

@@ -1,4 +1,5 @@
-import { open, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { evaluateNativeResponsesStreamEvidence } from '../src/domain/native-responses-stream-receipt.js';
 
@@ -11,7 +12,10 @@ const inputPath = resolve(inputArgument);
 const outputPath = resolve(outputArgument);
 if (inputPath === outputPath) throw new Error('stream receipt output must not overwrite the source evidence');
 const maximumInputBytes = 16 * 1024 * 1024;
-const inputHandle = await open(inputPath, 'r');
+// Open once by descriptor, without following a symlink. Size, content and
+// final stat all belong to the same inode, so swapping the path during the
+// read cannot substitute an unrelated private file.
+const inputHandle = await open(inputPath, constants.O_RDONLY | constants.O_NOFOLLOW);
 let inputBytes: Buffer;
 try {
   const initialStat = await inputHandle.stat();
@@ -48,7 +52,18 @@ const evaluated = evaluateNativeResponsesStreamEvidence(raw);
 if (evaluated._tag === 'Err') {
   throw new Error(`${evaluated.error.code}: ${evaluated.error.path}: ${evaluated.error.message}`);
 }
-await writeFile(outputPath, JSON.stringify(evaluated.value, null, 2) + '\n', 'utf8');
+// A distinct pathname alone is not sufficient: output could be a symlink
+// or hardlink alias of the input. Exclusive create refuses preexisting paths,
+// and O_NOFOLLOW blocks a symlink at the creation boundary. Never truncate
+// any original evidence or unrelated sensitive file.
+const receiptHandle = await open(outputPath,
+  constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+try {
+  await receiptHandle.writeFile(JSON.stringify(evaluated.value, null, 2) + '\n', 'utf8');
+  await receiptHandle.sync();
+} finally {
+  await receiptHandle.close();
+}
 process.stdout.write(JSON.stringify({
   evidenceStatus: evaluated.value.evidenceStatus,
   streamStatus: evaluated.value.streamStatus,
