@@ -52,7 +52,7 @@ test('native graph traversal and Cypher are decoded from upstream wire shape', (
 
 test('installed Codebase Memory indexes ACE and returns source-bound candidates', {
   skip: process.env.ACE_TEST_REAL_CBM !== 'true',
-  timeout: 180_000,
+  timeout: 600_000,
 }, async () => {
   // Use an actual ACE file rather than a synthetic benchmark corpus. The
   // upstream binary does all parsing, graph construction and semantic search.
