@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { readHarborFeedbackTrialObservations } from '../src/adapters/harbor-feedback-trial-evidence.js';
 import { readHermesContextEvidenceJsonl } from '../src/adapters/hermes-context-evidence.js';
+import { assessHarborAcceptance } from '../src/domain/harbor-evaluation-policy.js';
 import { evaluateNativeResponsesFinalWireEvidence } from '../src/domain/provider-trace-receipt.js';
 import {
   reconcileFeedbackTrials,
@@ -11,6 +12,7 @@ import {
   validateFeedbackTaskManifest,
   type FeedbackArtifactHash,
   type FeedbackExperimentManifest,
+  type FeedbackFinalWireAttemptBinding,
   type FeedbackTaskIdentity,
   type FeedbackTaskManifest,
   type FeedbackTrialObservation,
@@ -126,6 +128,33 @@ const providerTraceRequestIds = async (trialDirectory: string): Promise<readonly
     }
   }
   return [...ids].sort();
+};
+
+const finalWireAttemptBindingsFor = (
+  evidence: Readonly<Record<string, unknown>> | undefined,
+): readonly FeedbackFinalWireAttemptBinding[] => {
+  const rawIndex = evidence?.signatureCheckedFinalWireReceiptIndex;
+  if (rawIndex === undefined) return [];
+  if (!Array.isArray(rawIndex)) throw new Error('BLOCKED: C07 final-wire receipt index is malformed');
+  const bindings: FeedbackFinalWireAttemptBinding[] = [];
+  for (const [index, value] of rawIndex.entries()) {
+    const receipt = object(value);
+    if (receipt === undefined || !nonEmpty(receipt.requestId) || !nonEmpty(receipt.attemptId)) {
+      throw new Error(`BLOCKED: C07 final-wire receipt index entry ${index} is malformed`);
+    }
+    if (receipt.status === 'REAL_PROVIDER_CANDIDATE'
+      && receipt.acknowledgementKind === 'real_provider'
+      && Number.isSafeInteger(receipt.acknowledgementStatusCode)
+      && (receipt.acknowledgementStatusCode as number) >= 200
+      && (receipt.acknowledgementStatusCode as number) < 300) {
+      bindings.push({ requestId: receipt.requestId, attemptId: receipt.attemptId, status: 'REAL_PROVIDER_CANDIDATE' });
+    } else if (receipt.status === 'REAL_PROVIDER_CANDIDATE') {
+      throw new Error(`BLOCKED: C07 candidate receipt index entry ${index} lacks a successful real-provider acknowledgement`);
+    } else if (receipt.status !== 'NOT_CERTIFIED' && receipt.status !== 'MOCK_WIRE_VERIFIED') {
+      throw new Error(`BLOCKED: C07 final-wire receipt index entry ${index} has an unknown status`);
+    }
+  }
+  return bindings;
 };
 
 const canonicalPathIsWithin = (root: string, canonicalPath: string): boolean => {
@@ -319,17 +348,22 @@ const rawUsage = (result: JsonObject): {
   readonly inputTokens?: number;
   readonly cachedInputTokens?: number;
   readonly outputTokens?: number;
+  readonly reasoningOutputTokens?: number;
   readonly costUsd?: number;
 } => {
   const agent = object(result.agent_result);
   const inputTokens = typeof agent?.n_input_tokens === 'number' ? agent.n_input_tokens : undefined;
   const cachedInputTokens = typeof agent?.n_cache_tokens === 'number' ? agent.n_cache_tokens : undefined;
   const outputTokens = typeof agent?.n_output_tokens === 'number' ? agent.n_output_tokens : undefined;
+  const reasoningOutputTokens = typeof agent?.n_reasoning_tokens === 'number'
+    ? agent.n_reasoning_tokens
+    : typeof agent?.reasoning_output_tokens === 'number' ? agent.reasoning_output_tokens : undefined;
   const costUsd = typeof agent?.cost_usd === 'number' ? agent.cost_usd : undefined;
   return {
     ...(inputTokens === undefined ? {} : { inputTokens }),
     ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }),
     ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(reasoningOutputTokens === undefined ? {} : { reasoningOutputTokens }),
     ...(costUsd === undefined ? {} : { costUsd }),
   };
 };
@@ -363,20 +397,24 @@ const observationsFor = async (
     const directory = trialDirById.get(trial.trialId);
     if (directory === undefined) throw new Error(`BLOCKED: missing ${arm} trial directory for ${trial.trialId}`);
     const task = taskFor(taskManifest.tasks, trial.taskName);
-    if (arm === 'ace_optional') {
+    const trialAgentLoopEvidence = arm === 'ace_optional'
+      ? await agentLoopEvidenceFor(
+        directory,
+        trial.success ? 'pass' : 'fail',
+        verificationPublicKeyPem,
+        experimentManifest.sourceCommit,
+      )
+      : undefined;
+    if (trialAgentLoopEvidence !== undefined) {
       agentLoopEvidence.push({
         taskId: task.id,
         trialId: trial.trialId,
         sourceRevision: task.sourceRevision,
         sourceDigest: task.sourceDigest,
-        evidence: await agentLoopEvidenceFor(
-          directory,
-          trial.success ? 'pass' : 'fail',
-          verificationPublicKeyPem,
-          experimentManifest.sourceCommit,
-        ),
+        evidence: trialAgentLoopEvidence,
       });
     }
+    const finalWireAttemptBindings = finalWireAttemptBindingsFor(trialAgentLoopEvidence);
     // Task names are data from the Harbor dataset, not safe filesystem segments.
     const safeTaskDirectory = Buffer.from(task.id, 'utf8').toString('base64url');
     const destination = join(outputRoot, arm === 'native' ? 'raw-agent-native' : 'raw-agent-ace', safeTaskDirectory);
@@ -406,9 +444,11 @@ const observationsFor = async (
       observedAceContextCalls: arm === 'native' ? 0 : trial.observedAceContextCalls,
       observedAceRequestIds: arm === 'native' ? [] : observedRequestIds,
       gatewayProjectionRequestIds: arm === 'native' ? [] : trial.gatewayProjectionRequestIds ?? [],
+      finalWireAttemptBindings: arm === 'native' ? [] : finalWireAttemptBindings,
       ...(arm === 'native' || contextTransformRequestIds.length === 0 ? {} : { contextTransformRequestIds }),
       ...(arm === 'native' || hermesContextEvidence.length === 0 ? {} : { hermesContextEvidence }),
       providerTraceRequestIds: arm === 'native' ? [] : await providerTraceRequestIds(directory),
+      nativeResponsesStreamReceipts: arm === 'native' ? [] : trial.nativeResponsesStreamReceipts,
       rawArtifactHashes: artifacts,
     });
   }
@@ -462,6 +502,45 @@ const main = async (): Promise<void> => {
     const ace = await observationsFor('ace_optional', args.aceResultPath, taskManifest.value, args.outputDirectory, verificationPublicKeyPem, experimentManifest.value);
     const report = reconcileFeedbackTrials({ taskManifest: taskManifest.value, native: native.observations, ace: ace.observations });
     if (report._tag === 'Err') throw new Error(`BLOCKED: ${report.error.path}: ${report.error.message}`);
+    const finalWireAttemptBindings = ace.observations.flatMap((observation) => observation.finalWireAttemptBindings ?? []);
+    const streamReceipts = ace.observations.flatMap((observation) => observation.nativeResponsesStreamReceipts ?? []);
+    const unmatchedStreamReceiptCount = streamReceipts.filter((receipt) => !finalWireAttemptBindings.some((attempt) =>
+      attempt.requestId === receipt.requestId && attempt.attemptId === receipt.attemptId)).length;
+    const agentEvidenceRecords = ace.agentLoopEvidence
+      .map((item) => object(item.evidence))
+      .filter((item): item is JsonObject => item !== undefined);
+    const c07Blocked = agentEvidenceRecords.some((evidence) => evidence.status === 'BLOCKED');
+    const finalWireEvidenceStatus = finalWireAttemptBindings.length > 0
+      ? 'REAL_PROVIDER_CANDIDATE'
+      : c07Blocked ? 'NOT_CERTIFIED' : 'NOT_RUN';
+    const completedEvidenceStages = [] as const;
+    const externalCostTelemetry = 'unknown' as const;
+    const forcedToolUse = 'unknown' as const;
+    const acceptanceStatus = assessHarborAcceptance({
+      report: report.value,
+      taskManifest: taskManifest.value,
+      experimentManifest: experimentManifest.value,
+      taskManifestSha256: actualTaskManifestSha256,
+      finalWireEvidenceStatus,
+      completedEvidenceStages,
+      externalCostTelemetry,
+      forcedToolUse,
+    });
+    const acceptanceBlockers = [
+      ...(taskManifest.value.selection !== 'holdout' ? ['FROZEN_HOLDOUT_NOT_SELECTED'] : []),
+      ...(report.value.status !== 'PASS' ? ['PAIRED_QUALITY_OR_USAGE_NOT_ACCEPTED'] : []),
+      ...(report.value.aceCorrelatedCalls === 0 ? ['MODEL_BOUND_ACE_DELIVERY_NOT_VERIFIED'] : []),
+      ...(finalWireEvidenceStatus === 'NOT_RUN' ? ['FINAL_WIRE_RECEIPTS_NOT_RUN']
+        : finalWireEvidenceStatus === 'NOT_CERTIFIED' ? ['FINAL_WIRE_RECEIPTS_NOT_CERTIFIED'] : []),
+      ...(streamReceipts.length === 0 ? ['STREAM_TERMINAL_RECEIPTS_NOT_RUN'] : ['STREAM_RECEIPTS_REMAIN_UNSIGNED']),
+      ...(unmatchedStreamReceiptCount > 0 ? ['STREAM_RECEIPT_ATTEMPT_BINDING_UNKNOWN'] : []),
+      ...(externalCostTelemetry === 'unknown' ? ['NON_MODEL_EXTERNAL_COSTS_UNKNOWN'] : []),
+      ...(forcedToolUse === 'unknown' ? ['TOOLSET_PARITY_UNKNOWN'] : []),
+      'INDEPENDENT_ACCEPTANCE_STAGES_NOT_RECORDED',
+      'OWNER_RELEASE_APPROVAL_NOT_RECORDED',
+    ];
+    const fiveXClaimAllowed = acceptanceStatus === 'measured-not-necessarily-5x'
+      && report.value.tokenRatio !== null && report.value.tokenRatio >= 5;
     const traceLines = [...native.providerTraceLines, ...ace.providerTraceLines];
     await writeFile(resolve(args.outputDirectory, 'provider-trace.jsonl'), traceLines.join('').endsWith('\n') ? traceLines.join('') : `${traceLines.join('')}\n`);
     await mkdir(resolve(args.outputDirectory, 'receipts'), { recursive: true });
@@ -499,12 +578,48 @@ const main = async (): Promise<void> => {
       experiment: experimentManifest.value,
       taskManifestSha256: actualTaskManifestSha256,
       metricsSha256: sha256(metricsBytes),
+      nativeResponsesEvidence: {
+        finalWireEvidenceStatus,
+        finalWireReceiptCount: finalWireAttemptBindings.length,
+        streamReceiptCount: streamReceipts.length,
+        unmatchedStreamReceiptCount,
+        streamOutcomes: {
+          completed: streamReceipts.filter((receipt) => receipt.streamStatus === 'completed').length,
+          failed: streamReceipts.filter((receipt) => receipt.streamStatus === 'failed').length,
+          incomplete: streamReceipts.filter((receipt) => receipt.streamStatus === 'incomplete').length,
+          cancelled: streamReceipts.filter((receipt) => receipt.streamStatus === 'cancelled').length,
+          truncated: streamReceipts.filter((receipt) => receipt.streamStatus === 'truncated').length,
+          partial: streamReceipts.filter((receipt) => receipt.streamStatus === 'partial').length,
+        },
+        unknownUsageReceipts: streamReceipts.filter((receipt) => receipt.usage.status === 'unknown').length,
+        trustLimitation: 'Final-wire artifacts, when present, remain candidates until signer/runtime provenance is independently accepted; stream receipts are unsigned NOT_CERTIFIED summaries.',
+      },
+      costTelemetry: {
+        modelProvider: {
+          status: report.value.nativeCostUsd === null || report.value.aceCostUsd === null ? 'unknown' : 'reported',
+          source: 'Harbor agent_result.cost_usd',
+          nativeUsd: report.value.nativeCostUsd,
+          aceUsd: report.value.aceCostUsd,
+        },
+        nonModelExternalAndInfrastructure: { status: 'unknown', amountUsd: null },
+        totalExternal: { status: 'unknown', amountUsd: null },
+      },
+      acceptance: {
+        status: acceptanceStatus,
+        fiveXClaimAllowed,
+        completedEvidenceStages,
+        finalWireEvidenceStatus,
+        externalCostTelemetry,
+        forcedToolUse,
+        blockers: [...new Set(acceptanceBlockers)],
+      },
       agentLoopEvidence: {
         path: 'agent-loop-evidence.json',
         sha256: sha256(agentLoopBytes),
         status: agentLoopStatus,
       },
       rawArtifactHashes: [
+        { arm: 'evidence', path: 'agent-loop-evidence.json', sha256: sha256(agentLoopBytes) },
         ...native.observations.flatMap((observation) => observation.rawArtifactHashes.map((artifact) => ({
           arm: 'native',
           path: `raw-agent-native/${Buffer.from(observation.taskId, 'utf8').toString('base64url')}/${artifact.path}`,
@@ -517,14 +632,17 @@ const main = async (): Promise<void> => {
         }))),
       ],
       rawArtifactRoot: args.outputDirectory,
-      limitations: [
+      limitations: [...new Set([
         ...(report.value.status === 'PASS' ? [] : ['Unknown values are retained and excluded from token ratio claims.']),
+        ...acceptanceBlockers,
         'Agent-loop evidence status is separate from feedback metrics and cannot certify a real Hermes/provider trial.',
-      ],
+      ])],
     };
     await writeFile(resolve(args.outputDirectory, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
     process.stdout.write(`${JSON.stringify({
       status: report.value.status,
+      acceptance: acceptanceStatus,
+      fiveXClaimAllowed,
       agentLoopEvidenceStatus: agentLoopStatus,
       output: args.outputDirectory,
       metrics: resolve(args.outputDirectory, 'metrics.json'),
