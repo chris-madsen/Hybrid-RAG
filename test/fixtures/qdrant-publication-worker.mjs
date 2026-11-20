@@ -53,7 +53,9 @@ if (mode === 'pause') {
     verifySource: async () => ok(true),
     write: async () => {
       process.stdout.write('LOCK_HELD\n');
-      await new Promise(() => {});
+      // Keep the holder process alive while the parent sends SIGKILL;
+      // a pending Promise without an active handle would let Node exit.
+      await new Promise(() => { setInterval(() => {}, 1_000); });
       return ok(true);
     },
     verifyMembership: async () => ok(true),
