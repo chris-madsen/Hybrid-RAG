@@ -228,3 +228,16 @@ test('portable receipts remain stable across an actual process restart', async (
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('AR06 v2 bundle SHA identity resends old unversioned fingerprints but preserves receipt-v1 portability', async () => {
+  const first = await callContext();
+  assert.match(first.bundleId ?? '', /^[a-f0-9]{64}$/u);
+  assert.match(first.evidence[0]?.receiptId ?? '', /^receipt-v1-[a-f0-9]{64}$/u);
+  const priorVersion = '0'.repeat(64);
+  const upgraded = await callContext({ knownBundleId: priorVersion });
+  assert.equal(upgraded.evidence[0]?.content, body, 'never suppress source bytes for an unrecognized old bundle ID');
+  assert.notEqual(upgraded.bundleId, priorVersion);
+  const stable = await callContext({ knownBundleId: first.bundleId });
+  assert.equal(stable.evidence[0]?.content, '', 'matching v2 identity reuses unchanged verified bytes');
+  assert.equal(stable.evidence[0]?.receiptId, first.evidence[0]?.receiptId);
+});

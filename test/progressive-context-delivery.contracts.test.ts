@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { projectContextForDelivery, resolveDeliveryIntent } from '../src/domain/context-delivery.js';
+import { contextTransportText, projectContextForDelivery, resolveDeliveryIntent } from '../src/domain/context-delivery.js';
 import type { ContextBundle, RetrievalEvidence } from '../src/domain/retrieval.js';
 
 const bodies = [
@@ -227,4 +227,24 @@ test('short exact snippets are not replaced with longer reference markers', () =
   });
   assert.equal(result.evidence[0]?.content, 'ok');
   assert.equal(result.deliveryMetrics?.reusedContextBytes, 0);
+});
+
+test('AR06 without a callable expansion handle a long verified snippet stays lossless', () => {
+  const long = { ...evidence[2]!, expansionHandle: undefined, expansionCursor: undefined, expansionMaxBytes: undefined };
+  const projected = projectContextForDelivery({ ...bundle, evidence: [long] }, 'locate');
+  assert.equal(projected.evidence[0]?.content, long.content, 'no unresolvable source reference may replace exact bytes');
+  assert.equal(projected.evidence[0]?.contentDelivery, undefined);
+  assert.equal(projected.evidence[0]?.expansionHandle, undefined);
+  assert.equal(projected.deliveryMetrics?.projectionBytesAvoided, 0);
+});
+
+test('AR06 Native Responses source map never promises the retired model-invoked expansion command', () => {
+  const locate = projectContextForDelivery(bundle, 'locate');
+  const text = contextTransportText(locate as unknown as Readonly<Record<string, unknown>>);
+  assert.doesNotMatch(text, /ace_expand|context_expand/u);
+  assert.match(text, /structuredContent/u);
+  const reused = projectContextForDelivery(bundle, 'inspect', {
+    knownEvidenceIds: ['any'], receiptScope: 'workspace-1',
+  });
+  assert.doesNotMatch(contextTransportText(reused as unknown as Readonly<Record<string, unknown>>), /ace_expand/u);
 });
