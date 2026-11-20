@@ -129,12 +129,12 @@ export interface RetrievalEvidence {
   /** A provider-supplied claim topic; absence means no conflict inference. */
   readonly conflictKey?: string;
   readonly conflictValue?: string;
-  /** An outline/reference, not a truncated claim: full original bytes remain available when a handle exists. */
+  /** Compact outline for explicitly reachable legacy host handles only; never imply an unavailable model tool. */
   readonly contentDelivery?: 'expand' | 'known_reference';
   /** Exact source bytes omitted because already in the model-visible native input or covered by a stable evidence receipt. */
   readonly reusedContentBytes?: number;
   readonly originalSpanLines?: number;
-  /** Handle for authorized, byte-exact full-source expansion via ace_expand. */
+  /** Legacy explicit host-only artifact handle; active Native Responses retrieval does not issue one. */
   readonly expansionHandle?: string;
   /** Exact verified AST span offset in the original artifact (UTF-8 bytes). */
   readonly expansionCursor?: string;
