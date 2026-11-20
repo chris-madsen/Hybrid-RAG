@@ -421,6 +421,7 @@ const startRuntime = async (options: LspSemanticOptions): Promise<Result<LspRunt
       capabilities: {
         textDocument: {
           definition: { linkSupport: true },
+          documentSymbol: { hierarchicalDocumentSymbolSupport: true },
           references: {},
           hover: {},
           publishDiagnostics: {},
@@ -684,11 +685,14 @@ export const makeLspSemanticAnalysisPort = (options: LspSemanticOptions): LspSem
             // LSP DocumentSymbol selectionRange is the identifier, not the
             // entire declaration. This is a native language-server response,
             // never a source-parser invented by ACE.
+            // A flat SymbolInformation.location covers the full declaration,
+            // not necessarily the identifier. Never pretend that range is a
+            // precise name anchor. Only hierarchical DocumentSymbol's native
+            // selectionRange can certify an exact identifier.
             const location = validRange(node.selectionRange)
               ? locationFromLsp(options.rootPath, {
                 uri, range: node.selectionRange,
-              }, active.files)
-              : locationFromLsp(options.rootPath, node.location, active.files);
+              }, active.files) : undefined;
             if (location !== undefined) symbols.push({ location, name: node.name });
             visit(node.children, depth + 1);
           }
