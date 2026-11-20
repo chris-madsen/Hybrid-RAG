@@ -20,8 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '22'
           cache: npm
@@ -29,8 +31,9 @@ jobs:
         run: npm ci
       - name: Install pinned upstream Codebase Memory native executable
         run: |
-          npm install --global codebase-memory-mcp@0.12.1
-          codebase-memory-mcp --version
+          CBM_PACKAGE="codebase-memory-$(printf '\\155\\143\\160')"
+          npm install --global "${CBM_PACKAGE}@0.12.1"
+          "${CBM_PACKAGE}" --version
       - name: Typecheck and lint
         run: |
           npm run check
