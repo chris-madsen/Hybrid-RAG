@@ -365,6 +365,10 @@ const main = async (): Promise<void> => {
   const scopeFingerprint = process.env.ACE_INDEX_SCOPE_FINGERPRINT?.trim()
     || createHash('sha256').update('ace-scope/default-v1', 'utf8').digest('hex');
   let context: ReturnType<typeof makeQdrantContextProvider> | undefined;
+  // Use identities returned by the actual published runtime composition,
+  // not configured default language-server labels. Update on every committed
+  // workspace generation so Gateway receipts follow provider replacement.
+  let activeContextProviderIdentities: Readonly<Record<string, string>> | undefined;
   let effectiveStructuralProviderIdentity = astGrepProvider === 'napi'
     ? process.env.ACE_AST_GREP_NAPI_VERSION?.trim() || 'ast-grep/napi@0.51.0'
     : process.env.ACE_AST_GREP_VERSION?.trim() || 'ast-grep/0.51.0';
@@ -1182,6 +1186,7 @@ const main = async (): Promise<void> => {
                     if (nextIndexKey === undefined) return err(domainError('NOT_READY', 'workspace_sync', 'synchronized publication has no index key'));
                     latestBuild = rebuilt.value;
                     latestPublished = nextPublished.value;
+                    activeContextProviderIdentities = nextPublished.value.benchmarkProviderIdentities;
                     return ok({
                       workspaceId: registered.value.workspaceId,
                       workspaceManifest: nextPublished.value.workspaceManifest ?? rebuilt.value.workspaceManifest,
@@ -1191,6 +1196,7 @@ const main = async (): Promise<void> => {
                     });
                   }),
                 });
+                activeContextProviderIdentities = published.value.benchmarkProviderIdentities;
                 const candidateContext = makeQdrantContextProvider({
                   ...published.value,
                   reconcile: reconcileRuntime,
@@ -1256,13 +1262,9 @@ const main = async (): Promise<void> => {
       store,
       context,
       assembler: makeContextAssembler(),
-      providerIdentities: {
-        dense: process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx',
-        sparse: process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25',
-        qdrant: process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2',
-        structural: effectiveStructuralProviderIdentity,
-        semantic: process.env.ACE_LSP_VERSION?.trim() || 'typescript-language-server/6.0.2',
-      },
+      // A discovered Rust/Python/TS LS provider is identified by its resolved
+      // executable/version and current publication; no TS LS fallback label.
+      providerIdentities: () => activeContextProviderIdentities ?? {},
     });
   // The LLM Gateway is the single agent-facing context-delivery owner.
   // There is no model-invoked fallback, even when the provider is not ready.

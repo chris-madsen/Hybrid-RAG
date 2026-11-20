@@ -58,7 +58,12 @@ export interface ContextTransformPorts {
   readonly ids: IdPort;
   readonly store: WorkspaceStore;
   readonly context: ContextProvider;
-  readonly providerIdentities?: Readonly<Record<string, string>>;
+  /** Active provider identities are resolved at each request. A runtime
+   * publication may replace the selected LSP server on an index refresh;
+   * constructor-time names from environment variables are not attestation.
+   */
+  readonly providerIdentities?: Readonly<Record<string, string>>
+    | (() => Readonly<Record<string, string>>);
   readonly assembler?: ContextAssembler;
   /** Optional exact host/provider token counter for the active model. */
   readonly countTokens?: (text: string) => number;
@@ -113,6 +118,11 @@ const workingContextFor = (
     ...(openPaths.length === 0 ? {} : { openPaths }),
     ...(range === undefined ? {} : { focusedRange: { startLine: range.startLine, endLine: range.endLine } }),
   });
+};
+
+const activeProviderIdentities = (ports: ContextTransformPorts): Readonly<Record<string, string>> => {
+  const source = ports.providerIdentities;
+  return typeof source === 'function' ? source() : source ?? {};
 };
 
 export const makeContextTransformService = (ports: ContextTransformPorts): ContextTransformService => ({
@@ -212,7 +222,7 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
           ? {} : { sourceCommit: workspace.value.lastObservation.headRevision }),
         ...(projected.indexCoverage?.sourceSnapshotDigest === undefined
           ? {} : { sourceManifestSha256: projected.indexCoverage.sourceSnapshotDigest }),
-        providerIdentities: ports.providerIdentities ?? {},
+        providerIdentities: activeProviderIdentities(ports),
         receiptId: `ace-transform-${projected.bundleId ?? requestId.value}`,
         providerRequestId: String(searched.value.requestId), limitations: [],
       });
@@ -263,7 +273,7 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
       ...(projected.indexCoverage?.sourceSnapshotDigest === undefined
         ? {}
         : { sourceManifestSha256: projected.indexCoverage.sourceSnapshotDigest }),
-      providerIdentities: ports.providerIdentities ?? {},
+      providerIdentities: activeProviderIdentities(ports),
       receiptId,
       providerRequestId: String(searched.value.requestId),
       limitations,
