@@ -23,7 +23,7 @@ Eight automatically chosen vertical implementation chunks, estimated **handwritt
 - [x] C02 — **IMPLEMENTED + BEHAVIOR_ACCEPTED** for RESP-004 on merged main; owner approved G02 mechanics 2026-11-19 **after implementation**, with `G02_PRECODE_DEVIATION=RECORDED` (not PASSED). No provider call in C02, no duplicate implementation. See [C02](phases/C02.md).
 - [ ] C03 — Native Responses physical-send implementation and follow-up security fixes are merged by PRs #288/#297; local deterministic tests and applicable PR checks pass. C03 remains `IMPLEMENTATION_CANDIDATE` pending owner-reviewed consume/body-boundary semantics, G02 and real provider-wire/agent evidence. Bifröst dependency PR #10217 remains open on the review fork. See [C03](phases/C03.md).
 - [ ] C04 — Privacy-safe OAuth and fallback decisions; executable plan: [C04](phases/C04.md)
-- [ ] C05 — Real final-wire route certification; executable plan: [C05](phases/C05.md)
+- [ ] C05 — implementation slice delivered by PR #301 under the standalone implementation decision; C04 remains a real-egress prerequisite only. Mock final-wire capture/evidence handling are tested, but G11-003 real provider acknowledgement and full route certification remain NOT_RUN; the phase stays open. See [C05](phases/C05.md).
 - [ ] C06 — Native stream completion and cancellation; executable plan: [C06](phases/C06.md)
 - [ ] C07 — Real Hermes long agent loop; executable plan: [C07](phases/C07.md)
 - [ ] C08 — Paired Harbor quality, cost and owner release; executable plan: [C08](phases/C08.md)
