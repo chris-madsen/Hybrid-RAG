@@ -75,8 +75,30 @@ const semanticRows = (root: string, response: unknown): readonly NativeGraphRow[
   return rows;
 };
 
+/** Native CBM BM25 returns {cols:[qn,label,file,lines,rank],rows:[...]}.
+ * Preserve its native ordering; negate SQLite's lower-is-better rank only for
+ * the candidate score interface (the caller reassigns shortlist ranks).
+ */
+const lexicalRows = (root: string, response: unknown): readonly NativeGraphRow[] | undefined => {
+  const obj = object(response);
+  if (obj === undefined || !Array.isArray(obj.cols) || !Array.isArray(obj.rows)) return undefined;
+  const qi = obj.cols.indexOf('qn');
+  const fi = obj.cols.indexOf('file');
+  const ri = obj.cols.indexOf('rank');
+  if (qi < 0 || fi < 0 || ri < 0) return undefined;
+  const rows: NativeGraphRow[] = [];
+  for (const row of obj.rows) {
+    if (!Array.isArray(row) || typeof row[qi] !== 'string' || typeof row[fi] !== 'string'
+      || typeof row[ri] !== 'number' || !Number.isFinite(row[ri])) return undefined;
+    const file = ownedPath(root, row[fi]);
+    if (file !== undefined) rows.push({ qn: row[qi], file, score: -row[ri] });
+  }
+  return rows;
+};
+
 /** Public for provider-contract tests; this does not implement a graph/query algorithm. */
 export const parseCodebaseMemorySemanticRows = semanticRows;
+export const parseCodebaseMemoryLexicalRows = lexicalRows;
 
 const matchesName = (qualifiedName: string, name: string): boolean =>
   qualifiedName === name || qualifiedName.endsWith('.' + name)
@@ -138,7 +160,7 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
     }
   });
 
-  const searchRows = async (query: string, limit: number): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
+  const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
     }
@@ -152,23 +174,39 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
     });
     if (response._tag === 'Err') return response;
     const hits = semanticRows(root, response.value);
-    return hits === undefined
-      ? err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented semantic result table'))
-      : ok(hits);
+    if (hits === undefined) {
+      return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented semantic result table'));
+    }
+    // When the native vector top-k contains no file in the verified ACE
+    // candidate inventory, use CBM's OWN SQLite FTS5/BM25 query. This is
+    // upstream-supported discovery, not an ACE lexical search implementation.
+    if (hits.some((hit) => candidatePaths.has(hit.file))) return ok(hits);
+    const lexical = await invoke('search_graph', {
+      project,
+      query,
+      limit: Math.min(100, limit),
+      format: 'json',
+      max_output_tokens: 8192,
+    });
+    if (lexical._tag === 'Err') return lexical;
+    const fallback = lexicalRows(root, lexical.value);
+    return fallback === undefined
+      ? err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'))
+      : ok(fallback);
   };
 
   const search: CodeGraphCandidatePort['search'] = (input) => Effect.promise(async () => {
     if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 100) {
       return err(domainError('INVALID_INPUT', 'limit', 'Codebase Memory search limit must be between 1 and 100'));
     }
-    const native = await searchRows(input.query, input.limit);
-    if (native._tag === 'Err') return native;
     const candidatesByFile = new Map<RepoPath, CodeCandidate[]>();
     for (const candidate of options.candidates()) {
       const list = candidatesByFile.get(candidate.repoPath) ?? [];
       list.push(candidate);
       candidatesByFile.set(candidate.repoPath, list);
     }
+    const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()));
+    if (native._tag === 'Err') return native;
     const found: RankedCandidate[] = [];
     const seen = new Set<string>();
     for (const hit of native.value) {
@@ -193,15 +231,15 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
         return err(domainError('INVALID_INPUT', 'token_budget', 'Codebase Memory context budget must be positive'));
       }
       const limit = Math.min(50, Math.max(5, Math.floor(input.tokenBudget / 24)));
-      const native = await searchRows(input.query, limit);
-      if (native._tag === 'Err') return native;
-      const hits = native.value;
       const byFile = new Map<RepoPath, CodeCandidate[]>();
       for (const candidate of options.candidates()) {
         const listed = byFile.get(candidate.repoPath) ?? [];
         listed.push(candidate);
         byFile.set(candidate.repoPath, listed);
       }
+      const native = await searchRows(input.query, limit, new Set(byFile.keys()));
+      if (native._tag === 'Err') return native;
+      const hits = native.value;
 
       const ranked: RepoMapRankedSymbol[] = [];
       const seen = new Set<string>();
