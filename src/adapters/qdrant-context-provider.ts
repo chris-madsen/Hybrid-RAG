@@ -17,6 +17,7 @@ import {
 } from '../domain/retrieval.js';
 import type {
   CodeCandidatePort,
+  CodeGraphCandidatePort,
   CodePoint,
   DocumentationPort,
   GitHistoryPort,
@@ -118,7 +119,9 @@ export interface QdrantContextConfig {
   readonly workspaceSync?: WorkspaceSync;
   /** Stable collection mode keeps unchanged points across changed-path mutations. */
   readonly qdrantStableCollection?: boolean;
-  /** Optional bounded structural prior; Qdrant remains semantic authority. */
+  /** CBM supplies candidates missing from Qdrant's shortlist; all are exact-read before delivery. */
+  readonly codeGraph?: CodeGraphCandidatePort;
+  /** Optional native graph summary (never source-authoritative). */
   readonly repoMap?: Pick<RepoMapService, 'render'>;
 }
 
@@ -1146,12 +1149,40 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
               retrievalStartedAtMs,
               activeConfig.benchmarkRepositoryId,
             );
+            // Discover across the full indexed workspace, not just Qdrant's
+            // original top-k. CBM's own semantic engine chooses graph hits;
+            // the existing ACE verified-candidate inventory supplies digests
+            // and byte ranges. Reserve part of the bounded shortlist for each
+            // provider so a previously unknown dependency can still be read.
+            let discovered: readonly RankedCandidate[] = result.value;
+            if (activeConfig.codeGraph !== undefined) {
+              const graphResult = yield* activeConfig.codeGraph.search({
+                query: input.query,
+                limit: retrievalLimit,
+              });
+              if (graphResult._tag === 'Err') {
+                warnings.push('Codebase Memory discovery unavailable: ' + graphResult.error.code);
+              } else {
+                const graphSlots = Math.max(1, Math.floor(retrievalLimit / 2));
+                const topScore = result.value[0]?.score ?? 0;
+                const graphCandidates = graphResult.value.slice(0, graphSlots).map((item, rank) => ({
+                  ...item,
+                  score: topScore + 0.05 / (rank + 1),
+                }));
+                const seen = new Set<string>();
+                discovered = [...graphCandidates, ...result.value].filter((item) => {
+                  if (seen.has(item.candidate.candidateId)) return false;
+                  seen.add(item.candidate.candidateId);
+                  return true;
+                }).slice(0, retrievalLimit);
+              }
+            }
             const workingContextStartedAtMs = Date.now();
             let prioritized = applyWorkingContextPriors(
-              result.value,
+              discovered,
               requestWorkingContext,
               input.workingContextHints,
-              result.value.length,
+              discovered.length,
             );
             if (useRepoMap && activeConfig.repoMap !== undefined) {
               const repoMap = yield* activeConfig.repoMap.render({
