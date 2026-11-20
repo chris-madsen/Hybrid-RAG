@@ -1056,7 +1056,8 @@ test('DBC-05 final worktree revalidation runs after documentation retrieval', as
   const finalStages = benchmark.events.filter((item) => item.stage === 'delivered');
   assert.equal(finalStages.length, 2);
   assert.equal(finalStages[0]?.status, 'unavailable');
-  assert.equal(finalStages[1]?.status, 'executed');
+  assert.equal(finalStages[1]?.status, 'unavailable',
+    'an incomplete final reread cannot assert successful delivery');
   assert.deepEqual(finalStages[1]?.candidates, [],
     'stale ranked candidates must not count as final verified delivery');
 });
