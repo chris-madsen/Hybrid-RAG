@@ -245,9 +245,10 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
       for (const name of names) {
         const observed = await read(join(rootPath, name));
         if (observed._tag === 'Err') return observed;
-        if (observed.value?.episodeId === episodeId && observed.value.inflightAttemptId !== undefined) {
+        if (observed.value?.episodeId === episodeId
+          && (observed.value.inflightAttemptId !== undefined || observed.value.uncertainGraphAttempt === true)) {
           return err(domainError('INVALID_MEMORY', 'projection_attempt',
-            'a Graphiti attempt is already in-flight for this episode'));
+            'a prior extractor has an in-flight or unresolved Graphiti side effect for this episode'));
         }
       }
       const reserved = { ...current.value, inflightAttemptId: randomUUID() };

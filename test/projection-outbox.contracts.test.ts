@@ -201,3 +201,23 @@ test('AR05 cannot forge a completed graph receipt by tombstoning pending intent 
   assert.equal((await outbox.beginDeletion(episode))._tag, 'Err',
     'graph may still be sent; archive deletion must remain blocked');
 });
+
+test('AR05 changing extractor version cannot bypass unresolved Graphiti side effects', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar05-extractor-version-'));
+  const outbox = await makeFileProjectionOutbox(root);
+  const episode = 'ar05-extractor-version-episode' as never;
+  assert.equal((await outbox.begin(episode, 'extractor-v1'))._tag, 'Ok');
+  const first = await outbox.startAttempt(episode, 'extractor-v1');
+  assert.equal(first._tag, 'Ok');
+  if (first._tag === 'Err') return;
+  assert.equal((await outbox.put({
+    ...first.value, status: 'incomplete', attempts: 1, uncertainGraphAttempt: true,
+  }))._tag, 'Ok');
+  assert.equal((await outbox.begin(episode, 'extractor-v2'))._tag, 'Ok',
+    'staging an intent is harmless, only the provider send needs an exclusive fence');
+  const otherVersion = await outbox.startAttempt(episode, 'extractor-v2');
+  assert.equal(otherVersion._tag, 'Err',
+    'an unresolved v1 send could materialize after a v2 retry');
+  if (otherVersion._tag === 'Err') assert.equal(otherVersion.error.code, 'INVALID_MEMORY');
+  assert.equal((await outbox.beginDeletion(episode))._tag, 'Err');
+});
