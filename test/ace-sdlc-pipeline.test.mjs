@@ -383,3 +383,26 @@ test('all seven SDLC stages can be selected or resumed by a compatible coding ha
   assert.match(file('docs/operations/sdlc-e2e-trial.md'), /Resume matrix/u);
   assert.match(file('.codex/skills/ace-sdlc/SKILL.md'), /R\/S\/A\/P\/X\/I\/V/u);
 });
+
+
+test('owner-directed implementation reuses planned G02; C07 code can run offline while C06 acceptance is pending', () => {
+  const root = file('AGENTS.md');
+  const skill = file('.agents/skills/ace-sdlc/SKILL.md');
+  const handoff = file('.agents/skills/ace-stage-handoff/SKILL.md');
+  const admission = file('docs/operations/implementation-entry-resume.md');
+  const tasks = file('openspec/changes/013-gateway-g11-production-acceptance/tasks.md');
+  const phase = file('openspec/changes/013-gateway-g11-production-acceptance/phases/C07.md');
+  const preflight = file('scripts/sdlc-preflight.mjs');
+
+  assert.match(root, /Owner-directed implementation \(T2\)/u);
+  assert.match(root, /new unresolved material architectural decision/u);
+  assert.match(skill, /without a second G02 interview/u);
+  assert.match(handoff, /ordinary Ready-for-review PR/u);
+  assert.match(admission, /Missing C05\/C06 acceptance blocks real C07 E2E/u);
+  assert.match(tasks, /parallel with earlier phases on stable contracts/u);
+  assert.match(phase, /offline IMPLEMENTATION_AUTHORIZED/u);
+  assert.match(phase, /integration, real Hermes\/provider trials and final phase acceptance remain/u);
+  assert.match(preflight, /No --g02 supplied/u);
+  assert.doesNotMatch(admission, /If G02 is still `REVIEW_REQUIRED`, stop/u);
+  assert.doesNotMatch(handoff, /focused Draft\/code PR/u);
+});
