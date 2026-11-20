@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -220,4 +220,20 @@ test('AR05 changing extractor version cannot bypass unresolved Graphiti side eff
     'an unresolved v1 send could materialize after a v2 retry');
   if (otherVersion._tag === 'Err') assert.equal(otherVersion.error.code, 'INVALID_MEMORY');
   assert.equal((await outbox.beginDeletion(episode))._tag, 'Err');
+});
+
+test('AR05 historical tombstoned receipt without a completed fence cannot authorize archive deletion', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar05-legacy-tombstone-'));
+  const outbox = await makeFileProjectionOutbox(root);
+  const episode = 'legacy-tombstone-episode' as never;
+  const pending = await outbox.begin(episode, 'extractor-v1');
+  assert.equal(pending._tag, 'Ok');
+  if (pending._tag === 'Err') return;
+  // Simulate a pre-AR05 receipt written before durable deletion fencing was
+  // introduced, not a modern put() (which correctly refuses this transition).
+  await writeFile(join(root, `${Buffer.from(pending.value.key).toString('base64url')}.json`),
+    JSON.stringify({ ...pending.value, status: 'tombstoned' }));
+  const reopened = await makeFileProjectionOutbox(root);
+  assert.equal((await reopened.beginDeletion(episode))._tag, 'Err',
+    'a legacy status alone cannot prove the graph attempt has settled');
 });

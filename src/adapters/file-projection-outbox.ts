@@ -323,7 +323,11 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
         if (archiveOnly.value || receipt.inflightAttemptId !== undefined
           || receipt.uncertainGraphAttempt === true
           || (receipt.status === 'projected' && receipt.graphDispatchAcknowledged !== true)
-          || (receipt.status !== 'projected' && receipt.status !== 'tombstoned')) {
+          // A historical tombstone receipt without an existing completed
+          // deletion fence is not independent proof that no provider send can
+          // still happen. Any *legitimate* tombstone has a deletion fence and
+          // returns early above; do not trust old unverified status alone.
+          || receipt.status !== 'projected') {
           return err(domainError('INVALID_MEMORY', 'projection_deletion',
             'unsettled or contradictory graph projection intent blocks deletion'));
         }
