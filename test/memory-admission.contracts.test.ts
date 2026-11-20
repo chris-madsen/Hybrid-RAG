@@ -282,3 +282,31 @@ test('AR05 graph projection without a durable outbox is refused before any provi
   assert.equal(calls.created, 0);
   assert.equal(calls.projected, 0);
 });
+
+test('AR05 outbox failure retains every immutable original but starts no Graphiti session', async () => {
+  const local = inMemoryArchive();
+  const outbox = await freshOutbox();
+  let graphStarts = 0;
+  const failedOutbox = {
+    ...outbox,
+    markArchiveOnly: async () => err(domainError('PERSISTENCE_FAILED', 'archive_only', 'injected ledger outage')),
+  };
+  const result = await importMemoryEpisodes({
+    episodes: [
+      episode('ledger-failure', 'ordinary transcript kept locally', 'archive_only'),
+      episode('later-project', 'We decided to preserve a local-only source'),
+      episode('later-original', 'another ordinary local transcript'),
+    ],
+    archive: local.archive,
+    outbox: failedOutbox,
+    extractorVersion: 'test-extractor',
+    createProjection: async () => {
+      graphStarts += 1;
+      return projectionSession({ created: 0, projected: 0 });
+    },
+  });
+  assert.equal(result._tag, 'Err');
+  if (result._tag === 'Err') assert.equal(result.error.code, 'PERSISTENCE_FAILED');
+  assert.equal(local.episodes.size, 3, 'outbox outage must not discard later source truth');
+  assert.equal(graphStarts, 0, 'no graph transmission without durable intent');
+});

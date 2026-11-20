@@ -221,7 +221,7 @@ export interface ProjectionOutboxPort {
   readonly startAttempt: (episodeId: EpisodeId, extractorVersion: string) => Promise<Result<ProjectionReceipt, DomainError>>;
   readonly get: (key: ProjectionKey) => Promise<Result<ProjectionReceipt | undefined, DomainError>>;
   readonly list: () => Promise<Result<readonly ProjectionReceipt[], DomainError>>;
-  /** Optional durable proof that a newly archived episode was never projected. */
+  /** Write-ahead never-projected proof for a newly admitted source, before archive commit. */
   readonly markArchiveOnly?: (episodeId: EpisodeId) => Promise<Result<void, DomainError>>;
   readonly isArchiveOnly?: (episodeId: EpisodeId) => Promise<Result<boolean, DomainError>>;
   readonly beginDeletion: (episodeId: EpisodeId) => Promise<Result<void, DomainError>>;
