@@ -67,7 +67,8 @@ export CBM_WORKERS=2
 export HOME="$RUNNER_TEMP/code-intel-home"
 mkdir -p "$HOME"
 
-cbm_exe="codebase-memory-$(printf '\\155\\143\\160')"\nif [ "$engine" = cbm ]; then
+cbm_exe="codebase-memory-$(printf '\155\143\160')"
+if [ "$engine" = cbm ]; then
   run_case version "$cbm_exe" --version
   run_case cli-help "$cbm_exe" cli --help
   run_case index-initial "$cbm_exe" cli index_repository --repo-path "$snapshot"
