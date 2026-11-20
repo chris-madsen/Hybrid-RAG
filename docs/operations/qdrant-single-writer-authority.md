@@ -15,7 +15,7 @@ Missing/invalid directory, malformed state, lock timeout, unsupported OS, source
 
 ## Commit protocol
 
-1. Under workspace-scoped kernel lock, reserve and fsync a strictly increasing safe-integer epoch **before** computing candidates. A crash never reuses the reservation.
+1. Under workspace-scoped kernel lock, reserve and fsync a strictly increasing safe-integer epoch **before** computing candidates. A crash never reuses the reservation. If the durable authority record is missing, the runtime first ensures the selected Qdrant collection and proves via official SDK exact workspace-scoped count that **zero physical points exist**. A nonempty workspace or failed count refuses bootstrap rather than resetting old epochs.
 2. Build exact source candidates. Before any Qdrant mutation, reacquire the kernel lock and reject any epoch at or below the committed epoch.
 3. Under that lock, re-observe the authoritative source manifest. Refuse any stale source or changed scope.
 4. Run the existing official-SDK Qdrant upsert, changed-path cleanup and candidate verification. Re-observe the source afterward and verify the **complete physical workspace candidate membership**, not just changed paths.
