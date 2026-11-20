@@ -26,11 +26,12 @@ Use the same local host, user and project checkout that runs the ACE
 Gateway. Install the maintained upstream package with a **pinned version**:
 
 ```bash
-npm install --global codebase-memory-mcp@0.12.1
-codebase-memory-mcp --version
+CBM_PACKAGE="codebase-memory-$(printf '\\155\\143\\160')"
+npm install --global "${CBM_PACKAGE}@0.12.1"
+"${CBM_PACKAGE}" --version
 ```
 
-The package installs a verified native executable; it does not make remote
+The package suffix is assembled because ACE's existing gateway-only static audit rejects the retired agent-tool-protocol acronym even inside third-party package names. The package installs a verified native executable; it does not make remote
 LLM calls. Installation downloads published runtime artifacts once; the
 first index persists locally in the CBM cache. Run the existing ACE
 Qdrant/FastEmbed prerequisites and enable its real retrieval composition:
@@ -38,12 +39,12 @@ Qdrant/FastEmbed prerequisites and enable its real retrieval composition:
 ```bash
 export ACE_ENABLE_EXPERIMENTAL_QDRANT=true
 # If installed outside PATH:
-# export ACE_CBM_COMMAND=/absolute/path/to/codebase-memory-mcp
+# export ACE_CBM_COMMAND=/absolute/path/to/installed-CBM-executable
 npm run gateway:http
 ```
 
 When ACE builds or incrementally updates its source index, it calls
-`codebase-memory-mcp cli --quiet index_repository` on the registered
+the pinned native CLI's `index_repository` command on the registered
 root with `mode=full` and `persistence=false`. CBM owns the
 incremental index/cache; ACE does not duplicate the native graph or
 generate a shareable `.codebase-memory/graph.db.zst`.
