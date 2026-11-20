@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rename, rm, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -93,6 +93,80 @@ test('NodeWorkspacePort reconciles all prior paths once when a non-Git workspace
     assert.match(observed.value.headRevision, /^[a-f0-9]{40,64}$/u);
     assert.ok(observed.value.changedPaths.includes('src/one.ts' as never),
       'first real Git HEAD must force exact reconciliation of pre-Git source');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('non-Git digest reconciliation detects a same-size edit with restored mtime and no watcher event', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-nongit-digest-'));
+  try {
+    await mkdir(join(root, 'src'));
+    const file = join(root, 'src', 'entry.ts');
+    await writeFile(file, 'export const value = 1;\n');
+    const stableTime = new Date('2024-05-01T00:00:00.000Z');
+    await utimes(file, stableTime, stableTime);
+    const port = makeNodeWorkspacePort({ allowedRoots: [root] });
+    const before = await Effect.runPromise(port.snapshot(root, 1));
+    assert.equal(before._tag, 'Ok');
+    if (before._tag === 'Err') return;
+    assert.equal(before.value.headRevision, 'unavailable');
+    const baseline = {
+      headRevision: before.value.headRevision,
+      files: before.value.files.map((observedFile) => ({
+        repoPath: observedFile.repoPath,
+        sizeBytes: observedFile.sizeBytes,
+        mtimeMs: observedFile.mtimeMs,
+        sourceDigest: observedFile.digest,
+      })),
+    };
+    const fresh = await Effect.runPromise(port.observeChanges(root, baseline));
+    assert.equal(fresh._tag, 'Ok');
+    if (fresh._tag === 'Ok') assert.deepEqual(fresh.value.changedPaths, []);
+
+    await writeFile(file, 'export const value = 2;\n');
+    await utimes(file, stableTime, stableTime);
+    assert.equal((await stat(file)).mtimeMs, baseline.files[0]?.mtimeMs);
+    assert.equal((await stat(file)).size, baseline.files[0]?.sizeBytes);
+    const observed = await Effect.runPromise(port.observeChanges(root, baseline));
+    assert.equal(observed._tag, 'Ok');
+    if (observed._tag === 'Ok') {
+      assert.deepEqual(observed.value.changedPaths, [path('src/entry.ts')]);
+      assert.deepEqual(observed.value.addedPaths, []);
+      assert.deepEqual(observed.value.deletedPaths, []);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('non-Git observation reconciles missing legacy digest and skips out-of-scope private bytes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-nongit-scope-'));
+  try {
+    await mkdir(join(root, 'src'));
+    await writeFile(join(root, 'src', 'entry.ts'), 'export const value = 1;\n');
+    await writeFile(join(root, 'private.env'), 'password=example-not-a-real-secret\n');
+    const port = makeNodeWorkspacePort({ allowedRoots: [root] });
+    const before = await Effect.runPromise(port.snapshot(root, 1));
+    assert.equal(before._tag, 'Ok');
+    if (before._tag === 'Err') return;
+    const baseline = {
+      headRevision: before.value.headRevision,
+      files: before.value.files.map((file) => ({
+        repoPath: file.repoPath,
+        sizeBytes: file.sizeBytes,
+        mtimeMs: file.mtimeMs,
+        // Simulate persisted metadata-only baselines from older builds.
+      })),
+    };
+    const inScope = (repoPath: RepoPath): boolean => String(repoPath).startsWith('src/');
+    const observed = await Effect.runPromise(port.observeChanges(root, baseline, inScope));
+    assert.equal(observed._tag, 'Ok');
+    if (observed._tag === 'Ok') {
+      assert.deepEqual(observed.value.changedPaths, [path('src/entry.ts')]);
+      assert.deepEqual(observed.value.untrackedPaths, [path('src/entry.ts')]);
+      assert.equal(observed.value.changedPaths.includes(path('private.env')), false);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
