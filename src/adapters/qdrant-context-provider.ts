@@ -165,7 +165,11 @@ export const applyWorkingContextPriors = (
 ): readonly RankedCandidate[] => [...candidates]
   .map((candidate) => {
     const boost = workingContextBoost(candidate, workingContext, hints);
-    return { ...candidate, score: candidate.score * (1 + boost) };
+    // Cosine/rerank scores can be negative. Multiplication would demote a
+    // preferred candidate (-0.8 * 1.1 < -0.8) instead of increasing its rank.
+    // A bounded, additive prior is monotone for negative, zero and positive
+    // finite scores; the unmodified semantic score remains authoritative.
+    return { ...candidate, score: candidate.score + boost };
   })
   .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
   .slice(0, limit);
@@ -987,6 +991,11 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       const failed: string[] = [];
       let codeProviderError: DomainError | undefined;
       let rankedResults: readonly RankedCandidate[] = [];
+      // Candidate ID -> actually observed code evidence ID. A shortlist rank
+      // is never automatically a delivered result: final workspace reread can
+      // downgrade the evidence after ranking has already completed.
+      const candidateEvidenceIds = new Map<string, string>();
+      let deliveryTraceStartedAtMs: number | undefined;
       let repoMapResult: RepoMapResult | undefined;
       let repoMapError: DomainError | undefined;
       let lspConfirmedCount = 0;
@@ -1243,15 +1252,10 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
                 );
               }
             }
-            recordBenchmarkStage(
-              activeConfig.benchmarkTrace,
-              activeConfig.benchmarkProviderIdentities,
-              requestId.value,
-              'delivered',
-              rankedResults,
-              retrievalStartedAtMs,
-              activeConfig.benchmarkRepositoryId,
-            );
+            // Capture the timing boundary but NOT a delivered event here.
+            // Ranked candidates have not survived the final exact-source
+            // revalidation, so calling them "delivered" would fabricate proof.
+            deliveryTraceStartedAtMs = retrievalStartedAtMs;
           }
         }
         if (codeProviderError !== undefined) {
@@ -1374,6 +1378,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           }
         }
         const baseEvidence = evidenceFromCandidate({ ...ranked, freshness }, evidenceId.value);
+        candidateEvidenceIds.set(String(candidate.candidateId), String(evidenceId.value));
         evidence.push({
           ...baseEvidence,
           content: verifiedText,
@@ -1680,6 +1685,28 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         complete: sourceCoverageComplete(sourceCoverage),
         ...(activeConfig.coverage === undefined ? {} : { indexCoverage: activeConfig.coverage }),
       };
+      if (includeCode && codeProviderError === undefined && deliveryTraceStartedAtMs !== undefined) {
+        const finalVerifiedIds = new Set(covered.evidence
+          .filter((item) => item.source === 'code'
+            && item.freshness === 'current' && item.proofClass === 'direct')
+          .map((item) => String(item.evidenceId)));
+        const verifiedRanks = rankedResults.filter((ranked) => {
+          const evidenceId = candidateEvidenceIds.get(String(ranked.candidate.candidateId));
+          return evidenceId !== undefined && finalVerifiedIds.has(evidenceId);
+        });
+        // "delivered" is emitted at the *final exact source* boundary, not at
+        // shortlist/reranking time. Final-wire model send remains a separately
+        // attested G11 boundary; this trace cannot certify a provider send.
+        recordBenchmarkStage(
+          activeConfig.benchmarkTrace,
+          activeConfig.benchmarkProviderIdentities,
+          requestId.value,
+          'delivered',
+          verifiedRanks,
+          deliveryTraceStartedAtMs,
+          activeConfig.benchmarkRepositoryId,
+        );
+      }
       return ok(covered);
     }) as Effect.Effect<Result<ContextBundle, DomainError>>;
   /* eslint-enable @typescript-eslint/indent */
