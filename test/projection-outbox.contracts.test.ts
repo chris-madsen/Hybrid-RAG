@@ -187,3 +187,17 @@ test('AR05 OS SIGKILL between durable claim and provider result blocks replay an
   assert.equal((await outbox.startAttempt('ar05-killed-attempt' as never, 'extractor-v1'))._tag, 'Err');
   assert.equal((await outbox.beginDeletion('ar05-killed-attempt' as never))._tag, 'Err');
 });
+
+test('AR05 cannot forge a completed graph receipt by tombstoning pending intent before deletion', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar05-fake-tombstone-'));
+  const outbox = await makeFileProjectionOutbox(root);
+  const episode = 'ar05-fake-completion' as never;
+  const pending = await outbox.begin(episode, 'extractor-v1');
+  assert.equal(pending._tag, 'Ok');
+  if (pending._tag === 'Err') return;
+  const forged = await outbox.put({ ...pending.value, status: 'tombstoned' });
+  assert.equal(forged._tag, 'Err',
+    'pending intent cannot be rewritten to tombstone before a successful deletion');
+  assert.equal((await outbox.beginDeletion(episode))._tag, 'Err',
+    'graph may still be sent; archive deletion must remain blocked');
+});
