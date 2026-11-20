@@ -1,7 +1,7 @@
 # Code-intelligence engine bake-off (not an ACE integration)
 
 Status: **experiment only, no winner selected**. This procedure compares the
-**unmodified** upstream Codebase Memory MCP and CodeGraphContext against the
+**unmodified** upstream Codebase Memory and CodeGraphContext against the
 same source commit. It does not expose either engine to ACE Gateway, Qdrant
 or the production repository indexing path.
 
@@ -11,7 +11,7 @@ or the production repository indexing path.
 - Source commit: `9464c4a4a420634ea39bd4ae57673a51fc88ed8f`
 - CBM: release `v0.12.1`, Linux AMD64 release checksum
   `8453015145f072c1b9b019cbdd02cea8cc6f18cc5e116036dd20992631c638c7`.
-  Release assets: https://github.com/DeusData/codebase-memory-mcp/releases/tag/v0.12.1
+  Release assets: DeusData repository, release v0.12.1 (SHA listed above)
 - CGC source: `CodeGraphContext/CodeGraphContext@ed2f36b0c5fa4566091e0a34753931c27e98bb33`;
   compare default Tree-sitter with explicitly requested SCIP.
 - SCIP TypeScript: `@sourcegraph/scip-typescript@0.6.2` for the SCIP leg.
