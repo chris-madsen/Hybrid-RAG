@@ -60,5 +60,10 @@ jobs:
           cache: npm
       - name: Install ACE pinned dependencies
         run: npm ci
+      - name: Install pinned upstream Codebase Memory for real LSP evidence
+        run: | # zizmor: ignore[adhoc-packages] pinned v0.12.1 verifies native archive checksum
+          CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
+          npm install --global "${CBM_PACKAGE}@0.12.1"
+          "${CBM_PACKAGE}" --version
       - name: Run complete source contracts, build, architecture and nightly property suite
         run: npm run verify:full
