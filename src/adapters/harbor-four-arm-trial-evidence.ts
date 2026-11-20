@@ -25,7 +25,7 @@ const readJson = async (path: string): Promise<JsonRecord> => {
   return value;
 };
 
-const trialDirs = async (aggregatePath: string): Promise<readonly string[]> => {
+export const readHarborFourArmTrialDirectories = async (aggregatePath: string): Promise<readonly string[]> => {
   const aggregate = await readJson(aggregatePath);
   const count = integer(aggregate.n_total_trials ?? aggregate.nTotalTrials);
   if (count === null || count < 1) throw new Error('BLOCKED: aggregate trial count missing or invalid');
@@ -87,12 +87,11 @@ const readTrial = async (
   const verifier = object(record.verifier_result);
   const rewards = object(verifier?.rewards);
   const reward = rewards?.reward;
-  if (typeof reward !== 'number' || !Number.isFinite(reward)) {
-    throw new Error('BLOCKED: raw verifier reward is missing');
-  }
   const exception = object(record.exception_info);
-  if (exception?.type === 'VerifierTimeoutError' || record.timed_out === true) {
-    throw new Error('BLOCKED: Harbor trial timed out');
+  const failed = record.exception_info !== null && record.exception_info !== undefined;
+  const timedOut = record.timed_out === true || exception?.type === 'VerifierTimeoutError';
+  if ((typeof reward !== 'number' || !Number.isFinite(reward)) && !failed && !timedOut) {
+    throw new Error('BLOCKED: raw verifier reward is missing');
   }
   const agent = object(record.agent_result);
   const began = typeof record.started_at === 'string' ? Date.parse(record.started_at) : NaN;
@@ -102,8 +101,8 @@ const readTrial = async (
     arm,
     trialId: nonEmpty(record.trial_id) ?? basename(directory),
     taskName,
-    success: (record.exception_info === null || record.exception_info === undefined) && reward === 1,
-    timedOut: typeof record.timed_out === 'boolean' ? record.timed_out : null,
+    success: !failed && !timedOut && reward === 1,
+    timedOut: timedOut ? true : typeof record.timed_out === 'boolean' ? record.timed_out : null,
     // Gateway projection requests are not model-invoked ACE calls and cannot
     // establish that a provider actually received the rewritten request.
     observedAceCalls: 0,
@@ -130,4 +129,4 @@ export const readHarborFourArmTrialObservations = async (
   arm: HarborFourArmName,
   aggregatePath: string,
 ): Promise<readonly HarborFourArmTrialObservation[]> =>
-  Promise.all((await trialDirs(aggregatePath)).map((directory) => readTrial(arm, directory)));
+  Promise.all((await readHarborFourArmTrialDirectories(aggregatePath)).map((directory) => readTrial(arm, directory)));
