@@ -3,11 +3,11 @@ name: ACE Codebase Memory native integration
 on:
   pull_request:
     paths:
-      - 'src/adapters/codebase-memory-repo-map.ts'
+      - 'src/adapters/codebase-memory-graph.ts'
       - 'src/adapters/qdrant-context-provider.ts'
       - 'src/application/ports.ts'
       - 'src/bin/ace-runtime.ts'
-      - 'test/codebase-memory-repo-map.contracts.test.ts'
+      - 'test/codebase-memory-graph.contracts.test.ts'
       - '.github/workflows/ace-codebase-memory.yml'
   workflow_dispatch:
 
@@ -44,4 +44,4 @@ jobs:
       - name: Native provider contract on actual ACE repository
         env:
           ACE_TEST_REAL_CBM: 'true'
-        run: npx tsx --test test/codebase-memory-repo-map.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
+        run: npx tsx --test test/codebase-memory-graph.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
