@@ -263,6 +263,14 @@ test('verified empty context preserves native request byte-for-byte; incomplete 
     if (empty.value.kind === 'PREPARED') {
       assert.equal(empty.value.bodyBase64, original.bodyBase64);
       assert.equal(empty.value.projectedBodySha256, original.bodySha256);
+      const receipt = verifyProjectionReceipt(empty.value.projectionReceipt, 'test-projection-receipt-secret', Date.now());
+      assert.equal(receipt._tag, 'Ok', 'verified-empty still needs a signed physical-send binding');
+      if (receipt._tag === 'Ok') {
+        assert.equal(receipt.value.baseBodySha256, original.bodySha256);
+        assert.equal(receipt.value.projectedBodySha256, original.bodySha256);
+        assert.equal(receipt.value.evidenceIdsSha256, hash('[]'));
+        assert.equal(receipt.value.contextTextSha256, hash(''));
+      }
     }
   }
   for (const result of [
