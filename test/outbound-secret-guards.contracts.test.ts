@@ -136,6 +136,7 @@ test('outbound text guard catches common credential shapes without leaking fixtu
     'xoxb-' + '1'.repeat(13) + '-' + '2'.repeat(13) + '-' + 'a'.repeat(26),
     'gho_' + 'a'.repeat(30),
     'aws_secret_access_key = ' + 'a'.repeat(40),
+    'password: hunter2',
     '-----BEGIN ENCRYPTED PRIVATE KEY-----',
     'Authorization: Bearer ' + 'a'.repeat(20) + '.' + 'b'.repeat(20) + '.' + 'c'.repeat(20),
   ];

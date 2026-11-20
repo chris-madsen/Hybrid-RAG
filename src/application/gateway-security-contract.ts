@@ -5,6 +5,8 @@ import type { AuditSink, ClockPort } from './ports.js';
 export interface GatewayProjectionSecurity {
   readonly policy: ProjectDataPolicy;
   readonly allowedProviders: readonly string[];
+  /** Exact model IDs permitted for each normalized provider. Missing means deny all. */
+  readonly allowedModelsByProvider: Readonly<Record<string, readonly string[]>>;
   /** Exact HTTPS provider request URLs authorized at the physical-send boundary. */
   readonly allowedDestinations: readonly string[];
   /** Ephemeral per-process signing key; restart invalidates all prepared receipts. */
