@@ -204,3 +204,23 @@ test('AR03 cannot durably advance publication on failed physical Qdrant membersh
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+
+test('AR03 refuses to recreate lost authority state when physical Qdrant workspace is not empty', {
+  skip: process.platform !== 'linux',
+}, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'ace-ar03-bootstrap-'));
+  try {
+    const authority = makeLocalQdrantPublicationAuthority({
+      workspaceId: workspace, directory, declaredTopology: 'single_host',
+    });
+    const rejected = await authority.reserve(async () => ok(false));
+    assert.equal(rejected._tag, 'Err');
+    if (rejected._tag === 'Err') assert.equal(rejected.error.code, 'NOT_READY');
+    const valid = await authority.reserve(async () => ok(true));
+    assert.equal(valid._tag, 'Ok');
+    if (valid._tag === 'Ok') assert.equal(valid.value.epoch, 1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
