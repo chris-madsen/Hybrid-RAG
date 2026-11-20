@@ -207,29 +207,58 @@ const observeNonGitChanges = async (
   rootPath: string,
   previous: string | WorkspaceChangeBaseline | undefined,
   excluded: ReadonlySet<string>,
+  includePath: (repoPath: RepoPath) => boolean = () => true,
 ): Promise<Result<WorkspaceChangeObservation, ReturnType<typeof domainError>>> => {
   try {
+    // Metadata is only a cheap change hint. A non-Git workspace has no index
+    // authority capable of proving an unchanged same-size/restored-mtime file.
+    // Reconcile every in-scope unchanged hint against the previous exact digest
+    // before the caller may treat an empty search as verified current.
     const current = await walkMetadata(rootPath, rootPath, excluded);
-    const prior = new Map((typeof previous === 'object' && previous !== null ? previous.files : []).map((file) => [file.repoPath, file] as const));
+    const prior = new Map((typeof previous === 'object' && previous !== null ? previous.files : [])
+      .map((file) => [file.repoPath, file] as const));
     const changed = new Set<RepoPath>();
     const added = new Set<RepoPath>();
     const deleted = new Set<RepoPath>();
+    const inScopePaths: RepoPath[] = [];
     for (const [repoPath, metadata] of current) {
+      if (!includePath(repoPath)) continue;
+      inScopePaths.push(repoPath);
       const previousFile = prior.get(repoPath);
-      if (previousFile === undefined) added.add(repoPath);
-      else if (previousFile.sizeBytes !== metadata.sizeBytes || previousFile.mtimeMs !== metadata.mtimeMs) changed.add(repoPath);
+      if (previousFile === undefined) {
+        added.add(repoPath);
+      } else if (previousFile.sizeBytes !== metadata.sizeBytes
+        || previousFile.mtimeMs !== metadata.mtimeMs
+        || previousFile.sourceDigest === undefined) {
+        // A legacy metadata-only baseline never proves current source bytes.
+        changed.add(repoPath);
+      } else {
+        const safePath = await resolveSafePath(rootPath, repoPath);
+        if (safePath._tag === 'Err') return safePath;
+        const { bytes, metadata: verified } = await readStableWorkspaceFile(safePath.value);
+        if (verified.size !== metadata.size || verified.mtimeMs !== metadata.mtimeMs) {
+          // The directory scan raced a content edit: force an exact reread.
+          changed.add(repoPath);
+          continue;
+        }
+        const digest = createHash('sha256').update(bytes).digest('hex');
+        if (digest !== previousFile.sourceDigest) changed.add(repoPath);
+      }
     }
-    for (const repoPath of prior.keys()) if (!current.has(repoPath)) deleted.add(repoPath);
+    for (const repoPath of prior.keys()) {
+      if (includePath(repoPath) && !current.has(repoPath)) deleted.add(repoPath);
+    }
     return ok({
       headRevision: 'unavailable',
       changedPaths: [...changed].sort(),
       addedPaths: [...added].sort(),
       deletedPaths: [...deleted].sort(),
       renamed: [],
-      untrackedPaths: [...current.keys()].sort(),
+      untrackedPaths: inScopePaths.sort(),
     });
   } catch {
-    return errorResult('SNAPSHOT_FAILED', 'workspace', 'non-Git metadata observation failed');
+    // Failed verification cannot certify the absence of changed source.
+    return errorResult('SNAPSHOT_FAILED', 'workspace', 'non-Git digest reconciliation failed');
   }
 };
 
@@ -237,6 +266,7 @@ const observeGitChanges = async (
   rootPath: string,
   previous: string | WorkspaceChangeBaseline | undefined,
   excluded: ReadonlySet<string>,
+  includePath: (repoPath: RepoPath) => boolean = () => true,
 ): Promise<Result<WorkspaceChangeObservation, ReturnType<typeof domainError>>> => {
   const previousHeadRevision = typeof previous === 'string' ? previous : previous?.headRevision;
   let headRevision: string;
@@ -247,13 +277,13 @@ const observeGitChanges = async (
       realpath(topLevel.stdout.trim()),
     ]);
     if (!await isWorkspaceGitBacked(rootPath, canonicalRoot, canonicalTopLevel)) {
-      return await observeNonGitChanges(rootPath, previous, excluded);
+      return await observeNonGitChanges(rootPath, previous, excluded, includePath);
     }
     const head = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: rootPath, encoding: 'utf8' });
     headRevision = head.stdout.trim();
   } catch (cause) {
     if (!isNotGitRepository(cause)) return errorResult('SNAPSHOT_FAILED', 'git', 'Git HEAD could not be observed');
-    return observeNonGitChanges(rootPath, previous, excluded);
+    return observeNonGitChanges(rootPath, previous, excluded, includePath);
   }
   if (!/^[a-f0-9]{40,64}$/iu.test(headRevision)) return errorResult('SNAPSHOT_FAILED', 'git', 'Git HEAD revision is invalid');
   try {
@@ -399,9 +429,9 @@ export const makeNodeWorkspacePort = (options: NodeWorkspacePortOptions): Worksp
         },
         catch: () => makePortError('WORKSPACE_ROOT_NOT_ALLOWED', 'root_path', 'workspace root check failed'),
       })),
-    observeChanges: (rootPath, previousHeadRevision) =>
+    observeChanges: (rootPath, previousHeadRevision, includePath) =>
       recoverResult(Effect.tryPromise<Result<WorkspaceChangeObservation, DomainError>, DomainError>({
-        try: () => observeGitChanges(rootPath, previousHeadRevision, excluded),
+        try: () => observeGitChanges(rootPath, previousHeadRevision, excluded, includePath),
         catch: () => makePortError('SNAPSHOT_FAILED', 'git', 'Git change observation failed'),
       })),
     snapshot: (rootPath, observedAtMs) =>
