@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { Effect } from 'effect';
 import { ok } from '../src/domain/result.js';
@@ -8,7 +11,8 @@ import {
   observeWorkspaceManifest,
   type WorkspaceSyncState,
 } from '../src/application/workspace-sync.js';
-import { workspaceManifestFromFiles, type WorkspaceManifest } from '../src/domain/workspace-manifest.js';
+import { workspaceManifestFromFiles, workspaceManifestFromSnapshot, type WorkspaceManifest } from '../src/domain/workspace-manifest.js';
+import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
 import type { WorkspaceFilePort } from '../src/application/ports.js';
 
 const workspaceId = (() => {
@@ -414,4 +418,54 @@ test('WorkspaceSync advances metadata-only baselines without rebuilding source c
     assert.equal(refreshed.value.state.workspaceManifest.files[0]?.mtimeMs, 20);
   }
   assert.equal(rebuilds, 0);
+});
+
+
+test('WorkspaceSync observes digest-only non-Git changes through the real file port before claiming no change', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-sync-nongit-digest-'));
+  try {
+    await mkdir(join(root, 'src'));
+    const source = join(root, 'src', 'one.ts');
+    await writeFile(source, 'export const value = 1;\n');
+    const stableTime = new Date('2024-05-01T00:00:00.000Z');
+    await utimes(source, stableTime, stableTime);
+    const files = makeNodeWorkspacePort({ allowedRoots: [root] });
+    const initial = await Effect.runPromise(files.snapshot(root, 1));
+    assert.equal(initial._tag, 'Ok');
+    if (initial._tag === 'Err') return;
+    assert.equal(initial.value.headRevision, 'unavailable');
+    const current = workspaceManifestFromSnapshot(initial.value, 'scope-src-only');
+    const includePath = (repoPath: RepoPath) => String(repoPath).startsWith('src/');
+    let rebuilds = 0;
+    const sync = makeWorkspaceSync({
+      initial: initialState(current),
+      observeChanges: (state) => observeWorkspaceManifest(files, root, state.workspaceManifest, includePath),
+      rebuild: ({ previous, nextManifest }) => {
+        rebuilds += 1;
+        return Effect.succeed(ok({
+          ...previous, workspaceManifest: nextManifest,
+          generation: previous.generation + 1, indexKey: 'index-' + (previous.generation + 1),
+        }));
+      },
+    });
+    const fresh = await Effect.runPromise(sync.refresh());
+    assert.equal(fresh._tag, 'Ok');
+    if (fresh._tag === 'Ok') assert.equal(fresh.value.refreshed, false);
+
+    await writeFile(source, 'export const value = 2;\n');
+    await utimes(source, stableTime, stableTime);
+    assert.equal((await stat(source)).mtimeMs, current.files[0]?.mtimeMs);
+    const changed = await Effect.runPromise(sync.refresh());
+    assert.equal(changed._tag, 'Ok');
+    if (changed._tag === 'Err') return;
+    assert.equal(changed.value.refreshed, true, 'content mutation must force source publication');
+    assert.deepEqual(changed.value.delta.changed, [path('src/one.ts')]);
+    assert.notEqual(changed.value.state.workspaceManifest.files[0]?.sourceDigest, current.files[0]?.sourceDigest);
+    assert.equal(rebuilds, 1);
+    const verified = await Effect.runPromise(sync.refresh());
+    assert.equal(verified._tag, 'Ok');
+    if (verified._tag === 'Ok') assert.equal(verified.value.refreshed, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
