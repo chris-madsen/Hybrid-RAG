@@ -154,7 +154,7 @@ export const makeLocalQdrantPublicationAuthority = (config: {
     await new Promise<void>((resolve, reject) => {
       // Numeric descriptor mode: flock(1) locks the parent's open-file
       // description inherited on fd 3. The lock survives child exit.
-      const child = spawn('flock', ['--exclusive', '--wait', '30', '3'], {
+      const child = spawn('flock', ['--exclusive', '--timeout', '30', '3'], {
         stdio: ['ignore', 'ignore', 'pipe', fd],
       });
       let diagnostic = '';
