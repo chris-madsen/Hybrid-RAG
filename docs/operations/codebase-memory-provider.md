@@ -1,107 +1,104 @@
-# Codebase Memory as ACE's code graph (v0.12.1)
+# Codebase Memory: native code intelligence for ACE
 
-## What changed
+**Implementation:** PR #316, CBM v0.12.1. Native structural integration is
+tested in CI; a real Hermes/Bifröst task and token savings still require
+independent, provider-measured acceptance.
 
-ACE no longer constructs its **runtime RepoMap graph** from ast-grep
-identifier occurrences using `buildRepoMapDelta`/`makeRepoMapService`.
-The active runtime instead invokes the **upstream Codebase Memory (CBM) CLI**
-for indexing and semantic graph discovery. A CBM hit can introduce a code
-candidate **outside Qdrant's top-k**; it need not already be on the Qdrant
-shortlist. The existing Qdrant shortlist shares the bounded result slots.
-The configured existing cross-encoder, when enabled, reranks the combined
-list. No new AST parser, graph database or reference resolver is implemented
-inside ACE.
+## Architecture
 
-This is **not yet the total retirement of ast-grep**: Qdrant still uses
-ast-grep to obtain exact candidate text ranges and to maintain its existing
-snapshot/publication contract. CBM replaces the separate handmade RepoMap
-graph, not the code-index snapshot pipeline, the official Qdrant SDK or
-independent LSP verification. The old RepoMap source files remain temporarily
-for their existing contract consumers but are no longer imported by the
-production runtime.
+- CBM is the ONLY production code parser and persistent structural graph.
+  Native operations: index_repository, get_file_outline, search_graph,
+  trace_path, query_graph and detect_changes.
+- Qdrant owns hybrid dense/sparse vectors and publication semantics.
+- LSP remains an independent precise semantic/type validator.
+- ACE owns original-source reads, source policy, SHA-256, exact byte spans,
+  Qdrant generations and model-bound context verification.
 
-## Install and start
+The homemade RepoMap graph/service/ranker and both ast-grep runtime
+providers, the NAPI dependency and the old CLI/NAPI parity tests are
+removed. The *ast-grep CLI* executable remains only as the existing
+SDLC architectural linter (check:arch and test:arch-rules), not as a
+code-intelligence provider. Therefore 123/125 old provider disagreement
+is no longer an ACTIVE runtime constraint, not proof of CBM correctness.
 
-Use the same local host, user and project checkout that runs the ACE
-Gateway. Install the maintained upstream package with a **pinned version**:
+## Native data path
 
-```bash
+1. Before every initial or incremental source-build, ACE waits for CBM to
+   index the local root. Index failure blocks publication; no secondary
+   parser fallback exists.
+2. CBM get_file_outline provides declaration names and inclusive line spans.
+   ACE extracts exact UTF-8 line bytes ONLY from an independently verified
+   workspace read; out-of-range native spans fail closed. Declaration-free
+   files remain retrievable as bounded raw chunks, not fabricated symbols.
+3. Qdrant embeds digest-bound source chunks, persists the published epoch,
+   and performs its established hybrid search.
+4. CBM semantic/BM25 search can find files outside Qdrant top-K. Native
+   trace_path traverses callers/callees, query_graph resolves graph nodes
+   to source paths, and detect_changes examines git-based impact. All graph
+   results stay candidate hints, not proof of actual source bytes.
+5. ACE reopens each selected source, checks independent SHA-256 and the exact
+   candidate byte slice, and enforces current worktree+publication fences.
+
+CBM outlines are line-bound (not exact identifier-column AST spans). This
+tradeoff changes retrieval chunking and must be checked on real tasks. A
+missing graph edge is not evidence that no dependency exists.
+
+## Local host install
+
+Install pinned upstream native executable for the same account running ACE:
+
+~~~bash
 CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
 npm install --global "${CBM_PACKAGE}@0.12.1"
 "${CBM_PACKAGE}" --version
-```
-
-The package suffix is assembled because ACE's existing gateway-only static audit rejects the retired agent-tool-protocol acronym even inside third-party package names. The package installs a verified native executable; it does not make remote
-LLM calls. Installation downloads published runtime artifacts once; the
-first index persists locally in the CBM cache. Run the existing ACE
-Qdrant/FastEmbed prerequisites and enable its real retrieval composition:
-
-```bash
 export ACE_ENABLE_EXPERIMENTAL_QDRANT=true
-# If installed outside PATH:
-# export ACE_CBM_COMMAND=/absolute/path/to/installed-CBM-executable
+# Optional export ACE_CBM_COMMAND=/absolute/path/to/CBM-executable
 npm run gateway:http
-```
+~~~
 
-When ACE builds or incrementally updates its source index, it calls
-the pinned native CLI's `index_repository` command on the registered
-root with `mode=full` and `persistence=false`. CBM owns the
-incremental index/cache; ACE does not duplicate the native graph or
-generate a shareable `.codebase-memory/graph.db.zst`.
+The package suffix is assembled solely to satisfy ACE's older lexical
+gateway-only audit of the retired model-tool-protocol abbreviation in
+product names. The pinned upstream installer is permitted in a
+credential-free, read-only CI job. No agent-facing tool server is added.
 
-If CBM is absent, indexing fails or native semantic results cannot be
-parsed, ACE logs `Codebase Memory NOT_READY` and does not pretend that
-native structural discovery succeeded. The existing Qdrant code branch
-remains available; a model-visible request for structural evidence
-continues to be marked partial/unavailable, never exact-source verified.
-CBM is **required to claim graph-augmented retrieval**, but its failure
-does not erase already verified Qdrant evidence.
+CBM local cache and ignored paths are independent from ACE's LLM egress
+filters. Review sensitive source in the local index and cache permissions.
+CBM_ALLOWED_ROOT restricts CBM to the ACE root; that is not a shared-host
+authorization boundary.
 
-## Source trust / privacy
+## Verification
 
-CBM indexes the **local repository root** with its own built-in ignore
-rules; it stores graph data locally. CBM is not treated as the authority
-for source bytes, file digests, spans or citation identity. Its file paths
-are restricted to the workspace root and intersected against ACE's
-independently indexed candidate inventory (which excludes sensitive source
-paths). ACE's existing request-time exact-read/byte/digest verification,
-manifest refresh and publication fences still apply before delivery.
-Graph-only edges, names and snippets never bypass this check.
-
-**Operational security note:** CBM has independent exclusions and may
-locally index git-tracked content that ACE excludes from model delivery.
-Review `.gitignore` / `.cbmignore`, CBM cache permissions and the
-repo's sensitive files before enabling full indexing. A local graph is
-not an authorization boundary for multi-tenant repositories.
-
-## Verification / evidence boundaries
-
-```bash
+~~~bash
 npm ci
 npm run check
 npm run lint
-# Requires the actual native CBM CLI installed as above:
-ACE_TEST_REAL_CBM=true npx tsx --test test/codebase-memory-repo-map.contracts.test.ts
-```
+npm run verify:pr
+ACE_TEST_REAL_CBM=true npx tsx --test \
+  test/codebase-memory-graph.contracts.test.ts \
+  test/codebase-memory-structural.contracts.test.ts \
+  test/cbm-graph-delivery.contracts.test.ts
+~~~
 
-`.github/workflows/ace-codebase-memory.yml` runs this native provider
-smoke test on the repository's actual source rather than benchmarking
-against a made-up function graph.
+The dedicated workflow uses the REAL native CBM binary against the actual
+ACE repository. It checks reindex, symbol outline, trace/Cypher/impact,
+local-code-index candidate production, and independently verified source
+delivery outside Qdrant top-K.
 
-This integration **does not prove** the end-to-end Hermes/Bifröst live
-path, exact token savings, all-language CBM retrieval coverage or a
-production source-authorization acceptance. Those remain separately
-measurable using the established Harbor/ContextBench tasks. In
-particular, the native CBM ranking hints are not delivered as independent
-`proofClass: direct` citations.
+## Required real Hermes acceptance — not yet inferred
 
-## Architecture ownership
+Run the repository's existing Harbor/Hermes feedback workflow on a
+trusted host with Hermes model credentials and Bifröst + Qdrant + ACE.
+Use a nontrivial multi-file coding task with independent verifier, same
+task/root SHA, Hermes version, reasoning, tools, cache/compression and
+timeouts in native-vs-ACE arms. Record:
 
-- **CBM:** persistent local semantic code graph, native similarity search,
-  symbol/file discovery and graph relationships.
-- **Qdrant + ast-grep:** existing hybrid vector retrieval, candidate spans,
-  source-snapshot publication; eligible for a later **separately tested**
-  complete replacement of structural extraction.
-- **LSP:** independent precise type/definition/reference checking.
-- **ACE:** source verification, policy, byte/digest identity, evidence,
-  Native Responses gateway and publication authority.
+- verifier PASS/FAIL, correctness of changes, missing dependencies;
+- CBM index freshness and actual graph/trace/impact invocations;
+- Bifröst model-bound ACE APPLIED/NO_OP/NOT_USED with request correlation;
+- provider-measured input/cached/output tokens, API calls/retries, latency
+  and cost, distinguishing unknown fields from measured zero;
+- per-successful-task context and model-cost comparison.
+
+A passing CBM tool smoke is NOT a Hermes agent E2E test. Without actual
+Hermes OAuth/runtime and provider-bound usage there is no measured token
+saving: mark the acceptance BLOCKED, not PASS.
