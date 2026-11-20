@@ -2,12 +2,18 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-test('pinned Bifröst ACE plugin only accepts native Responses ingress before provider certification', async () => {
+test('pinned Bifröst ACE plugin requires per-attempt native Responses authorization', async () => {
   const script = await readFile('scripts/build-bifrost-ace-plugin.sh', 'utf8');
   const plugin = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
-  assert.match(script, /BIFROST_COMMIT:=fe7634a6c828927d05ffdd57c62be0aaab04193f/u);
+  const workflow = await readFile('.github/workflows/ace-contracts.yml', 'utf8');
+  assert.match(script, /BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1/u);
+  assert.match(script, /status --porcelain --untracked-files=all/u);
+  assert.match(script, /Bifrost source checkout must be clean/u);
+  assert.match(script, /go 1\.27\.4/u);
   assert.match(script, /rev-parse HEAD/u);
   assert.match(script, /main_test\.go/u);
+  assert.match(workflow, /BIFROST_SOURCE_ROOT:\s+\$\{\{\s*runner\.temp\s*\}\}\/bifrost-src/u);
+  assert.match(workflow, /git -C "\$source_root" fetch --no-tags --depth=1 origin "\$BIFROST_COMMIT"/u);
   assert.match(script, /test -tags=bifrost_plugin -count=1/u);
   assert.match(script, /-buildmode=plugin/u);
   assert.match(script, /-X main\.aceSourceCommit=\$ace_commit/u);
@@ -17,18 +23,23 @@ test('pinned Bifröst ACE plugin only accepts native Responses ingress before pr
   assert.match(plugin, /case "\/v1\/responses":/u);
   assert.match(plugin, /func prepareNativeResponses\(/u);
   assert.match(plugin, /ProjectNativeResponses/u);
+  assert.match(plugin, /AuthorizeNativeResponsesAttempt/u);
+  assert.match(plugin, /ctx\.SetPhysicalSendGuard\(guard\)/u);
+  assert.match(plugin, /AuthorizationDeadline:\s+time\.UnixMilli/u);
+  assert.match(plugin, /PreparedBodySemanticSHA256/u);
+  assert.match(plugin, /ctx\.TrustedValue\(projectionBindingKey\{\}\)/u);
   assert.match(plugin, /ACE Gateway endpoint is unsupported/u);
   assert.match(plugin, /func PreLLMHook\(/u);
   assert.match(plugin, /LLMPluginShortCircuit/u);
   assert.match(plugin, /AllowFallbacks:\s*&allowFallbacks/u);
-  assert.match(plugin, /return blockProviderAttempt\(req, "ACE provider dispatch disabled until native Responses is certified"\)/u);
+  assert.match(plugin, /ACE physical-send authorization guard is unavailable/u);
 
   assert.doesNotMatch(plugin, /projectionClient\.Project\(/u);
   assert.doesNotMatch(plugin, /context\.Background\(\)/u);
   assert.doesNotMatch(plugin, /ACE_GATEWAY_STRICT/u);
 });
 
-test('quarantined plugin retains truthful request-bound identity helpers for native migration', async () => {
+test('native plugin retains truthful request-bound identity helpers', async () => {
   const plugin = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
   assert.match(plugin, /crypto\/rand/u);
   assert.match(plugin, /newPhysicalRequestID/u);

@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Effect } from 'effect';
+import { makeGatewayAttemptAuthorizationService } from '../src/application/gateway-attempt-authorization-service.js';
 import { makeResponsesProjectionService } from '../src/application/responses-projection-service.js';
+import { verifyProjectionReceipt } from '../src/application/projection-receipt.js';
 import { handleGatewayProjectionHttp, createGatewayProjectionServer } from '../src/transport/gateway-projection-http.js';
 import { makeContextTransformService, type ContextTransformService, type AceTransformResult } from '../src/application/context-transform-service.js';
 import type { ResponsesProjectionRequest } from '../src/domain/responses-projection.js';
 import { defaultLocalPolicy } from '../src/domain/policy.js';
-import type { DataClass } from '../src/domain/policy.js';
+import type { DataClass, ProjectDataPolicy, SafeAuditRecord } from '../src/domain/policy.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import type { WorkspaceRecord } from '../src/domain/workspace.js';
 import type { ContextBundle } from '../src/domain/retrieval.js';
@@ -16,6 +18,15 @@ import { err, ok } from '../src/domain/result.js';
 import type { GatewayProjectionSecurity } from '../src/application/gateway-security-contract.js';
 
 const hash = (x: string): string => createHash('sha256').update(x).digest('hex');
+const encodeBase64Utf8 = (value: string): string => {
+  let binary = '';
+  for (const byte of new TextEncoder().encode(value)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+};
+const decodeBase64Utf8 = (value: string): string => {
+  const binary = atob(value);
+  return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
+};
 const native = {
   model: 'openai/gpt-test', stream: true, store: false,
   reasoning: { effort: 'medium' },
@@ -27,12 +38,13 @@ const native = {
   ],
 };
 const req = (override: Partial<ResponsesProjectionRequest> = {}, bodyValue: unknown = native): ResponsesProjectionRequest => {
-  const bodyBase64 = Buffer.from(JSON.stringify(bodyValue)).toString('base64');
+  const bodyText = JSON.stringify(bodyValue);
+  const bodyBase64 = encodeBase64Utf8(bodyText);
   return {
     schemaVersion: 'ace.gateway.v2', protocol: 'openai.responses',
     requestId: 'r1', attemptGroupId: 'g1', agentSessionId: 's1',
     workspaceId: 'ws1', dataClass: 'private', provider: 'openai', model: native.model,
-    bodyBase64, bodySha256: createHash('sha256').update(Buffer.from(bodyBase64, 'base64')).digest('hex'),
+    bodyBase64, bodySha256: hash(bodyText),
     query: 'entrypoint here', projectionMode: 'gateway', deadlineEpochMs: Date.now() + 30000,
     attestation: {
       hostBuildDigest: hash('host'), sessionId: 's1', activeEngineId: 'bifrost-visible-request-only',
@@ -58,29 +70,37 @@ interface MakeOptions {
   readonly deny?: boolean;
   readonly allowedProviders?: readonly string[];
   readonly allowedDataClasses?: readonly Exclude<DataClass, 'secret'>[];
+  readonly allowedDestinations?: readonly string[];
   readonly context?: ContextTransformService;
   readonly audit?: GatewayProjectionSecurity['audit'];
 }
-const make = (options: MakeOptions = {}) => {
+const makeSecurity = (options: MakeOptions = {}): GatewayProjectionSecurity => {
   const workspace = makeWorkspaceId('ws1');
   if (workspace._tag === 'Err') throw Error(workspace.error.message);
-  const policy = {
+  const policy: ProjectDataPolicy = {
     ...defaultLocalPolicy(workspace.value), cloudOptIn: options.deny !== true,
     allowedCloudProviders: ['other_external'],
     allowedCloudDataClassesByProvider: { other_external: options.allowedDataClasses ?? ['private_source'] },
   };
-  const context = options.context ?? { transform: () => Effect.succeed(ok({ ...example, ...(options.result ?? {}) })) };
-  return makeResponsesProjectionService(context, {
-    policy, allowedProviders: options.allowedProviders ?? ['openai'], clock: { nowMs: () => Date.now() },
+  return {
+    policy,
+    allowedProviders: options.allowedProviders ?? ['openai'],
+    allowedDestinations: options.allowedDestinations ?? ['https://api.openai.com/v1/responses'],
+    receiptSigningKey: 'test-projection-receipt-secret',
+    clock: { nowMs: () => Date.now() },
     audit: options.audit ?? { append: () => Effect.succeed(ok(undefined)) },
-  });
+  };
+};
+const make = (options: MakeOptions = {}) => {
+  const context = options.context ?? { transform: () => Effect.succeed(ok({ ...example, ...(options.result ?? {}) })) };
+  return makeResponsesProjectionService(context, makeSecurity(options));
 };
 test('native policy/Effect produces additive context without mutating function/reasoning/tool items', async () => {
   const response = await Effect.runPromise(make().projectResponses(req()));
   assert.equal(response._tag, 'Ok');if (response._tag === 'Err') return;
   assert.equal(response.value.kind, 'PREPARED');
   if (response.value.kind !== 'PREPARED') return;
-  const decoded = JSON.parse(Buffer.from(response.value.bodyBase64, 'base64').toString('utf8')) as {
+  const decoded = JSON.parse(decodeBase64Utf8(response.value.bodyBase64)) as {
     input: unknown[]; tools: unknown; reasoning: unknown; stream: boolean; store: boolean;
   };
   assert.deepEqual(decoded.input.slice(1), native.input);
@@ -89,6 +109,132 @@ test('native policy/Effect produces additive context without mutating function/r
   assert.equal(decoded.stream, true);
   assert.equal(decoded.store, false);
   assert.equal(response.value.baseBodySha256, req().bodySha256);
+  const receipt = verifyProjectionReceipt(response.value.projectionReceipt, 'test-projection-receipt-secret', Date.now());
+  assert.equal(receipt._tag, 'Ok');
+  if (receipt._tag === 'Ok') assert.equal(receipt.value.projectedBodySha256, response.value.projectedBodySha256);
+});
+
+test('physical-send authorization binds each attempt, consumes IDs once, and fails closed after restart', async () => {
+  const requestId = 'ace-' + 'a'.repeat(32);
+  const projectionRequest = req({ requestId, attemptGroupId: requestId }, { ...native, stream: false });
+  const auditRecords: SafeAuditRecord[] = [];
+  const security = makeSecurity({
+    audit: { append: (record) => {
+      auditRecords.push(record);
+      return Effect.succeed(ok(undefined));
+    } },
+  });
+  const context: ContextTransformService = {
+    transform: () => Effect.succeed(ok({ ...example, requestId, turnId: requestId })),
+  };
+  const projection = await Effect.runPromise(makeResponsesProjectionService(context, security).projectResponses(projectionRequest));
+  assert.equal(projection._tag, 'Ok');
+  if (projection._tag === 'Err' || projection.value.kind !== 'PREPARED') return;
+  const attempt = (attemptId: string, destination = 'https://api.openai.com/v1/responses') => ({
+    schemaVersion: 'ace.gateway.v2', requestId, attemptGroupId: requestId,
+    agentSessionId: 's1', workspaceId: 'ws1', dataClass: 'private',
+    provider: 'openai', model: native.model, attemptId, method: 'POST', destination,
+    bodyBase64: projection.value.kind === 'PREPARED' ? projection.value.bodyBase64 : '',
+    bodySha256: projection.value.kind === 'PREPARED' ? projection.value.projectedBodySha256 : '',
+    preparedBodySha256: projection.value.kind === 'PREPARED' ? projection.value.projectedBodySha256 : '',
+    projectionReceipt: projection.value.kind === 'PREPARED' ? projection.value.projectionReceipt : '',
+    deadlineEpochMs: projectionRequest.deadlineEpochMs,
+  });
+  const authorization = makeGatewayAttemptAuthorizationService(security);
+  const firstAttemptId = 'bf-attempt-' + 'b'.repeat(32);
+  const first = await Effect.runPromise(authorization.authorizePhysicalSend(
+    attempt(firstAttemptId),
+  ));
+  assert.equal(first._tag, 'Ok');
+  if (first._tag === 'Err') return;
+  assert.equal(first.value.kind, 'ALLOW');
+  const allowedAudit = auditRecords.find((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed');
+  assert.equal(allowedAudit?.physicalSend?.workspaceId, 'ws1');
+  assert.equal(allowedAudit?.physicalSend?.bodySha256, projection.value.projectedBodySha256);
+  assert.equal(allowedAudit?.physicalSend?.preparedBodySha256, projection.value.projectedBodySha256);
+  assert.equal(allowedAudit?.physicalSend?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
+  assert.equal(allowedAudit?.physicalSend?.destinationSha256, hash('https://api.openai.com/v1/responses'));
+  assert.equal(JSON.stringify(allowedAudit).includes('https://api.openai.com/v1/responses'), false);
+
+  const replay = await Effect.runPromise(authorization.authorizePhysicalSend(
+    attempt('bf-attempt-' + 'b'.repeat(32)),
+  ));
+  assert.equal(replay._tag, 'Ok');
+  if (replay._tag === 'Ok') {
+    assert.equal(replay.value.kind, 'BLOCK');
+    if (replay.value.kind === 'BLOCK') assert.equal(replay.value.reasonCode, 'ATTEMPT_REPLAYED_OR_CAPACITY_EXHAUSTED');
+  }
+
+  const concurrentAuthorization = makeGatewayAttemptAuthorizationService(security);
+  const concurrentAttempt = attempt('bf-attempt-' + 'e'.repeat(32));
+  const concurrentResults = await Promise.all([
+    Effect.runPromise(concurrentAuthorization.authorizePhysicalSend(concurrentAttempt)),
+    Effect.runPromise(concurrentAuthorization.authorizePhysicalSend(concurrentAttempt)),
+  ]);
+  const concurrentKinds = concurrentResults.map((result) =>
+    result._tag === 'Ok' ? result.value.kind : 'ERROR');
+  assert.equal(concurrentKinds.filter((kind) => kind === 'ALLOW').length, 1);
+  assert.equal(concurrentKinds.filter((kind) => kind === 'BLOCK').length, 1);
+
+  const changedDestination = await Effect.runPromise(authorization.authorizePhysicalSend(
+    attempt('bf-attempt-' + 'c'.repeat(32), 'https://unlisted.example/v1/responses'),
+  ));
+  assert.equal(changedDestination._tag, 'Ok');
+  if (changedDestination._tag === 'Ok') {
+    assert.equal(changedDestination.value.kind, 'BLOCK');
+    if (changedDestination.value.kind === 'BLOCK') assert.equal(changedDestination.value.reasonCode, 'DESTINATION_NOT_ALLOWED');
+  }
+  const alternateProtocol = await Effect.runPromise(authorization.authorizePhysicalSend(
+    attempt('bf-attempt-' + '0'.repeat(32), 'https://api.openai.com/v1/chat/completions'),
+  ));
+  assert.equal(alternateProtocol._tag, 'Err');
+
+  const mismatchedPreparedBody = attempt('bf-attempt-' + '1'.repeat(32));
+  mismatchedPreparedBody.preparedBodySha256 = '0'.repeat(64);
+  const mismatchedReceiptBinding = await Effect.runPromise(authorization.authorizePhysicalSend(mismatchedPreparedBody));
+  assert.equal(mismatchedReceiptBinding._tag, 'Ok');
+  if (mismatchedReceiptBinding._tag === 'Ok' && mismatchedReceiptBinding.value.kind === 'BLOCK') {
+    assert.equal(mismatchedReceiptBinding.value.reasonCode, 'ATTEMPT_BINDING_MISMATCH');
+  }
+
+  const expiredAttempt = attempt('bf-attempt-' + '2'.repeat(32));
+  expiredAttempt.deadlineEpochMs = Date.now() - 1;
+  const expired = await Effect.runPromise(authorization.authorizePhysicalSend(expiredAttempt));
+  assert.equal(expired._tag, 'Ok');
+  if (expired._tag === 'Ok' && expired.value.kind === 'BLOCK') assert.equal(expired.value.reasonCode, 'DEADLINE_EXCEEDED');
+
+  const alteredReceipt = attempt('bf-attempt-' + '3'.repeat(32));
+  alteredReceipt.projectionReceipt += 'x';
+  const invalidReceipt = await Effect.runPromise(authorization.authorizePhysicalSend(alteredReceipt));
+  assert.equal(invalidReceipt._tag, 'Ok');
+  if (invalidReceipt._tag === 'Ok' && invalidReceipt.value.kind === 'BLOCK') {
+    assert.equal(invalidReceipt.value.reasonCode, 'PROJECTION_RECEIPT_INVALID');
+  }
+
+  const streamingAttempt = attempt('bf-attempt-' + 'f'.repeat(32));
+  const streamingBody = JSON.parse(decodeBase64Utf8(streamingAttempt.bodyBase64)) as Record<string, unknown>;
+  streamingBody.stream = true;
+  const streamingBodyText = JSON.stringify(streamingBody);
+  streamingAttempt.bodyBase64 = encodeBase64Utf8(streamingBodyText);
+  streamingAttempt.bodySha256 = hash(streamingBodyText);
+  const streaming = await Effect.runPromise(authorization.authorizePhysicalSend(streamingAttempt));
+  assert.equal(streaming._tag, 'Ok');
+  if (streaming._tag === 'Ok') {
+    assert.equal(streaming.value.kind, 'BLOCK');
+    if (streaming.value.kind === 'BLOCK') assert.equal(streaming.value.reasonCode, 'FINAL_BODY_NOT_CERTIFIED');
+  }
+
+  const afterRestart = makeGatewayAttemptAuthorizationService({
+    ...security, receiptSigningKey: 'new-process-ephemeral-key',
+  });
+  const staleReceipt = await Effect.runPromise(afterRestart.authorizePhysicalSend(
+    attempt('bf-attempt-' + 'd'.repeat(32)),
+  ));
+  assert.equal(staleReceipt._tag, 'Ok');
+  if (staleReceipt._tag === 'Ok') {
+    assert.equal(staleReceipt.value.kind, 'BLOCK');
+    if (staleReceipt.value.kind === 'BLOCK') assert.equal(staleReceipt.value.reasonCode, 'PROJECTION_RECEIPT_INVALID');
+  }
 });
 test('no policy opt-in means BLOCK, not fallthrough', async () => {
   const response = await Effect.runPromise(make({ deny: true }).projectResponses(req()));

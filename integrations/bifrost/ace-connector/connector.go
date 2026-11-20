@@ -74,3 +74,23 @@ func validateLoopbackEndpoint(endpoint string) error {
 	}
 	return nil
 }
+
+func loopbackHTTPClient(client *http.Client) *http.Client {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	safe := *client
+	transport := safe.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	if direct, ok := transport.(*http.Transport); ok {
+		clone := direct.Clone()
+		clone.Proxy = nil
+		safe.Transport = clone
+	}
+	safe.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return errors.New("ACE loopback transport redirect refused")
+	}
+	return &safe
+}

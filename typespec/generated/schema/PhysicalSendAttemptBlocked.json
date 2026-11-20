@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "PhysicalSendAttemptBlocked.json",
+    "type": "object",
+    "properties": {
+        "kind": {
+            "type": "string",
+            "const": "BLOCK"
+        },
+        "attemptId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "bodySha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+        },
+        "reasonCode": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "kind",
+        "attemptId",
+        "bodySha256",
+        "reasonCode"
+    ],
+    "unevaluatedProperties": {
+        "not": {}
+    }
+}

@@ -1,5 +1,11 @@
 import { Effect } from 'effect';
-import { authorizeOutbound, type PolicyAction, type ProjectDataPolicy, type SafeAuditRecord } from '../domain/policy.js';
+import {
+  authorizeOutbound,
+  type PolicyAction,
+  type ProjectDataPolicy,
+  type SafeAuditRecord,
+  type SafePhysicalSendAuditDetails,
+} from '../domain/policy.js';
 import { err, isErr, ok, type Result } from '../domain/result.js';
 import { domainError, type DomainError } from '../domain/errors.js';
 import type { AuditSink, ClockPort } from './ports.js';
@@ -13,7 +19,11 @@ export const authorizeAndAudit = (
   policy: ProjectDataPolicy,
   action: PolicyAction,
   correlationId: string,
-  ports: { readonly clock: ClockPort; readonly audit: AuditSink },
+  ports: {
+    readonly clock: ClockPort;
+    readonly audit: AuditSink;
+    readonly physicalSendDetails?: SafePhysicalSendAuditDetails;
+  },
 ): Effect.Effect<Result<AuthorizationResult, DomainError>> =>
   Effect.gen(function* () {
     const decision = authorizeOutbound(action, policy);
@@ -26,6 +36,7 @@ export const authorizeAndAudit = (
       policyVersion: policy.policyVersion,
       outcome: decision.value.outcome,
       reasonCode: decision.value.reasonCode,
+      ...(ports.physicalSendDetails === undefined ? {} : { physicalSend: ports.physicalSendDetails }),
     };
     const written = yield* ports.audit.append(audit);
     if (isErr(written)) {

@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { timingSafeEqual } from 'node:crypto';
 import { Effect } from 'effect';
 import type { ResponsesProjectionService } from '../application/responses-projection-service.js';
+import type { GatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
 import { isIP } from 'node:net';
 import type {
   GatewayHealth as GeneratedGatewayHealth,
@@ -11,6 +12,7 @@ import type {
 
 export interface GatewayProjectionHttpService {
   readonly projectResponses?: ResponsesProjectionService['projectResponses'];
+  readonly authorizePhysicalSend?: GatewayAttemptAuthorizationService['authorizePhysicalSend'];
 }
 
 export interface GatewayProjectionHttpOptions {
@@ -93,6 +95,19 @@ export const handleGatewayProjectionHttp = async (
     // error. The Go connector must still refuse BLOCK and never dispatch.
     if (response.value.kind === 'BLOCK') return json(response.value);
     // Internal context transformation only. This result is not a provider-send permit.
+    return json(response.value);
+  }
+  if (path === '/internal/ace-gateway/v2/authorize-attempt') {
+    if (!service.authorizePhysicalSend) return error(503, 'ATTEMPT_AUTHORIZATION_NOT_READY', 'physical-send authorization is not configured');
+    let payload: unknown;
+    try { payload = JSON.parse(body) as unknown; } catch {
+      return error(400, 'INVALID_JSON', 'physical-send authorization must be JSON');
+    }
+    const response = await Effect.runPromise(service.authorizePhysicalSend(payload));
+    if (response._tag === 'Err') {
+      const status = response.error.code === 'INVALID_INPUT' ? 400 : 503;
+      return error(status, response.error.code, response.error.message);
+    }
     return json(response.value);
   }
   return error(404, 'NOT_FOUND', 'unknown Gateway v2 endpoint');
