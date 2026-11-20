@@ -20,7 +20,7 @@ test('CBM upstream outline is the sole source of declaration identities', async 
   const analysis = cbmOutlineToAnalysis(path, source, outline);
   assert.equal(analysis._tag, 'Ok');
   if (analysis._tag === 'Err') return;
-  assert.deepEqual(analysis.value.symbols.map((s) => [s.name,s.kind,s.startLine]), [
+  assert.deepEqual(analysis.value.symbols.map((s) => [s.name, s.kind, s.startLine]), [
     ['handler', 'function', 2],
   ]);
   const symbol = analysis.value.symbols[0]!;
