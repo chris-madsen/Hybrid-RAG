@@ -59,7 +59,7 @@ test('same-name evidence records the executed LSP version instead of a manifest 
     assert.equal(typeof report.provider, 'string');
     assert.match(
       report.provider,
-      /^ast-grep \S+ \+ typescript-language-server 9\.9\.9$/u,
+      /^codebase-memory-\S+ \S+ \+ typescript-language-server 9\.9\.9$/u,
     );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
