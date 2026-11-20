@@ -101,6 +101,19 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   const graph = await Effect.runPromise(provider.queryGraph(
     'MATCH (n:Function) RETURN n.name AS name LIMIT 5'));
   assert.equal(graph._tag, 'Ok', JSON.stringify(graph));
+  // Do not mistake a successful Cypher invocation for a dependency edge:
+  // exercise native cross-file relations from actual ACE TypeScript code.
+  const realEdges = await Effect.runPromise(provider.queryGraph(
+    "MATCH (origin)-[r]->(other) WHERE origin.file_path = 'src/bin/ace-runtime.ts' "
+    + 'RETURN DISTINCT other.file_path AS file LIMIT 50'));
+  assert.equal(realEdges._tag, 'Ok', JSON.stringify(realEdges));
+  if (realEdges._tag === 'Ok') {
+    const files = nativeQueryGraphFiles(root, realEdges.value);
+    assert.ok(files, 'native edge result must expose source-qualified file columns');
+    assert.ok(files?.some((file) => file !== 'src/bin/ace-runtime.ts'),
+      'real ACE runtime must have a CBM-discovered cross-file dependency; '
+      + 'a seed-only node lookup is not dependency discovery');
+  }
   const exactGraphSymbol = outline._tag === 'Ok'
     ? outline.value.find((item) => item.name === 'makeQdrantContextProvider')?.qualifiedName
     : undefined;
