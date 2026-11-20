@@ -15,6 +15,8 @@ export interface HarborFourArmTrialObservation {
   /** Optional total user-facing ACE calls, including ace_expand. */
   readonly observedAceToolCalls?: number;
   readonly successfulAceToolCalls?: number;
+  /** Automatic Bifröst/Gateway projections, distinct from model-invoked ACE tool calls. */
+  readonly gatewayProjectionRequestIds?: readonly string[];
   readonly rawInputTokens: number | null;
   readonly rawOutputTokens: number | null;
   readonly cachedInputTokens: number | null;

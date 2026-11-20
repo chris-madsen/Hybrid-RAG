@@ -104,12 +104,13 @@ const readTrial = async (
     taskName,
     success: (record.exception_info === null || record.exception_info === undefined) && reward === 1,
     timedOut: typeof record.timed_out === 'boolean' ? record.timed_out : null,
-    observedAceCalls: projections.length,
-    // Projection responses cannot establish that a provider actually received
-    // or processed the rewritten request. Keep the acceptance gate conservative.
+    // Gateway projection requests are not model-invoked ACE calls and cannot
+    // establish that a provider actually received the rewritten request.
+    observedAceCalls: 0,
     successfulAceCalls: 0,
     observedAceToolCalls: 0,
     successfulAceToolCalls: 0,
+    gatewayProjectionRequestIds: projections.map((projection) => String(projection.requestId)),
     rawInputTokens: integer(agent?.n_input_tokens),
     rawOutputTokens: integer(agent?.n_output_tokens),
     cachedInputTokens: integer(agent?.n_cache_tokens),

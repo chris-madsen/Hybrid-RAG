@@ -128,6 +128,8 @@ test('exact-current preflight binds experiment identity to checkout, jobs, Harbo
       readonly jobAgentVersion: string;
       readonly jobModel: string;
       readonly jobReasoningEffort: FeedbackReasoningEffort;
+      readonly actualBifrostEndpointSha256?: string;
+      readonly jobBifrostEndpointSha256?: string;
       readonly experiment: {
         readonly sourceCommit: string;
         readonly agent: 'hermes';
@@ -136,6 +138,7 @@ test('exact-current preflight binds experiment identity to checkout, jobs, Harbo
         readonly reasoningEffort: FeedbackReasoningEffort;
         readonly harborVersion: string;
         readonly authenticationRoute: string;
+        readonly bifrostEndpointSha256?: string;
       };
     }) => readonly string[];
   };
@@ -149,6 +152,8 @@ test('exact-current preflight binds experiment identity to checkout, jobs, Harbo
     jobAgentVersion: 'v0.22.3',
     jobModel: 'openai-codex/gpt-6-luna',
     jobReasoningEffort: 'xhigh' as const,
+    actualBifrostEndpointSha256: '9'.repeat(64),
+    jobBifrostEndpointSha256: '9'.repeat(64),
     experiment: {
       sourceCommit: 'a'.repeat(40),
       agent: 'hermes' as const,
@@ -157,6 +162,7 @@ test('exact-current preflight binds experiment identity to checkout, jobs, Harbo
       reasoningEffort: 'xhigh' as const,
       harborVersion: 'harbor 0.24.0',
       authenticationRoute: hermesCodexAuthenticationRoute,
+      bifrostEndpointSha256: '9'.repeat(64),
     },
   };
   assert.deepEqual(module.validateFeedbackPreflightBinding(base), []);
@@ -184,6 +190,10 @@ test('exact-current preflight binds experiment identity to checkout, jobs, Harbo
     ...base,
     experiment: { ...base.experiment, authenticationRoute: 'different-route' },
   }), ['authenticationRoute']);
+  assert.deepEqual(module.validateFeedbackPreflightBinding({
+    ...base,
+    actualBifrostEndpointSha256: '8'.repeat(64),
+  }), ['bifrostEndpointSha256']);
 });
 
 test('Hermes feedback jobs and manifests preserve exact gpt-6-luna model and xhigh effort', () => {
@@ -195,6 +205,7 @@ test('Hermes feedback jobs and manifests preserve exact gpt-6-luna model and xhi
       kwargs: {
         version: feedbackHermesVersion,
         reasoning_effort: 'xhigh',
+        bifrost_endpoint_sha256: '9'.repeat(64),
         ace_context_enabled: aceContextEnabled,
         ...(aceContextEnabled ? {
           ace_context_bridge_sha256: 'a'.repeat(64),

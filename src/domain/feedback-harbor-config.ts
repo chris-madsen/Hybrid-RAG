@@ -12,6 +12,7 @@ export interface FeedbackHarborJobIdentity {
   readonly agentVersion: typeof feedbackHermesVersion;
   readonly model: string;
   readonly reasoningEffort: FeedbackReasoningEffort;
+  readonly bifrostEndpointSha256?: string;
   readonly nConcurrentTrials: 1;
   readonly nAttempts: 1;
   readonly taskPaths: readonly string[];
@@ -65,6 +66,7 @@ export const validateFeedbackHarborJob = (
   const model = agent?.model_name;
   const effort = kwargs?.reasoning_effort;
   const version = kwargs?.version;
+  const bifrostEndpointSha256 = kwargs?.bifrost_endpoint_sha256;
   if (agent?.import_path !== feedbackHermesAgentImportPath || !nonEmpty(model)
     || !model.startsWith(feedbackHermesProviderPrefix) || model.length <= feedbackHermesProviderPrefix.length) {
     return invalid(`${path}.agents[0]`, 'job must use the pinned Hermes Codex-OAuth adapter and an openai-codex model');
@@ -73,6 +75,10 @@ export const validateFeedbackHarborJob = (
     return invalid(`${path}.agents[0].kwargs.version`, `Hermes version must be pinned to ${feedbackHermesVersion}`);
   }
   if (!isFeedbackReasoningEffort(effort)) return invalid(`${path}.agents[0].kwargs.reasoning_effort`, 'reasoning effort must be low, medium, high or xhigh');
+  if (bifrostEndpointSha256 !== undefined
+    && (typeof bifrostEndpointSha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(bifrostEndpointSha256))) {
+    return invalid(`${path}.agents[0].kwargs.bifrost_endpoint_sha256`, 'Bifröst endpoint identity must be a SHA-256 digest');
+  }
   if (Object.keys(agent ?? {}).some((key) => key.endsWith('_servers'))) {
     return invalid(`${path}.agents[0]`, 'model-invoked server registry is not permitted in Gateway-only feedback jobs');
   }
@@ -85,6 +91,7 @@ export const validateFeedbackHarborJob = (
     agentVersion: feedbackHermesVersion,
     model: model.trim(),
     reasoningEffort: effort,
+    ...(typeof bifrostEndpointSha256 === 'string' ? { bifrostEndpointSha256 } : {}),
     nConcurrentTrials: 1,
     nAttempts: 1,
     taskPaths,
@@ -104,6 +111,10 @@ export const validateMatchingFeedbackHarborJobs = (
     || nativeIdentity.value.agentVersion !== aceIdentity.value.agentVersion
     || nativeIdentity.value.reasoningEffort !== aceIdentity.value.reasoningEffort) {
     return invalid('harbor_jobs', 'native and Gateway-routed jobs must pin the same Hermes/model/reasoning identity');
+  }
+  if (nativeIdentity.value.bifrostEndpointSha256 === undefined
+    || nativeIdentity.value.bifrostEndpointSha256 !== aceIdentity.value.bifrostEndpointSha256) {
+    return invalid('harbor_jobs.bifrostEndpointSha256', 'both Hermes arms must pin the same Bifröst endpoint identity');
   }
   if (JSON.stringify(nativeIdentity.value.taskPaths) !== JSON.stringify(aceIdentity.value.taskPaths)) {
     return invalid('harbor_jobs.tasks', 'native and Gateway-routed jobs must pin the same frozen task paths in the same order');

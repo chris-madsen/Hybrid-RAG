@@ -39,6 +39,7 @@ export interface FeedbackExperimentManifest {
   readonly agentVersion: string;
   readonly model: string;
   readonly reasoningEffort: FeedbackReasoningEffort;
+  readonly bifrostEndpointSha256?: string;
   readonly harborVersion: string;
   /** Present for a single-image smoke; main runs use taskImages. */
   readonly imageDigest?: string;
@@ -87,12 +88,14 @@ export interface FeedbackTrialObservation {
   readonly observedAceCalls: number;
   /** ace_context calls only. Undefined preserves legacy observations where every ACE call was a context call. */
   readonly observedAceContextCalls?: number;
-  /** Request IDs observed in successful ace_context Gateway receipts. */
+  /** Legacy explicit ace_context request IDs; these do not prove model-bound Gateway delivery. */
   readonly observedAceRequestIds: readonly string[];
   /** Request IDs observed in successful Hermes ContextEngine transformations. */
   readonly contextTransformRequestIds?: readonly string[];
   /** Sanitized Hermes ContextEngine transformation receipts. */
   readonly hermesContextEvidence?: readonly HermesContextEvidence[];
+  /** Automatic Bifröst/Gateway request IDs, distinct from model-invoked ACE tools. */
+  readonly gatewayProjectionRequestIds?: readonly string[];
   /** Request IDs found in the ACE provider trace for this trial. */
   readonly providerTraceRequestIds: readonly string[];
   readonly rawArtifactHashes: readonly FeedbackArtifactHash[];
@@ -328,6 +331,9 @@ export const validateFeedbackExperimentManifest = (value: unknown): Result<Feedb
   if (root.aceRuntimeBundleSha256 !== undefined && !sha256Hex(root.aceRuntimeBundleSha256)) {
     return invalid('experiment_manifest.aceRuntimeBundleSha256', 'ACE runtime bundle must be a SHA-256 digest');
   }
+  if (root.bifrostEndpointSha256 !== undefined && !sha256Hex(root.bifrostEndpointSha256)) {
+    return invalid('experiment_manifest.bifrostEndpointSha256', 'Bifröst endpoint identity must be a SHA-256 digest');
+  }
   if (root.schemaVersion !== 1 || !nonEmpty(root.runId) || !revision(root.sourceCommit)
     || root.agent !== 'hermes' || !nonEmpty(root.agentVersion)
     || !sha256Hex(root.taskManifestSha256) || !nonEmpty(root.model) || !root.model.startsWith('openai-codex/')
@@ -350,6 +356,7 @@ export const validateFeedbackExperimentManifest = (value: unknown): Result<Feedb
     agentVersion: root.agentVersion,
     model: root.model,
     reasoningEffort: effort,
+    ...(root.bifrostEndpointSha256 === undefined ? {} : { bifrostEndpointSha256: root.bifrostEndpointSha256 }),
     harborVersion: root.harborVersion,
     ...(hasSingleImage ? { imageDigest } : {}),
     taskImages,
@@ -401,7 +408,8 @@ const validateObservation = (observation: FeedbackTrialObservation, path: string
   }
   const contextTransformIds = observation.contextTransformRequestIds ?? [];
   if ((observation.arm === 'native' && (contextTransformIds.length > 0 || (observation.hermesContextEvidence?.length ?? 0) > 0))
-    || !uniqueStrings(contextTransformIds)) {
+    || !uniqueStrings(contextTransformIds)
+    || !uniqueStrings(observation.gatewayProjectionRequestIds ?? [])) {
     return invalid(path, 'native arm must not contain Hermes ContextEngine evidence and context request IDs must be unique');
   }
   if (observation.hermesContextEvidence !== undefined
@@ -409,13 +417,15 @@ const validateObservation = (observation: FeedbackTrialObservation, path: string
     return invalid(`${path}.hermesContextEvidence`, 'Hermes evidence count must match transformation request IDs');
   }
   if (observation.observedAceCalls < observedContextCalls + contextTransformIds.length) {
-    return invalid(`${path}.observedAceCalls`, 'total ACE calls must include Gateway projection calls and Hermes ContextEngine transformations');
+    return invalid(`${path}.observedAceCalls`, 'total ACE tool calls must include context calls and Hermes ContextEngine transformations');
   }
   if (observation.hermesContextEvidence?.some((item) => item.requestId.trim().length === 0)) {
     return invalid(`${path}.hermesContextEvidence`, 'Hermes evidence request IDs must be non-empty');
   }
   if (observation.observedAceRequestIds.length > observedContextCalls) return invalid(`${path}.observedAceRequestIds`, 'request IDs cannot exceed observed ace_context calls');
-  if (observation.arm === 'native' && (observation.observedAceCalls !== 0 || observedContextCalls !== 0 || observation.observedAceRequestIds.length > 0 || observation.providerTraceRequestIds.length > 0)) {
+  if (observation.arm === 'native' && (observation.observedAceCalls !== 0 || observedContextCalls !== 0
+    || observation.observedAceRequestIds.length > 0 || observation.providerTraceRequestIds.length > 0
+    || (observation.gatewayProjectionRequestIds?.length ?? 0) > 0)) {
     return invalid(path, 'native arm must not contain ACE calls or provider trace requests');
   }
   const artifacts = validateFeedbackArtifactHashes(observation.rawArtifactHashes, `${path}.rawArtifactHashes`);
@@ -433,7 +443,11 @@ const mapByTask = (observations: readonly FeedbackTrialObservation[], arm: Feedb
     if (observation.arm !== arm || result.has(observation.taskId) || trialIds.has(observation.trialId)) {
       return invalid(`${arm}.observations[${index}]`, 'trial/task IDs must be unique and belong to the declared arm');
     }
-    for (const requestId of [...observation.observedAceRequestIds, ...(observation.contextTransformRequestIds ?? [])]) {
+    for (const requestId of [
+      ...observation.observedAceRequestIds,
+      ...(observation.contextTransformRequestIds ?? []),
+      ...(observation.gatewayProjectionRequestIds ?? []),
+    ]) {
       if (requestIds.has(requestId)) return invalid(`${arm}.observations[${index}].requestIds`, 'ACE request IDs must not be duplicated');
       requestIds.add(requestId);
     }
@@ -456,6 +470,7 @@ const sumOptional = (values: readonly (number | undefined)[]): number | null => 
 
 const correlationFor = (observation: FeedbackTrialObservation): 'correlated' | 'ACE_NOT_USED' | 'UNKNOWN' => {
   const transformIds = observation.contextTransformRequestIds ?? [];
+  const gatewayProjectionIds = observation.gatewayProjectionRequestIds ?? [];
   const providerIds = new Set(observation.providerTraceRequestIds);
   if (transformIds.length > 0) {
     // Hermes receipts and providerTraceRequestIds correlate ACE's INTERNAL
@@ -463,6 +478,12 @@ const correlationFor = (observation: FeedbackTrialObservation): 'correlated' | '
     // payload. A 'correlated' result here would falsely mark retrieval as
     // successful context delivery and allow token-savings claims.
     // Require separate egress evidence before upgrading this to correlated.
+    return 'UNKNOWN';
+  }
+  if (gatewayProjectionIds.length > 0) {
+    // Projection requests are automatic model-bound context, not ACE tools.
+    // Retrieval provider traces do not prove final provider egress; C05 wire
+    // evidence remains a separate acceptance gate.
     return 'UNKNOWN';
   }
   if (observation.observedAceCalls === 0) return 'ACE_NOT_USED';
@@ -494,7 +515,8 @@ const rowFor = (taskId: string, native: FeedbackTrialObservation, ace: FeedbackT
     taskId,
     nativeQuality: native.quality,
     aceQuality: ace.quality,
-    aceCalled: ace.observedAceCalls > 0 || (ace.contextTransformRequestIds?.length ?? 0) > 0,
+    aceCalled: ace.observedAceCalls > 0 || (ace.contextTransformRequestIds?.length ?? 0) > 0
+      || (ace.gatewayProjectionRequestIds?.length ?? 0) > 0,
     aceCorrelation: correlation,
     nativeInputTokens: tokenValue(native.usage, 'inputTokens'),
     nativeCachedInputTokens: tokenValue(native.usage, 'cachedInputTokens'),
@@ -537,7 +559,11 @@ export const reconcileFeedbackTrials = (input: {
   }
   const globalRequestIds = new Set<string>();
   for (const observation of [...input.native, ...input.ace]) {
-    for (const requestId of [...observation.observedAceRequestIds, ...(observation.contextTransformRequestIds ?? [])]) {
+    for (const requestId of [
+      ...observation.observedAceRequestIds,
+      ...(observation.contextTransformRequestIds ?? []),
+      ...(observation.gatewayProjectionRequestIds ?? []),
+    ]) {
       if (globalRequestIds.has(requestId)) return invalid('trials.requestId', 'ACE request IDs must be unique across both arms');
       globalRequestIds.add(requestId);
     }
@@ -595,6 +621,7 @@ export const reconcileFeedbackTrials = (input: {
     aceCostUsd: sumOptional(input.ace.map((item) => item.usage.costUsd)),
     aceObservedCalls: input.ace.reduce((sum, item) => sum + item.observedAceCalls, 0),
     aceCorrelatedCalls: input.ace.reduce((sum, trial) => {
+      if ((trial.gatewayProjectionRequestIds?.length ?? 0) > 0) return sum;
       const providerIds = new Set(trial.providerTraceRequestIds);
       const gatewayCorrelated = trial.observedAceRequestIds.filter((id) => providerIds.has(id)).length;
       // A bridge providerRequestId is a retrieval trace ID, NOT an LLM egress ID.

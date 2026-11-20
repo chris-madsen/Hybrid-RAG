@@ -26,8 +26,9 @@ export const readHarborFeedbackTrialObservations = async (
   return observations.map((observation) => ({
     ...observation,
     arm,
-    observedAceContextCalls: observation.observedAceCalls,
-    observedAceCalls: observation.observedAceToolCalls ?? observation.observedAceCalls,
+    observedAceContextCalls: 0,
+    observedAceCalls: observation.observedAceToolCalls ?? 0,
+    gatewayProjectionRequestIds: observation.gatewayProjectionRequestIds ?? [],
     successfulAceCalls: observation.successfulAceToolCalls ?? observation.successfulAceCalls,
   }));
 };
