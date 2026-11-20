@@ -166,6 +166,7 @@ for bad_endpoint, bad_pin in (
 `;
   const run = spawnSync('python3', ['-c', script, 'scripts/harbor_hermes_codex_oauth.py'], {
     cwd: resolve('.'),
+    env: { PYTHONDONTWRITEBYTECODE: '1' },
     encoding: 'utf8',
     timeout: 30_000,
   });
