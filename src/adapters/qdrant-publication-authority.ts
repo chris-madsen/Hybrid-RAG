@@ -47,7 +47,10 @@ export interface QdrantPublicationInput<Value> {
 }
 
 export interface QdrantPublicationAuthority {
-  readonly reserve: () => Promise<Result<QdrantPublicationTicket, DomainError>>;
+  /** Missing durable state can bootstrap ONLY after a physical Qdrant zero-membership check. */
+  readonly reserve: (
+    confirmEmptyBootstrap: () => Promise<Result<boolean, DomainError>>,
+  ) => Promise<Result<QdrantPublicationTicket, DomainError>>;
   readonly publish: <Value>(input: QdrantPublicationInput<Value>) => Promise<Result<Value, DomainError>>;
   readonly inspect: () => Promise<Result<QdrantPublicationRecord, DomainError>>;
 }
@@ -202,7 +205,20 @@ export const makeLocalQdrantPublicationAuthority = (config: {
   };
 
   return {
-    reserve: () => withAuthority(async (record) => {
+    reserve: (confirmEmptyBootstrap) => withAuthority(async (record) => {
+      if (record.lastIssuedEpoch === 0) {
+        // A deleted/lost authority record is NOT proof of an empty existing
+        // Qdrant workspace. Require independent physical membership evidence
+        // before reissuing epoch 1 after a restart or storage loss.
+        const empty = await confirmEmptyBootstrap();
+        if (empty._tag === 'Err') return empty;
+        if (!empty.value) {
+          return err(domainError(
+            'NOT_READY', 'qdrant_publication',
+            'durable publication record is missing but Qdrant workspace already contains points',
+          ));
+        }
+      }
       if (record.lastIssuedEpoch === Number.MAX_SAFE_INTEGER) {
         return err(domainError('NOT_READY', 'qdrant_publication', 'publication epoch exhausted'));
       }
