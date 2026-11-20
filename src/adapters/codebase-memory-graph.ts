@@ -416,15 +416,37 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     }
     const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()));
     if (native._tag === 'Err') return native;
+    const outlineCache = new Map<RepoPath, readonly NativeOutlineRow[] | undefined>();
+    const sourceCandidateFor = async (target: NativeGraphTarget): Promise<CodeCandidate | undefined> => {
+      const candidates = candidatesByFile.get(target.file) ?? [];
+      if (candidates.length === 0) return undefined;
+      if (target.qn !== undefined) {
+        // One candidate in a source is unambiguous at file granularity.
+        if (candidates.length === 1) return candidates[0];
+        let current = outlineCache.get(target.file);
+        if (!outlineCache.has(target.file)) {
+          const fetched = await Effect.runPromise(outline(target.file));
+          current = fetched._tag === 'Ok' ? fetched.value : undefined;
+          outlineCache.set(target.file, current);
+        }
+        const exact = current === undefined ? undefined
+          : nativeQualifiedSymbolCandidate(candidates, target.qn, current);
+        if (exact !== undefined) return exact;
+        // The native qualified name may reference a file-only node. A
+        // unique short-name match is safe; same-name collisions fail closed.
+        const matches = candidates.filter((candidate) =>
+          candidate.symbolName !== undefined && matchesName(target.qn!, candidate.symbolName));
+        return matches.length === 1 ? matches[0] : undefined;
+      }
+      // Impact results without a symbol do not claim a precise callee.
+      return candidates.find((candidate) => candidate.structuralKind === 'module'
+        && candidate.symbolName === target.file) ?? candidates[0];
+    };
     const direct: RankedCandidate[] = [];
     const seen = new Set<string>();
     for (const hit of native.value) {
-      const candidates = candidatesByFile.get(hit.file) ?? [];
-      if (candidates.length === 0) continue;
-      const exact = candidates.find((candidate) =>
-        candidate.symbolName !== undefined && matchesName(hit.qn, candidate.symbolName));
-      const candidate = exact ?? candidates[0]!;
-      if (seen.has(candidate.candidateId)) continue;
+      const candidate = await sourceCandidateFor({ file: hit.file, qn: hit.qn });
+      if (candidate === undefined || seen.has(candidate.candidateId)) continue;
       seen.add(candidate.candidateId);
       direct.push({ candidate, score: hit.score, freshness: 'unknown' });
       if (direct.length >= input.limit) break;
@@ -440,7 +462,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     }
     const qns = [...new Set([...seeds.map((hit) => hit.qn), ...relatedNames])]
       .filter((qn) => /^[\w./:$#-]+$/u.test(qn)).slice(0, 40);
-    const linkedPaths: RepoPath[] = [
+    const linkedTargets: NativeGraphTarget[] = [
       ...(await adjacentNativeFiles(seeds.map((seed) => seed.file))),
     ];
     if (qns.length > 0) {
@@ -449,7 +471,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
         + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 50';
       const graph = await Effect.runPromise(queryGraph(query));
       if (graph._tag === 'Ok') {
-        linkedPaths.push(...(nativeQueryGraphFiles(root, graph.value) ?? []));
+        linkedTargets.push(...(nativeQueryGraphTargets(root, graph.value) ?? []));
       }
     }
     if ((input.changedPaths?.length ?? 0) > 0) {
@@ -462,7 +484,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       if (edited.length > 0) {
         // Dirty source files may themselves reference changed neighbors even
         // when CBM's CALLS trace cannot resolve dynamic or aliased symbols.
-        linkedPaths.push(...await adjacentNativeFiles(edited));
+        linkedTargets.push(...await adjacentNativeFiles(edited));
         const byPath = edited.map((file) => "n.file_path = '" + file + "'").join(' OR ');
         const symbols = await Effect.runPromise(queryGraph(
           'MATCH (n) WHERE ' + byPath
@@ -481,9 +503,9 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
               const predicate = names.map((name) =>
                 "n.qualified_name = '" + name + "'").join(' OR ');
               const source = await Effect.runPromise(queryGraph(
-                'MATCH (n) WHERE ' + predicate + ' RETURN n.file_path AS file LIMIT 30'));
-              if (source._tag === 'Ok') linkedPaths.push(
-                ...(nativeQueryGraphFiles(root, source.value) ?? []));
+                'MATCH (n) WHERE ' + predicate + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 30'));
+              if (source._tag === 'Ok') linkedTargets.push(
+                ...(nativeQueryGraphTargets(root, source.value) ?? []));
             }
           }
         }
@@ -494,13 +516,13 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       const impact = await Effect.runPromise(detectChanges());
       if (impact._tag === 'Ok') {
         const impactPaths = nativeImpactFiles(root, impact.value);
-        if (impactPaths.some((file) => edited.includes(file))) linkedPaths.push(...impactPaths);
+        if (impactPaths.some((file) => edited.includes(file))) linkedTargets.push(...impactPaths.map((file) => ({ file })));
       }
     }
 
     const linked: RankedCandidate[] = [];
-    for (const file of linkedPaths) {
-      const candidate = candidatesByFile.get(file)?.[0];
+    for (const target of linkedTargets) {
+      const candidate = await sourceCandidateFor(target);
       if (candidate === undefined || seen.has(candidate.candidateId)) continue;
       seen.add(candidate.candidateId);
       linked.push({ candidate, score: 1, freshness: 'unknown' });
