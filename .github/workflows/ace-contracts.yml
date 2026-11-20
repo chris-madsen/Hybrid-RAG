@@ -114,9 +114,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Install pinned native Codebase Memory code-intelligence provider
         run: | # zizmor: ignore[adhoc-packages] exact upstream v0.12.1 verifies its binary archive
-          CBM_PACKAGE="codebase-memory-$(printf '\155\143\160')"
-          npm install --global "${CBM_PACKAGE}@0.12.1"
-          "${CBM_PACKAGE}" --version
+          npm install --global codebase-memory-mcp@0.12.1
+          codebase-memory-mcp --version
       - name: Pin structural Python provider for nightly exhaustive suite
         if: github.event_name != 'pull_request'
         run: |
