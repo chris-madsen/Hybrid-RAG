@@ -46,5 +46,5 @@ export * from './adapters/typescript-language-service.js';
 export * from './adapters/process-embedding.js';
 export * from './adapters/codex-session-history.js';
 
-export * from './adapters/codebase-memory-repo-map.js';
+export * from './adapters/codebase-memory-graph.js';
 export * from './adapters/codebase-memory-structural.js';
