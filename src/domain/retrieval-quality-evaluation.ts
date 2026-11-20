@@ -340,7 +340,12 @@ export const evaluateRetrievalStrategy = (
             || new Set(ids).size !== ids.length
             || ids.some((id) => id.trim().length === 0)) return true;
           return status === 'executed' ? ids.length === 0 : ids.length > 0;
-        })) {
+        })
+        // The final observed delivered ranks, never the preverification
+        // shortlist, are the only evidence eligible for retrieval-quality
+        // credit. Enforce the join before calculating any recall/NDCG.
+        || stageRanks.delivered.length !== observation.retrievedCandidateIds.length
+        || stageRanks.delivered.some((id, index) => id !== observation.retrievedCandidateIds[index])) {
         return err(domainError(
           'INVALID_BENCHMARK',
           'retrieval_run.stage_ranks',

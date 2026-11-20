@@ -364,6 +364,19 @@ test('release-grade multi-repository holdout binds exact repositories and case o
   if (metrics._tag === 'Err') throw new Error(metrics.error.message);
   assert.equal(metrics.value.repositoryCount, 2);
 
+  const inflatedFromShortlist = evaluateRetrievalStrategy(multi, {
+    ...multiRun,
+    observations: multiRun.observations.map((item, index) => index === 0
+      ? { ...item, retrievedCandidateIds: ['shortlisted-but-never-delivered'] }
+      : item),
+  });
+  assert.equal(inflatedFromShortlist._tag, 'Err',
+    'a stale shortlist cannot receive recall credit that final delivered ranks did not earn');
+  if (inflatedFromShortlist._tag === 'Err') {
+    assert.equal(inflatedFromShortlist.error.code, 'INVALID_BENCHMARK');
+    assert.equal(inflatedFromShortlist.error.path, 'retrieval_run.stage_ranks');
+  }
+
   const sparseUnavailable = evaluateRetrievalStrategy(multi, {
     ...multiRun,
     observations: multiRun.observations.map((item) => ({

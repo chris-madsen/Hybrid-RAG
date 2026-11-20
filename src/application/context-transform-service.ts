@@ -63,7 +63,7 @@ export interface ContextTransformPorts {
    * constructor-time names from environment variables are not attestation.
    */
   readonly providerIdentities?: Readonly<Record<string, string>>
-    | (() => Readonly<Record<string, string>>);
+  | (() => Readonly<Record<string, string>>);
   readonly assembler?: ContextAssembler;
   /** Optional exact host/provider token counter for the active model. */
   readonly countTokens?: (text: string) => number;
