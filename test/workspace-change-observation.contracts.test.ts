@@ -113,11 +113,11 @@ test('non-Git digest reconciliation detects a same-size edit with restored mtime
     assert.equal(before.value.headRevision, 'unavailable');
     const baseline = {
       headRevision: before.value.headRevision,
-      files: before.value.files.map((file) => ({
-        repoPath: file.repoPath,
-        sizeBytes: file.sizeBytes,
-        mtimeMs: file.mtimeMs,
-        sourceDigest: file.digest,
+      files: before.value.files.map((observedFile) => ({
+        repoPath: observedFile.repoPath,
+        sizeBytes: observedFile.sizeBytes,
+        mtimeMs: observedFile.mtimeMs,
+        sourceDigest: observedFile.digest,
       })),
     };
     const fresh = await Effect.runPromise(port.observeChanges(root, baseline));
