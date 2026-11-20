@@ -259,6 +259,10 @@ const sha256Hex = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 const commitSha = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{40}$/u.test(value);
+const safeFinalWireRouteName = (value: unknown): value is string =>
+  typeof value === 'string' && value.length <= 256 && safeMetadata(value);
+const safeProviderRequestId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Za-z0-9._:-]{1,256}$/u.test(value);
 const finalWireRejected = (path: string, message: string): Result<never, DomainError> =>
   err(domainError('INVALID_BENCHMARK', path, message));
 
@@ -288,8 +292,8 @@ export const evaluateNativeResponsesFinalWireEvidence = (
     || typeof input.attemptId !== 'string' || !/^bf-attempt-[a-f0-9]{32}$/u.test(input.attemptId)
     || input.protocol !== 'openai.responses'
     || (input.dataClass !== 'public' && input.dataClass !== 'project_document' && input.dataClass !== 'private')
-    || typeof input.provider !== 'string' || !safeMetadata(input.provider)
-    || typeof input.model !== 'string' || !safeMetadata(input.model)) {
+    || !safeFinalWireRouteName(input.provider)
+    || !safeFinalWireRouteName(input.model)) {
     return finalWireRejected('final_wire.identity', 'final-wire request, attempt, provider or model identity is invalid');
   }
   if ((input.capturePoint !== 'contextTransport-before-tls-write'
@@ -312,7 +316,7 @@ export const evaluateNativeResponsesFinalWireEvidence = (
     || (acknowledgement.statusCode as number) < 100 || (acknowledgement.statusCode as number) > 599
     || typeof acknowledgement.requestId !== 'string' || !safeMetadata(acknowledgement.requestId)
     || typeof acknowledgement.attemptId !== 'string' || !safeMetadata(acknowledgement.attemptId)
-    || typeof acknowledgement.providerRequestId !== 'string' || !safeMetadata(acknowledgement.providerRequestId)) {
+    || !safeProviderRequestId(acknowledgement.providerRequestId)) {
     return finalWireRejected('final_wire.acknowledgement', 'provider acknowledgement metadata is invalid');
   }
 

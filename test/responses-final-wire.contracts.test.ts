@@ -83,6 +83,17 @@ test('final-wire evidence rejects raw prompt or body fields', () => {
   const evidence = { ...manifest(), rawBody: 'private prompt and source text' };
   const result = evaluateNativeResponsesFinalWireEvidence(evidence, mockProof(manifest()));
   assert.equal(result._tag, 'Err');
+
+  const rawAcknowledgement = manifest({
+    providerAcknowledgement: {
+      kind: 'mock',
+      statusCode: 200,
+      requestId,
+      attemptId,
+      providerRequestId: 'private source query text',
+    },
+  });
+  assert.equal(evaluateNativeResponsesFinalWireEvidence(rawAcknowledgement, mockProof(rawAcknowledgement))._tag, 'Err');
 });
 
 test('a body changed after ACE preparation cannot be certified as final wire', () => {
