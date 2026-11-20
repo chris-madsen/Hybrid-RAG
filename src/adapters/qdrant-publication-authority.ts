@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, rename, unlink } from 'node:fs/promises';
+import { lstat, mkdir, open, rename, unlink, type FileHandle } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
@@ -64,11 +64,14 @@ const validRecord = (record: unknown, workspaceId: WorkspaceId): record is Qdran
   const value = record as Partial<QdrantPublicationRecord>;
   return value.schemaVersion === 1
     && value.workspaceId === workspaceId
+    && typeof value.lastIssuedEpoch === 'number'
     && Number.isSafeInteger(value.lastIssuedEpoch)
-    && (value.lastIssuedEpoch ?? -1) >= 0
+    && value.lastIssuedEpoch >= 0
+    && typeof value.committedEpoch === 'number'
     && Number.isSafeInteger(value.committedEpoch)
-    && (value.committedEpoch ?? -1) >= 0
-    && (value.committedEpoch ?? 0) <= (value.lastIssuedEpoch ?? -1)
+    && value.committedEpoch >= 0
+    && value.committedEpoch <= value.lastIssuedEpoch
+    && (value.committedEpoch === 0 || value.committedIndexKey !== undefined)
     && (value.committedIndexKey === undefined
       || (typeof value.committedIndexKey === 'string' && /^[a-f0-9]{64}$/u.test(value.committedIndexKey)))
     && (value.committedCollection === undefined
@@ -96,7 +99,7 @@ export const makeLocalQdrantPublicationAuthority = (config: {
   };
 
   const readRecord = async (): Promise<QdrantPublicationRecord> => {
-    let handle;
+    let handle: FileHandle;
     try {
       handle = await open(stateFile, constants.O_RDONLY | constants.O_NOFOLLOW);
     } catch (cause) {
