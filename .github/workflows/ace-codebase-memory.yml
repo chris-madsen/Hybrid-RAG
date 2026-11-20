@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 3
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '22'
@@ -43,4 +44,4 @@ jobs:
       - name: Native provider contract on actual ACE repository
         env:
           ACE_TEST_REAL_CBM: 'true'
-        run: npx tsx --test test/codebase-memory-repo-map.contracts.test.ts
+        run: npx tsx --test test/codebase-memory-repo-map.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
