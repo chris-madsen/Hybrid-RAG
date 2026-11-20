@@ -13,10 +13,13 @@ import type { DataClass, ProjectDataPolicy, SafeAuditRecord } from '../src/domai
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import type { WorkspaceRecord } from '../src/domain/workspace.js';
 import type { ContextBundle } from '../src/domain/retrieval.js';
+import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 import { domainError } from '../src/domain/errors.js';
 import { err, ok } from '../src/domain/result.js';
 import type { GatewayProjectionSecurity } from '../src/application/gateway-security-contract.js';
 
+const sourcePlan = resolveExplicitSourceRequirements({ required: ['code'] });
+if (sourcePlan._tag === 'Err') throw new Error(sourcePlan.error.message);
 const hash = (x: string): string => createHash('sha256').update(x).digest('hex');
 const encodeBase64Utf8 = (value: string): string => {
   let binary = '';
@@ -504,7 +507,7 @@ test('completed empty retrieval and unavailable retrieval have different outcome
       context: { search: () => Effect.succeed(ok({
         requestId: 'search-empty' as ContextBundle['requestId'],
         query: 'summarize the task', evidence: [], warnings: [],
-        partialSources, complete,
+        partialSources, complete, sourcePlan: sourcePlan.value,
         ...(proof ? { sourceCoverage: [{
           source: 'code' as const, requirement: 'required' as const,
           status: complete ? 'satisfied' as const : 'unavailable' as const,
@@ -555,7 +558,7 @@ test('end-to-end native projection keeps Hermes input and sends only references 
       sourceDigest: 'b'.repeat(64) as never,
       proofClass: 'direct', freshness: 'current',
     }],
-    warnings: [], partialSources: [], complete: true,
+    warnings: [], partialSources: [], complete: true, sourcePlan: sourcePlan.value,
   };
   let searches = 0;
   const context = makeContextTransformService({
