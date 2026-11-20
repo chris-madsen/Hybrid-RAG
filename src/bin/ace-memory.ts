@@ -5,7 +5,7 @@ import { exportCodexHistory } from '../adapters/codex-session-history.js';
 import { makeAsyncFileMemoryArchive } from '../adapters/file-memory-archive.js';
 import { makeFileProjectionOutbox } from '../adapters/file-projection-outbox.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
-import { deleteEpisodeWithProjection } from '../application/retained-memory.js';
+import { deleteEpisodeWithProjection, deleteNeverProjectedArchiveEpisode } from '../application/retained-memory.js';
 import {
   deadLetterProjection,
   defaultProjectionRetryPolicy,
@@ -91,17 +91,8 @@ const run = async (): Promise<void> => {
     const archiveOnly = await outbox.isArchiveOnly?.(episodeId.value);
     if (archiveOnly?._tag === 'Err') throw new Error(archiveOnly.error.message);
     if (archiveOnly?._tag === 'Ok' && archiveOnly.value) {
-      const receipts = await outbox.list();
-      if (receipts._tag === 'Err') throw new Error(receipts.error.message);
-      if (receipts.value.some((receipt) => receipt.episodeId === episodeId.value)) {
-        throw new Error('archive-only proof conflicts with an existing graph projection receipt');
-      }
-      const fenced = await outbox.beginDeletion(episodeId.value);
-      if (fenced._tag === 'Err') throw new Error(fenced.error.message);
-      const deleted = await archive.deleteEpisode(episodeId.value);
+      const deleted = await deleteNeverProjectedArchiveEpisode(archive, outbox, episodeId.value);
       if (deleted._tag === 'Err') throw new Error(deleted.error.message);
-      const finalized = await outbox.finalizeDeletion(episodeId.value);
-      if (finalized._tag === 'Err') throw new Error(finalized.error.message);
       process.stdout.write(JSON.stringify({
         episode_id: episodeId.value, purged: false, archive_only_deleted: true,
       }) + '\n');
