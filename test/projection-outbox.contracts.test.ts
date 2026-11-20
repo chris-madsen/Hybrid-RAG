@@ -24,7 +24,12 @@ test('projection outbox survives restart and keeps one logical receipt per episo
   if (replay._tag === 'Err') throw new Error(replay.error.message);
   assert.deepEqual(replay.value, incomplete);
 
-  assert.equal((await restarted.put({ ...replay.value, status: 'projected' }))._tag, 'Ok');
+  const claimed = await restarted.startAttempt(episodeId, 'extractor-v1');
+  assert.equal(claimed._tag, 'Ok');
+  if (claimed._tag === 'Err') return;
+  assert.equal((await restarted.put({
+    ...claimed.value, status: 'projected', graphDispatchAcknowledged: true,
+  }))._tag, 'Ok');
   const all = await restarted.list();
   assert.equal(all._tag, 'Ok');
   if (all._tag === 'Ok') {
@@ -69,7 +74,12 @@ test('projection outbox deletion fence rejects stale receipts and survives resta
 
   const premature = await outbox.beginDeletion(episodeId);
   assert.equal(premature._tag, 'Err', 'pending graph intent may still send after a purge');
-  assert.equal((await outbox.put({ ...begun.value, status: 'projected' }))._tag, 'Ok');
+  const claim = await outbox.startAttempt(episodeId, 'extractor-v1');
+  assert.equal(claim._tag, 'Ok');
+  if (claim._tag === 'Err') return;
+  assert.equal((await outbox.put({
+    ...claim.value, status: 'projected', graphDispatchAcknowledged: true,
+  }))._tag, 'Ok');
   assert.equal((await outbox.beginDeletion(episodeId))._tag, 'Ok');
   const stale = await outbox.put({ ...begun.value, status: 'projected' });
   assert.equal(stale._tag, 'Err');
@@ -110,7 +120,9 @@ test('AR05 graph attempts are exclusive across extractor versions and survive re
   });
   assert.equal(forged._tag, 'Err', 'a different attempt cannot settle the claim');
   assert.equal((await restarted.beginDeletion(episodeId))._tag, 'Err');
-  assert.equal((await restarted.put({ ...claimed.value, status: 'projected' }))._tag, 'Ok');
+  assert.equal((await restarted.put({
+    ...claimed.value, status: 'projected', graphDispatchAcknowledged: true,
+  }))._tag, 'Ok');
   const settled = await restarted.get(claimed.value.key);
   assert.equal(settled._tag, 'Ok');
   if (settled._tag === 'Ok') assert.equal(settled.value?.inflightAttemptId, undefined);
@@ -137,11 +149,27 @@ test('AR05 uncertain Graphiti attempt stays undeletable across retries and canno
   if (replay._tag === 'Err') return;
   const illegallyClean = await restarted.put({
     ...replay.value, status: 'projected', uncertainGraphAttempt: false,
+    graphDispatchAcknowledged: true,
   });
   assert.equal(illegallyClean._tag, 'Err', 'later success cannot erase prior uncertainty');
   assert.equal((await restarted.put({
     ...replay.value, status: 'projected', uncertainGraphAttempt: true,
+    graphDispatchAcknowledged: true,
   }))._tag, 'Ok');
   const deletion = await restarted.beginDeletion(episodeId);
   assert.equal(deletion._tag, 'Err', 'unknown earlier side effect needs independent resolution');
+});
+
+test('AR05 old projected receipt without a protected acknowledgement is not deletion proof', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar05-old-projected-'));
+  const outbox = await makeFileProjectionOutbox(root);
+  const episodeId = 'ar05-old-episode' as never;
+  const begun = await outbox.begin(episodeId, 'old-extractor');
+  assert.equal(begun._tag, 'Ok');
+  if (begun._tag === 'Err') return;
+  assert.equal((await outbox.put({ ...begun.value, status: 'projected' }))._tag, 'Ok');
+  assert.equal((await outbox.beginDeletion(episodeId))._tag, 'Err',
+    'old receipt alone cannot certify no unsettled Graphiti side effects');
+  const forged = await outbox.put({ ...begun.value, status: 'projected', graphDispatchAcknowledged: true });
+  assert.equal(forged._tag, 'Err', 'no dispatch claim exists to support this acknowledgment');
 });
