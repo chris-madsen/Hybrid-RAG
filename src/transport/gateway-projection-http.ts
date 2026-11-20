@@ -53,19 +53,19 @@ const error = (statusCode: number, code: string, message: string): GatewayProjec
   body: { error: { code, message } },
 });
 
-export const handleGatewayProjectionHttp = async (
+type GatewayProjectionRouteHandler = (
   service: GatewayProjectionHttpService,
-  method: string,
-  path: string,
   body: string,
-): Promise<GatewayProjectionHttpResponse> => {
-  if (method === 'GET' && path === '/internal/ace-gateway/v2/health') {
+) => Promise<GatewayProjectionHttpResponse>;
+
+const gatewayProjectionRoutes: ReadonlyMap<string, GatewayProjectionRouteHandler> = new Map<string, GatewayProjectionRouteHandler>([
+  ['GET /internal/ace-gateway/v2/health', async () => {
     const wire: GeneratedGatewayHealth = {
       schemaVersion, liveness: 'ready', readiness: 'adapter_implemented', providerWire: 'not_certified',
     };
     return json(wire as unknown as Readonly<Record<string, unknown>>);
-  }
-  if (method === 'GET' && path === '/internal/ace-gateway/v2/capabilities') {
+  }],
+  ['GET /internal/ace-gateway/v2/capabilities', async () => {
     const wire: GeneratedGatewayCapabilities = {
       schemaVersion,
       // No provider generation route is advertised until final-wire certification.
@@ -75,15 +75,14 @@ export const handleGatewayProjectionHttp = async (
       providerWireCertification: 'not_certified',
     };
     return json(wire as unknown as Readonly<Record<string, unknown>>);
-  }
-  if (method !== 'POST') return error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method');
-  if (path === '/internal/ace-gateway/v2/record-delivery') {
+  }],
+  ['POST /internal/ace-gateway/v2/record-delivery', async () => {
     const unavailable: GeneratedDeliveryNotCertified = {
       error: { code: 'PROVIDER_WIRE_NOT_CERTIFIED', message: 'delivery recording requires a verified final-send integration' },
     };
     return error(501, unavailable.error.code, unavailable.error.message);
-  }
-  if (path === '/internal/ace-gateway/v2/project') {
+  }],
+  ['POST /internal/ace-gateway/v2/project', async (service: GatewayProjectionHttpService, body: string) => {
     if (!service.projectResponses) return error(503, 'RESPONSES_NOT_READY', 'native Responses projector is not configured');
     let payload: unknown;
     try { payload = JSON.parse(body) as unknown; } catch {
@@ -96,8 +95,8 @@ export const handleGatewayProjectionHttp = async (
     if (response.value.kind === 'BLOCK') return json(response.value);
     // Internal context transformation only. This result is not a provider-send permit.
     return json(response.value);
-  }
-  if (path === '/internal/ace-gateway/v2/authorize-attempt') {
+  }],
+  ['POST /internal/ace-gateway/v2/authorize-attempt', async (service: GatewayProjectionHttpService, body: string) => {
     if (!service.authorizePhysicalSend) return error(503, 'ATTEMPT_AUTHORIZATION_NOT_READY', 'physical-send authorization is not configured');
     let payload: unknown;
     try { payload = JSON.parse(body) as unknown; } catch {
@@ -109,8 +108,23 @@ export const handleGatewayProjectionHttp = async (
       return error(status, response.error.code, response.error.message);
     }
     return json(response.value);
-  }
-  return error(404, 'NOT_FOUND', 'unknown Gateway v2 endpoint');
+  }],
+]);
+
+const unknownGatewayRoute: GatewayProjectionRouteHandler = async () =>
+  error(404, 'NOT_FOUND', 'unknown Gateway v2 endpoint');
+const unsupportedGatewayMethod: GatewayProjectionRouteHandler = async () =>
+  error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method');
+
+export const handleGatewayProjectionHttp = (
+  service: GatewayProjectionHttpService,
+  method: string,
+  path: string,
+  body: string,
+): Promise<GatewayProjectionHttpResponse> => {
+  const handler = gatewayProjectionRoutes.get(`${method} ${path}`)
+    ?? (method === 'POST' ? unknownGatewayRoute : unsupportedGatewayMethod);
+  return handler(service, body);
 };
 
 const writeResponse = (response: ServerResponse, result: GatewayProjectionHttpResponse): void => {
