@@ -197,8 +197,7 @@ const matchesName = (qualifiedName: string, name: string): boolean =>
 
 export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): CodebaseMemoryGraph => {
   const root = resolve(options.rootPath);
-  // Preserve the gateway-only audit: this is a local executable, not a model tool protocol.
-  const command = options.command?.trim() || 'codebase-memory-' + String.fromCharCode(109, 99, 112);
+  const command = options.command?.trim() || 'codebase-memory-mcp';
   const timeoutMs = options.timeoutMs ?? 120_000;
   let project: string | undefined;
   let reindexing: Promise<Result<void, DomainError>> | undefined;
