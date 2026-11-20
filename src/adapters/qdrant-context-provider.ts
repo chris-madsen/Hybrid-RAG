@@ -173,7 +173,7 @@ export const applyWorkingContextPriors = (
       const boost = workingContextBoost(candidate, workingContext, hints);
       return { ...candidate, score: candidate.score + boost * scale };
     })
-  .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
+    .sort((left, right) => right.score - left.score || left.candidate.repoPath.localeCompare(right.candidate.repoPath))
     .slice(0, limit);
 };
 
