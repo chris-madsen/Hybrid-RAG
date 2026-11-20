@@ -35,7 +35,7 @@ export interface CodebaseMemoryGraph extends CodeGraphCandidatePort {
   readonly outline: (filePath: RepoPath) => Effect.Effect<Result<readonly NativeOutlineRow[], DomainError>>;
   readonly trace: (qualifiedName: string) => Effect.Effect<Result<unknown, DomainError>>;
   readonly queryGraph: (cypher: string) => Effect.Effect<Result<unknown, DomainError>>;
-  readonly detectChanges: (since: string) => Effect.Effect<Result<unknown, DomainError>>;
+  readonly detectChanges: (since?: string) => Effect.Effect<Result<unknown, DomainError>>;
 }
 
 export interface NativeOutlineRow {
@@ -291,7 +291,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
   const detectChanges: CodebaseMemoryGraph['detectChanges'] = (since) => Effect.promise(async () =>
     project === undefined
       ? err(domainError('NOT_READY', 'codebase_memory.impact', 'no published graph'))
-      : invoke('detect_changes', { project, since, scope: 'impact',
+      : invoke('detect_changes', { project, ...(since ? { since } : {}), scope: 'impact',
         direction: 'both', depth: 2, format: 'json' }));
 
   const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
@@ -376,9 +376,46 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       }
     }
     if ((input.changedPaths?.length ?? 0) > 0) {
-      // CBM detects changed symbols and blast radius via its own git/graph.
-      const impact = await Effect.runPromise(detectChanges('HEAD~1'));
-      if (impact._tag === 'Ok') linkedPaths.push(...nativeImpactFiles(root, impact.value));
+      // Uncommitted edits are not in git's base...HEAD diff. For working
+      // changes query CBM's OWN symbol graph by changed file and trace from
+      // those definitions, rather than treating the previous commit as the
+      // current working-tree change.
+      const edited = [...new Set(input.changedPaths ?? [])].filter((file) =>
+        candidatesByFile.has(file) && /^[\w./-]+$/u.test(file)).slice(0, 12);
+      if (edited.length > 0) {
+        const byPath = edited.map((file) => "n.file_path = '" + file + "'").join(' OR ');
+        const symbols = await Effect.runPromise(queryGraph(
+          'MATCH (n) WHERE ' + byPath
+          + ' RETURN n.qualified_name AS qn, n.file_path AS file LIMIT 36'));
+        if (symbols._tag === 'Ok') {
+          const shape = object(symbols.value);
+          const i = Array.isArray(shape?.columns) ? shape.columns.indexOf('qn') : -1;
+          if (i >= 0 && Array.isArray(shape?.rows)) {
+            for (const row of shape.rows.slice(0, 3)) {
+              if (!Array.isArray(row) || typeof row[i] !== 'string') continue;
+              const walked = await Effect.runPromise(trace(row[i]));
+              if (walked._tag !== 'Ok') continue;
+              const names = nativeTraceQualifiedNames(walked.value)
+                .filter((name) => /^[\w./:$#-]+$/u.test(name)).slice(0, 20);
+              if (names.length === 0) continue;
+              const predicate = names.map((name) =>
+                "n.qualified_name = '" + name + "'").join(' OR ');
+              const source = await Effect.runPromise(queryGraph(
+                'MATCH (n) WHERE ' + predicate + ' RETURN n.file_path AS file LIMIT 30'));
+              if (source._tag === 'Ok') linkedPaths.push(
+                ...(nativeQueryGraphFiles(root, source.value) ?? []));
+            }
+          }
+        }
+      }
+      // Native detect_changes is a COMMITTED branch/merge-base impact query,
+      // not a current dirty-worktree diff. Only use the resulting blast-radius
+      // when the provider explicitly reports one of the edited source paths.
+      const impact = await Effect.runPromise(detectChanges());
+      if (impact._tag === 'Ok') {
+        const impactPaths = nativeImpactFiles(root, impact.value);
+        if (impactPaths.some((file) => edited.includes(file))) linkedPaths.push(...impactPaths);
+      }
     }
 
     const linked: RankedCandidate[] = [];
