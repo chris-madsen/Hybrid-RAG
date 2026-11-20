@@ -293,11 +293,13 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
       } catch {
         return err(domainError('PERSISTENCE_FAILED', 'projection_deletion', 'could not inspect graph intents before deletion'));
       }
+      let foundGraphIntent = false;
       for (const entry of entries) {
         const found = await read(join(rootPath, entry));
         if (found._tag === 'Err') return found;
         const receipt = found.value;
         if (receipt?.episodeId !== episodeId) continue;
+        foundGraphIntent = true;
         if (archiveOnly.value || receipt.inflightAttemptId !== undefined
           || receipt.uncertainGraphAttempt === true
           || (receipt.status === 'projected' && receipt.graphDispatchAcknowledged !== true)
@@ -305,6 +307,10 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
           return err(domainError('INVALID_MEMORY', 'projection_deletion',
             'unsettled or contradictory graph projection intent blocks deletion'));
         }
+      }
+      if (!archiveOnly.value && !foundGraphIntent) {
+        return err(domainError('INVALID_MEMORY', 'projection_deletion',
+          'missing graph intent and missing never-projected proof leave historical state unknown'));
       }
       return writeDeletion(episodeId, 'deleting');
     }),
