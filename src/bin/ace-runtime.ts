@@ -661,7 +661,7 @@ const main = async (): Promise<void> => {
           let codebaseMemoryCandidates: readonly CodeCandidate[] = [];
           const codebaseMemory = makeCodebaseMemoryRepoMap({
             rootPath: registered.value.rootPath,
-            command: process.env.ACE_CBM_COMMAND?.trim(),
+            ...(process.env.ACE_CBM_COMMAND?.trim() ? { command: process.env.ACE_CBM_COMMAND.trim() } : {}),
             candidates: () => codebaseMemoryCandidates,
           });
           let activeRepoMap: Pick<RepoMapService, 'render'> | undefined;
@@ -1000,7 +1000,7 @@ const main = async (): Promise<void> => {
               },
               history,
               ...(documentation === undefined ? {} : { documentation }),
-              ...(activeRepoMap === undefined ? {} : { repoMap: activeRepoMap }),
+              ...(activeRepoMap === undefined ? {} : { repoMap: activeRepoMap, codeGraph: codebaseMemory }),
             });
           };
           const publishBuild = async (
