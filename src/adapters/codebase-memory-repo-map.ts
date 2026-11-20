@@ -56,7 +56,7 @@ export const parseCodebaseMemoryFileOutline = (
     || typeof o.has_more !== 'boolean' || o.has_more) return undefined;
   const ni = o.cols.indexOf('name'), li = o.cols.indexOf('label');
   const ri = o.cols.indexOf('lines'), qi = o.cols.indexOf('qn');
-  if ([ni,li,ri,qi].some(i => i < 0)) return undefined;
+  if ([ni, li, ri, qi].some(i => i < 0)) return undefined;
   const rows: NativeOutlineRow[] = [];
   for (const row of o.rows) {
     if (!Array.isArray(row) || typeof row[ni] !== 'string'
