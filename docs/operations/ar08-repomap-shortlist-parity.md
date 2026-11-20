@@ -1,3 +1,5 @@
+> **ARCHIVED / SUPERSEDED BY PR #316 (CBM migration):** This is retained as historical AR08 experiment evidence. The ast-grep CLI/NAPI structural provider, its 125-file comparison script and its parity tests have been removed from production/test tooling. Do **not** run the commands or treat this as current ACE parser-selection guidance. Use [native Codebase Memory operations](./codebase-memory-provider.md) for the active architecture. Historical corpus disagreement is not evidence about Codebase Memory accuracy.
+
 # AR08 — source recall / ast-grep corpus parity (offline evaluation)
 
 **Status:** observation capability implemented; real local-Qdrant/agent task benefit and provider promotion **NOT_RUN / NOT_APPROVED**. Based on current `main` with AR02/AR07 already merged. OpenSpec 014 owns acceptance IDs **REM-018** and **REM-019**.
