@@ -6,6 +6,7 @@ ACE currently writes directly to one Qdrant stable collection per workspace/prov
 
 AR03 implements conservative **single-Linux-host** fencing, not distributed consensus. Set the following environment variable to the **same shared, durable local directory for every writer of the same workspace**:
 
+    ACE_QDRANT_WRITER_TOPOLOGY=single_host
     ACE_QDRANT_PUBLICATION_DIR=/var/lib/ace/qdrant-publication
 
 Directory mode must be owner-private 0700; state/lock files must be 0600. The util-linux flock executable is required. Never use distinct per-process directories, private ephemeral container volumes, different users, or uncoordinated hosts. A multi-host / k3s multi-node writer topology remains NOT_READY pending G02 owner selection and a genuinely distributed fencing authority.
