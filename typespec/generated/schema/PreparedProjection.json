@@ -25,8 +25,16 @@
             "maxLength": 16384
         },
         "reasonCode": {
-            "type": "string",
-            "const": "VERIFIED_CONTEXT_ADDED"
+            "anyOf": [
+                {
+                    "type": "string",
+                    "const": "VERIFIED_CONTEXT_ADDED"
+                },
+                {
+                    "type": "string",
+                    "const": "VERIFIED_NO_CONTEXT_NEEDED"
+                }
+            ]
         }
     },
     "required": [

@@ -20,7 +20,7 @@ The skills in this directory are optional techniques, not authorities. Apply thi
 
 - The separate pinned `codebase-design` add-on has integrity metadata in `.agents/codebase-design-v1.3.2-manifest.json` (upstream MIT, unmodified source). Use its **deep module, interface and seam** principles to *integrate into existing ACE Functional DDD*, not as a new architectural authority. Its optional `DESIGN-IT-TWICE.md` parallel-subagent procedure is **not permitted** under ACE's one-agent rule; explore alternatives sequentially, review accepted ADR/contexts and require G02 owner decision.
 - `ace-architecture-design` is the canonical Architecture route; `ace-phase-plan` expands each approved architecture-based To-tickets chunk through existing `phase-template.md`; the `writing-plans` influence is a **referenced design technique**, not an installed Superpowers runtime/agent orchestrator or an extra tracker.
-- `ace-stage-handoff` owns stacked Draft PR dependency hygiene and input-fingerprint freshness. Opening a Draft PR lets **planning** continue provisionally while review is pending; it does not imply G02, provider egress permission, human merge or release acceptance.
+- `ace-stage-handoff` owns stacked PR dependency hygiene and input-fingerprint freshness. Opening a PR lets **planning** continue provisionally while review is pending; it does not imply G02, provider egress permission, human merge or release acceptance.
 
 ## ACE-specific skill mapping
 

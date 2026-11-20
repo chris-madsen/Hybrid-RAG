@@ -120,7 +120,7 @@ export type PreparedProjection = {
     projectedBodySha256: string;
     bodyBase64: string;
     projectionReceipt: string;
-    reasonCode: 'VERIFIED_CONTEXT_ADDED';
+    reasonCode: 'VERIFIED_CONTEXT_ADDED' | 'VERIFIED_NO_CONTEXT_NEEDED';
     [key: string]: unknown;
 };
 

@@ -7,7 +7,7 @@ description: Coordinate independent free-form and skills-led ACE planning candid
 
 **Goal:** for material T2 planning, obtain two distinct candidate solutions on **identical, source-pinned inputs**: **A: free-form architecture/implementation planning**, and **B: ACE Skills Pipeline (R → S → A → P → X)**. Compare *the engineering decisions*, synthesize the best evidence-backed **C** in the **one canonical OpenSpec change**, and verify it before G02. Never concatenate Markdown, vote by verbosity, count of phases or estimated LOC, or assume either candidate is right. For T0 do not run dual planning; for T1 use it only if explicitly requested or the risk justifies it.
 
-This skill has **two checkpoints**: **PREPARE after R/S and before B's Architecture**, then **SYNTHESIZE after B's phase briefs (X)**. It is **not** a sixth stage, a second SDLC workflow, a daemon, a parallel-subagent framework or an authorization to implement. The existing single-agent staged Draft PR contract continues to own R/S/A/P/X.
+This skill has **two checkpoints**: **PREPARE after R/S and before B's Architecture**, then **SYNTHESIZE after B's phase briefs (X)**. It is **not** a sixth stage, a second SDLC workflow, a daemon, a parallel-subagent framework or an authorization to implement. The existing single-agent staged PR contract continues to own R/S/A/P/X.
 
 ## Authority and common baseline — required for both candidates
 
@@ -53,13 +53,13 @@ The output **C** lives only in the existing OpenSpec change: proposal/specs (whe
 - Material architecture/reuse/interface → ace-architecture-design / A, with proposed ADR and actual G02 decision if required.
 - Phase allocation, estimate, dependencies, number of chunks → ace-to-tickets / P.
 - Executable step, file/test owner, negative/real-evidence oracle → ace-phase-plan / X.
-- If changing upstream S/A/P while stacked Draft PRs are open, edit the **owning stage branch**, mark descendants STALE, restack/retarget and refresh source/input fingerprints; keep every PR stage-only. For merged upstream stages, use a focused branch against current main. Never silently rewrite accepted ADRs or change implementation.
+- If changing upstream S/A/P while stacked PRs are open, edit the **owning stage branch**, mark descendants STALE, restack/retarget and refresh source/input fingerprints; keep every PR stage-only. For merged upstream stages, use a focused branch against current main. Never silently rewrite accepted ADRs or change implementation.
 - After synthesis, run **one bounded critique and correction/recheck** of C. Log FIX / OWNER_DECISION / DEFER_WITH_RATIONALE / REJECT_WITH_EVIDENCE in existing PR/checkpoint, not another task tracker. Do not loop indefinitely.
 
 ## Validation, evidence and exit
 
 On the **actual C checkout**, run pinned openspec validate --all --strict --no-interactive, applicable npm run check:sdd-prepare -- --change <id> --tier T2 --json, and **npm run check:ace-phase-plan -- --change <id> --phase <ID> --json for every linked phase**, plus scoped tests and npm run verify:pr before PR handoff. Recompute the actual design Git blob and sorted spec SHA-256 in all affected briefs. Run real provider/agent/Harbor checks only when separately approved; mark NOT_RUN instead of inventing results. Structural checks cannot measure semantic quality.
 
-The existing X Draft PR (or focused reconciliation PR) and progress-checkpoint.md-shaped handoff report: **A/B input equality; observed/not-attested context isolation; A/B hashes; decision-by-decision matrix; C canonical hashes and changed AC/phase/DAG/LOC; unresolved conflicts; stage-owner restacks; exact commands/results and tested source SHA; G02, egress and owner status**. Do not commit raw private agent traces or a second ledger.
+The existing X PR (or focused reconciliation PR) and progress-checkpoint.md-shaped handoff report: **A/B input equality; observed/not-attested context isolation; A/B hashes; decision-by-decision matrix; C canonical hashes and changed AC/phase/DAG/LOC; unresolved conflicts; stage-owner restacks; exact commands/results and tested source SHA; G02, egress and owner status**. Do not commit raw private agent traces or a second ledger.
 
 Exit as **REVIEWABLE_SYNTHESIS** only when both candidates and input/independence evidence are complete, all material decisions are resolved or explicitly owner-gated, C passes the applicable structural checks and no unsafe dependency can proceed. Otherwise **PROVISIONAL / INDEPENDENCE_NOT_ATTESTED / STALE / BLOCKED / SINGLE_PLAN_REVIEW** as appropriate. These are *plan quality statuses only*, never production or G02 approval. Do not auto-merge, implement, claim a live skill invocation without observing it, or imply this prompt automatically starts separate model sessions.

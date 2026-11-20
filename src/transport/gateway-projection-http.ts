@@ -73,12 +73,12 @@ const healthRoute = async (): Promise<GatewayProjectionHttpResponse> => {
   return json(wire as unknown as Readonly<Record<string, unknown>>);
 };
 
-const capabilitiesRoute = async (): Promise<GatewayProjectionHttpResponse> => {
+const capabilitiesRoute = async (maxBodyBytes: number): Promise<GatewayProjectionHttpResponse> => {
   const wire: GeneratedGatewayCapabilities = {
     schemaVersion,
     // No provider generation route is advertised until final-wire certification.
     routes: [],
-    maxBodyBytes: defaultMaxBodyBytes,
+    maxBodyBytes,
     projectionModes: ['gateway'],
     providerWireCertification: 'not_certified',
   };
@@ -95,13 +95,14 @@ const recordDeliveryRoute = async (): Promise<GatewayProjectionHttpResponse> => 
 const projectRoute = async (
   service: GatewayProjectionHttpService,
   body: string,
+  signal?: AbortSignal,
 ): Promise<GatewayProjectionHttpResponse> => {
   if (!service.projectResponses) return error(503, 'RESPONSES_NOT_READY', 'native Responses projector is not configured');
   let payload: unknown;
   try { payload = JSON.parse(body) as unknown; } catch {
     return error(400, 'INVALID_JSON', 'native Responses request must be JSON');
   }
-  const response = await Effect.runPromise(service.projectResponses(payload));
+  const response = await Effect.runPromise(service.projectResponses(payload), { signal });
   if (response._tag === 'Err') return error(400, response.error.code, response.error.message);
   // A policy denial is a typed projection decision, not an out-of-schema
   // error. The Go connector must still refuse BLOCK and never dispatch.
@@ -111,13 +112,14 @@ const projectRoute = async (
 const authorizeAttemptRoute = async (
   service: GatewayProjectionHttpService,
   body: string,
+  signal?: AbortSignal,
 ): Promise<GatewayProjectionHttpResponse> => {
   if (!service.authorizePhysicalSend) return error(503, 'ATTEMPT_AUTHORIZATION_NOT_READY', 'physical-send authorization is not configured');
   let payload: unknown;
   try { payload = JSON.parse(body) as unknown; } catch {
     return error(400, 'INVALID_JSON', 'physical-send authorization must be JSON');
   }
-  const response = await Effect.runPromise(service.authorizePhysicalSend(payload));
+  const response = await Effect.runPromise(service.authorizePhysicalSend(payload), { signal });
   if (response._tag === 'Err') {
     const status = response.error.code === 'INVALID_INPUT' ? 400 : 503;
     return error(status, response.error.code, response.error.message);
@@ -130,13 +132,15 @@ export const handleGatewayProjectionHttp = (
   method: string,
   path: string,
   body: string,
+  maxBodyBytes = defaultMaxBodyBytes,
+  signal?: AbortSignal,
 ): Promise<GatewayProjectionHttpResponse> => {
   switch (gatewayRouteId(method, path)) {
     case 'health': return healthRoute();
-    case 'capabilities': return capabilitiesRoute();
+    case 'capabilities': return capabilitiesRoute(maxBodyBytes);
     case 'record-delivery': return recordDeliveryRoute();
-    case 'project': return projectRoute(service, body);
-    case 'authorize-attempt': return authorizeAttemptRoute(service, body);
+    case 'project': return projectRoute(service, body, signal);
+    case 'authorize-attempt': return authorizeAttemptRoute(service, body, signal);
     case 'method-not-allowed': return Promise.resolve(error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method'));
     case 'not-found': return Promise.resolve(error(404, 'NOT_FOUND', 'unknown Gateway v2 endpoint'));
   }
@@ -184,10 +188,25 @@ export const createGatewayProjectionServer = (
         return;
       }
       const body = await readRequestBody(request, maxEnvelopeBytes);
-      writeResponse(response, await handleGatewayProjectionHttp(service, request.method ?? 'GET', request.url ?? '/', body));
+      const controller = new AbortController();
+      const abort = (): void => controller.abort();
+      request.once('aborted', abort);
+      response.once('close', abort);
+      try {
+        const result = await handleGatewayProjectionHttp(
+          service, request.method ?? 'GET', request.url ?? '/', body, maxBodyBytes, controller.signal,
+        );
+        if (!response.destroyed) writeResponse(response, result);
+      } finally {
+        request.off('aborted', abort);
+        response.off('close', abort);
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'gateway request failed';
-      writeResponse(response, error(message === 'BODY_TOO_LARGE' ? 413 : 400, message, message === 'BODY_TOO_LARGE' ? 'request body exceeds gateway bound' : 'request could not be read'));
+      if (!response.destroyed) {
+        writeResponse(response, error(message === 'BODY_TOO_LARGE' ? 413 : 400, message,
+          message === 'BODY_TOO_LARGE' ? 'request body exceeds gateway bound' : 'request could not be read'));
+      }
     }
   });
 };

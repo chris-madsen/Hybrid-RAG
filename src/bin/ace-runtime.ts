@@ -230,6 +230,12 @@ type CapabilityReadiness = {
 };
 
 const main = async (): Promise<void> => {
+  // Legacy Graphiti agent-tool transport is retired. Reject an explicitly
+  // unsupported memory configuration before workspace registration/indexing.
+  // Normal code-only Gateway startup remains unaffected when it is disabled.
+  if (process.env.ACE_ENABLE_GRAPHITI === 'true') {
+    throw new Error('Legacy Graphiti tool-server adapter has been retired; Gateway-native memory provider is not configured');
+  }
   const sourceRuntime = /[\\/]src[\\/]/u.test(fileURLToPath(import.meta.url));
   const runtimeRoot = resolve(
     process.env.ACE_RUNTIME_ROOT?.trim() || resolve(dirname(fileURLToPath(import.meta.url)), '../..'),
@@ -354,9 +360,6 @@ const main = async (): Promise<void> => {
   const lspRegistry = makeLspServerRegistry();
   let closeReranker: (() => void) | undefined;
   let closeSparseEmbeddings: (() => void) | undefined;
-  if (process.env.ACE_ENABLE_GRAPHITI === 'true') {
-    throw new Error('Legacy Graphiti tool-server adapter has been retired; Gateway-native memory provider is not configured');
-  }
   const scopeFingerprint = process.env.ACE_INDEX_SCOPE_FINGERPRINT?.trim()
     || createHash('sha256').update('ace-scope/default-v1', 'utf8').digest('hex');
   let context: ReturnType<typeof makeQdrantContextProvider> | undefined;

@@ -29,9 +29,12 @@ const validReceipt = (value: unknown): value is ProjectionReceipt => {
 export const makeFileProjectionOutbox = async (rootPath: string): Promise<ProjectionOutboxPort> => {
   await mkdir(rootPath, { recursive: true });
   const deletionRoot = join(rootPath, 'deletions');
+  const archiveOnlyRoot = join(rootPath, 'archive-only');
   await mkdir(deletionRoot, { recursive: true });
+  await mkdir(archiveOnlyRoot, { recursive: true });
   const pathFor = (key: string): string => join(rootPath, `${Buffer.from(key).toString('base64url')}.json`);
   const deletionPathFor = (episodeId: EpisodeId): string => join(deletionRoot, `${Buffer.from(episodeId).toString('base64url')}.json`);
+  const archiveOnlyPathFor = (episodeId: EpisodeId): string => join(archiveOnlyRoot, `${Buffer.from(episodeId).toString('base64url')}.json`);
   const lockPath = join(rootPath, '.projection-outbox.lock');
   const sleep = (milliseconds: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, milliseconds); });
 
@@ -108,9 +111,30 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
     }
   };
 
+  const readArchiveOnly = async (episodeId: EpisodeId): Promise<Result<boolean, DomainError>> => {
+    try {
+      const parsed: unknown = JSON.parse(await readFile(archiveOnlyPathFor(episodeId), 'utf8'));
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+        || (parsed as { episodeId?: unknown }).episodeId !== episodeId
+        || (parsed as { status?: unknown }).status !== 'never_projected') {
+        return err(domainError('PERSISTENCE_FAILED', 'archive_only', 'invalid archive-only proof'));
+      }
+      return ok(true);
+    } catch (cause) {
+      return (cause as NodeJS.ErrnoException).code === 'ENOENT'
+        ? ok(false)
+        : err(domainError('PERSISTENCE_FAILED', 'archive_only', 'cannot verify archive-only proof'));
+    }
+  };
+
   const putUnlocked = async (receipt: ProjectionReceipt): Promise<Result<void, DomainError>> => {
     if (!validReceipt(receipt)) {
       return err(domainError('INVALID_MEMORY', 'projection_receipt', 'cannot persist an invalid projection receipt'));
+    }
+    const archiveOnly = await readArchiveOnly(receipt.episodeId);
+    if (archiveOnly._tag === 'Err') return archiveOnly;
+    if (archiveOnly.value && receipt.status !== 'tombstoned') {
+      return err(domainError('ARCHIVE_TOMBSTONED', 'projection_outbox', 'never-projected episode cannot acquire a graph receipt'));
     }
     const deletion = await readDeletion(receipt.episodeId);
     if (deletion._tag === 'Err') return deletion;
@@ -131,6 +155,11 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
   return {
     begin: async (episodeId: EpisodeId, extractorVersion: string) => {
       return withLock(async () => {
+        const archiveOnly = await readArchiveOnly(episodeId);
+        if (archiveOnly._tag === 'Err') return archiveOnly;
+        if (archiveOnly.value) {
+          return err(domainError('ARCHIVE_TOMBSTONED', 'projection_outbox', 'archive-only episode cannot start graph projection'));
+        }
         const deletion = await readDeletion(episodeId);
         if (deletion._tag === 'Err') return deletion;
         if (deletion.value !== undefined) {
@@ -161,6 +190,37 @@ export const makeFileProjectionOutbox = async (rootPath: string): Promise<Projec
         return err(domainError('PERSISTENCE_FAILED', 'projection_outbox', 'could not enumerate projection receipts'));
       }
     },
+    markArchiveOnly: (episodeId) => withLock(async () => {
+      const already = await readArchiveOnly(episodeId);
+      if (already._tag === 'Err') return already;
+      if (already.value) return ok(undefined);
+      const deletion = await readDeletion(episodeId);
+      if (deletion._tag === 'Err') return deletion;
+      if (deletion.value !== undefined) return err(domainError('ARCHIVE_TOMBSTONED', 'archive_only', 'episode already fenced for deletion'));
+      // Under the same cross-process lock used by begin/put. Never infer
+      // unprojected state merely because the current service is offline.
+      let entries: string[];
+      try {
+        entries = (await readdir(rootPath)).filter((name) => name.endsWith('.json'));
+      } catch {
+        return err(domainError('PERSISTENCE_FAILED', 'archive_only', 'could not inspect projection receipts'));
+      }
+      for (const entry of entries) {
+        const found = await read(join(rootPath, entry));
+        if (found._tag === 'Err') return found;
+        if (found.value?.episodeId === episodeId) {
+          return err(domainError('INVALID_MEMORY', 'archive_only', 'projection receipt already exists'));
+        }
+      }
+      try {
+        await writeFile(archiveOnlyPathFor(episodeId),
+          JSON.stringify({ episodeId, status: 'never_projected' }), { flag: 'wx' });
+        return ok(undefined);
+      } catch {
+        return err(domainError('PERSISTENCE_FAILED', 'archive_only', 'could not durably record never-projected proof'));
+      }
+    }),
+    isArchiveOnly: (episodeId) => readArchiveOnly(episodeId),
     beginDeletion: (episodeId) => withLock(async () => {
       const existing = await readDeletion(episodeId);
       if (existing._tag === 'Err') return existing;
