@@ -213,8 +213,13 @@ func validatePreparedNativeResponsesForDecision(projected []byte, model string, 
 		return err
 	}
 	stream, hasStream := after["stream"]
-	if after["model"] != model || after["store"] != false || (hasStream && stream != false) {
-		return errors.New("physical-send body changed its model, stateless mode, or non-streaming contract")
+	if after["model"] != model || after["store"] != false {
+		return errors.New("physical-send body changed its model or stateless mode")
+	}
+	if hasStream {
+		if _, ok := stream.(bool); !ok {
+			return errors.New("physical-send body has an invalid native stream flag")
+		}
 	}
 	for _, field := range []string{"previous_response_id", "conversation", "conversation_id", "thread_id"} {
 		if after[field] != nil {

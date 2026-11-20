@@ -16,7 +16,6 @@ import {
   type RetrievalEvidence,
 } from '../domain/retrieval.js';
 import type {
-  ArtifactStore,
   CodeCandidatePort,
   CodePoint,
   DocumentationPort,
@@ -80,7 +79,6 @@ export interface QdrantContextConfig {
   readonly embeddings: VectorEmbeddingPort;
   /** Client-side sparse embeddings are mandatory for sparse/hybrid self-hosted Qdrant queries. */
   readonly sparseEmbeddings?: SparseEmbeddingPort;
-  readonly artifacts: ArtifactStore;
   readonly semantics: SemanticAnalysisPort;
   readonly newRequestId: () => string;
   readonly generation?: number;
@@ -163,10 +161,8 @@ export const applyWorkingContextPriors = (
   hints: WorkingContextHints | undefined,
   limit: number,
 ): readonly RankedCandidate[] => {
-  // Qdrant cosine scores may be negative while fused RRF scores are tiny and
-  // positive. Calibrate the additive prior to the observed score scale, with
-  // a small floor for an all-zero shortlist, so neither score family is
-  // overpowered and no preferred negative candidate is ever demoted.
+  // Additive, score-calibrated priors: multiplying a negative cosine score
+  // would demote the preferred candidate; raw additive 0.1 distorts RRF.
   const scale = Math.min(1, Math.max(0.01, ...candidates.map((item) => Math.abs(item.score))));
   return [...candidates]
     .map((candidate) => {
@@ -994,9 +990,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       const failed: string[] = [];
       let codeProviderError: DomainError | undefined;
       let rankedResults: readonly RankedCandidate[] = [];
-      // Candidate ID -> actually observed code evidence ID. A shortlist rank
-      // is never automatically a delivered result: final workspace reread can
-      // downgrade the evidence after ranking has already completed.
+      // A shortlist is not delivered until the final source revalidation.
       const candidateEvidenceIds = new Map<string, string>();
       let deliveryTraceStartedAtMs: number | undefined;
       let repoMapResult: RepoMapResult | undefined;
@@ -1255,9 +1249,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
                 );
               }
             }
-            // Capture the timing boundary but NOT a delivered event here.
-            // Ranked candidates have not survived the final exact-source
-            // revalidation, so calling them "delivered" would fabricate proof.
+            // Delayed: ranked Qdrant candidates may become stale during
+            // documentation/memory lookup before final exact worktree reread.
             deliveryTraceStartedAtMs = retrievalStartedAtMs;
           }
         }
@@ -1271,17 +1264,16 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       const fullSources = new Map<RepoPath, {
         readonly bytes: Uint8Array;
         readonly digest: string;
-        readonly handle: string;
-        readonly sizeBytes: number;
       }>();
       const stalePaths: RepoPath[] = [];
 
       const initialFailures = new Map<RepoPath, string>();
       for (const ranked of rankedResults) {
         const candidate = ranked.candidate;
-        // One authoritative exact read and one immutable artifact per source,
-        // not one read per Qdrant symbol. All selected sources are revalidated
-        // a second time at the request boundary below.
+        // One authoritative exact workspace read per path, not per symbol.
+        // Stop duplicating private full-file bytes into UUID artifacts with
+        // no model-reachable Native Responses expansion consumer. Revalidate
+        // the exact source again at the final request boundary.
         let full = fullSources.get(candidate.repoPath);
         if (full === undefined) {
           const priorError = initialFailures.get(candidate.repoPath);
@@ -1300,14 +1292,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
             failed.push('code');
             continue;
           }
-          const stored = yield* activeConfig.artifacts.storeExact(read.value.bytes);
-          if (stored._tag === 'Err') return stored;
-          full = {
-            bytes: read.value.bytes,
-            digest: read.value.digest,
-            handle: stored.value.handle,
-            sizeBytes: stored.value.sizeBytes,
-          };
+          full = { bytes: read.value.bytes, digest: read.value.digest };
           fullSources.set(candidate.repoPath, full);
         }
         // Both the digest AND the byte-exact AST slice must match. Never deliver
@@ -1384,13 +1369,9 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         candidateEvidenceIds.set(String(candidate.candidateId), String(evidenceId.value));
         evidence.push({
           ...baseEvidence,
+          // Source identity remains the canonical path + verified digest,
+          // never a UUID handle from an unreachable model-invoked tool.
           content: verifiedText,
-          expansionHandle: full.handle,
-          expansionTotalBytes: full.sizeBytes,
-          ...(exactSpan === undefined ? {} : {
-            expansionCursor: String(exactSpan.offset),
-            expansionMaxBytes: exactSpan.length,
-          }),
         });
       }
 
@@ -1697,12 +1678,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           const evidenceId = candidateEvidenceIds.get(String(ranked.candidate.candidateId));
           return evidenceId !== undefined && finalVerifiedIds.has(evidenceId);
         });
-        // "delivered" is emitted at the *final exact source* boundary, not at
-        // shortlist/reranking time. Final-wire model send remains a separately
-        // attested G11 boundary; this trace cannot certify a provider send.
-        // A raced or otherwise incomplete code source is NOT an observed
-        // delivery stage. A stable zero-hit search is still EXECUTED,
-        // with empty delivered ranks and zero retrieval quality, not skipped.
+        // A final exact-source-verified retrieval observation, not a physical
+        // Bifröst/model send. Zero hits from an executed search score as misses.
         const incompleteVerification = failed.includes('code') || stalePaths.length > 0;
         recordBenchmarkStage(
           activeConfig.benchmarkTrace,

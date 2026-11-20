@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { sha256, canonicalBenchmarkCandidateId } from '../src/domain/retrieval-benchmark.js';
 import test from 'node:test';
 import {
   makeRequestId,
@@ -111,4 +113,22 @@ test('delivery dedupe keeps conflict ids resolvable through canonical aliases', 
     new Set(projected.conflicts?.[0]?.evidenceIds),
     new Set([codeFirst.evidenceId, codeSecond.evidenceId, documentation.evidenceId]),
   );
+});
+
+test('AR06 native SHA-256 matches canonical vectors and preserves v1 identity on UTF-8 and block boundaries', () => {
+  const inputs: (string | Uint8Array)[] = [
+    '', 'abc', 'hello world', '🍀 zöld café \u0000',
+    'x'.repeat(55), 'x'.repeat(56), 'x'.repeat(63), 'x'.repeat(64),
+    'x'.repeat(119), 'x'.repeat(128), 'x'.repeat(1_000_000),
+    new Uint8Array([0, 255, 128, 0, 1, 0, 42]),
+  ];
+  assert.equal(sha256(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+  assert.equal(sha256('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  for (const input of inputs) {
+    assert.equal(sha256(input), createHash('sha256').update(input).digest('hex'));
+  }
+  const identity = ['repo-1', 'src/file.ts', sha256('source'), '1', '', '12', ''];
+  const canonical = canonicalBenchmarkCandidateId(identity[0]!, identity[1]!, identity[2]!,
+    { startLine: 1, endLine: 12 });
+  assert.equal(canonical, sha256(identity.join('\0')), 'stable benchmark candidate identity must not be silently version-skewed');
 });

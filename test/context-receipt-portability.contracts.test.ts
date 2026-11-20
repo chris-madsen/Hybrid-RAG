@@ -228,3 +228,55 @@ test('portable receipts remain stable across an actual process restart', async (
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('AR06 v2 bundle SHA identity resends old unversioned fingerprints but preserves receipt-v1 portability', async () => {
+  const first = await callContext();
+  assert.match(first.bundleId ?? '', /^[a-f0-9]{64}$/u);
+  assert.match(first.evidence[0]?.receiptId ?? '', /^receipt-v1-[a-f0-9]{64}$/u);
+  const priorVersion = '0'.repeat(64);
+  const upgraded = await callContext({ knownBundleId: priorVersion });
+  assert.equal(upgraded.evidence[0]?.content, body, 'never suppress source bytes for an unrecognized old bundle ID');
+  assert.notEqual(upgraded.bundleId, priorVersion);
+  const stable = await callContext({ knownBundleId: first.bundleId });
+  assert.equal(stable.evidence[0]?.content, '', 'matching v2 identity reuses unchanged verified bytes');
+  assert.equal(stable.evidence[0]?.receiptId, first.evidence[0]?.receiptId);
+});
+
+test('AR06 bundle receipts cannot suppress evidence after a proof downgrade or workspace switch', async () => {
+  const original = await callContext();
+  const downgraded = await callContext({
+    bundle: { ...base, evidence: [{ ...evidence, proofClass: 'uncertain' }] },
+    knownBundleId: original.bundleId,
+  });
+  assert.notEqual(downgraded.bundleId, original.bundleId);
+  assert.equal(downgraded.evidence[0]?.content, body);
+  assert.notEqual(downgraded.evidence[0]?.contentDelivery, 'known_reference');
+
+  const otherScope = projectContextForDelivery(base, 'inspect', {
+    receiptScope: 'a-different-private-workspace', knownBundleId: original.bundleId,
+  });
+  assert.notEqual(otherScope.bundleId, original.bundleId);
+  assert.equal(otherScope.evidence[0]?.content, body);
+
+  const noScope = projectContextForDelivery(base, 'inspect');
+  const unsafeNoScopeReuse = projectContextForDelivery(base, 'inspect', {
+    knownBundleId: noScope.bundleId,
+  });
+  assert.equal(unsafeNoScopeReuse.evidence[0]?.content, body,
+    'opaque unscoped bundle token alone is not positive prior-delivery proof');
+});
+
+test('AR06 receipt cannot reuse source bytes when source coverage or warnings changed', async () => {
+  const before = await callContext();
+  const changed = await callContext({
+    bundle: {
+      ...base,
+      warnings: ['code: LSP provider unavailable'],
+      sourceCoverage: [{ source: 'code', requirement: 'required', status: 'partial' }],
+      complete: false,
+    },
+    knownBundleId: before.bundleId,
+  });
+  assert.notEqual(changed.bundleId, before.bundleId);
+  assert.equal(changed.evidence[0]?.content, body);
+});

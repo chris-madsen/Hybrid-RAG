@@ -9,7 +9,6 @@ import { Effect } from 'effect';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
-import { makeFileArtifactStore } from '../adapters/file-artifact-store.js';
 import { makeFileAuditSink } from '../adapters/file-audit-sink.js';
 import { makeGitHistoryPort } from '../adapters/git-history.js';
 import { makeHostWorkspacePort, makeMtlsHostHelperTransport } from '../adapters/host-worktree-helper.js';
@@ -79,6 +78,7 @@ import { verifyCompiledRuntimeProvenance } from '../application/runtime-provenan
 import { makeContextTransformService } from '../application/context-transform-service.js';
 import { makeContextAssembler } from '../application/context-assembler.js';
 import { makeGatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
+import { validateNativeResponsesStreamingRoutes } from '../application/gateway-security-contract.js';
 import { makeRepoMapService, type RepoMapService } from '../application/repo-map-service.js';
 import {
   makeLspServerDescriptor,
@@ -139,6 +139,18 @@ const configuredStringArrayMap = (name: string): Readonly<Record<string, readonl
     result[provider] = Object.freeze(rawModels.map((model: string) => model.trim()));
   }
   return Object.freeze(result);
+};
+
+const configuredNativeResponsesStreamingRoutes = (name: string) => {
+  const raw = process.env[name]?.trim();
+  if (raw === undefined || raw.length === 0) return validateNativeResponsesStreamingRoutes([]);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch (cause) {
+    throw new Error(`${name} must be a JSON array of exact provider/model/destination routes`, { cause });
+  }
+  return validateNativeResponsesStreamingRoutes(parsed);
 };
 
 const configuredLanguageIds = (name: string): Readonly<Record<string, string>> | undefined => {
@@ -261,7 +273,6 @@ const main = async (): Promise<void> => {
     .filter((value) => value.length > 0)
     .map((value) => resolve(value));
   const stateDirectory = optionalPath(process.env.ACE_STATE_DIR, `${homedir()}/.local/state/ace`);
-  const artifactDirectory = optionalPath(process.env.ACE_ARTIFACT_DIR, `${stateDirectory}/artifacts`);
   const configuredWorkspaceId = process.env.ACE_WORKSPACE_ID?.trim();
   const helperUrl = process.env.ACE_WORKTREE_HELPER_URL?.trim();
   let files: WorkspaceFilePort;
@@ -337,7 +348,6 @@ const main = async (): Promise<void> => {
   const embeddingWorkerArgs = configuredStringArray('ACE_EMBEDDING_WORKER_ARGS_JSON', []);
   const sparseEmbeddingWorkerArgs = configuredStringArray('ACE_SPARSE_EMBEDDING_WORKER_ARGS_JSON', []);
   const rerankerWorkerArgs = configuredStringArray('ACE_RERANKER_WORKER_ARGS_JSON', []);
-  const artifacts = makeFileArtifactStore(artifactDirectory);
   const providerTrace = makeFileProviderTrace(process.env.ACE_PROVIDER_TRACE_FILE);
   const benchmarkTracePath = process.env.ACE_BENCHMARK_TRACE_FILE?.trim();
   const benchmarkRepositoryId = process.env.ACE_BENCHMARK_REPOSITORY_ID?.trim();
@@ -365,9 +375,8 @@ const main = async (): Promise<void> => {
   const scopeFingerprint = process.env.ACE_INDEX_SCOPE_FINGERPRINT?.trim()
     || createHash('sha256').update('ace-scope/default-v1', 'utf8').digest('hex');
   let context: ReturnType<typeof makeQdrantContextProvider> | undefined;
-  // Use identities returned by the actual published runtime composition,
-  // not configured default language-server labels. Update on every committed
-  // workspace generation so Gateway receipts follow provider replacement.
+  // Provider provenance follows committed workspace publication, not an
+  // unobserved default LS from process configuration.
   let activeContextProviderIdentities: Readonly<Record<string, string>> | undefined;
   let effectiveStructuralProviderIdentity = astGrepProvider === 'napi'
     ? process.env.ACE_AST_GREP_NAPI_VERSION?.trim() || 'ast-grep/napi@0.51.0'
@@ -991,7 +1000,6 @@ const main = async (): Promise<void> => {
               qdrant,
               embeddings,
               ...(sparseEmbeddings === undefined ? {} : { sparseEmbeddings }),
-              artifacts,
               semantics,
               newRequestId: () => randomUUID(),
               ...(indexed.value.reused ? {} : { generation: buildGeneration }),
@@ -1238,6 +1246,14 @@ const main = async (): Promise<void> => {
     .map((destination) => destination.trim())
     .filter((destination) => destination.length > 0);
   const gatewayAllowedLlmModelsByProvider = configuredStringArrayMap('ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON');
+  const gatewayAllowedLlmStreamingRoutes = configuredNativeResponsesStreamingRoutes('ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON');
+  for (const route of gatewayAllowedLlmStreamingRoutes) {
+    if (!gatewayAllowedLlmProviders.includes(route.provider)
+      || !(gatewayAllowedLlmModelsByProvider[route.provider] ?? []).includes(route.model)
+      || !gatewayAllowedLlmDestinations.includes(route.destination)) {
+      throw new Error('ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON must be a subset of the provider, model, and destination allowlists');
+    }
+  }
   const configuredGatewayDataClasses = configuredStringArray('ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON', [])
     .map((dataClass) => dataClass.trim());
   const allowedGatewayDataClasses = new Set<Exclude<DataClass, 'secret'>>([
@@ -1264,8 +1280,6 @@ const main = async (): Promise<void> => {
       store,
       context,
       assembler: makeContextAssembler(),
-      // A discovered Rust/Python/TS LS provider is identified by its resolved
-      // executable/version and current publication; no TS LS fallback label.
       providerIdentities: () => activeContextProviderIdentities ?? {},
     });
   // The LLM Gateway is the single agent-facing context-delivery owner.
@@ -1286,6 +1300,7 @@ const main = async (): Promise<void> => {
     allowedProviders: gatewayAllowedLlmProviders,
     allowedModelsByProvider: gatewayAllowedLlmModelsByProvider,
     allowedDestinations: gatewayAllowedLlmDestinations,
+    allowedStreamingRoutes: gatewayAllowedLlmStreamingRoutes,
     // Projection receipts are intentionally process-scoped. After a restart,
     // any in-flight Bifröst attempt fails closed and must prepare again.
     receiptSigningKey: randomBytes(32).toString('base64url'),

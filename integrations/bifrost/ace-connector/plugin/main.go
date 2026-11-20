@@ -422,6 +422,8 @@ func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*sche
 	return req, nil, nil
 }
 
+// Bifröst owns native Responses SSE parsing, terminal classification, and stream
+// cancellation. ACE must preserve each typed event and upstream error unchanged.
 func PostLLMHook(ctx *schemas.BifrostContext, response *schemas.BifrostResponse, bifrostErr *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError, error) {
 	return response, bifrostErr, nil
 }

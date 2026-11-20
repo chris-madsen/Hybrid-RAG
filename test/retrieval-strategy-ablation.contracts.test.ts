@@ -6,7 +6,6 @@ import { domainError } from '../src/domain/errors.js';
 import { ok, type Result } from '../src/domain/result.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import type {
-  ArtifactStore,
   CodeCandidatePort,
   SemanticAnalysisPort,
   SparseEmbeddingPort,
@@ -31,10 +30,6 @@ const files: WorkspaceFilePort = {
   readExact: () => Effect.succeed(err(domainError('FILE_NOT_FOUND', 'unused', 'no candidates expected'))),
 };
 
-const artifacts: ArtifactStore = {
-  storeExact: () => Effect.succeed(err(domainError('ARTIFACT_NOT_FOUND', 'unused', 'no candidates expected'))),
-  readRange: () => Effect.succeed(err(domainError('ARTIFACT_NOT_FOUND', 'unused', 'not used'))),
-};
 
 const semantics: SemanticAnalysisPort = {
   definition: () => Effect.succeed(ok([])),
@@ -78,7 +73,6 @@ const run = async (strategy: CodeRetrievalStrategy): Promise<{
     qdrant,
     embeddings,
     sparseEmbeddings,
-    artifacts,
     semantics,
     retrievalStrategy: strategy,
     newRequestId: () => `strategy-${strategy}`,
@@ -168,7 +162,7 @@ test('zero-hit code search detects source mutation after vector retrieval and be
     },
   };
   const provider = makeQdrantContextProvider({
-    workspaceId, rootPath: '/repo', files, qdrant, artifacts, semantics,
+    workspaceId, rootPath: '/repo', files, qdrant, semantics,
     embeddings: { embedMany: () => Effect.succeed(ok([[0.25, 0.75]])) },
     workspaceManifest: initialManifest, workspaceSync,
     indexKey: 'index-one', newRequestId: () => 'empty-race',

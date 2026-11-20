@@ -617,7 +617,7 @@ test('snapshot maintenance scrolls request only the payload fields they consume'
   assert.deepEqual(requests.map((body) => body.with_vector), [false, true]);
 });
 
-test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippet and exact expansion handle', async () => {
+test('AR06+AR07 Qdrant emits exact verified content without artifacts and truthful delivery trace', async () => {
   const benchmark = createRetrievalBenchmarkTraceCollector('ar07-positive');
   let upserts = 0;
   let searches = 0;
@@ -644,8 +644,12 @@ test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippe
     snapshot: () => { throw new Error('query must not snapshot repository'); },
     readExact: () => Effect.succeed(ok({ bytes: source, digest: digest as never })),
   };
+  let storedCopies = 0;
   const artifacts: ArtifactStore = {
-    storeExact: () => Effect.succeed(ok({ handle: 'full-file-handle', digest: digest as never, sizeBytes: source.length })),
+    storeExact: () => {
+      storedCopies += 1;
+      return Effect.succeed(ok({ handle: 'full-file-handle', digest: digest as never, sizeBytes: source.length }));
+    },
     readRange: () => Effect.succeed(err(domainError('ARTIFACT_NOT_FOUND', 'handle', 'not needed'))),
   };
   const semantics: SemanticAnalysisPort = {
@@ -685,20 +689,19 @@ test('Qdrant→current filesystem→LSP→ContextBundle includes verified snippe
   assert.equal(definitions, 1);
   assert.equal(context.complete, true);
   assert.equal(context.evidence[0]?.freshness, 'current');
-  const deliveryEvents = benchmark.events.filter((event) => event.stage === 'delivered');
-  assert.equal(deliveryEvents.length, 2);
-  assert.equal(deliveryEvents[0]?.status, 'unavailable');
-  assert.equal(deliveryEvents[1]?.status, 'executed');
-  assert.deepEqual(deliveryEvents[1]?.candidates.map((entry) => entry.runtimeCandidateId),
-    [candidate.candidateId], 'only final exact-source-verified candidates enter the delivered trace');
-  assert.equal(context.evidence[0]?.expansionHandle, 'full-file-handle');
-  const spanOffset = Number(context.evidence[0]?.expansionCursor);
-  const spanLength = context.evidence[0]?.expansionMaxBytes ?? 0;
-  assert.ok(Number.isSafeInteger(spanOffset));
-  assert.ok(spanLength > 0);
-  assert.equal(source.subarray(spanOffset, spanOffset + spanLength).toString('utf8'), candidate.text,
-    'one precise expansion range restores only the verified AST symbol, not the entire file');
-  assert.equal(context.evidence[0]?.content, source.toString('utf8').trim());
+  const delivered = benchmark.events.filter((item) => item.stage === 'delivered');
+  assert.equal(delivered.length, 2);
+  assert.equal(delivered[0]?.status, 'unavailable');
+  assert.equal(delivered[1]?.status, 'executed');
+  assert.deepEqual(delivered[1]?.candidates.map((item) => item.runtimeCandidateId),
+    [candidate.candidateId], 'only post-reread verified code is delivered');
+  assert.equal(context.evidence[0]?.expansionHandle, undefined);
+  assert.equal(context.evidence[0]?.expansionCursor, undefined);
+  assert.equal(context.evidence[0]?.expansionMaxBytes, undefined);
+  assert.equal(storedCopies, 0, 'no unreachable full-file artifact may be written during retrieval');
+  assert.equal(context.evidence[0]?.sourceDigest, digest);
+  assert.equal(context.evidence[0]?.content, source.toString('utf8').trim(),
+    'the verified AST symbol remains exact and self-contained');
 });
 
 
@@ -861,7 +864,7 @@ test('multiple Qdrant symbols from one file cause one initial read plus one fina
     workspaceId, query: 'reconnect function', includeDocs: false, includeMemory: false,
   })));
   assert.equal(exactReads, 2, 'initial source read and end-of-request freshness revalidation only');
-  assert.equal(storedSources, 1, 'exact original stored once per distinct file');
+  assert.equal(storedSources, 0, 'AR06 keeps exact source in request-local memory; no private UUID blob is stored');
   assert.equal(context.evidence.length, 2, 'distinct evidence IDs remain visible under the merged core provenance contract');
   assert.ok(context.evidence.every((item) => item.freshness === 'current'));
 });
@@ -993,7 +996,7 @@ test('shared UTF-8 ranges preserve Cyrillic, combining marks, emoji, CRLF and mu
 
 // A slow optional provider must not open a post-verification edit window.
 test('DBC-05 final worktree revalidation runs after documentation retrieval', async () => {
-  const benchmark = createRetrievalBenchmarkTraceCollector('ar07-local');
+  const benchmark = createRetrievalBenchmarkTraceCollector('ar07-race');
   let edited = false;
   let reads = 0;
   const changed = Buffer.from('export function reconnect(): string { return "changed"; }\n');
@@ -1053,13 +1056,11 @@ test('DBC-05 final worktree revalidation runs after documentation retrieval', as
   assert.equal(result.partialSources.includes('documentation'), false);
   assert.equal(result.evidence.find((item) => item.source === 'code')?.freshness, 'changed_during_request');
   assert.equal(result.evidence.find((item) => item.source === 'code')?.proofClass, 'uncertain');
-  const finalStages = benchmark.events.filter((item) => item.stage === 'delivered');
-  assert.equal(finalStages.length, 2);
-  assert.equal(finalStages[0]?.status, 'unavailable');
-  assert.equal(finalStages[1]?.status, 'unavailable',
-    'an incomplete final reread cannot assert successful delivery');
-  assert.deepEqual(finalStages[1]?.candidates, [],
-    'stale ranked candidates must not count as final verified delivery');
+  const delivered = benchmark.events.filter((item) => item.stage === 'delivered');
+  assert.equal(delivered.length, 2);
+  assert.equal(delivered[0]?.status, 'unavailable');
+  assert.equal(delivered[1]?.status, 'unavailable');
+  assert.deepEqual(delivered[1]?.candidates, [], 'stale ranked code must not be credited');
 });
 
 

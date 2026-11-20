@@ -29,6 +29,20 @@ const graphFixture = (purge: GraphProjectionPort['purge']): GraphProjectionPort 
   purge,
 });
 
+const verifiedGraphFence = async () => {
+  const outbox = await makeFileProjectionOutbox(await mkdtemp(join(tmpdir(), 'ace-delete-fence-')));
+  const begun = await outbox.begin(episodeId, 'extractor-v1');
+  assert.equal(begun._tag, 'Ok');
+  const claim = await outbox.startAttempt(episodeId, 'extractor-v1');
+  assert.equal(claim._tag, 'Ok');
+  if (claim._tag === 'Err') throw new Error(claim.error.message);
+  const verified = await outbox.put({
+    ...claim.value, status: 'projected', graphDispatchAcknowledged: true,
+  });
+  assert.equal(verified._tag, 'Ok');
+  return outbox;
+};
+
 test('derived purge must be verified absent before archive tombstone', async () => {
   const deleted = { value: 0 };
   let checks = 0;
@@ -43,7 +57,8 @@ test('derived purge must be verified absent before archive tombstone', async () 
     graphFixture(() => Effect.succeed(ok(undefined))),
     state,
     episodeId,
-    { verificationAttempts: 2, verificationDelayMs: 0 },
+    { verificationAttempts: 2, verificationDelayMs: 0,
+      deletionFence: await verifiedGraphFence() },
   ));
   assert.equal(result._tag, 'Err');
   if (result._tag === 'Err') assert.equal(result.error.code, 'INVALID_EXTERNAL_RESPONSE');
@@ -65,7 +80,8 @@ test('verified delayed Graphiti absence permits archive deletion', async () => {
     graphFixture(() => Effect.succeed(ok(undefined))),
     state,
     episodeId,
-    { verificationAttempts: 3, verificationDelayMs: 0 },
+    { verificationAttempts: 3, verificationDelayMs: 0,
+      deletionFence: await verifiedGraphFence() },
   ));
   assert.equal(result._tag, 'Ok');
   assert.equal(checks, 2);
@@ -92,16 +108,46 @@ test('purge or verification outage never tombstones the archive', async () => {
       graph,
       state,
       episodeId,
-      { verificationDelayMs: 0 },
+      { verificationDelayMs: 0,
+        deletionFence: await verifiedGraphFence() },
     ));
     assert.equal(result._tag, 'Err');
     assert.equal(deleted.value, 0);
   }
 });
 
+test('AR05 deletion refuses an unfinished graph intent before graph purge or archive deletion', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar05-concurrent-'));
+  const outbox = await makeFileProjectionOutbox(root);
+  const begun = await outbox.begin(episodeId, 'graph-before-delete');
+  assert.equal(begun._tag, 'Ok');
+  const deleted = { value: 0 };
+  let purges = 0;
+  const result = await Effect.runPromise(deleteEpisodeWithProjection(
+    archiveFixture(deleted),
+    graphFixture(() => { purges += 1; return Effect.succeed(ok(undefined)); }),
+    { isPresent: () => Effect.succeed(ok(false)) },
+    episodeId,
+    { deletionFence: outbox, verificationDelayMs: 0 },
+  ));
+  assert.equal(result._tag, 'Err');
+  if (result._tag === 'Err') assert.equal(result.error.code, 'INVALID_MEMORY');
+  assert.equal(purges, 0, 'do not pretend a Graphiti absence check can settle an in-flight send');
+  assert.equal(deleted.value, 0);
+  assert.deepEqual(await outbox.isDeletionBlocked(episodeId), { _tag: 'Ok', value: false });
+});
+
 test('deletion fence is durable before purge and blocks in-flight projection persistence', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ace-retained-delete-fence-'));
   const outbox = await makeFileProjectionOutbox(root);
+  const begun = await outbox.begin(episodeId, 'extractor-v1');
+  assert.equal(begun._tag, 'Ok');
+  const claim = await outbox.startAttempt(episodeId, 'extractor-v1');
+  assert.equal(claim._tag, 'Ok');
+  if (claim._tag === 'Err') return;
+  assert.equal((await outbox.put({
+    ...claim.value, status: 'projected', graphDispatchAcknowledged: true,
+  }))._tag, 'Ok');
   const deleted = { value: 0 };
   let present = true;
   const result = await Effect.runPromise(deleteEpisodeWithProjection(
@@ -129,4 +175,21 @@ test('deletion fence is durable before purge and blocks in-flight projection per
   });
   assert.equal(stale._tag, 'Err');
   if (stale._tag === 'Err') assert.equal(stale.error.code, 'ARCHIVE_TOMBSTONED');
+});
+
+test('AR05 missing legacy graph admission is UNKNOWN even when purge reports absence', async () => {
+  const outbox = await makeFileProjectionOutbox(await mkdtemp(join(tmpdir(), 'ace-delete-unknown-')));
+  const deleted = { value: 0 };
+  let purges = 0;
+  const result = await Effect.runPromise(deleteEpisodeWithProjection(
+    archiveFixture(deleted),
+    graphFixture(() => { purges += 1; return Effect.succeed(ok(undefined)); }),
+    { isPresent: () => Effect.succeed(ok(false)) },
+    episodeId,
+    { deletionFence: outbox, verificationDelayMs: 0 },
+  ));
+  assert.equal(result._tag, 'Err');
+  if (result._tag === 'Err') assert.equal(result.error.code, 'INVALID_MEMORY');
+  assert.equal(purges, 0);
+  assert.equal(deleted.value, 0);
 });
