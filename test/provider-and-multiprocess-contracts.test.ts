@@ -16,6 +16,7 @@ import { makeAsyncFileMemoryArchive } from '../src/adapters/file-memory-archive.
 import { makeEpisodeId, type SessionEpisode } from '../src/domain/memory.js';
 import { defaultLocalPolicy } from '../src/domain/policy.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
+import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 import { ok, type Result } from '../src/domain/result.js';
 import type { HttpPort } from '../src/application/ports.js';
 import { makeQdrantSdkTestPort } from './helpers/qdrant-sdk-test-double.js';
@@ -137,6 +138,7 @@ test('AR02 code-only retrieval never renders an unrequested RepoMap or asserts u
       query: 'run',
       includeDocs: false,
       includeMemory: false,
+      sourceRequirements: value(resolveExplicitSourceRequirements({ required: ['code'] })),
     }));
     assert.equal(repoMapRenders, 0, 'code-only source plan does not authorize RepoMap rendering');
     // No authoritative indexed snapshot was supplied; a zero-hit code search
