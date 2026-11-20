@@ -173,6 +173,7 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
       if (!projected.complete || projected.warnings.length > 0
         || projected.partialSources.length > 0
         || codeCoverage?.status !== 'satisfied'
+        || (projected.indexCoverage?.failedPaths ?? 0) > 0
         || !sourceCoverageComplete(projected.sourceCoverage ?? [])) {
         return err(domainError('NOT_READY', 'context', 'ACE evidence is missing or incomplete'));
       }
