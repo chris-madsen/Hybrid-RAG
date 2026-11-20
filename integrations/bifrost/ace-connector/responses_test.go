@@ -80,6 +80,22 @@ func TestNativeResponsesRejectsProtectedMutationAndHiddenState(t *testing.T) {
 	}
 }
 
+func TestNativeResponsesStreamingProjectionPreservesStreamFlagAndProtectedItems(t *testing.T) {
+	original := []byte(`{"model":"openai/gpt-test","store":false,"stream":true,"reasoning":{"effort":"high"},"input":[{"role":"user","content":"continue"},{"type":"reasoning","id":"rs_1","encrypted_content":"opaque"},{"type":"function_call","call_id":"call_1","name":"read_file","arguments":"{}"},{"type":"function_call_output","call_id":"call_1","output":"done"}]}`)
+	projected := []byte(`{"model":"openai/gpt-test","store":false,"stream":true,"reasoning":{"effort":"high"},"input":[{"role":"developer","content":"[ACE verified context]\nsource evidence\n[/ACE verified context]"},{"role":"user","content":"continue"},{"type":"reasoning","id":"rs_1","encrypted_content":"opaque"},{"type":"function_call","call_id":"call_1","name":"read_file","arguments":"{}"},{"type":"function_call_output","call_id":"call_1","output":"done"}]}`)
+	if err := validateNativeResponsesProjection(original, projected); err != nil {
+		t.Fatalf("stream projection changed protected Responses items: %v", err)
+	}
+	if err := validatePreparedNativeResponsesForDecision(projected, "openai/gpt-test", false); err != nil {
+		t.Fatalf("explicitly gated stream body failed structural validation: %v", err)
+	}
+
+	wrongType := []byte(strings.Replace(string(projected), `"stream":true`, `"stream":"true"`, 1))
+	if err := validatePreparedNativeResponsesForDecision(wrongType, "openai/gpt-test", false); err == nil {
+		t.Fatal("non-boolean stream flag must remain invalid")
+	}
+}
+
 func TestNativeProjectionBlockIsDeterministicNotTransportOutage(t *testing.T) {
     original := []byte(`{"model":"openai/gpt-test","store":false,"input":"summarize"}`)
     server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

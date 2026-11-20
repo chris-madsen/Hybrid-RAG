@@ -94,6 +94,7 @@
     "check:sdlc-closure": "node scripts/sdlc-closure-audit.mjs",
     "test:sdlc-closure": "node --test test/sdlc-closure-audit.test.mjs",
     "test:real-projection": "npm run build && node scripts/real-projection-e2e.mjs",
+    "receipt:responses-stream": "tsx scripts/native-responses-stream-receipt.ts",
     "test:real-projection-race": "npm run build && ACE_REAL_PROJECTION_RACE=true node scripts/real-projection-e2e.mjs",
     "test:real-projection-outage": "npm run build && ACE_REAL_PROJECTION_OUTAGE=true node scripts/real-projection-e2e.mjs",
     "test:real-projection-hard-outage": "npm run build && ACE_REAL_PROJECTION_HARD_OUTAGE=true node scripts/real-projection-e2e.mjs",

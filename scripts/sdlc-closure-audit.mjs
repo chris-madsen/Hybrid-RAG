@@ -155,6 +155,7 @@ const requirements = [
       'ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON',
       'ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON',
       'ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON',
+      'ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON',
       'configuredStringArrayMap',
       'allowedCloudDataClassesByProvider',
       'gateway-policy-audit.jsonl',
