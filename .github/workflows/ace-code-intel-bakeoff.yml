@@ -69,15 +69,31 @@ jobs:
           python -m pip freeze | sort > "$RUNNER_TEMP/cgc-dependencies.txt"
           cgc --version
 
-      - name: Set up SCIP TypeScript indexer and dependencies
+      - name: Check out exact Sourcegraph TypeScript indexer source
+        if: matrix.engine == 'cgc-scip'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: sourcegraph/scip-typescript
+          ref: cda58beb3bc49bdf043225a092821ca2d361fcb1
+          path: scip-source
+          persist-credentials: false
+
+      - name: Build locked Sourcegraph SCIP indexer and install ACE dependencies
         if: matrix.engine == 'cgc-scip'
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global @sourcegraph/scip-typescript@0.6.2
-          command -v scip-typescript
+          cd scip-source
+          corepack enable
+          yarn install --frozen-lockfile --ignore-scripts --non-interactive
+          yarn build
+          mkdir -p "$HOME/.local/bin"
+          chmod 0755 dist/src/main.js
+          ln -s "$GITHUB_WORKSPACE/scip-source/dist/src/main.js" "$HOME/.local/bin/scip-typescript"
+          export PATH="$HOME/.local/bin:$PATH"
           scip-typescript --version
-          cd ace-snapshot
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          cd "$GITHUB_WORKSPACE/ace-snapshot"
           npm ci --ignore-scripts --no-audit --no-fund
           mkdir -p "$RUNNER_TEMP/code-intel-home/.codegraphcontext"
           printf 'SCIP_INDEXER=true\nSCIP_LANGUAGES=typescript,javascript\n' > "$RUNNER_TEMP/code-intel-home/.codegraphcontext/.env"
