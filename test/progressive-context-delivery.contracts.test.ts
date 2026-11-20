@@ -108,13 +108,14 @@ test('long first-ranked functions use explicit on-demand delivery, never silent 
 });
 
 test('stable evidence receipts suppress unchanged bodies without hidden server state', () => {
-  const first = projectContextForDelivery(bundle, 'inspect');
+  const first = projectContextForDelivery(bundle, 'inspect', { receiptScope: 'stable-test-workspace' });
   assert.match(first.bundleId ?? '', /^[a-f0-9]{64}$/u);
   const repeated = projectContextForDelivery(
     { ...bundle, requestId: 'another-request' as ContextBundle['requestId'] },
     'inspect',
     {
       knownBundleId: first.bundleId,
+      receiptScope: 'stable-test-workspace',
       knownEvidenceIds: [String(first.evidence[0]?.evidenceId), String(first.evidence[3]?.evidenceId)],
     },
   );

@@ -102,20 +102,35 @@ const structuralOutline = (item: RetrievalEvidence): string | undefined => {
  * an unverified known-reference claim. Wire value remains 64 hex chars.
  * Receipt-v1 SHA-256 identities are unchanged for existing sources.
  */
-const bundleIdentity = (bundle: ContextBundle): BundleId => sha256('ace-bundle-v2\0' + JSON.stringify({
-  query: bundle.query,
-  evidence: bundle.evidence.map((item) => [
-    item.evidenceId,
-    item.source,
-    item.citation,
-    item.sourceDigest ?? null,
-    item.sourceRevision ?? null,
-    item.content,
-    item.freshness,
-  ]),
-  partialSources: [...bundle.partialSources].sort(),
-  complete: bundle.complete,
-})) as BundleId;
+const bundleIdentity = (bundle: ContextBundle, receiptScope: string | undefined): BundleId =>
+  sha256('ace-bundle-v2\0' + JSON.stringify({
+    // Whole-bundle reuse is strictly workspace scoped. An equal-looking
+    // citation in another workspace is not evidence already seen by this one.
+    receiptScope: receiptScope?.trim() ?? null,
+    query: bundle.query,
+    evidence: bundle.evidence.map((item) => [
+      item.evidenceId,
+      item.source,
+      item.citation,
+      item.sourceDigest ?? null,
+      item.sourceRevision ?? null,
+      item.content,
+      item.freshness,
+      item.proofClass,
+      item.contentDelivery ?? null,
+      item.conflictKey ?? null,
+      item.conflictValue ?? null,
+      item.structuralKind ?? null,
+      item.structuralName ?? null,
+    ]),
+    warnings: [...bundle.warnings].sort(),
+    partialSources: [...bundle.partialSources].sort(),
+    sourcePlan: bundle.sourcePlan ?? null,
+    sourceCoverage: bundle.sourceCoverage ?? null,
+    indexCoverage: bundle.indexCoverage ?? null,
+    conflicts: bundle.conflicts ?? null,
+    complete: bundle.complete,
+  })) as BundleId;
 
 export interface ContextReceiptInput {
   readonly knownEvidenceIds?: readonly string[];
@@ -258,10 +273,11 @@ const suppressKnownEvidence = (
     const exactReceiptKnown = receiptScope !== undefined
       && item.receiptId !== undefined
       && known.has(item.receiptId);
-    const legacyEvidenceKnown = receiptMatchesBundle
+    const legacyEvidenceKnown = receiptScope !== undefined && receiptMatchesBundle
       && knownEvidenceIds.length > 0
       && known.has(item.evidenceId);
-    const wholeBundleKnown = receiptMatchesBundle && knownEvidenceIds.length === 0;
+    const wholeBundleKnown = receiptScope !== undefined
+      && receiptMatchesBundle && knownEvidenceIds.length === 0;
     if ((!exactReceiptKnown && !legacyEvidenceKnown && !wholeBundleKnown) || item.content.length === 0) return item;
     return {
       ...item,
@@ -340,7 +356,7 @@ export const projectContextForDelivery = (
   // Recompute from the projected evidence instead of trusting an upstream
   // optional id: a caller may reuse a ContextBundle object after source bytes
   // or delivery projection changed.
-  const bundleId = bundleIdentity(projected);
+  const bundleId = bundleIdentity(projected, receipts.receiptScope);
   const knownEvidenceIds = receipts.knownEvidenceIds ?? [];
   const receiptEvidence = projected.evidence.map((item) => {
     const receiptId = receiptIdFor(item, intent, receipts.receiptScope);
