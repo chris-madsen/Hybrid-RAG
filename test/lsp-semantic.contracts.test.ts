@@ -22,6 +22,17 @@ test('generic LSP adapter uses the real TypeScript language server for definitio
     timeoutMs: 20_000,
   });
   try {
+    const symbols = await Effect.runPromise(provider.documentSymbols!({
+      repoPath: 'main.ts', snapshotIdentity,
+    }));
+    assert.equal(symbols._tag, 'Ok', JSON.stringify(symbols));
+    if (symbols._tag === 'Ok') {
+      assert.deepEqual(symbols.value.find((item) => item.name === 'save')?.location, {
+        repoPath: 'main.ts', startLine: 1, startColumn: 17, endLine: 1, endColumn: 21,
+      });
+      assert.ok(symbols.value.some((item) => item.name === 'value'));
+    }
+
     const definition = await Effect.runPromise(provider.definition({
       repoPath: 'main.ts', line: 2, column: 15, snapshotIdentity,
     }));
