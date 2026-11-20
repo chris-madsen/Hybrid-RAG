@@ -1611,7 +1611,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       // workspace now; an unchanged index from request start is necessary
       // before we can certify that source evidence was truly absent.
       if (includeCode && requirements.code.requirement === 'required'
-        && requirements.code.allowed && merged.evidence.length === 0) {
+        && requirements.code.allowed && merged.evidence.length === 0
+        && codeProviderError === undefined && !failed.includes('code')) {
         if (sourceAtSearchStart === undefined) {
           return err(domainError('NOT_READY', 'workspace_manifest',
             'empty code retrieval lacks an authoritative source snapshot'));
