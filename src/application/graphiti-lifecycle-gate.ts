@@ -137,7 +137,9 @@ export const runGraphitiLifecycleGate = async (
 
   const { inflightAttemptId: settledClaim, ...settled } = pendingReceipt;
   void settledClaim;
-  const completed = finishProjection(settled, 'projected');
+  // Materialization verification changes state but is not another Graphiti
+  // dispatch. Keep attempts and totalAttempts from the acknowledged send.
+  const completed: ProjectionReceipt = { ...settled, status: 'projected' };
   const storedCompleted = await input.outbox.put(completed);
   if (storedCompleted._tag === 'Err') return storedCompleted;
 
