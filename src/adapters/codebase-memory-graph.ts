@@ -425,8 +425,14 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       const candidates = candidatesByFile.get(target.file) ?? [];
       if (candidates.length === 0) return undefined;
       if (target.qn !== undefined) {
-        // One candidate in a source is unambiguous at file granularity.
-        if (candidates.length === 1) return candidates[0];
+        // A single indexed candidate still must match the native symbol
+        // identity; otherwise a cross-file edge can falsely implicate an
+        // unrelated declaration from the same source file.
+        if (candidates.length === 1) {
+          const only = candidates[0]!;
+          return only.symbolName !== undefined && matchesName(target.qn, only.symbolName)
+            ? only : undefined;
+        }
         let current = outlineCache.get(target.file);
         if (!outlineCache.has(target.file)) {
           const fetched = await Effect.runPromise(outline(target.file));
