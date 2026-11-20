@@ -25,7 +25,7 @@ For source-path recall, an independently labeled case may include optional `rele
 
 ## CLI vs NAPI: 125-file real source corpus
 
-The already-existing [parity probe](../../scripts/ast-grep-provider-parity.ts) now compares **the same exact source bytes** through the canonical CLI and experimental NAPI in batches, with a deterministic SHA-256 manifest of (relative path, source digest). Missing/extraction-failed files count as non-equivalent, not skipped.
+The already-existing [historical parity probe at its original source SHA](https://github.com/chris-madsen/Hybrid-RAG/blob/9464c4a4a420634ea39bd4ae57673a51fc88ed8f/scripts/ast-grep-provider-parity.ts) now compares **the same exact source bytes** through the canonical CLI and experimental NAPI in batches, with a deterministic SHA-256 manifest of (relative path, source digest). Missing/extraction-failed files count as non-equivalent, not skipped.
 
 ```bash
 ACE_AST_GREP_PARITY_MAX_FILES=125 \
