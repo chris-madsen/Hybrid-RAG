@@ -5,14 +5,12 @@ import type {
   PhysicalSendAttemptRequest as GeneratedPhysicalSendAttemptRequest,
 } from '../generated/ace-gateway/v2/types.gen.js';
 import type { DomainError } from '../domain/errors.js';
-import type { DataClass, SafePhysicalSendAuditDetails } from '../domain/policy.js';
+import { authorizeOutbound, type DataClass, type SafePhysicalSendAuditDetails } from '../domain/policy.js';
 import { containsLikelySecret } from '../domain/sensitive-text.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
-import { authorizeAndAudit } from './policy-service.js';
 import type { GatewayProjectionSecurity } from './gateway-security-contract.js';
 import { isErr, type Result } from '../domain/result.js';
 import {
-  physicalSendAttemptAllowed,
   physicalSendAttemptBlocked,
   validatePhysicalSendAttemptRequest,
 } from '../domain/gateway-attempt-authorization.js';
@@ -145,23 +143,23 @@ export const makeGatewayAttemptAuthorizationService = (
       const secretDetected = containsLikelySecret(bodyText);
       const workspace = makeWorkspaceId(request.workspaceId);
       if (workspace._tag === 'Err') return workspace;
-      const authorized = yield* authorizeAndAudit(security.policy, {
+      const policyDecision = authorizeOutbound({
         workspaceId: workspace.value,
         operation: 'gateway_llm_physical_send',
         destination: 'other_external',
         dataClasses: dataClassesFor(request.dataClass),
         paths: [],
         secretDetected,
-      }, request.attemptId, {
-        clock: security.clock,
-        audit: security.audit,
-        physicalSendDetails: attemptAuditDetails(request),
-      });
-      if (isErr(authorized)) return authorized;
-      if (authorized.value.decision.outcome !== 'allowed') {
-        return physicalSendAttemptBlocked(request, authorized.value.decision.reasonCode);
-      }
-      return physicalSendAttemptAllowed(request);
+      }, security.policy);
+      const reasonCode = policyDecision._tag === 'Err'
+        ? 'POLICY_AUTHORIZATION_FAILED'
+        : policyDecision.value.outcome === 'denied'
+          ? policyDecision.value.reasonCode
+          : 'OAUTH_ROUTE_UNVERIFIED';
+      // Bifröst's current PhysicalSendAttempt has no trusted credential-source
+      // identity. Generic OAuthKeyConfig and a bearer header cannot prove Hermes
+      // subscription OAuth, so never return ALLOW until upstream provenance exists.
+      return yield* sendBlock(request, reasonCode, security);
     }),
   };
 };

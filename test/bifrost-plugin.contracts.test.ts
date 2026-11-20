@@ -31,6 +31,9 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(plugin, /ctx\.SetPhysicalSendGuard\(guard\)/u);
   assert.match(plugin, /AuthorizationDeadline:\s+time\.UnixMilli/u);
   assert.match(plugin, /PreparedBodySemanticSHA256/u);
+  assert.match(plugin, /Provider: string\(attempt\.Provider\), Model: attempt\.Model/u);
+  assert.match(plugin, /ExpectedProvider: binding\.provider, ExpectedModel: binding\.model/u);
+  assert.match(plugin, /Do not decide a route-changing fallback from normalized request fields here/u);
   assert.match(plugin, /ctx\.TrustedValue\(projectionBindingKey\{\}\)/u);
   assert.match(plugin, /ACE Gateway endpoint is unsupported/u);
   assert.match(plugin, /func PreLLMHook\(/u);
