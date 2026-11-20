@@ -39,7 +39,7 @@ For every contract specify `require` (preconditions), `ensure` (postconditions),
 
 - `require`: validated workspace ID/root, authorized read-only code, pinned source fixture, provider capabilities explicitly approved and reachable for integration tests.
 - `ensure`: data actually came from selected, instrumented real provider; correct symbol span and current digest; ranked precise excerpt with citation; full exact expansion available.
-- `invariant`: source truth wins over index projections; semantic edge identity never inferred from name alone; cloud transport gated; raw session source is canonical; all claims truthful and all failures recorded.
+- `invariant`: source truth wins over index projections; semantic edge identity never inferred from name alone; cloud transport gated; raw session source is canonical; all claims truthful and all failures recorded. Deterministic native SHA-256 `createHash` is a pure calculation permitted in domain functions; filesystem, process and platform-I/O imports remain forbidden.
 - `frame`: user code and worktree remain byte-identical; no uncontrolled writes or provider calls; benchmark fixtures immutable.
 - `rescue`: a technical provider outage may yield an explicitly partial bundle. A policy violation **must not** be bypassed through a fallback.
 

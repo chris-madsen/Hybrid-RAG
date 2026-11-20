@@ -278,12 +278,18 @@ test('BTC-09 domain layer does not import adapters or perform platform I/O', asy
     }));
   };
   await walk(root);
-  const forbidden = ['../adapters', '../application', 'node:fs', 'node:child_process', 'node:crypto'];
+  // Synchronous createHash is deterministic computation, not platform I/O.
+  // Permit only that narrowly scoped maintained SHA-256 primitive; do not
+  // allow random/key generation or other node:crypto behavior in the domain.
+  const forbidden = ['../adapters', '../application', 'node:fs', 'node:child_process'];
   const offenders: string[] = [];
   for (const file of files) {
     const source = await readFile(file, 'utf8');
     for (const pattern of forbidden) {
       if (source.includes(pattern)) offenders.push(`${relative(process.cwd(), file)} -> ${pattern}`);
+    }
+    if (source.includes('node:crypto') && !/^import \{ createHash \} from 'node:crypto';$/mu.test(source)) {
+      offenders.push(`${relative(process.cwd(), file)} -> node:crypto (not the pure createHash adapter)`);
     }
   }
   assert.deepEqual(offenders, []);
