@@ -1,0 +1,105 @@
+name: ACE code intelligence bake-off (isolated, observational)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ace-code-intel-bakeoff.yml"
+      - "experiments/code-intel-bakeoff/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  independent-engine-evaluation:
+    name: ${{ matrix.engine }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [cbm, cgc-tree, cgc-scip]
+    steps:
+      - name: Checkout experiment harness (no production changes)
+        uses: actions/checkout@v4
+        with:
+          path: harness
+          persist-credentials: false
+
+      - name: Checkout exactly the same ACE source commit
+        uses: actions/checkout@v4
+        with:
+          ref: 9464c4a4a420634ea39bd4ae57673a51fc88ed8f
+          path: ace-snapshot
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node for SCIP
+        if: matrix.engine == 'cgc-scip'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pinned Codebase Memory release, SHA-256 verified
+        if: matrix.engine == 'cbm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/DeusData/codebase-memory-mcp/releases/download/v0.12.1/codebase-memory-mcp-linux-amd64.tar.gz"
+          mkdir -p "$RUNNER_TEMP/cbm-unpacked" "$HOME/.local/bin"
+          curl -fsSL --retry 3 "$url" -o "$RUNNER_TEMP/cbm.tar.gz"
+          echo "8453015145f072c1b9b019cbdd02cea8cc6f18cc5e116036dd20992631c638c7  $RUNNER_TEMP/cbm.tar.gz" | sha256sum --check -
+          tar xzf "$RUNNER_TEMP/cbm.tar.gz" -C "$RUNNER_TEMP/cbm-unpacked"
+          executable="$(find "$RUNNER_TEMP/cbm-unpacked" -type f -name codebase-memory-mcp -print -quit)"
+          test -n "$executable"
+          install -m 0755 "$executable" "$HOME/.local/bin/codebase-memory-mcp"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned CodeGraphContext source
+        if: matrix.engine != 'cbm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "git+https://github.com/CodeGraphContext/CodeGraphContext.git@ed2f36b0c5fa4566091e0a34753931c27e98bb33"
+          python -m pip freeze | sort > "$RUNNER_TEMP/cgc-dependencies.txt"
+          cgc --version
+
+      - name: Set up SCIP TypeScript indexer and dependencies
+        if: matrix.engine == 'cgc-scip'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @sourcegraph/scip-typescript@0.6.2
+          command -v scip-typescript
+          scip-typescript --version
+          cd ace-snapshot
+          npm ci --ignore-scripts --no-audit --no-fund
+          mkdir -p "$RUNNER_TEMP/code-intel-home/.codegraphcontext"
+          printf 'SCIP_INDEXER=true\nSCIP_LANGUAGES=typescript,javascript\n' > "$RUNNER_TEMP/code-intel-home/.codegraphcontext/.env"
+
+      - name: Run same-source, same-fixture comparison
+        shell: bash
+        env:
+          SCIP_INDEXER: ${{ matrix.engine == 'cgc-scip' && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/code-intel-results"
+          bash harness/experiments/code-intel-bakeoff/run.sh \
+            "${{ matrix.engine }}" \
+            "$GITHUB_WORKSPACE/ace-snapshot" \
+            "$RUNNER_TEMP/code-intel-results"
+
+      - name: Keep independent measurements, failures, and raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ace-code-intel-${{ matrix.engine }}
+          path: |
+            ${{ runner.temp }}/code-intel-results/
+            ${{ runner.temp }}/cgc-dependencies.txt
+          if-no-files-found: warn
+          retention-days: 14
