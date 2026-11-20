@@ -96,14 +96,14 @@ export const runGraphitiLifecycleGate = async (
   let projected: Result<ProjectionReceipt, DomainError>;
   try {
     projected = await Effect.runPromise(input.projection.project({
-    episodeId: input.episode.episodeId,
-    occurredAtMs: input.episode.occurredAtMs,
-    extractorVersion: input.extractorVersion,
-    claims: [{
-      original_digest: input.episode.contentDigest,
-      text: input.episode.searchText,
-      original_pointer: input.episode.sourcePointer,
-    }],
+      episodeId: input.episode.episodeId,
+      occurredAtMs: input.episode.occurredAtMs,
+      extractorVersion: input.extractorVersion,
+      claims: [{
+        original_digest: input.episode.contentDigest,
+        text: input.episode.searchText,
+        original_pointer: input.episode.sourcePointer,
+      }],
     }));
   } catch {
     projected = err(domainError('EXTERNAL_UNAVAILABLE', 'graphiti_projection',
