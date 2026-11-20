@@ -14,6 +14,7 @@ import {
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
+import { withMemoryArchiveLock } from './memory-archive-lock.js';
 
 export interface LocalMemoryBackupFile {
   readonly path: string;
@@ -65,6 +66,11 @@ const listRegularFiles = async (root: string): Promise<Result<readonly string[],
       return err(domainError('PERSISTENCE_FAILED', 'backup_source', 'could not enumerate local memory state'));
     }
     for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      // Archive publication's persistent kernel-lock file is not a source
+      // original. Interrupted uncommitted stages must never enter backups.
+      if (directory === root && entry.name === '.archive-write.lock') continue;
+      if (directory === join(root, 'episodes')
+        && /^\.ar04-[0-9a-f-]{36}\.stage$/u.test(entry.name)) continue;
       const absolute = join(directory, entry.name);
       let metadata;
       try {
@@ -193,12 +199,9 @@ export const createLocalMemoryBackup = async (
   } catch {
     return err(domainError('FILE_NOT_FOUND', 'backup_source', 'memory backup source directory does not exist'));
   }
-  try {
-    await lstat(join(source, '.archive-write.lock'));
-    return err(domainError('PERSISTENCE_FAILED', 'backup_source', 'archive write lock exists; backup requires a quiesced archive'));
-  } catch (cause) {
-    if (!isMissing(cause)) return err(domainError('PERSISTENCE_FAILED', 'backup_source', 'could not inspect archive write lock'));
-  }
+  // Hold a shared kernel lock throughout enumeration, copying and digest
+  // verification. A persistent inactive lock file is not proof of a writer.
+  return withMemoryArchiveLock(source, 'shared', async () => {
   try {
     await lstat(destination);
     return err(domainError('INVALID_INPUT', 'backup_destination', 'backup destination already exists'));
@@ -257,6 +260,7 @@ export const createLocalMemoryBackup = async (
     await rm(staging, { recursive: true, force: true }).catch(() => undefined);
     return err(domainError('PERSISTENCE_FAILED', 'backup', 'could not create local memory backup'));
   }
+  });
 };
 
 export const restoreLocalMemoryBackup = async (
