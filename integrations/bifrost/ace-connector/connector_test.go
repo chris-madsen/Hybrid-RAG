@@ -209,6 +209,89 @@ func TestPhysicalSendAuthorizationBindsExactWireAndPreparedSemantics(t *testing.
 	}
 }
 
+func TestPhysicalSendRouteChangeIsAuditedAndCannotBeAllowed(t *testing.T) {
+	prepared := []byte(`{"model":"gpt-test","store":false,"stream":false,"input":"question"}`)
+	wire := []byte(`{"model":"azure/different-model","store":false,"stream":false,"input":"question"}`)
+	semanticDigest, err := SemanticBodySHA256(prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+		var payload map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("decode changed-route authorization request: %v", err)
+		}
+		var provider, model, attemptID, bodyDigest string
+		_ = json.Unmarshal(payload["provider"], &provider)
+		_ = json.Unmarshal(payload["model"], &model)
+		_ = json.Unmarshal(payload["attemptId"], &attemptID)
+		_ = json.Unmarshal(payload["bodySha256"], &bodyDigest)
+		if provider != "azure" || model != "azure/different-model" {
+			t.Errorf("authorizer must receive actual fallback route, got %s/%s", provider, model)
+		}
+		if _, exists := payload["expectedProvider"]; exists {
+			t.Error("local expected-route hints must not cross the authenticated wire")
+		}
+		decision := PhysicalSendV2Decision{
+			AttemptID: attemptID, BodySHA256: bodyDigest,
+			Provider: provider, Model: model, Destination: "https://azure.example/v1/responses",
+		}
+		if call == 1 {
+			decision.Kind = "BLOCK"
+			decision.ReasonCode = "ATTEMPT_BINDING_MISMATCH"
+		} else {
+			decision.Kind = "ALLOW"
+			decision.ReasonCode = "AUTHORIZED"
+		}
+		_ = json.NewEncoder(w).Encode(decision)
+	}))
+	defer server.Close()
+
+	request := PhysicalSendV2Request{
+		SchemaVersion: "ace.gateway.v2", RequestID: "ace-" + strings.Repeat("a", 32),
+		AttemptGroupID: "ace-" + strings.Repeat("a", 32), AgentSessionID: "session-1",
+		WorkspaceID: "workspace-1", DataClass: "private", Provider: "azure", Model: "azure/different-model",
+		ExpectedProvider: "openai", ExpectedModel: "gpt-test",
+		AttemptID: "bf-attempt-" + strings.Repeat("c", 32), Method: http.MethodPost,
+		Destination: "https://azure.example/v1/responses", Body: wire, BodySHA256: digest(wire),
+		PreparedBodySHA256: digest(prepared), PreparedBodySemanticSHA256: semanticDigest,
+		ProjectionReceipt: "signed-receipt", DeadlineEpochMs: time.Now().Add(30 * time.Second).UnixMilli(),
+	}
+	client := Client{Endpoint: server.URL + "/internal/ace-gateway/v2/project", AuthToken: "local-token"}
+	decision, err := client.AuthorizeNativeResponsesAttempt(context.Background(), request)
+	if err != nil {
+		t.Fatalf("changed route should receive an audited local BLOCK: %v", err)
+	}
+	if decision.Kind != "BLOCK" || decision.ReasonCode != "ATTEMPT_BINDING_MISMATCH" || calls.Load() != 1 {
+		t.Fatalf("fallback route did not remain blocked: decision=%+v calls=%d", decision, calls.Load())
+	}
+
+	request.AttemptID = "bf-attempt-" + strings.Repeat("d", 32)
+	if _, err := client.AuthorizeNativeResponsesAttempt(context.Background(), request); err == nil {
+		t.Fatal("a changed provider/model must not be accepted even if the authorizer incorrectly returns ALLOW")
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected two local denial checks, got %d", calls.Load())
+	}
+	for _, body := range [][]byte{
+		[]byte(`{"model":"azure/different-model","store":true,"input":"question"}`),
+		[]byte(`{"model":"gpt-test","store":false,"input":"question"}`),
+		[]byte(`{"model":"azure/different-model","store":false,"input":"question"`),
+	} {
+		request.Body = body
+		request.BodySHA256 = digest(body)
+		request.AttemptID = "bf-attempt-" + strings.Repeat("e", 32)
+		if _, err := client.AuthorizeNativeResponsesAttempt(context.Background(), request); err == nil {
+			t.Fatal("malformed or non-stateless fallback body reached the authorization endpoint")
+		}
+		if calls.Load() != 2 {
+			t.Fatalf("bad fallback body reached ACE authorization endpoint: calls=%d", calls.Load())
+		}
+	}
+}
+
 func TestSemanticBodySHA256IgnoresObjectOrderButPreservesNumberLexemes(t *testing.T) {
 	if _, err := SemanticBodySHA256([]byte{0xff, '{', '}'}); err == nil {
 		t.Fatal("invalid UTF-8 must not be normalized into an authorized provider body")

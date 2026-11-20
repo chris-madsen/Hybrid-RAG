@@ -113,6 +113,12 @@ export const makeResponsesProjectionService = (
       return block(request, 'TRANSFORM_IDENTITY_MISMATCH');
     }
     if (result.status !== 'ready') return block(request, 'TRANSFORM_NOT_READY');
+    // The native Gateway's source obligation is code-only. A mistaken or
+    // replaced transform cannot smuggle optional/unverified structural
+    // RepoMap, documentation or memory into a PREPARED provider request.
+    if (result.evidence.some((item) => item.source !== 'code')) {
+      return block(request, 'UNREQUESTED_SOURCE_EVIDENCE');
+    }
     if (result.contextText.trim() === '' && result.selectedEvidenceIds.length === 0
       && result.limitations.length === 0) {
       // Verified successful empty retrieval: preserve every original request

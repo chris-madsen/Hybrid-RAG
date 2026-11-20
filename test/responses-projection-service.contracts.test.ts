@@ -13,10 +13,13 @@ import type { DataClass, ProjectDataPolicy, SafeAuditRecord } from '../src/domai
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import type { WorkspaceRecord } from '../src/domain/workspace.js';
 import type { ContextBundle } from '../src/domain/retrieval.js';
+import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 import { domainError } from '../src/domain/errors.js';
 import { err, ok } from '../src/domain/result.js';
 import type { GatewayProjectionSecurity } from '../src/application/gateway-security-contract.js';
 
+const sourcePlan = resolveExplicitSourceRequirements({ required: ['code'] });
+if (sourcePlan._tag === 'Err') throw new Error(sourcePlan.error.message);
 const hash = (x: string): string => createHash('sha256').update(x).digest('hex');
 const encodeBase64Utf8 = (value: string): string => {
   let binary = '';
@@ -118,6 +121,30 @@ test('native policy/Effect produces additive context without mutating function/r
   if (receipt._tag === 'Ok') assert.equal(receipt.value.projectedBodySha256, response.value.projectedBodySha256);
 });
 
+test('AR02 Native Responses blocks a ready transform that includes unrequested RepoMap evidence', async () => {
+  const context: ContextTransformService = {
+    transform: () => Effect.succeed(ok({
+      ...example,
+      evidence: [{
+        evidenceId: 'unverified-map' as never,
+        source: 'structural',
+        citation: 'repo-map:stale',
+        content: 'SENSITIVE_STALE_MAP_TEXT',
+        proofClass: 'derived',
+        freshness: 'unknown',
+      }],
+    })),
+  };
+  const response = await Effect.runPromise(make({ context }).projectResponses(req()));
+  assert.equal(response._tag, 'Ok');
+  if (response._tag === 'Ok') {
+    assert.equal(response.value.kind, 'BLOCK');
+    if (response.value.kind === 'BLOCK') {
+      assert.equal(response.value.reasonCode, 'UNREQUESTED_SOURCE_EVIDENCE');
+    }
+  }
+});
+
 test('physical-send authorization binds each attempt, consumes IDs once, and fails closed after restart', async () => {
   const requestId = 'ace-' + 'a'.repeat(32);
   const projectionRequest = req({ requestId, attemptGroupId: requestId }, { ...native, stream: false });
@@ -135,10 +162,15 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   const projection = await Effect.runPromise(makeResponsesProjectionService(context, security).projectResponses(projectionRequest));
   assert.equal(projection._tag, 'Ok');
   if (projection._tag === 'Err' || projection.value.kind !== 'PREPARED') return;
-  const attempt = (attemptId: string, destination = 'https://api.openai.com/v1/responses') => ({
+  const attempt = (
+    attemptId: string,
+    destination = 'https://api.openai.com/v1/responses',
+    provider = 'openai',
+    model = native.model,
+  ) => ({
     schemaVersion: 'ace.gateway.v2', requestId, attemptGroupId: requestId,
     agentSessionId: 's1', workspaceId: 'ws1', dataClass: 'private',
-    provider: 'openai', model: native.model, attemptId, method: 'POST', destination,
+    provider, model, attemptId, method: 'POST', destination,
     bodyBase64: projection.value.kind === 'PREPARED' ? projection.value.bodyBase64 : '',
     bodySha256: projection.value.kind === 'PREPARED' ? projection.value.projectedBodySha256 : '',
     preparedBodySha256: projection.value.kind === 'PREPARED' ? projection.value.projectedBodySha256 : '',
@@ -152,15 +184,19 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   ));
   assert.equal(first._tag, 'Ok');
   if (first._tag === 'Err') return;
-  assert.equal(first.value.kind, 'ALLOW');
-  const allowedAudit = auditRecords.find((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed');
-  assert.equal(allowedAudit?.physicalSend?.workspaceId, 'ws1');
-  assert.equal(allowedAudit?.physicalSend?.bodySha256, projection.value.projectedBodySha256);
-  assert.equal(allowedAudit?.physicalSend?.preparedBodySha256, projection.value.projectedBodySha256);
-  assert.equal(allowedAudit?.physicalSend?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
-  assert.deepEqual(allowedAudit?.physicalSend?.dataClasses, ['private_source', 'private_conversation']);
-  assert.equal(allowedAudit?.physicalSend?.destinationSha256, hash('https://api.openai.com/v1/responses'));
-  assert.equal(JSON.stringify(allowedAudit).includes('https://api.openai.com/v1/responses'), false);
+  assert.equal(first.value.kind, 'BLOCK');
+  if (first.value.kind === 'BLOCK') assert.equal(first.value.reasonCode, 'OAUTH_ROUTE_UNVERIFIED');
+  const firstAudit = auditRecords.find((record) => record.correlationId === firstAttemptId);
+  assert.equal(firstAudit?.outcome, 'denied');
+  assert.equal(firstAudit?.reasonCode, 'OAUTH_ROUTE_UNVERIFIED');
+  assert.equal(firstAudit?.physicalSend?.workspaceId, 'ws1');
+  assert.equal(firstAudit?.physicalSend?.bodySha256, projection.value.projectedBodySha256);
+  assert.equal(firstAudit?.physicalSend?.preparedBodySha256, projection.value.projectedBodySha256);
+  assert.equal(firstAudit?.physicalSend?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
+  assert.deepEqual(firstAudit?.physicalSend?.dataClasses, ['private_source', 'private_conversation']);
+  assert.equal(firstAudit?.physicalSend?.destinationSha256, hash('https://api.openai.com/v1/responses'));
+  assert.equal(JSON.stringify(firstAudit).includes('https://api.openai.com/v1/responses'), false);
+  assert.equal(auditRecords.some((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed'), false);
 
   const sourceOnlySecurity: GatewayProjectionSecurity = {
     ...security,
@@ -221,8 +257,12 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   ]);
   const concurrentKinds = concurrentResults.map((result) =>
     result._tag === 'Ok' ? result.value.kind : 'ERROR');
-  assert.equal(concurrentKinds.filter((kind) => kind === 'ALLOW').length, 1);
-  assert.equal(concurrentKinds.filter((kind) => kind === 'BLOCK').length, 1);
+  assert.equal(concurrentKinds.filter((kind) => kind === 'ALLOW').length, 0);
+  assert.equal(concurrentKinds.filter((kind) => kind === 'BLOCK').length, 2);
+  const concurrentReasons = concurrentResults.map((result) =>
+    result._tag === 'Ok' && result.value.kind === 'BLOCK' ? result.value.reasonCode : 'ERROR');
+  assert.ok(concurrentReasons.includes('OAUTH_ROUTE_UNVERIFIED'));
+  assert.ok(concurrentReasons.includes('ATTEMPT_REPLAYED_OR_CAPACITY_EXHAUSTED'));
 
   const changedDestination = await Effect.runPromise(authorization.authorizePhysicalSend(
     attempt('bf-attempt-' + 'c'.repeat(32), 'https://unlisted.example/v1/responses'),
@@ -231,6 +271,31 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   if (changedDestination._tag === 'Ok') {
     assert.equal(changedDestination.value.kind, 'BLOCK');
     if (changedDestination.value.kind === 'BLOCK') assert.equal(changedDestination.value.reasonCode, 'DESTINATION_NOT_ALLOWED');
+  }
+  const changedProviderModel = await Effect.runPromise(authorization.authorizePhysicalSend(
+    attempt('bf-attempt-' + '9'.repeat(32), 'https://azure.example/v1/responses', 'azure', 'azure/different-model'),
+  ));
+  assert.equal(changedProviderModel._tag, 'Ok');
+  if (changedProviderModel._tag === 'Ok' && changedProviderModel.value.kind === 'BLOCK') {
+    assert.equal(changedProviderModel.value.reasonCode, 'ATTEMPT_BINDING_MISMATCH');
+  }
+  const fallbackAttemptId = 'bf-attempt-' + '9'.repeat(32);
+  const fallbackAudit = auditRecords.find((record) => record.correlationId === fallbackAttemptId);
+  assert.equal(fallbackAudit?.outcome, 'denied');
+  assert.equal(fallbackAudit?.reasonCode, 'ATTEMPT_BINDING_MISMATCH');
+  assert.equal(fallbackAudit?.physicalSend?.provider, 'azure');
+  assert.equal(fallbackAudit?.physicalSend?.model, 'azure/different-model');
+
+  const alternateAllowedDestinationSecurity: GatewayProjectionSecurity = {
+    ...security,
+    allowedDestinations: ['https://api.openai.com/v1/responses', 'https://alternate.example/v1/responses'],
+    policy: { ...security.policy, allowedCloudDataClassesByProvider: { other_external: [] } },
+  };
+  const changedDestinationDataClass = await Effect.runPromise(makeGatewayAttemptAuthorizationService(alternateAllowedDestinationSecurity)
+    .authorizePhysicalSend(attempt('bf-attempt-' + '8'.repeat(32), 'https://alternate.example/v1/responses')));
+  assert.equal(changedDestinationDataClass._tag, 'Ok');
+  if (changedDestinationDataClass._tag === 'Ok' && changedDestinationDataClass.value.kind === 'BLOCK') {
+    assert.equal(changedDestinationDataClass.value.reasonCode, 'DATA_CLASS_DENIED');
   }
   const alternateProtocol = await Effect.runPromise(authorization.authorizePhysicalSend(
     attempt('bf-attempt-' + '0'.repeat(32), 'https://api.openai.com/v1/chat/completions'),
@@ -302,6 +367,17 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   if (wrongStream._tag === 'Ok' && wrongStream.value.kind === 'BLOCK') {
     assert.equal(wrongStream.value.reasonCode, 'STREAMING_ROUTE_NOT_ALLOWED');
   }
+
+  const secretAttempt = attempt('bf-attempt-' + '7'.repeat(32));
+  const secretBody = JSON.parse(decodeBase64Utf8(secretAttempt.bodyBase64)) as Record<string, unknown>;
+  const secretInput = Array.isArray(secretBody.input) ? secretBody.input : [];
+  secretBody.input = [...secretInput, { role: 'user', content: 'password: hunter2' }];
+  const secretText = JSON.stringify(secretBody);
+  secretAttempt.bodyBase64 = encodeBase64Utf8(secretText);
+  secretAttempt.bodySha256 = hash(secretText);
+  const secret = await Effect.runPromise(authorization.authorizePhysicalSend(secretAttempt));
+  assert.equal(secret._tag, 'Ok');
+  if (secret._tag === 'Ok' && secret.value.kind === 'BLOCK') assert.equal(secret.value.reasonCode, 'SECRET_DETECTED');
 
   const afterRestart = makeGatewayAttemptAuthorizationService({
     ...security, receiptSigningKey: 'new-process-ephemeral-key',
@@ -513,7 +589,7 @@ test('completed empty retrieval and unavailable retrieval have different outcome
       context: { search: () => Effect.succeed(ok({
         requestId: 'search-empty' as ContextBundle['requestId'],
         query: 'summarize the task', evidence: [], warnings: [],
-        partialSources, complete,
+        partialSources, complete, sourcePlan: sourcePlan.value,
         ...(proof ? { sourceCoverage: [{
           source: 'code' as const, requirement: 'required' as const,
           status: complete ? 'satisfied' as const : 'unavailable' as const,
@@ -564,7 +640,7 @@ test('end-to-end native projection keeps Hermes input and sends only references 
       sourceDigest: 'b'.repeat(64) as never,
       proofClass: 'direct', freshness: 'current',
     }],
-    warnings: [], partialSources: [], complete: true,
+    warnings: [], partialSources: [], complete: true, sourcePlan: sourcePlan.value,
   };
   let searches = 0;
   const context = makeContextTransformService({

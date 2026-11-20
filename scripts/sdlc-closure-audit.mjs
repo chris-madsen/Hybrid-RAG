@@ -126,9 +126,12 @@ const requirements = [
       "'private_conversation'",
       'MODEL_NOT_ALLOWED',
       'dataClassesFor(request.dataClass)',
-      'physicalSendAttemptAllowed(request)',
+      'authorizeOutbound({',
+      "'OAUTH_ROUTE_UNVERIFIED'",
+      'physicalSendAttemptBlocked(request, reasonCode)',
       'attemptAuditDetails(request)',
     ],
+    excludes: ['physicalSendAttemptAllowed(request)'],
   },
   {
     id: 'GATEWAY_EGRESS_POLICY',

@@ -63,6 +63,8 @@ type PhysicalSendV2Request struct {
 	DataClass                  string `json:"dataClass"`
 	Provider                   string `json:"provider"`
 	Model                      string `json:"model"`
+	ExpectedProvider           string `json:"-"`
+	ExpectedModel              string `json:"-"`
 	AttemptID                  string `json:"attemptId"`
 	Method                     string `json:"method"`
 	Destination                string `json:"destination"`
@@ -432,20 +434,35 @@ func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req Physica
 	if err := validatePhysicalSendDestination(req.Destination); err != nil {
 		return invalid, err
 	}
+	expectedProvider := req.ExpectedProvider
+	if expectedProvider == "" {
+		expectedProvider = req.Provider
+	}
+	expectedModel := req.ExpectedModel
+	if expectedModel == "" {
+		expectedModel = req.Model
+	}
+	routeChanged := expectedProvider != req.Provider || expectedModel != req.Model
 	sum := sha256.Sum256(req.Body)
 	if req.BodySHA256 != hex.EncodeToString(sum[:]) {
 		return invalid, errors.New("physical-send attempt body digest mismatch")
 	}
+	// A changed provider/model still must carry a valid stateless native
+	// Responses body. Only the prepared-body semantic equality is inapplicable
+	// to a changed route (which is separately denied and audited). Never send
+	// arbitrary JSON, store:true or a mismatched body model for that audit.
 	body, err := normalizedJSON(req.Body)
 	if err != nil || body["store"] != false || body["model"] != req.Model {
 		return invalid, errors.New("physical-send attempt body is not the authorized stateless Responses body")
 	}
-	if err := validatePreparedNativeResponsesForDecision(req.Body, req.Model, req.NoContextNeeded); err != nil {
-		return invalid, fmt.Errorf("physical-send body validation failed: %w", err)
-	}
-	semanticDigest, err := SemanticBodySHA256(req.Body)
-	if err != nil || semanticDigest != req.PreparedBodySemanticSHA256 {
-		return invalid, errors.New("provider wire body differs from ACE-prepared semantics")
+	if !routeChanged {
+		if err := validatePreparedNativeResponsesForDecision(req.Body, req.Model, req.NoContextNeeded); err != nil {
+			return invalid, fmt.Errorf("physical-send body validation failed: %w", err)
+		}
+		semanticDigest, err := SemanticBodySHA256(req.Body)
+		if err != nil || semanticDigest != req.PreparedBodySemanticSHA256 {
+			return invalid, errors.New("provider wire body differs from ACE-prepared semantics")
+		}
 	}
 	wire, err := json.Marshal(req)
 	if err != nil {
@@ -499,6 +516,9 @@ func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req Physica
 		}
 		return decision, nil
 	case "ALLOW":
+		if routeChanged {
+			return invalid, errors.New("authorizer allowed a provider/model change bound to another projection receipt")
+		}
 		if decision.ReasonCode != "AUTHORIZED" || decision.Provider != req.Provider ||
 			decision.Model != req.Model || decision.Destination != req.Destination {
 			return invalid, errors.New("physical-send allow decision does not match the authorized route")

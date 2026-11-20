@@ -977,6 +977,10 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       });
       const lspRequirement = requirements.lsp ?? { requirement: 'not_requested' as const, allowed: true };
       const useLsp = sourceIsRequested(lspRequirement);
+      // includeCode grants access to verified code candidates, NOT permission
+      // to compute or publish structural RepoMap text. The caller's source
+      // plan independently authorizes the optional structural provider.
+      const useRepoMap = includeCode && sourceIsRequested(requirements.structural);
       let sourceCoverage = initialSourceCoverage(requirements);
       const evidence: RetrievalEvidence[] = [];
       const warnings: string[] = [];
@@ -1133,7 +1137,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
               input.workingContextHints,
               result.value.length,
             );
-            if (activeConfig.repoMap !== undefined) {
+            if (useRepoMap && activeConfig.repoMap !== undefined) {
               const repoMap = yield* activeConfig.repoMap.render({
                 query: input.query,
                 openFiles: input.workingContextHints?.openPaths
@@ -1529,32 +1533,12 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           }
         }
       }
-      if (repoMapResult !== undefined && repoMapResult.rendered.trim().length > 0) {
-        const evidenceId = makeEvidenceId('repo-map-' + createHash('sha256')
-          .update([
-            input.workspaceId,
-            input.query,
-            activeConfig.semanticSnapshotIdentity ?? activeConfig.indexKey ?? 'unbound',
-            repoMapResult.rendered,
-          ].join('\0'), 'utf8')
-          .digest('hex'));
-        if (evidenceId._tag === 'Err') return evidenceId;
-        evidence.push({
-          evidenceId: evidenceId.value,
-          source: 'structural',
-          citation: `repo-map:${activeConfig.semanticSnapshotIdentity ?? activeConfig.indexKey ?? 'unbound'}`,
-          content: repoMapResult.rendered,
-          proofClass: 'derived',
-          // The rendered map may include sources outside the selected Qdrant
-          // candidates, so the request-boundary exact reread below does not
-          // prove the aggregate map current. Fail closed until RepoMap exposes
-          // source-bound provenance that can be revalidated per rendered path.
-          freshness: 'unknown',
-          ...(activeConfig.semanticSnapshotIdentity === undefined
-            ? {}
-            : { sourceRevision: activeConfig.semanticSnapshotIdentity }),
-        });
-      }
+      // A rendered RepoMap can describe paths outside the verified Qdrant
+      // shortlist. Its aggregate source provenance is not certified by the
+      // per-candidate exact rereads, so it must NEVER enter model-visible
+      // evidence. It can only provide digest-matched internal ranking hints.
+      // Requested structural coverage stays partial until the rendered map
+      // itself has trustworthy per-path freshness proof (future phase).
       if (includeCode && (activeConfig.coverage?.failedPaths ?? 0) > 0) {
         warnings.push(`index coverage degraded: ${activeConfig.coverage?.failedPaths ?? 0} in-scope path(s) were not fully indexed`);
         failed.push('code');
