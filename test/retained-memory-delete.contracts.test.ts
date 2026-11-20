@@ -43,7 +43,8 @@ test('derived purge must be verified absent before archive tombstone', async () 
     graphFixture(() => Effect.succeed(ok(undefined))),
     state,
     episodeId,
-    { verificationAttempts: 2, verificationDelayMs: 0 },
+    { verificationAttempts: 2, verificationDelayMs: 0,
+      deletionFence: await makeFileProjectionOutbox(await mkdtemp(join(tmpdir(), 'ace-delete-verify-'))) },
   ));
   assert.equal(result._tag, 'Err');
   if (result._tag === 'Err') assert.equal(result.error.code, 'INVALID_EXTERNAL_RESPONSE');
@@ -65,7 +66,8 @@ test('verified delayed Graphiti absence permits archive deletion', async () => {
     graphFixture(() => Effect.succeed(ok(undefined))),
     state,
     episodeId,
-    { verificationAttempts: 3, verificationDelayMs: 0 },
+    { verificationAttempts: 3, verificationDelayMs: 0,
+      deletionFence: await makeFileProjectionOutbox(await mkdtemp(join(tmpdir(), 'ace-delete-delayed-'))) },
   ));
   assert.equal(result._tag, 'Ok');
   assert.equal(checks, 2);
@@ -92,7 +94,8 @@ test('purge or verification outage never tombstones the archive', async () => {
       graph,
       state,
       episodeId,
-      { verificationDelayMs: 0 },
+      { verificationDelayMs: 0,
+        deletionFence: await makeFileProjectionOutbox(await mkdtemp(join(tmpdir(), 'ace-delete-outage-'))) },
     ));
     assert.equal(result._tag, 'Err');
     assert.equal(deleted.value, 0);
