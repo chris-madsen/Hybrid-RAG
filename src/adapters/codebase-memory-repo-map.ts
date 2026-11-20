@@ -4,11 +4,9 @@ import { promisify } from 'node:util';
 import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
-import { makeRepoMapSymbol, type RepoMapRankedSymbol, type RepoMapRenderInput, type RepoMapResult } from '../domain/repo-map.js';
 import type { CodeCandidate, RankedCandidate } from '../domain/retrieval.js';
 import type { CodeGraphCandidatePort } from '../application/ports.js';
 import type { RepoPath } from '../domain/workspace.js';
-import type { RepoMapService } from '../application/repo-map-service.js';
 
 const exec = promisify(execFile);
 
@@ -30,7 +28,7 @@ export interface CodebaseMemoryOptions {
   readonly candidates: () => readonly CodeCandidate[];
 }
 
-export interface CodebaseMemoryRepoMap extends Pick<RepoMapService, 'render'>, CodeGraphCandidatePort {
+export interface CodebaseMemoryRepoMap extends CodeGraphCandidatePort {
   /** Must complete after source changes and before this graph can be exposed. */
   readonly reindex: () => Effect.Effect<Result<void, DomainError>>;
   /** Upstream file declaration inventory; parser stays entirely in native CBM. */
@@ -396,64 +394,5 @@ export const makeCodebaseMemoryRepoMap = (options: CodebaseMemoryOptions): Codeb
     return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
   });
 
-  const render = (input: RepoMapRenderInput): Effect.Effect<Result<RepoMapResult, DomainError>> =>
-    Effect.promise(async () => {
-      if (!Number.isSafeInteger(input.tokenBudget) || input.tokenBudget <= 0) {
-        return err(domainError('INVALID_INPUT', 'token_budget', 'Codebase Memory context budget must be positive'));
-      }
-      const limit = Math.min(50, Math.max(5, Math.floor(input.tokenBudget / 24)));
-      const byFile = new Map<RepoPath, CodeCandidate[]>();
-      for (const candidate of options.candidates()) {
-        const listed = byFile.get(candidate.repoPath) ?? [];
-        listed.push(candidate);
-        byFile.set(candidate.repoPath, listed);
-      }
-      const native = await searchRows(input.query, limit, new Set(byFile.keys()));
-      if (native._tag === 'Err') return native;
-      const hits = native.value;
-
-      const ranked: RepoMapRankedSymbol[] = [];
-      const seen = new Set<string>();
-      for (const hit of hits) {
-        const possible = byFile.get(hit.file) ?? [];
-        if (possible.length === 0) continue;
-        // An exact native symbol match is preferred. If CBM describes a file
-        // instead, retain only a file-level hint; do not invent a call edge.
-        const exact = possible.find((candidate) =>
-          candidate.symbolName !== undefined && matchesName(hit.qn, candidate.symbolName));
-        const source = exact ?? possible[0]!;
-        const key = hit.file + '\0' + (exact?.candidateId ?? ':file');
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const symbol = makeRepoMapSymbol({
-          repoPath: source.repoPath,
-          sourceDigest: source.sourceDigest,
-          name: exact?.symbolName ?? source.repoPath,
-          kind: exact?.structuralKind ?? 'repo-map-file-anchor',
-          range: exact?.range ?? { startLine: 1, endLine: 1 },
-          text: '',
-          references: [],
-        });
-        ranked.push({ symbol, score: hit.score });
-        if (ranked.length >= limit) break;
-      }
-      const lines = ranked.map((hit) => hit.symbol.repoPath + ':' + hit.symbol.range.startLine
-        + ' ' + hit.symbol.name);
-      const maxCharacters = input.tokenBudget * 4;
-      let usedCharacters = 0;
-      const selected: typeof lines = [];
-      for (const line of lines) {
-        if (usedCharacters + line.length + 1 > maxCharacters) break;
-        selected.push(line);
-        usedCharacters += line.length + 1;
-      }
-      return ok({
-        ranked: ranked.slice(0, selected.length),
-        rendered: selected.join('\n'),
-        estimatedTokens: Math.ceil(usedCharacters / 4),
-        truncated: hits.length >= limit || selected.length !== ranked.length,
-      });
-    });
-
-  return { reindex, render, search, outline, trace, queryGraph, detectChanges };
+  return { reindex, search, outline, trace, queryGraph, detectChanges };
 };
