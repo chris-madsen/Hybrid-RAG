@@ -174,6 +174,23 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   assert.equal(sourceOnly.value.kind, 'BLOCK');
   if (sourceOnly.value.kind === 'BLOCK') assert.equal(sourceOnly.value.reasonCode, 'DATA_CLASS_DENIED');
 
+  const revisedPolicySecurity: GatewayProjectionSecurity = {
+    ...security,
+    policy: {
+      ...security.policy,
+      policyVersion: security.policy.policyVersion + 1,
+    },
+  };
+  const stalePolicy = await Effect.runPromise(makeGatewayAttemptAuthorizationService(revisedPolicySecurity)
+    .authorizePhysicalSend(attempt('bf-attempt-' + '6'.repeat(32))));
+  assert.equal(stalePolicy._tag, 'Ok');
+  if (stalePolicy._tag === 'Ok') {
+    assert.equal(stalePolicy.value.kind, 'BLOCK');
+    if (stalePolicy.value.kind === 'BLOCK') {
+      assert.equal(stalePolicy.value.reasonCode, 'PROJECTION_POLICY_VERSION_MISMATCH');
+    }
+  }
+
   const restrictedModelSecurity: GatewayProjectionSecurity = {
     ...security,
     allowedModelsByProvider: { openai: ['openai/another-model'] },
