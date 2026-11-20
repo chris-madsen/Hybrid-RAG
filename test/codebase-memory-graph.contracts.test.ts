@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { Effect } from 'effect';
-import { makeCodebaseMemoryGraph, nativeTraceQualifiedNames, nativeQueryGraphFiles, parseCodebaseMemoryLexicalRows, parseCodebaseMemorySemanticRows } from '../src/adapters/codebase-memory-graph.js';
+import { makeCodebaseMemoryGraph, nativeTraceQualifiedNames, nativeQueryGraphFiles, nativeQueryGraphTargets, nativeQualifiedSymbolCandidate, parseCodebaseMemoryLexicalRows, parseCodebaseMemorySemanticRows } from '../src/adapters/codebase-memory-graph.js';
 import type { CodeCandidate } from '../src/domain/retrieval.js';
 import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
@@ -48,6 +48,31 @@ test('native graph traversal and Cypher are decoded from upstream wire shape', (
       ['../../unsafe.ts', 'bad'],
     ],
   }), ['src/application/ports.ts']);
+});
+
+test('CBM qualified names resolve distinct same-named source declarations and reject ambiguity', () => {
+  const candidates = [
+    { symbolName: 'save', range: { startLine: 2, endLine: 2 }, candidateId: 'user' },
+    { symbolName: 'save', range: { startLine: 5, endLine: 5 }, candidateId: 'audit' },
+  ];
+  const outline = [
+    { name: 'save', label: 'Method', startLine: 2, endLine: 2,
+      qualifiedName: 'project.UserRepository.save' },
+    { name: 'save', label: 'Method', startLine: 5, endLine: 5,
+      qualifiedName: 'project.AuditRepository.save' },
+  ];
+  assert.equal(nativeQualifiedSymbolCandidate(candidates,
+    'project.UserRepository.save', outline)?.candidateId, 'user');
+  assert.equal(nativeQualifiedSymbolCandidate(candidates,
+    'project.AuditRepository.save', outline)?.candidateId, 'audit');
+  assert.equal(nativeQualifiedSymbolCandidate(candidates,
+    'project.Unknown.save', outline), undefined);
+  assert.deepEqual(nativeQueryGraphTargets(resolve(process.cwd()), {
+    columns: ['file', 'qn'], rows: [
+      ['src/handlers.ts', 'project.UserRepository.save'],
+      ['../outside.ts', 'escaped'],
+    ],
+  }), [{ file: 'src/handlers.ts', qn: 'project.UserRepository.save' }]);
 });
 
 test('installed Codebase Memory indexes ACE and returns source-bound candidates', {
