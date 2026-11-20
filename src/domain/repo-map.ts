@@ -440,10 +440,16 @@ export interface RepoMapShortlistMeasurement {
   readonly boundary: 'qdrant_shortlist_not_verified_delivery';
   readonly baselineCandidateCount: number;
   readonly overfetchCandidateCount: number;
+  /** Exact (path, digest) identities, including different revisions of one path. */
   readonly baselineDistinctSources: number;
   readonly overfetchDistinctSources: number;
-  /** Paths seen only in the wider query, NOT verified model citations. */
+  /** Distinct repo paths (different source digests must NOT inflate diversity). */
+  readonly baselineDistinctPaths: number;
+  readonly overfetchDistinctPaths: number;
+  /** Paths absent from baseline, NOT digest changes at a known path. */
   readonly extraSourcePaths: readonly RepoPath[];
+  /** Existing paths with a new indexed digest need separate drift accounting. */
+  readonly extraSourceRevisions: readonly RepoMapRecallSourceLabel[];
   readonly baselineCandidatesNotInOverfetch: readonly string[];
   readonly relevantCandidateRecallAtBaseline: number;
   readonly relevantCandidateRecallAtOverfetch: number;
@@ -469,6 +475,8 @@ export const measureRepoMapShortlist = (
   const expandedIds = new Set(overfetch.map((value) => value.candidateId));
   const baseSources = uniqueSources(baseline);
   const expandedSources = uniqueSources(overfetch);
+  const basePaths = new Set(baseline.map((value) => value.repoPath));
+  const expandedPaths = new Set(overfetch.map((value) => value.repoPath));
   const relevantCandidates = new Set(relevantCandidateIds);
   const relevantSourceKeys = relevantSources === undefined
     ? undefined : new Set(relevantSources.map(sourceIdentity));
@@ -482,9 +490,16 @@ export const measureRepoMapShortlist = (
     overfetchCandidateCount: overfetch.length,
     baselineDistinctSources: baseSources.size,
     overfetchDistinctSources: expandedSources.size,
-    extraSourcePaths: [...new Set(overfetch
-      .filter((value) => !baseSources.has(sourceIdentity(value)))
-      .map((value) => value.repoPath))].sort(),
+    baselineDistinctPaths: basePaths.size,
+    overfetchDistinctPaths: expandedPaths.size,
+    extraSourcePaths: [...expandedPaths].filter((path) => !basePaths.has(path)).sort(),
+    extraSourceRevisions: overfetch
+      .filter((value) => basePaths.has(value.repoPath) && !baseSources.has(sourceIdentity(value)))
+      .filter((value, index, all) => all.findIndex((other) =>
+        sourceIdentity(other) === sourceIdentity(value)) === index)
+      .map((value) => ({ repoPath: value.repoPath, sourceDigest: value.sourceDigest }))
+      .sort((a, b) => a.repoPath.localeCompare(b.repoPath)
+        || a.sourceDigest.localeCompare(b.sourceDigest)),
     baselineCandidatesNotInOverfetch: [...baseIds].filter((id) => !expandedIds.has(id)).sort(),
     relevantCandidateRecallAtBaseline: relevantCandidates.size === 0 ? 0
       : [...relevantCandidates].filter((id) => baseIds.has(id)).length / relevantCandidates.size,

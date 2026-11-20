@@ -254,10 +254,10 @@ const validateHoldout = (holdout: RetrievalHoldout): Result<void, DomainError> =
       || item.relevantSourceIdentities.some((source) =>
         source.repoPath.trim().length === 0 || !sha256(source.sourceDigest))
       || new Set(item.relevantSourceIdentities.map((source) =>
-        JSON.stringify([source.repoPath, source.sourceDigest]))).size !== item.relevantSourceIdentities.length
+        source.repoPath)).size !== item.relevantSourceIdentities.length
     )) {
       return err(domainError('INVALID_BENCHMARK', 'retrieval_holdout.source_identity',
-        'source-recall labels require nonempty paths and exact source SHA-256 identities'));
+        'source-recall labels require unique repository paths and exact source SHA-256 identities'));
     }
     if (item.repositoryId !== undefined && !repositoryIds.has(item.repositoryId)) {
       return err(domainError(

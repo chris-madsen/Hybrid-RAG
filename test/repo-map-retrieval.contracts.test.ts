@@ -254,3 +254,28 @@ test('AR08 source identity must include digest; no path-only or missing-label re
   assert.deepEqual(rerankedAway.baselineCandidatesNotInOverfetch, [current.candidate.candidateId],
     'changing Qdrant fusion depth can reorder/drop a previously observed top-K hit');
 });
+
+test('AR08 an indexed revision change is not falsely counted as discovering a new repository path', () => {
+  const a = [{
+    candidateId: 'old',
+    repoPath: 'src/unchanged-name.ts' as never,
+    sourceDigest: 'a'.repeat(64) as never,
+  }];
+  const b = [{
+    candidateId: 'new',
+    repoPath: a[0]!.repoPath,
+    sourceDigest: 'b'.repeat(64) as never,
+  }];
+  const report = measureRepoMapShortlist(a, b, ['new'], [{
+    repoPath: b[0]!.repoPath, sourceDigest: b[0]!.sourceDigest,
+  }]);
+  assert.deepEqual(report.extraSourcePaths, [],
+    'same path with a different digest is source drift, not path diversity');
+  assert.equal(report.baselineDistinctPaths, 1);
+  assert.equal(report.overfetchDistinctPaths, 1);
+  assert.equal(report.relevantSourceRecallAtBaseline, 0);
+  assert.equal(report.relevantSourceRecallAtOverfetch, 1);
+  assert.deepEqual(report.extraSourceRevisions, [{
+    repoPath: b[0]!.repoPath, sourceDigest: b[0]!.sourceDigest,
+  }]);
+});
