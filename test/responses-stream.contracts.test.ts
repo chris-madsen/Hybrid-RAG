@@ -7,6 +7,7 @@ import test from 'node:test';
 import { validateNativeResponsesStreamingRoutes } from '../src/application/gateway-security-contract.js';
 import {
   evaluateNativeResponsesStreamEvidence,
+  validateNativeResponsesStreamReceipt,
   type NativeResponsesStreamEvidence,
 } from '../src/domain/native-responses-stream-receipt.js';
 
@@ -62,6 +63,15 @@ test('completed Responses stream preserves event order and reports only observed
     status: 'observed', inputTokens: 11, outputTokens: 7, totalTokens: 18,
   });
   assert.equal(receipt.trustLimitation, 'unsigned_local_summary');
+});
+
+test('C08 stream receipt validator retains unsigned status and rejects receipt tampering', () => {
+  const receipt = evaluate(evidence());
+  assert.equal(validateNativeResponsesStreamReceipt(receipt)._tag, 'Ok');
+  assert.equal(validateNativeResponsesStreamReceipt({ ...receipt, eventCount: 0 })._tag, 'Err');
+  assert.equal(validateNativeResponsesStreamReceipt({ ...receipt, rawBody: 'private stream bytes' })._tag, 'Err');
+  assert.equal(validateNativeResponsesStreamReceipt({ ...receipt, evidenceStatus: 'REAL_PROVIDER_VERIFIED' })._tag, 'Err');
+  assert.equal(validateNativeResponsesStreamReceipt({ ...receipt, streamStatus: 'failed' })._tag, 'Err');
 });
 
 test('incomplete terminal event and absent usage stay incomplete and UNKNOWN, never clean success', () => {
