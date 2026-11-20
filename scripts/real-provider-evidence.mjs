@@ -115,7 +115,9 @@ const safeIdentifier = (value) => typeof value === 'string' && value.trim().leng
 const digestIdentifier = (value) => createHash('sha256').update(`hermes-agent-loop:${value}`, 'utf8').digest('hex');
 
 const containsHiddenProviderState = (value, depth = 0) => {
-  if (depth > 12 || !jsonObject(value)) return false;
+  if (depth > 12) return jsonObject(value) || Array.isArray(value);
+  if (Array.isArray(value)) return value.some((child) => containsHiddenProviderState(child, depth + 1));
+  if (!jsonObject(value)) return false;
   for (const [key, child] of Object.entries(value)) {
     if (hermesHiddenStateFields.has(key)) return true;
     if (!hermesSessionContentFields.has(key) && containsHiddenProviderState(child, depth + 1)) return true;
