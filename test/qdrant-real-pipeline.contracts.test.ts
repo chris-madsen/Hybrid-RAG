@@ -21,6 +21,7 @@ import { err, ok, type Result } from '../src/domain/result.js';
 import { domainError } from '../src/domain/errors.js';
 import { exactUtf8Span, utf16ColumnAtUtf8Byte } from '../src/domain/utf8-range.js';
 import { makeWorkspaceSync } from '../src/application/workspace-sync.js';
+import { createRetrievalBenchmarkTraceCollector } from '../src/domain/retrieval-benchmark.js';
 import { workspaceManifestFromSnapshot } from '../src/domain/workspace-manifest.js';
 import type { ProviderTraceEvent } from '../src/domain/provider-trace.js';
 import type {
@@ -984,6 +985,7 @@ test('shared UTF-8 ranges preserve Cyrillic, combining marks, emoji, CRLF and mu
 
 // A slow optional provider must not open a post-verification edit window.
 test('DBC-05 final worktree revalidation runs after documentation retrieval', async () => {
+  const benchmark = createRetrievalBenchmarkTraceCollector('ar07-local');
   let edited = false;
   let reads = 0;
   const changed = Buffer.from('export function reconnect(): string { return "changed"; }\n');
@@ -1032,6 +1034,7 @@ test('DBC-05 final worktree revalidation runs after documentation retrieval', as
     workspaceId, rootPath: '/repo', files, qdrant, artifacts, semantics, documentation,
     embeddings: { embedMany: () => Effect.succeed(ok([[1, 0]])) },
     newRequestId: () => 'docs-race-request',
+    benchmarkTrace: benchmark,
   });
   const result = mustOk(await Effect.runPromise(provider.search({
     workspaceId, query: 'reconnect', includeDocs: true, includeMemory: false,
@@ -1042,6 +1045,12 @@ test('DBC-05 final worktree revalidation runs after documentation retrieval', as
   assert.equal(result.partialSources.includes('documentation'), false);
   assert.equal(result.evidence.find((item) => item.source === 'code')?.freshness, 'changed_during_request');
   assert.equal(result.evidence.find((item) => item.source === 'code')?.proofClass, 'uncertain');
+  const finalStages = benchmark.events.filter((item) => item.stage === 'delivered');
+  assert.equal(finalStages.length, 2);
+  assert.equal(finalStages[0]?.status, 'unavailable');
+  assert.equal(finalStages[1]?.status, 'executed');
+  assert.deepEqual(finalStages[1]?.candidates, [],
+    'stale ranked candidates must not count as final verified delivery');
 });
 
 
