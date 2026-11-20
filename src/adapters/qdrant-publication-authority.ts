@@ -81,14 +81,18 @@ const validRecord = (record: unknown, workspaceId: WorkspaceId): record is Qdran
 export const makeLocalQdrantPublicationAuthority = (config: {
   readonly workspaceId: WorkspaceId;
   readonly directory: string;
+  /** Explicit operator assertion; never infer a supported topology from a path. */
+  readonly declaredTopology?: string;
 }): QdrantPublicationAuthority => {
   const workspaceHash = createHash('sha256').update(String(config.workspaceId)).digest('hex');
   const lockFile = join(config.directory, workspaceHash + '.lock');
   const stateFile = join(config.directory, workspaceHash + '.json');
 
   const prepareDirectory = async (): Promise<void> => {
-    if (process.platform !== 'linux' || !isAbsolute(config.directory)) {
-      throw new Error('Qdrant publication requires explicit absolute shared Linux lock directory');
+    if (process.platform !== 'linux'
+      || config.declaredTopology !== 'single_host'
+      || !isAbsolute(config.directory)) {
+      throw new Error('Qdrant publication requires declared single_host topology and absolute Linux lock directory');
     }
     await mkdir(config.directory, { recursive: true, mode: 0o700 });
     const stat = await lstat(config.directory);
