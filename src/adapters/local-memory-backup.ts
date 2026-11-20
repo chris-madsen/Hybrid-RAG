@@ -202,64 +202,64 @@ export const createLocalMemoryBackup = async (
   // Hold a shared kernel lock throughout enumeration, copying and digest
   // verification. A persistent inactive lock file is not proof of a writer.
   return withMemoryArchiveLock(source, 'shared', async () => {
-  try {
-    await lstat(destination);
-    return err(domainError('INVALID_INPUT', 'backup_destination', 'backup destination already exists'));
-  } catch (cause) {
-    if (!isMissing(cause)) return err(domainError('PERSISTENCE_FAILED', 'backup_destination', 'could not inspect backup destination'));
-  }
+    try {
+      await lstat(destination);
+      return err(domainError('INVALID_INPUT', 'backup_destination', 'backup destination already exists'));
+    } catch (cause) {
+      if (!isMissing(cause)) return err(domainError('PERSISTENCE_FAILED', 'backup_destination', 'could not inspect backup destination'));
+    }
 
-  const staging = join(dirname(destination), `.${basename(destination)}.staging-${randomUUID()}`);
-  const dataRoot = join(staging, 'data');
-  try {
-    await mkdir(dataRoot, { recursive: true });
-    const files = await listRegularFiles(source);
-    if (files._tag === 'Err') {
-      await rm(staging, { recursive: true, force: true });
-      return files;
-    }
-    const records: LocalMemoryBackupFile[] = [];
-    for (const absolute of files.value) {
-      const relativePath = normalizedRelativePath(source, absolute);
-      if (relativePath._tag === 'Err') {
+    const staging = join(dirname(destination), `.${basename(destination)}.staging-${randomUUID()}`);
+    const dataRoot = join(staging, 'data');
+    try {
+      await mkdir(dataRoot, { recursive: true });
+      const files = await listRegularFiles(source);
+      if (files._tag === 'Err') {
         await rm(staging, { recursive: true, force: true });
-        return relativePath;
+        return files;
       }
-      const target = join(dataRoot, ...relativePath.value.split('/'));
-      await mkdir(dirname(target), { recursive: true });
-      await copyFile(absolute, target);
-      const [sourceStat, copiedStat, sourceDigest, copiedDigest] = await Promise.all([
-        stat(absolute),
-        stat(target),
-        sha256File(absolute),
-        sha256File(target),
-      ]);
-      if (sourceStat.size !== copiedStat.size || sourceDigest !== copiedDigest) {
-        await rm(staging, { recursive: true, force: true });
-        return err(domainError('DIGEST_MISMATCH', 'backup_copy', `backup copy verification failed: ${relativePath.value}`));
+      const records: LocalMemoryBackupFile[] = [];
+      for (const absolute of files.value) {
+        const relativePath = normalizedRelativePath(source, absolute);
+        if (relativePath._tag === 'Err') {
+          await rm(staging, { recursive: true, force: true });
+          return relativePath;
+        }
+        const target = join(dataRoot, ...relativePath.value.split('/'));
+        await mkdir(dirname(target), { recursive: true });
+        await copyFile(absolute, target);
+        const [sourceStat, copiedStat, sourceDigest, copiedDigest] = await Promise.all([
+          stat(absolute),
+          stat(target),
+          sha256File(absolute),
+          sha256File(target),
+        ]);
+        if (sourceStat.size !== copiedStat.size || sourceDigest !== copiedDigest) {
+          await rm(staging, { recursive: true, force: true });
+          return err(domainError('DIGEST_MISMATCH', 'backup_copy', `backup copy verification failed: ${relativePath.value}`));
+        }
+        records.push({
+          path: relativePath.value,
+          sizeBytes: sourceStat.size,
+          sha256: sourceDigest,
+        });
       }
-      records.push({
-        path: relativePath.value,
-        sizeBytes: sourceStat.size,
-        sha256: sourceDigest,
-      });
+      records.sort((left, right) => left.path.localeCompare(right.path));
+      const manifest: LocalMemoryBackupManifest = {
+        schemaVersion: 1,
+        kind: 'ace-memory-local-backup',
+        createdAtMs: nowMs,
+        files: records,
+        contentSha256: manifestDigest(records),
+      };
+      await writeFile(join(staging, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
+      await rename(staging, destination);
+      const verified = await verifyLocalMemoryBackup(destination);
+      return verified._tag === 'Err' ? verified : ok(manifest);
+    } catch {
+      await rm(staging, { recursive: true, force: true }).catch(() => undefined);
+      return err(domainError('PERSISTENCE_FAILED', 'backup', 'could not create local memory backup'));
     }
-    records.sort((left, right) => left.path.localeCompare(right.path));
-    const manifest: LocalMemoryBackupManifest = {
-      schemaVersion: 1,
-      kind: 'ace-memory-local-backup',
-      createdAtMs: nowMs,
-      files: records,
-      contentSha256: manifestDigest(records),
-    };
-    await writeFile(join(staging, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
-    await rename(staging, destination);
-    const verified = await verifyLocalMemoryBackup(destination);
-    return verified._tag === 'Err' ? verified : ok(manifest);
-  } catch {
-    await rm(staging, { recursive: true, force: true }).catch(() => undefined);
-    return err(domainError('PERSISTENCE_FAILED', 'backup', 'could not create local memory backup'));
-  }
   });
 };
 
