@@ -14,7 +14,7 @@ or the production repository indexing path.
   Release assets: DeusData repository, release v0.12.1 (SHA listed above)
 - CGC source: `CodeGraphContext/CodeGraphContext@ed2f36b0c5fa4566091e0a34753931c27e98bb33`;
   compare default Tree-sitter with explicitly requested SCIP.
-- SCIP TypeScript: `@sourcegraph/scip-typescript@0.6.2` for the SCIP leg.
+- SCIP TypeScript: upstream `sourcegraph/scip-typescript@cda58beb3bc49bdf043225a092821ca2d361fcb1` (release `v0.6.2`), built from its own committed `yarn.lock`.
 - Same repository bytes, languages, queries, runner class. Separate engine
   process, databases and Python environment. Dependency solver choices are
   retained in installation logs; further pin transitive packages for long-term
@@ -63,7 +63,7 @@ configuration, or change the production ACE environment.
 **Important**: CGC `SCIP_INDEXER=true` alone does not demonstrate SCIP
 execution. Inspect logs for the real `scip-typescript` invocation and indexed
 SCIP documents. If CGC silently falls back to Tree-sitter, mark SCIP
-unproven. `cgc index` after an edit tests rescan/reindex; live watch
+unproven. `cgc index --force` after an edit tests forced reindex; live watch
 convergence needs a separate bounded watcher experiment.
 
 ## Acceptance before considering integration
