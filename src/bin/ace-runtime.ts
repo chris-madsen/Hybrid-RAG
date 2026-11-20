@@ -41,7 +41,7 @@ import {
   verifyQdrantSnapshotMembership,
 } from '../adapters/qdrant-context-provider.js';
 import { makeCodebaseMemoryStructuralPort } from '../adapters/codebase-memory-structural.js';
-import { makeCodebaseMemoryRepoMap } from '../adapters/codebase-memory-repo-map.js';
+import { makeCodebaseMemoryGraph } from '../adapters/codebase-memory-graph.js';
 import {
   lspLanguageIdForPath,
   makeLspSemanticAnalysisPort,
@@ -628,7 +628,7 @@ const main = async (): Promise<void> => {
               fusion: retrievalStrategy === 'dense' ? 'none' : 'rrf',
             }), 'utf8').digest('hex');
           let codebaseMemoryCandidates: readonly CodeCandidate[] = [];
-          const codebaseMemory = makeCodebaseMemoryRepoMap({
+          const codebaseMemory = makeCodebaseMemoryGraph({
             rootPath: registered.value.rootPath,
             ...(process.env.ACE_CBM_COMMAND?.trim() ? { command: process.env.ACE_CBM_COMMAND.trim() } : {}),
             candidates: () => codebaseMemoryCandidates,
