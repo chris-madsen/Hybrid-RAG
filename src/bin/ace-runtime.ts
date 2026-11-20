@@ -1016,12 +1016,12 @@ const main = async (): Promise<void> => {
             const collection = qdrantCollectionName(workspaceKey, embeddingFingerprint, retrievalFingerprint);
             const verifySource = async (): Promise<Result<boolean, DomainError>> => {
               if (verification === 'incremental') {
-                const observed = await Effect.runPromise(observeWorkspaceManifest(
+                const sourceProbe = await Effect.runPromise(observeWorkspaceManifest(
                   files, registered.value.rootPath, build.workspaceManifest, retrievalRelevantPath,
                 ));
-                if (observed._tag === 'Err') return observed;
+                if (sourceProbe._tag === 'Err') return sourceProbe;
                 return ok(workspaceManifestEqual(
-                  build.workspaceManifest, observed.value.manifest ?? build.workspaceManifest,
+                  build.workspaceManifest, sourceProbe.value.manifest ?? build.workspaceManifest,
                 ));
               }
               const current = await Effect.runPromise(files.snapshot(registered.value.rootPath, Date.now()));
