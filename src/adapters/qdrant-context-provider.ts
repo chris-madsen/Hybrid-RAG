@@ -1701,9 +1701,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
         // shortlist/reranking time. Final-wire model send remains a separately
         // attested G11 boundary; this trace cannot certify a provider send.
         // A raced or otherwise incomplete code source is NOT an observed
-        // delivery stage. A stable zero-hit shortlist likewise has no
-        // delivered candidate; do not declare "executed" with empty ranks,
-        // which frozen benchmark scoring incorrectly treats as proof of a hit.
+        // delivery stage. A stable zero-hit search is still EXECUTED,
+        // with empty delivered ranks and zero retrieval quality, not skipped.
         const incompleteVerification = failed.includes('code') || stalePaths.length > 0;
         recordBenchmarkStage(
           activeConfig.benchmarkTrace,
@@ -1713,8 +1712,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           incompleteVerification ? [] : verifiedRanks,
           deliveryTraceStartedAtMs,
           activeConfig.benchmarkRepositoryId,
-          incompleteVerification ? 'unavailable'
-            : verifiedRanks.length === 0 ? 'not_applicable' : 'executed',
+          incompleteVerification ? 'unavailable' : 'executed',
         );
       }
       return ok(covered);
