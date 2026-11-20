@@ -157,11 +157,14 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
     // A provider which ignored the explicit code-only contract must not be
     // allowed to turn a legacy optional map into a successful model request.
     const returnedPlan = searched.value.sourcePlan;
-    if (returnedPlan !== undefined
-      && (Object.keys(returnedPlan).length !== Object.keys(sourcePlan.value).length
-        || (Object.keys(sourcePlan.value) as Array<keyof typeof sourcePlan.value>).some((source) =>
-          returnedPlan[source]?.requirement !== sourcePlan.value[source]?.requirement
-          || returnedPlan[source]?.allowed !== sourcePlan.value[source]?.allowed))) {
+    // An omitted plan is not proof of having honored the caller's code-only
+    // restriction. Fail closed instead of silently accepting a legacy provider
+    // that may have searched or certified a different set of sources.
+    if (returnedPlan === undefined
+      || Object.keys(returnedPlan).length !== Object.keys(sourcePlan.value).length
+      || (Object.keys(sourcePlan.value) as Array<keyof typeof sourcePlan.value>).some((source) =>
+        returnedPlan[source]?.requirement !== sourcePlan.value[source]?.requirement
+        || returnedPlan[source]?.allowed !== sourcePlan.value[source]?.allowed)) {
       return err(domainError('NOT_READY', 'source_plan', 'retrieval provider ignored the code-only source plan'));
     }
     // Defense in depth at the model boundary: even if a provider accidentally
