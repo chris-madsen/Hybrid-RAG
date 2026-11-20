@@ -65,12 +65,13 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
   const nowMs = input.nowMs ?? Date.now;
   const verificationDelayMs = input.verificationDelayMs ?? retryPolicy.baseDelayMs;
   const archived: ArchivedEpisode[] = [];
+  let admissionPreparationError: DomainError | undefined;
 
   // Phase 1: source truth first. Any archive failure is fatal because ACE cannot
   // honestly claim the original history was preserved.
   for (const episode of input.episodes) {
     const admission = admitMemoryEpisode(episode, policy);
-    if (input.outbox !== undefined) {
+    if (input.outbox !== undefined && admissionPreparationError === undefined) {
       if (admission.kind === 'archive_only' && input.outbox.markArchiveOnly !== undefined) {
         // WRITE-AHEAD positive proof: the previous created:true -> marker
         // sequence lost its proof on SIGKILL and created:false replay cannot
@@ -81,19 +82,22 @@ export const importMemoryEpisodes = async (input: MemoryImportInput): Promise<Re
         if (existing._tag === 'Err' && existing.error.code !== 'FILE_NOT_FOUND') return existing;
         if (existing._tag === 'Err') {
           const marked = await input.outbox.markArchiveOnly(episode.episodeId);
-          if (marked._tag === 'Err') return marked;
+          if (marked._tag === 'Err') admissionPreparationError = marked.error;
         }
       } else if (admission.kind === 'project') {
         // Durable graph intent MUST precede the archive commit and every
         // possible provider send, including a restart/replay after SIGKILL.
         const begun = await input.outbox.begin(episode.episodeId, input.extractorVersion);
-        if (begun._tag === 'Err') return begun;
+        if (begun._tag === 'Err') admissionPreparationError = begun.error;
       }
     }
     const saved = await input.archive.importEpisode(episode);
     if (saved._tag === 'Err') return saved;
     archived.push({ episode, created: saved.value.created, admission });
   }
+  // An outbox outage must not lose later originals; after all archives are
+  // written, fail closed before starting ANY Graphiti provider session.
+  if (admissionPreparationError !== undefined) return err(admissionPreparationError);
 
   const outcomes: MemoryImportOutcome[] = [];
   let session: ProjectionSession | undefined;
