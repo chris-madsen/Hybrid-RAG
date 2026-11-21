@@ -1,6 +1,6 @@
 # ACE — Контракты, интеграции и Deployment Sketch
 
-**Статус:** Current contract/deployment architecture baseline, updated 2026-11-18. Domain contracts remain provider-neutral; native Responses Gateway v2 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
+**Статус:** Native Responses/Gateway baseline from 2026-11-18; native code-intelligence wiring was migrated in PR #316. See [source-inspected current architecture](../../operations/current-architecture.md). Older ast-grep/RepoMap and Qdrant-only target sections remain dated design history, not current source. Domain contracts remain provider-neutral; native Responses Gateway v2 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
 
 ## 1. Инварианты границ
 
@@ -121,7 +121,7 @@ flowchart TB
   BF -->|"authenticated ace.gateway.v2"| ACE["ACE modular monolith / TS+Effect"]
   BF -.->|"dispatch blocked until certified"| LLM["LLM provider"]
   ACE --> Q["Qdrant"]
-  ACE --> T["ast-grep / LSP"]
+  ACE --> T["Codebase Memory AST / graph / semantic / BM25 + LSP"]
   ACE --> G["Archive / Graphiti"]
   ACE -->|"Authorized docs"| V["Vertex RAG"]
   H["Harbor runner"] -.-> AG
@@ -173,7 +173,7 @@ CPU/memory-heavy code-intelligence операций; Python остаётся в�
 
 ## Implementation correction — executable composition and proof (proposed, 2026-10-18)
 
-1. **Production bootstrap contract:** a supported coding-agent model request must traverse Bifröst → request-bound ACE Gateway Projection → explicit Effect/runtime wiring with chosen, configured Qdrant, measured genuine embedding provider, Tree-sitter/ast-grep and approved LSP when relevant. Vertex and Graphiti are routed only on authorized requests; an unavailable/unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
+1. **Production bootstrap contract (current implementation correction):** a supported coding-agent model request traverses Bifröst → request-bound ACE Gateway Projection → Effect runtime with Codebase Memory as sole AST/graph/semantic/BM25 native engine, plus *currently* Qdrant dense/sparse retrieval and independent LSP verification as needed. Qdrant necessity is under independent CBM-only A/B evaluation, not proved by historical architecture. Vertex and Graphiti are routed only on authorized requests; an unavailable/unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
 2. **Provider truth:** attach `provider_id`, `version`, `status`, `source_digest`, `range`, `evidence_method`, and internal trace/call receipts to every claimed real-provider integration. Runtime receipts may be logged in a secret-safe test channel rather than exposed as user text. Do not silently substitute regex/whole-file candidates for AST spans or hash vectors for embeddings.
 3. **Completeness:** compute `complete` from the **required** retrieval plan (covered/failed/skipped-by-policy per source) and source verification; a missing required backend makes the bundle partial even when other evidence is current.
 4. **Relevance vs losslessness:** first response provides accurate minimal relevant spans without arbitrary mandatory token ceilings; exact full file/2000-line artifact remains retrievable with an authorized handle. Returning every entire file per lexical symbol is a retrieval-quality failure, not compliance with ADR-006.
@@ -187,7 +187,7 @@ ADR-014 supersedes the earlier “dense candidate store + optional extra tools�
 
 ### Code retrieval
 
-The target code path is:
+The following was the **2026-10-21 historical target**, superseded as a runtime implementation by PR #316. See [current runtime](../../operations/current-architecture.md). Historical target code path:
 
 ```text
 ast-grep structural chunks
