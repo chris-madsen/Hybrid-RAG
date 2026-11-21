@@ -48,7 +48,7 @@ test('one-agent ACE skills are discoverable, routed and keep G02 separate', () =
     assert.match(handoff, new RegExp(name, 'u'));
     assert.match(skill, /G02/u);
     assert.match(skill, /PR/u);
-    // A positive default is mandatory; an explicit prohibition against automatic Draft is allowed.
+    // A positive ordinary-PR default is mandatory; GitHub draft state is not a readiness gate.
     assert.match(skill, /PR/u);
   }
   assert.match(preparation, /ace-architecture-design/u);
@@ -57,8 +57,45 @@ test('one-agent ACE skills are discoverable, routed and keep G02 separate', () =
   assert.match(handoff, /STALE/u);
   assert.match(handoff, /stacked/u);
   assert.match(handoff, /no automatic merge|never.*auto.merge/iu);
-  assert.match(file('.agents/skills/ace-stage-handoff/SKILL.md'), /ordinary PRs \(Ready for review\) by default/u);
+  assert.match(file('.agents/skills/ace-stage-handoff/SKILL.md'), /ordinary Ready-for-review \(`draft: false`\)/u);
   assert.doesNotMatch(file('docs/operations/staged-sdlc-pipeline.md'), /create a stacked Draft PR|open \*\*Draft PR\*\*/iu);
+});
+
+
+test('owner PR policy forbids automatic Draft PR publication across executable ACE instructions', () => {
+  const root = file('AGENTS.md');
+  const stageSkill = file('.agents/skills/ace-stage-handoff/SKILL.md');
+  const stageMetadata = file('.agents/skills/ace-stage-handoff/agents/openai.yaml');
+  assert.match(root, /PR publication \(explicit owner decision/u);
+  assert.match(root, /ordinary Ready-for-review PRs \(`draft: false`\)/u);
+  assert.match(stageSkill, /NEVER set \(`draft: true`\)|NEVER set `draft: true`/u);
+  assert.match(stageMetadata, /ordinary Ready-for-review PRs/u);
+
+  // A document describing a provisional *plan* is fine; an instruction to
+  // publish a GitHub Draft PR is not. This also protects historical plans
+  // that future agents could mistakenly treat as current authority.
+  const draftPRDirective = (line) =>
+    !/\b(?:do not|don't|never|must not|forbidden|superseded|not a|no automatic)\b/iu.test(line) &&
+    /(?:\b(?:use|publish|open|create|keep|submit|stage|separate|make|prepare)\b[^\n]{0,100}\bdraft\s+(?:PRs?|pull requests?)\b|\bstacked\s+draft\s+(?:PRs?|pull requests?)\b)/iu.test(line);
+  assert.equal(draftPRDirective('Use stacked Draft PRs as currently specified.'), true);
+  assert.equal(draftPRDirective('Publish planning Draft PR via ace-stage-handoff.'), true);
+  assert.equal(draftPRDirective('Never create Draft PRs automatically.'), false);
+
+  const roots = ['.agents', '.codex', '.github/workflows', 'docs', 'openspec'];
+  const bad = [];
+  const walk = (relative) => {
+    for (const item of readdirSync(join(repo, relative), { withFileTypes: true })) {
+      const path = join(relative, item.name);
+      if (item.isDirectory()) walk(path);
+      else if (item.isFile() && /\.(?:md|mdx|yml|yaml)$/iu.test(item.name)) {
+        for (const [index, line] of file(path).split('\n').entries()) {
+          if (draftPRDirective(line)) bad.push(`${path}:${index + 1}: ${line.trim()}`);
+        }
+      }
+    }
+  };
+  for (const directory of roots) walk(directory);
+  assert.deepEqual(bad, [], 'Instructional docs must not mandate GitHub Draft PR publication');
 });
 
 const home = 'openspec/changes/check-fixture';
