@@ -25,7 +25,7 @@
 
 The public agent-facing contract is Gateway-only. Exact source retrieval, memory lookup and expansion remain internal ACE capabilities behind application ports. A model does not choose whether to call ACE.
 
-## 3. Версионированный ContextBundle (draft contract)
+## 3. Versioned ContextBundle (proposed contract)
 
 ```ts
 // Логический contract v1; реальные schema файлы генерируются в коде.

@@ -1,4 +1,4 @@
-# ADR-017 historical protocol draft — ACE LLM Gateway Protocol v1 over Bifrost
+# ADR-017 historical protocol proposal — ACE LLM Gateway Protocol v1 over Bifrost
 
 **Status:** **SUPERSEDED historical design evidence.** Do not implement this file as current architecture.  
 **Superseded by:** `ADR-017-bifrost-unified-llm-gateway.md`, owner Gateway-only decision (2026-11-14), and active OpenSpec change `010-gateway-only-ownership`.  

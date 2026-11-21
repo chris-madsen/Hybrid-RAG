@@ -5,7 +5,7 @@ description: Automatically size ACE OpenSpec implementation slices around 1,000 
 
 # ACE To Tickets — automatic one-pass implementation slicing
 
-Use this **ACE-specific planning skill** whenever the owner asks to turn accepted or drafted requirements/specs into implementation phases, asks for `to-tickets`, or enters the ACE SDLC Plan stage for T1/T2 work. This is a one-agent instruction workflow, not an autonomous task runner, estimator or proof of agent execution. **Do not implement source code in this skill.**
+Use this **ACE-specific planning skill** whenever the owner asks to turn accepted or proposed requirements/specs into implementation phases, asks for `to-tickets`, or enters the ACE SDLC Plan stage for T1/T2 work. This is a one-agent instruction workflow, not an autonomous task runner, estimator or proof of agent execution. **Do not implement source code in this skill.**
 
 ## Authority and inputs
 
