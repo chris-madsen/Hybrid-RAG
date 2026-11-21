@@ -496,7 +496,7 @@ test('incomplete source coverage and truncated context are distinct fail-closed 
     if (response._tag !== 'Ok') continue;
     assert.equal(response.value.kind, 'BLOCK');
     assert.equal(response.value.reasonCode, expected);
-    assert.doesNotMatch(JSON.stringify(response.value), /private\\/path/u);
+    assert.equal(JSON.stringify(response.value).includes('private/path'), false);
   }
 });
 
