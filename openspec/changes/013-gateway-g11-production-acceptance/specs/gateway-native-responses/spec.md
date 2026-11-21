@@ -4,7 +4,7 @@
 
 ### Requirement: Agent route must be provider-native Responses
 
-ACE SHALL use **Bifröst as its only agent-facing LLM Gateway**, with its native Responses protocol. The ACE Core and authenticated `ace.gateway.v2` local HTTP API are **internal context projection and source-policy services**, never provider-facing LLM gateways. Reuse Bifröst's native ChatGPT/Codex subscription passthrough rather than implementing a second model route, proxy, OAuth handler or Chat/Completions converter.
+ACE SHALL use **Bifröst as its only agent-facing LLM Gateway**, with its native Responses protocol. The ACE Core and authenticated `ace.context.v3` local HTTP API are **internal context projection and source-policy services**, never provider-facing LLM gateways. Reuse Bifröst's native ChatGPT/Codex subscription passthrough rather than implementing a second model route, proxy, OAuth handler or Chat/Completions converter.
 
 #### Scenario: RESP-001 — Native Responses is the only generation protocol
 - **WHEN** Hermes sends a model request to the configured ACE/Bifröst endpoint
