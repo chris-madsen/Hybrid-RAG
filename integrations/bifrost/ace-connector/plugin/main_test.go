@@ -549,7 +549,7 @@ func TestInitRejectsMissingBifrostBuildProvenance(t *testing.T) {
 func TestChatGPTSubscriptionPassthroughUsesExistingNativePluginAndTerminalGuard(t *testing.T) {
 	model := "gpt-5.6-sol"
 	original := []byte(`{"model":"gpt-5.6-sol","store":false,"stream":false,"input":[{"role":"user","content":"find entrypoint"}]}`)
-	projected := []byte(`{"model":"gpt-5.6-sol","store":false,"stream":false,"input":[{"role":"developer","content":"[ACE verified context]\\nsource reference\\n[/ACE verified context]"},{"role":"user","content":"find entrypoint"}]}`)
+	projected := []byte(`{"model":"gpt-5.6-sol","store":false,"stream":false,"input":[{"role":"developer","content":"[ACE verified context]\nsource reference\n[/ACE verified context]"},{"role":"user","content":"find entrypoint"}]}`)
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer local-connector-secret" {
@@ -686,7 +686,7 @@ func TestChatGPTSubscriptionPassthroughUsesExistingNativePluginAndTerminalGuard(
 	}
 	select {
 	case raw := <-serialized:
-		if !bytes.HasPrefix(raw, []byte("POST /backend-api/codex/responses HTTP/1.1\\r\\n")) ||
+		if !bytes.HasPrefix(raw, []byte("POST /backend-api/codex/responses HTTP/1.1\r\n")) ||
 			!bytes.Contains(raw, []byte("Bearer synthetic-oauth-not-a-real-token")) ||
 			!bytes.HasSuffix(raw, projected) {
 			t.Fatalf("native subscription request was rewritten or lost caller's bearer: sha=%s", sha256Hex(raw))
