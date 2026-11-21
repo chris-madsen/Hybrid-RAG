@@ -31,7 +31,6 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(plugin, /case "\/v1\/responses", chatGPTResponsesIngress:/u);
   assert.match(plugin, /chatGPTResponsesIngress = "\/chatgpt_passthrough\/backend-api\/codex\/responses"/u);
   assert.match(plugin, /chatGPTModelsIngress/u);
-  assert.match(plugin, /case "\/v1\/responses"\s*:/u);
   assert.match(plugin, /func prepareNativeResponses\(/u);
   assert.match(plugin, /ProjectNativeResponses/u);
   assert.match(plugin, /AuthorizeNativeResponsesAttempt/u);
