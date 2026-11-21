@@ -1,28 +1,27 @@
-import { execFile } from 'node:child_process';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { promisify } from 'node:util';
 import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import type { CodeCandidate, RankedCandidate } from '../domain/retrieval.js';
 import type { CodeGraphCandidatePort } from '../application/ports.js';
 import type { RepoPath } from '../domain/workspace.js';
-
-const exec = promisify(execFile);
+import { makeCodebaseMemoryStdio } from './codebase-memory-stdio.js';
 
 /**
- * Thin adapter for the upstream Codebase Memory CLI, v0.12.1.
+ * Thin adapter for the upstream Codebase Memory stdio service, v0.12.1.
  *
  * CBM, not ACE, owns parsing, indexing, semantic retrieval and graph edges.
  * ACE consumes only file/symbol names returned by CBM. The evidence bytes and
  * digests still come from ACE's independently verified Qdrant source snapshot.
  * In particular, these hints are NEVER accepted as direct source evidence.
  *
- * Upstream: DeusData / Codebase Memory, pinned native CLI v0.12.1.
+ * Upstream: DeusData / Codebase Memory, pinned native v0.12.1.
  */
 export interface CodebaseMemoryOptions {
   readonly rootPath: string;
   readonly command?: string;
+  /** Optional native-server arguments (for contract fixtures). */
+  readonly args?: readonly string[];
   readonly timeoutMs?: number;
   /** Immutable, digest-verified ACE candidates from the last published index. */
   readonly candidates: () => readonly CodeCandidate[];
@@ -36,6 +35,8 @@ export interface CodebaseMemoryGraph extends CodeGraphCandidatePort {
   readonly trace: (qualifiedName: string) => Effect.Effect<Result<unknown, DomainError>>;
   readonly queryGraph: (cypher: string) => Effect.Effect<Result<unknown, DomainError>>;
   readonly detectChanges: (since?: string) => Effect.Effect<Result<unknown, DomainError>>;
+  /** Retire the internal provider session during Gateway shutdown. */
+  readonly close: () => Promise<void>;
 }
 
 export interface NativeOutlineRow {
@@ -234,36 +235,18 @@ const matchesName = (qualifiedName: string, name: string): boolean =>
 
 export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): CodebaseMemoryGraph => {
   const root = resolve(options.rootPath);
-  const command = options.command?.trim() || 'codebase-memory-mcp';
-  const timeoutMs = options.timeoutMs ?? 120_000;
   let project: string | undefined;
   let reindexing: Promise<Result<void, DomainError>> | undefined;
-
-  const invoke = async (tool: string, args: Readonly<Record<string, unknown>>): Promise<Result<unknown, DomainError>> => {
-    try {
-      // Git variables supplied by an embedding runner or isolated harness must
-      // not redirect CBM's source discovery to an unrelated checkout.
-      const env: NodeJS.ProcessEnv = { ...process.env, CBM_ALLOWED_ROOT: root };
-      delete env.GIT_DIR;
-      delete env.GIT_WORK_TREE;
-      const { stdout } = await exec(command, ['cli', '--quiet', tool, JSON.stringify(args)], {
-        cwd: root,
-        encoding: 'utf8',
-        timeout: timeoutMs,
-        maxBuffer: 2 * 1024 * 1024,
-        windowsHide: true,
-        env,
-      });
-      const response: unknown = JSON.parse(stdout);
-      const body = object(response);
-      if (body === undefined || body.error !== undefined || body.isError === true) {
-        return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory returned an error response'));
-      }
-      return ok(response);
-    } catch {
-      return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory CLI is unavailable, timed out, or returned invalid JSON'));
-    }
-  };
+  const transport = makeCodebaseMemoryStdio({
+    rootPath: root,
+    ...(options.command === undefined ? {} : { command: options.command }),
+    ...(options.args === undefined ? {} : { args: options.args }),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    // A restarted transport must never serve graph hints from the prior
+    // provider generation. Explicit reindex is required after reconnection.
+    onLost: () => { project = undefined; },
+  });
+  const invoke = transport.invoke;
 
   const reindex = (): Effect.Effect<Result<void, DomainError>> => Effect.promise(async () => {
     if (reindexing !== undefined) return reindexing;
@@ -543,5 +526,5 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
   });
 
-  return { reindex, search, outline, trace, queryGraph, detectChanges };
+  return { reindex, search, outline, trace, queryGraph, detectChanges, close: transport.close };
 };
