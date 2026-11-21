@@ -8,7 +8,7 @@ See [current runtime ownership and readiness](current-architecture.md). **CBM-on
 
 ## Architecture
 
-- CBM is the ONLY production code parser and persistent structural graph.
+- CBM is the ONLY **currently wired native** code-structure/graph engine, not a certified production provider. The current adapter invokes `index_repository` with `persistence: false`: do not claim a durable persistent CBM graph across ACE restarts without observed evidence.
   Native operations: index_repository, get_file_outline, search_graph,
   trace_path, query_graph and detect_changes.
 - Qdrant **currently** owns a second code-retrieval index (dense/sparse vectors and publication semantics). CBM **also** provides native semantic/BM25 search; independent matched CBM-only vs CBM+Qdrant testing is required before either declaring Qdrant necessary or removing it.

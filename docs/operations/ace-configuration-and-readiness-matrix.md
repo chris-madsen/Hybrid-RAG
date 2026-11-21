@@ -87,19 +87,9 @@ Enabling Vertex therefore does not authorize source-code or private-dialogue upl
 
 ## Temporal memory / Graphiti
 
-**Current runtime blocker:** `src/bin/ace-runtime.ts` throws at startup if `ACE_ENABLE_GRAPHITI=true`: the legacy tool-server adapter was retired and no Gateway-native memory provider is configured. The following settings document the **historical or future provider contract**, NOT a supported way to enable Graphiti in the present Gateway runtime. Use archive/reconciliation/backup commands only within their own supported CLI boundaries; do not claim a functioning full-unified release.
+**Current runtime blocker:** setting `ACE_ENABLE_GRAPHITI=true` makes `src/bin/ace-runtime.ts` throw before startup: the old agent-tool adapter was retired, and no Gateway-native temporal-memory provider is wired. **There is no supported environment-variable recipe to enable Graphiti in the current Gateway.** Historical examples using `ACE_GRAPHITI_COMMAND` and `ACE_GRAPHITI_ARGS_JSON` are not current instructions. A full-unified release is BLOCKED, even if a standalone runtime-configuration evidence validator accepts its declared flags.
 
-Graphiti is the selected local-first temporal-memory architecture, not an active Gateway provider:
-
-```bash
-ACE_ENABLE_GRAPHITI=true
-ACE_MEMORY_ARCHIVE_ROOT=/absolute/local/archive
-ACE_GRAPHITI_COMMAND=<supported-local-graphiti-retired-tool-protocol-command>
-ACE_GRAPHITI_ARGS_JSON='[...]'
-ACE_GRAPHITI_GROUP_ID=<workspace-scoped-group>
-```
-
-The immutable archive is source truth. Graphiti is a derived projection/search layer. A successful enqueue can remain `pending`; durable retry/backoff/dead-letter/reconciliation exists, and manual repair is available through:
+The immutable archive, memory CLI and projection outbox exist separately; their verification is not a Gateway-native Graphiti integration test. In the independently supported archive CLI, manual repair is invoked with:
 
 ```bash
 npm run memory:sync -- repair <episode-id>
