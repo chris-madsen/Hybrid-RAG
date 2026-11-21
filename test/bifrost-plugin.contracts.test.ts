@@ -64,7 +64,7 @@ test('native plugin retains truthful request-bound identity helpers', async () =
   assert.match(plugin, /sessionCorrelationFromRequest/u);
   assert.match(plugin, /schemas\.HarnessSessionHeaders/u);
   assert.match(plugin, /schemas\.NormalizeSessionID/u);
-  assert.match(plugin, /schemas\.ParseModelString\(rawModel, ""\)/u);
+  assert.match(plugin, /schemas\.ParseModelString\(rawModel, expectedProvider\)/u);
   assert.match(plugin, /durableActiveTranscriptDigest/u);
   assert.match(plugin, /"hostTranscriptAttested"\s*:\s*false/u);
   assert.match(plugin, /"hostCompactionEpoch"\s*:\s*"unknown"/u);
