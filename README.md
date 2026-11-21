@@ -6,23 +6,19 @@ ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler. L
 ## Architecture at a glance
 
 ```text
-LangGraph / other external orchestrator -> existing agents
-                        | configured LLM endpoint
-                        v
-              Bifrost LLM Gateway (planned; mock provider-wire conformance is implemented, real-provider approval is not)
-                 |               |
-       Go ACE Connector          +--> LLM provider
-             (IMPLEMENTED; mock-wire certified, real-provider approval pending)
-                 |
-       ACE Gateway Projection API (contract/application seam and HTTP endpoint implemented; production approval not)
-                 |
-         ACE Core (TS + Effect)
-           |-- code: Qdrant dense/sparse RRF + ast-grep/LSP
-           |-- docs: authorized Vertex RAG
-           |-- memory: Graphiti/archive
-           +-- verified context / receipts
-
+Hermes (native Responses) -> Bifröst /v1/responses (sole agent-facing gateway)
+                               -> ACE authenticated projection v2 (TypeSpec)
+                                  -> TypeScript + Effect ACE Core
+                                     code: Codebase Memory AST/graph/semantic/BM25
+                                           + CURRENT Qdrant dense/sparse retrieval
+                                           + external LSP confirmation
+                                     docs: authorized Vertex AI RAG
+                                     memory: archive + Graphiti/FalkorDB
+                                  -> current-source SHA-256/byte verification
+                               -> Bifröst final-send gate -> model provider
 ```
+
+**Status:** native Responses contracts and offline implementation exist. Final physical-provider wire, real Hermes agent loop, independent Harbor quality and release acceptance remain evidence-gated. Qdrant's necessity versus CBM-only has **not** been established; the existing runtime still requires Qdrant to compose code retrieval. See [source-verified architecture/status](docs/operations/current-architecture.md).
 
 Private source and conversations remain local by default; Vertex is a
 **separately authorized documentation source**, never an implicit destination
@@ -61,10 +57,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
   Harbor/third-party contracts are verified;
 - local lexical candidate retrieval retained for controlled experiments, not
   a substitute for production hybrid context;
-- an experimental real-provider Gateway projection path using local FastEmbed/ONNX
-  dense + sparse/BM25, Qdrant native RRF fusion, maintained ast-grep structural
-  spans, optional reranking, and generic LSP (TypeScript Language Server is the
-  default); exact source rechecks and receipt/delta delivery are implemented;
+- an experimental local Gateway projection path using native Codebase Memory v0.12.1 for AST, graph and semantic/BM25 discovery; Qdrant still performs dense/sparse retrieval and native RRF, with optional reranking and external LSP verification (TypeScript Language Server default); exact source rechecks and receipt/delta delivery are implemented;
   see `docs/reviews/2026-10-19-real-provider-e2e.md` for earlier exploratory
   evidence, not an approval of the latest code;
 - immutable content-addressed session archive with idempotent replay, tombstones,
@@ -96,7 +89,8 @@ ACE_ENABLE_EXPERIMENTAL_QDRANT=true
 ACE_QDRANT_URL=http://127.0.0.1:6333
 ACE_EMBEDDING_WORKER=$PWD/scripts/fastembed-worker.sh
 ACE_SPARSE_EMBEDDING_WORKER=$PWD/scripts/fastembed-sparse-worker.sh
-ACE_AST_GREP_COMMAND=$PWD/node_modules/.bin/ast-grep
+# Codebase Memory v0.12.1 must be installed; optional native executable override:
+# ACE_CBM_COMMAND=/absolute/path/to/codebase-memory-mcp
 # Optional LSP override; defaults to typescript-language-server --stdio.
 ACE_LSP_COMMAND=$PWD/node_modules/.bin/typescript-language-server
 ACE_RETRIEVAL_STRATEGY=hybrid_rrf
@@ -114,13 +108,7 @@ Vertex documentation requires `ACE_ENABLE_VERTEX=true` **and**
 Permission covers the `project_document` class only; secret-like queries are
 denied before HTTP.
 
-With k3s Qdrant forwarded to localhost, `npm run test:real-provider`
-now exercises the actual **Gateway HTTP projection** against a 2000-line
-source fixture and real FastEmbed/Qdrant retrieval. The
-`test:real-provider-race` and `test:real-provider-outage` variants exercise
-concurrent source changes and honest provider failures. No model-invoked
-tool transport is used. These runs establish request-local projection
-semantics only, not actual Bifröst final-provider egress.
+With local Qdrant, pinned CBM and embedding workers installed, `npm run test:real-projection` runs the real **Gateway HTTP projection** against a local workspace. `npm run test:real-projection-race`, `npm run test:real-projection-outage` and `npm run test:real-projection-hard-outage` exercise changed-source and provider failure paths. These are local integration tests, not Bifröst final-provider egress or Hermes task acceptance.
 
 `npm run test:memory-process` tests immutable archive identity and
 cross-process safety. `npm run test:real-same-name` checks structural
@@ -179,13 +167,11 @@ make verify
 npm run probe:providers
 # local Qdrant (localhost-only, persistent volume outside the repo)
 make qdrant-up
-# Python provider runtime (Graphiti, Tree-sitter, ast-grep, pygls)
+# Optional Python provider/tooling dependencies (not ACE's structural parser)
 make install-python-providers
 ```
 
-`make lint` runs Airbnb TypeScript linting and Rust `rustfmt` plus Clippy with
-warnings denied. Rust code is benchmark-gated and currently contains only its
-validated extension point.
+Use `npm run check`, `npm run lint` and `npm run verify:pr` for the current TypeScript/architecture/SDLC code gates; inspect `Makefile` for additional local targets. CBM native indexing and real Hermes/Harbor evaluation are separate opt-in verification boundaries.
 
 `npm audit --omit=dev --audit-level=high` is clean. Full dev-only audit currently
 reports the legacy Airbnb/ESLint 8 dependency chain; npm's remediation requires a
@@ -195,16 +181,7 @@ The test suite includes Bertrand Meyer-style contract tests in
 `test/bertrand-contracts.test.ts`. They make preconditions, postconditions,
 invariants, fail-closed behavior, losslessness, and layer boundaries executable.
 
-The active OpenSpec implementation sequence is defined by
-[`openspec/README.md`](openspec/README.md) and includes
-`001-foundation` through `007-hybrid-context-engine`, including
-`006-production-retrieval-vertical-slice`. The checked implementation tasks
-do **not** replace frozen real-provider/agent-E2E/Harbor quality gates.
-
-The [current H1–H6 completion plan](docs/plans/2026-10-21-cursor-like-hybrid-context-completion-plan.md)
-prioritizes the [reviewed delivery/benchmark gaps](docs/reviews/2026-10-21-hybrid-context-static-code-review.md),
-then reproducible multi-repository ablations, natural-use Harbor comparisons,
-and separate Graphiti/Vertex/k3s/release evidence.
+Current active acceptance is tracked by [OpenSpec 013 (C01–C08)](openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014 (AR01–AR10)](openspec/changes/014-ace-audit-reliability-remediation/tasks.md). Historical 001–007 and H1–H6 plans remain historical sources, not an alternative implementation queue. See [the current runtime status](docs/operations/current-architecture.md), the [CBM provider](docs/operations/codebase-memory-provider.md), and the [testing strategy](docs/operations/testing-strategy.md).
 
 The parent `Consilium` repository is outside this project boundary and is not
 modified by ACE implementation work.

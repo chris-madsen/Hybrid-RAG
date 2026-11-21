@@ -1,23 +1,20 @@
-# ACE execution plans
+# ACE plans — current authority and historical provenance
 
-**Canonical consolidated plan:** [2026-10-19 — Unified correctness and production completion](./2026-10-19-unified-ace-correctness-and-production-plan.md).
+**Current runtime status:** [source-inspected architecture](../operations/current-architecture.md). **Current implementation/acceptance ledgers:** [OpenSpec 013 C01–C08](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014 AR01–AR10](../../openspec/changes/014-ace-audit-reliability-remediation/tasks.md). These are not competing plans; implementations may be merged while real provider/Hermes/Harbor acceptance remains open.
 
-The unified plan merges the five post-merge correctness tracks with the full ACE production completion backlog. Use its single ordered PR queue, evidence gates and dependency graph, subject to Accepted ADRs and OpenSpec.
+## Live process and evidence
 
-**Scoped benchmark remediation (proposal, not a competing production queue):**
-- [2026-10-26 — ACE/Hermes token-economics and benchmark cleanup plan](./2026-10-26-ace-hermes-economics-and-cleanup-plan.md) — one real Hermes A/B first, root `plan.md` approval entrypoint, separate dependency-backed cleanup; paired [review](../reviews/2026-10-26-ace-hermes-token-economics-and-benchmark-bloat-review.md). Tracked in Issue #171. **Not yet owner-approved or real-provider-tested.**
+- [SDLC entry/resume](../operations/implementation-entry-resume.md) and [runtime configuration/readiness](../operations/ace-configuration-and-readiness-matrix.md).
+- [Codebase Memory native provider](../operations/codebase-memory-provider.md): PR #316 adopted CBM for AST, graph and code semantic/BM25 search. Qdrant and external LSP are retained in current composition pending independent A/B assessment.
+- [Real Hermes feedback loop](./ace-real-feedback-loop.md), [retrieval quality ablations](./retrieval-quality-ablation-runbook.md), and [unified release preflight](./unified-production-release-preflight.md): **not** proof that live egress or 5× savings has passed.
 
-**Active retrieval execution queue:**
-- [2026-10-26 — Post-#177 retrieval execution plan](./2026-10-26-retrieval-post-177-execution-plan.md) — concrete PR-by-PR implementation order after the merged NAPI/Qdrant foundation: changed-only sync, real Aider RepoMap, Claw-style LSP lifecycle, one ContextAssembler, then real Hermes A/B and negative-diff cleanup.
+## Historical design and execution plans — not active implementation authority
 
-**Scoped retrieval simplification (proposal):**
-- [2026-10-26 — Aider + Claw retrieval composition](./2026-10-26-aider-claw-retrieval-composition-plan.md) — compose Aider RepoMap, in-process ast-grep CST/AST, the existing real ACE LSP path, Claw-style incremental ingest, the official Qdrant client and a single token-budgeted context assembler. Designed to replace rather than extend the current retrieval scaffolding.
+- [2026-10-19 consolidated completion plan](./2026-10-19-unified-ace-correctness-and-production-plan.md): historical queue; superseded by later accepted decisions and implementation.
+- [2026-10-21 H1–H6 context plan](./2026-10-21-cursor-like-hybrid-context-completion-plan.md): historical pre-CBM milestones.
+- [2026-10-26 post-#177 retrieval execution plan](./2026-10-26-retrieval-post-177-execution-plan.md): historical Aider/Claw/ast-grep work; *not* an instruction to reintroduce bespoke RepoMap or old ast-grep runtime.
+- [2026-10-26 Aider + Claw composition proposal](./2026-10-26-aider-claw-retrieval-composition-plan.md): historical alternatives; CBM is now the production structural/graph engine.
+- [2026-10-26 Hermes economics proposal](./2026-10-26-ace-hermes-economics-and-cleanup-plan.md): hypothesis and historical issue context, not a successful current E2E report.
+- [Old post-merge correctness plan](./2026-10-19-post-merge-correctness-plan.md) and [production roadmap](./2026-10-19-ace-production-completion-roadmap.md): original planning evidence.
 
-**Scoped new architecture work (not a competing production queue):**
-- [G11 production acceptance](../../openspec/changes/013-gateway-g11-production-acceptance/) — current chunked implementation plan and acceptance contract for the native Responses Gateway path.
-
-**Retained source plans (historical, not competing execution queues):**
-- [Claude: post-merge correctness plan](./2026-10-19-post-merge-correctness-plan.md)
-- [Prior ACE production completion roadmap](./2026-10-19-ace-production-completion-roadmap.md)
-
-A plan item marked `[ ]` is open until verified by evidence. Experimental E2E, green CI and forced-use Harbor results are **not** production acceptance.
+A historical unchecked task does not prove missing code; a merged code PR does not prove provider-wire, agent or release acceptance. Never relabel an unrun benchmark PASS or infer an architectural removal before measurement.
