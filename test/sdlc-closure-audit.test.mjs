@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -14,6 +14,28 @@ test('SDLC closure audit passes the repository and labels external E2E honestly'
   assert.equal(result.structuralVerdict, 'PASS');
   assert.equal(result.providerAgentE2E, 'NOT_RUN_BY_THIS_GATE');
   assert.ok(result.results.every((entry) => entry.status === 'PASS'));
+});
+
+test('SDLC closure gate rejects a regression to unconditional OAuth-route denial', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-g11-oauth-closure-negative-'));
+  try {
+    const dir = join(root, 'src', 'application');
+    mkdirSync(dir, { recursive: true });
+    const current = readFileSync(resolve('src/application/gateway-attempt-authorization-service.ts'), 'utf8');
+    const success = 'return yield* sendAllow(request, security);';
+    assert.ok(current.includes(success), 'runtime must have a successful policy-authorized send path');
+    const blocked = current.replace(success, "return yield* sendBlock(request, 'OAUTH_ROUTE_UNVERIFIED', security);");
+    writeFileSync(join(dir, 'gateway-attempt-authorization-service.ts'), blocked);
+    const run = spawnSync(process.execPath, [audit, '--root', root], { encoding: 'utf8' });
+    assert.equal(run.status, 1, run.stderr || run.stdout);
+    const result = JSON.parse(run.stdout);
+    const guard = result.results.find((entry) => entry.id === 'GATEWAY_PHYSICAL_SEND_POLICY');
+    assert.equal(guard?.status, 'FAIL');
+    assert.ok(guard?.forbidden?.includes("'OAUTH_ROUTE_UNVERIFIED'"));
+    assert.ok(guard?.missing?.includes('physicalSendAttemptAllowed(request)'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('SDLC closure audit fails closed when active-gate evidence is absent', () => {
