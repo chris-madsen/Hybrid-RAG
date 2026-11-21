@@ -266,8 +266,12 @@ export const validateHarborFourArmReport = (value: unknown): Result<HarborFourAr
   const dense = normalized.get('dense') as HarborFourArmReportArm;
   const hybrid = normalized.get('hybrid') as HarborFourArmReportArm;
   const delta = normalized.get('hybrid-delta') as HarborFourArmReportArm;
-  if (![dense, hybrid, delta].every((arm) => arm.aceObservedCalls > 0)) {
-    return err(domainError('INVALID_BENCHMARK', 'harbor_report.aceObservedCalls', 'all ACE arms require observed real ACE calls'));
+  // The current Gateway-only route does not expose model-invoked ACE tools.
+  // Zero legacy tool calls are a valid raw observation, not evidence that
+  // Bifröst projected or delivered source. The independent raw-trial and
+  // provider-wire gates must establish that separately.
+  if (native.aceObservedCalls !== 0) {
+    return err(domainError('INVALID_BENCHMARK', 'harbor_report.native.aceObservedCalls', 'native baseline must not declare ACE tool calls'));
   }
   if (delta.reusedContextBytes === 0) {
     return err(domainError('INVALID_BENCHMARK', 'harbor_report.hybrid_delta', 'receipt/delta arm requires observed reused context bytes'));

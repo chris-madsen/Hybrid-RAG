@@ -113,7 +113,7 @@ test('external four-arm design requires one task manifest and immutable revision
   assert.equal(result._tag, 'Ok');
 });
 
-test('four-arm Harbor report rejects savings without real ACE calls or observed receipts', () => {
+test('Gateway-only four-arm reports permit zero legacy tool calls but cannot claim evidence-based savings', () => {
   const base = {
     schemaVersion: 1 as const,
     holdoutSha256: 'a'.repeat(64),
@@ -129,7 +129,16 @@ test('four-arm Harbor report rejects savings without real ACE calls or observed 
       'hybrid-delta': arm(1, 100),
     },
   };
-  assert.equal(validateHarborFourArmReport(base)._tag, 'Err');
+  const gatewayOnly = validateHarborFourArmReport(base);
+  assert.equal(gatewayOnly._tag, 'Ok', 'zero model-invoked tool calls is normal for the Gateway-only route');
+  assert.equal(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true, rawTrialEvidenceVerified: false,
+    attemptUsageVerified: false, providerEgressVerified: false, totalTokensPerAcceptedTaskRatio: 0.1,
+  }).allowed, false, 'a shaped report is not independent model delivery or usage evidence');
+  assert.equal(validateHarborFourArmReport({
+    ...base,
+    arms: { ...base.arms, native: arm(1) },
+  })._tag, 'Err', 'native baseline cannot declare ACE tool calls');
   const accepted = validateHarborFourArmReport({
     ...base,
     arms: {

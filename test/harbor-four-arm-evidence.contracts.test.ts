@@ -330,3 +330,54 @@ test('AR10: safe individual usage counters cannot overflow cumulative trial or a
     assert.equal(armReconciled.error.path, 'harbor_attempt_ledger.usage');
   }
 });
+
+
+test('Gateway-only four-arm trial data remains UNKNOWN without model delivery, rather than rejecting zero tool calls', () => {
+  const gatewayOnly = allObservations().map((trial) => trial.arm === 'native'
+    ? trial
+    : {
+      ...trial,
+      observedAceCalls: 0,
+      successfulAceCalls: 0,
+      successfulRequestIds: [],
+      evidenceReceiptIds: [],
+      reusedReceiptIds: [],
+      gatewayProjectionRequestIds: [trial.trialId + '-projection'],
+    });
+  const report = allExpected();
+  const expectedGatewayOnly = {
+    ...report,
+    dense: expected('dense', { aceObservedCalls: 0 }),
+    hybrid: expected('hybrid', { aceObservedCalls: 0 }),
+    'hybrid-delta': expected('hybrid-delta', { aceObservedCalls: 0 }),
+  };
+  const result = reconcileHarborFourArmTrials(expectedGatewayOnly, gatewayOnly);
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Ok') {
+    assert.equal(result.value.status, 'unknown');
+    assert.equal(result.value.releaseEligible, false);
+    assert.equal(result.value.arms.dense.observedAceCalls, 0);
+    assert.equal(result.value.arms.hybrid.successfulAceCalls, 0);
+  }
+});
+
+test('AR10: duplicate or native-contaminating Gateway projection IDs are not independent trial evidence', () => {
+  const observations = allObservations().map((trial) => ({
+    ...trial,
+    gatewayProjectionRequestIds: trial.arm === 'native' ? [] : [trial.trialId + '-projection'],
+  }));
+  const duplicated = observations.map((trial) => trial.arm === 'hybrid' && trial.trialId.endsWith('-0')
+    ? { ...trial, gatewayProjectionRequestIds: ['dense-0-projection'] }
+    : trial);
+  const sameTrialDuplicate = observations.map((trial) => trial.arm === 'hybrid' && trial.trialId.endsWith('-0')
+    ? { ...trial, gatewayProjectionRequestIds: ['x', 'x'] }
+    : trial);
+  const contaminated = observations.map((trial) => trial.arm === 'native' && trial.trialId.endsWith('-0')
+    ? { ...trial, gatewayProjectionRequestIds: ['unexpected-projection'] }
+    : trial);
+  for (const altered of [duplicated, sameTrialDuplicate, contaminated]) {
+    const result = reconcileHarborFourArmTrials(allExpected(), altered);
+    assert.equal(result._tag, 'Err');
+    if (result._tag === 'Err') assert.equal(result.error.path, 'harbor_trial_evidence.gatewayProjectionRequestIds');
+  }
+});

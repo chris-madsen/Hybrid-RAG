@@ -276,6 +276,25 @@ export const reconcileHarborFourArmTrials = (
     if (arm === undefined) return invalid('harbor_trial_evidence.arm', 'unknown Harbor arm in raw observations');
     arm.push(observation);
   }
+  // Automatic Gateway projection IDs are neither model tool calls nor final
+  // provider-wire certification. They must still be unique across trials and
+  // absent from the native baseline to prevent replayed local diagnostics.
+  const globalProjectionRequestIds = new Set<string>();
+  for (const observation of observations) {
+    const projectionIds = observation.gatewayProjectionRequestIds ?? [];
+    if (observation.arm === 'native' && projectionIds.length > 0) {
+      return invalid('harbor_trial_evidence.gatewayProjectionRequestIds', 'native baseline contains Gateway projections');
+    }
+    if (new Set(projectionIds).size !== projectionIds.length) {
+      return invalid('harbor_trial_evidence.gatewayProjectionRequestIds', 'duplicate Gateway projection ID within one trial');
+    }
+    for (const requestId of projectionIds) {
+      if (!nonEmpty(requestId) || globalProjectionRequestIds.has(requestId)) {
+        return invalid('harbor_trial_evidence.gatewayProjectionRequestIds', 'Gateway projection ID is missing or replayed across trials/arms');
+      }
+      globalProjectionRequestIds.add(requestId);
+    }
+  }
   // Request IDs identify individual Gateway calls. Replaying the same successful
   // transcript in another trial/arm must never count as independent evidence.
   const globalRequestIds = new Set<string>();
