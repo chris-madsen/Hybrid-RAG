@@ -27,7 +27,7 @@ const eventFor = (
   stage,
   status,
   candidates: status === 'executed' ? [candidate] : [],
-  durationMs: 1,
+  durationMs: status === 'executed' ? 1 : 0,
   providerIdentities: { dense: 'test-provider' },
 });
 
@@ -42,6 +42,25 @@ const withTempDirectory = async <T>(run: (directory: string) => Promise<T>): Pro
     await rm(directory, { recursive: true, force: true });
   }
 };
+
+test('benchmark stage validation rejects epoch time in a non-executed duration', async () => {
+  await withTempDirectory(async (directory) => {
+    const trace = await makeFileRetrievalBenchmarkTrace(join(directory, 'latency.jsonl'));
+    const requestId = 'latency-request';
+    const statuses = retrievalBenchmarkStages.map((stage) => eventFor(
+      requestId, stage, stage === 'dense' ? 'unavailable' : 'executed',
+    ));
+    for (const stage of statuses) trace.record(stage);
+    await trace.close();
+    const good = await readFile(trace.tracePath, 'utf8');
+    const receipt = JSON.parse(await readFile(trace.terminalReceiptPath, 'utf8')) as unknown;
+    assert.equal(validateRetrievalBenchmarkTraceArtifact(good, receipt, [requestId]).valid, true);
+    const invalid = good.replace('"durationMs":0', '"durationMs":1790000000000');
+    const checked = validateRetrievalBenchmarkTraceArtifact(invalid, receipt, [requestId]);
+    assert.equal(checked.valid, false);
+    assert.ok(checked.failures.some((reason) => reason.endsWith('nonexecuted_latency')));
+  });
+});
 
 test('file trace drains JSONL and writes a complete terminal receipt', async () => {
   await withTempDirectory(async (directory) => {
