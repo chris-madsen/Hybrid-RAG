@@ -20,6 +20,17 @@ interface PendingRequest {
   readonly timer: NodeJS.Timeout;
 }
 
+
+interface EmbeddingSession {
+  readonly child: ChildProcessWithoutNullStreams;
+  readonly pending: Map<number, PendingRequest>;
+  readonly readyWaiters: Set<(result: Result<EmbeddingWorkerIdentity, DomainError>) => void>;
+  stdoutBuffer: string;
+  identity?: Result<EmbeddingWorkerIdentity, DomainError>;
+  failure?: DomainError;
+  retired: boolean;
+}
+
 export interface ResolvedEmbeddingConfig {
   readonly provider: string;
   readonly model: string;
@@ -206,121 +217,226 @@ const controlledWorkerEnvironment = (
  * receipt. The parent never infers effective model identity from labels alone.
  */
 export const makeProcessEmbeddingPort = (options: ProcessEmbeddingOptions): ManagedVectorEmbeddingPort => {
-  const child: ChildProcessWithoutNullStreams = spawn(options.command, [...(options.args ?? [])], {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...safeInheritedEnvironment(), ...controlledWorkerEnvironment(options.env) },
-  });
-  const pending = new Map<number, PendingRequest>();
-  const readyWaiters = new Set<(result: Result<EmbeddingWorkerIdentity, DomainError>) => void>();
   const timeoutMs = options.timeoutMs ?? 120_000;
+  const environment = { ...safeInheritedEnvironment(), ...controlledWorkerEnvironment(options.env) };
+  const args = [...(options.args ?? [])];
+  let activeSession: EmbeddingSession | undefined;
+  let closed = false;
   let nextId = 1;
-  let stdoutBuffer = '';
-  let failure: DomainError | undefined;
-  let effectiveIdentity: Result<EmbeddingWorkerIdentity, DomainError> | undefined;
+  let initialIdentityFingerprint: string | undefined;
 
-  const settleIdentity = (result: Result<EmbeddingWorkerIdentity, DomainError>): void => {
-    if (effectiveIdentity !== undefined) return;
-    effectiveIdentity = result;
-    for (const waiter of readyWaiters) waiter(result);
-    readyWaiters.clear();
+  const settleIdentity = (
+    session: EmbeddingSession,
+    result: Result<EmbeddingWorkerIdentity, DomainError>,
+  ): void => {
+    if (session.identity !== undefined) return;
+    session.identity = result;
+    for (const waiter of [...session.readyWaiters]) waiter(result);
+    session.readyWaiters.clear();
   };
 
-  const failPending = (error: DomainError): void => {
-    failure = error;
-    if (options.expectedIdentity !== undefined) settleIdentity(err(error));
-    for (const request of pending.values()) {
+  const failSession = (session: EmbeddingSession, error: DomainError): void => {
+    if (session.failure !== undefined) return;
+    session.failure = error;
+    settleIdentity(session, err(error));
+    const requests = [...session.pending.values()];
+    session.pending.clear();
+    for (const request of requests) {
       clearTimeout(request.timer);
       request.resolve(err(error));
     }
-    pending.clear();
   };
 
-  child.stdout.on('data', (chunk: Buffer) => {
-    stdoutBuffer += chunk.toString('utf8');
-    let newline = stdoutBuffer.indexOf('\n');
-    while (newline >= 0) {
-      const line = stdoutBuffer.slice(0, newline);
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
-      newline = stdoutBuffer.indexOf('\n');
-      if (line.trim().length === 0) continue;
-      let decoded: unknown;
-      try {
-        decoded = JSON.parse(line) as unknown;
-      } catch {
-        failPending(domainError('INVALID_EXTERNAL_RESPONSE', 'embedding', 'embedding worker returned invalid JSON'));
-        continue;
-      }
-      const response = responseObject(decoded);
-      if (response?.type === 'ready') {
-        const parsed = parseIdentity(response.identity);
-        settleIdentity(parsed._tag === 'Err' || options.expectedIdentity === undefined
-          ? parsed
-          : compareIdentity(options.expectedIdentity, parsed.value));
-        continue;
-      }
-      const id = response?.id;
-      if (response === undefined || typeof id !== 'number' || !Number.isSafeInteger(id)) {
-        failPending(domainError('INVALID_EXTERNAL_RESPONSE', 'embedding', 'embedding worker response id is invalid'));
-        continue;
-      }
-      const request = pending.get(id);
-      if (request === undefined) continue;
-      pending.delete(id);
-      clearTimeout(request.timer);
-      if (typeof response.error === 'string') request.resolve(providerError(response.error));
-      else request.resolve(vectorsFromResponse(response, request.expectedCount, options.dimension));
-    }
-  });
-  child.stderr.on('data', () => undefined);
-  child.on('error', () => failPending(domainError('UNSUPPORTED_PROVIDER', 'embedding', 'embedding worker failed to start')));
-  child.on('exit', (code) => {
-    if (failure === undefined) {
-      failPending(domainError('UNSUPPORTED_PROVIDER', 'embedding', `embedding worker exited with code ${code ?? 'unknown'}`));
-    }
-  });
+  // A timed-out inference cannot be removed from Python's serial stdin loop.
+  // Retire its entire session, including queued requests, before accepting
+  // another request. Old stdout frames cannot be associated with a new session.
+  const retireSession = (session: EmbeddingSession, error: DomainError): void => {
+    if (activeSession === session) activeSession = undefined;
+    failSession(session, error);
+    if (session.retired) return;
+    session.retired = true;
+    const child = session.child;
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    const hardKill = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    }, 250);
+    hardKill.unref();
+    child.once('exit', () => clearTimeout(hardKill));
+    try { child.kill('SIGTERM'); } catch { /* spawn may have already failed */ }
+  };
 
-  const awaitIdentity = (): Effect.Effect<Result<EmbeddingWorkerIdentity | undefined, DomainError>> => {
+  const startSession = (): EmbeddingSession => {
+    const child = spawn(options.command, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: environment,
+    });
+    const session: EmbeddingSession = {
+      child,
+      pending: new Map(),
+      readyWaiters: new Set(),
+      stdoutBuffer: '',
+      retired: false,
+    };
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (activeSession !== session || session.retired) return;
+      session.stdoutBuffer += chunk.toString('utf8');
+      let newline = session.stdoutBuffer.indexOf('\n');
+      while (newline >= 0 && !session.retired) {
+        const line = session.stdoutBuffer.slice(0, newline);
+        session.stdoutBuffer = session.stdoutBuffer.slice(newline + 1);
+        newline = session.stdoutBuffer.indexOf('\n');
+        if (line.trim().length === 0) continue;
+        let decoded: unknown;
+        try {
+          decoded = JSON.parse(line) as unknown;
+        } catch {
+          retireSession(session, domainError('INVALID_EXTERNAL_RESPONSE', 'embedding', 'embedding worker returned invalid JSON'));
+          return;
+        }
+        const response = responseObject(decoded);
+        if (response?.type === 'ready') {
+          const parsed = parseIdentity(response.identity);
+          const checked = parsed._tag === 'Err' || options.expectedIdentity === undefined
+            ? parsed
+            : compareIdentity(options.expectedIdentity, parsed.value);
+          if (checked._tag === 'Err') {
+            retireSession(session, checked.error);
+            return;
+          }
+          const fingerprint = verifiedEmbeddingIdentityFingerprint(checked.value);
+          if (initialIdentityFingerprint !== undefined && fingerprint !== initialIdentityFingerprint) {
+            retireSession(session, domainError(
+              'INVALID_EXTERNAL_RESPONSE',
+              'embedding.identity',
+              'embedding worker runtime identity changed after restart',
+            ));
+            return;
+          }
+          if (session.identity !== undefined) {
+            retireSession(session, domainError('INVALID_EXTERNAL_RESPONSE', 'embedding.identity', 'duplicate worker startup receipt'));
+            return;
+          }
+          initialIdentityFingerprint = fingerprint;
+          settleIdentity(session, checked);
+          continue;
+        }
+        const id = response?.id;
+        if (response === undefined || typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1) {
+          retireSession(session, domainError('INVALID_EXTERNAL_RESPONSE', 'embedding', 'embedding worker response id is invalid'));
+          return;
+        }
+        const request = session.pending.get(id);
+        if (request === undefined) {
+          // Ignore an unsolicited/expired frame; it must never satisfy another ID.
+          continue;
+        }
+        request.resolve(typeof response.error === 'string'
+          ? providerError(response.error)
+          : vectorsFromResponse(response, request.expectedCount, options.dimension));
+      }
+    });
+    child.stderr.on('data', () => undefined);
+    child.on('error', () => retireSession(
+      session,
+      domainError('UNSUPPORTED_PROVIDER', 'embedding', 'embedding worker failed to start'),
+    ));
+    child.on('exit', (code) => {
+      if (activeSession === session) {
+        retireSession(session, domainError(
+          'UNSUPPORTED_PROVIDER',
+          'embedding',
+          'embedding worker exited with code ' + (code ?? 'unknown'),
+        ));
+      }
+    });
+    return session;
+  };
+
+  const ensureSession = (): EmbeddingSession | undefined => {
+    if (closed) return undefined;
+    if (activeSession === undefined) activeSession = startSession();
+    return activeSession;
+  };
+
+  // Preserve eager startup/probe behavior of the original managed port.
+  activeSession = startSession();
+
+  const awaitIdentity = (session: EmbeddingSession): Effect.Effect<Result<EmbeddingWorkerIdentity | undefined, DomainError>> => {
+    if (session.failure !== undefined) return Effect.succeed(err(session.failure));
     if (options.expectedIdentity === undefined) return Effect.succeed(ok(undefined));
-    if (effectiveIdentity !== undefined) return Effect.succeed(effectiveIdentity);
-    return Effect.async((resume) => {
-      let waiter: (result: Result<EmbeddingWorkerIdentity, DomainError>) => void;
-      const timer = setTimeout(() => {
-        readyWaiters.delete(waiter);
-        resume(Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'embedding.identity', 'embedding worker startup receipt timed out'))));
-      }, timeoutMs);
-      waiter = (result: Result<EmbeddingWorkerIdentity, DomainError>): void => {
+    if (session.identity !== undefined) return Effect.succeed(session.identity);
+    return Effect.async((resume, signal) => {
+      let finished = false;
+      const finish = (result: Result<EmbeddingWorkerIdentity, DomainError>): void => {
+        if (finished) return;
+        finished = true;
         clearTimeout(timer);
+        session.readyWaiters.delete(finish);
+        signal.removeEventListener('abort', onAbort);
         resume(Effect.succeed(result));
       };
-      readyWaiters.add(waiter);
+      const onAbort = (): void => retireSession(session, domainError(
+        'EXTERNAL_UNAVAILABLE', 'embedding.identity', 'embedding worker startup was cancelled',
+      ));
+      const timer = setTimeout(() => retireSession(session, domainError(
+        'EXTERNAL_UNAVAILABLE', 'embedding.identity', 'embedding worker startup receipt timed out',
+      )), timeoutMs);
+      session.readyWaiters.add(finish);
+      signal.addEventListener('abort', onAbort, { once: true });
+      if (signal.aborted) onAbort();
+      if (session.identity !== undefined) finish(session.identity);
+      else if (session.failure !== undefined) finish(err(session.failure));
     });
   };
 
-  const issueEmbedding = (input: readonly string[]): Effect.Effect<Result<readonly (readonly number[])[], DomainError>> =>
-    Effect.async((resume) => {
-      if (input.length === 0 || input.some((text) => text.trim().length === 0)) {
-        resume(Effect.succeed(err(domainError('INVALID_INPUT', 'embedding_text', 'embedding input must contain non-empty text'))));
-        return;
+  const issueEmbedding = (
+    session: EmbeddingSession,
+    input: readonly string[],
+  ): Effect.Effect<Result<readonly (readonly number[])[], DomainError>> => Effect.async((resume, signal) => {
+    if (input.length === 0 || input.some((text) => text.trim().length === 0)) {
+      resume(Effect.succeed(err(domainError('INVALID_INPUT', 'embedding_text', 'embedding input must contain non-empty text'))));
+      return;
+    }
+    if (session !== activeSession || session.failure !== undefined || session.child.stdin.destroyed) {
+      resume(Effect.succeed(err(session.failure ?? domainError(
+        'EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker is unavailable',
+      ))));
+      return;
+    }
+    if (!Number.isSafeInteger(nextId)) {
+      retireSession(session, domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding request ID exhausted'));
+      resume(Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding request ID exhausted'))));
+      return;
+    }
+    const id = nextId;
+    nextId += 1;
+    let finished = false;
+    const finish = (result: Result<readonly (readonly number[])[], DomainError>): void => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      session.pending.delete(id);
+      signal.removeEventListener('abort', onAbort);
+      resume(Effect.succeed(result));
+    };
+    const onAbort = (): void => retireSession(session, domainError(
+      'EXTERNAL_UNAVAILABLE', 'embedding', 'embedding request was cancelled',
+    ));
+    const timer = setTimeout(() => retireSession(session, domainError(
+      'EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker timed out',
+    )), timeoutMs);
+    session.pending.set(id, { expectedCount: input.length, timer, resolve: finish });
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    session.child.stdin.write(JSON.stringify({ id, texts: input }) + '\n', (error) => {
+      if (error !== undefined && error !== null && session.pending.has(id)) {
+        retireSession(session, domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker write failed'));
       }
-      if (failure !== undefined || child.stdin.destroyed) {
-        resume(Effect.succeed(err(failure ?? domainError('UNSUPPORTED_PROVIDER', 'embedding', 'embedding worker is unavailable'))));
-        return;
-      }
-      const id = nextId;
-      nextId += 1;
-      const timer = setTimeout(() => {
-        pending.delete(id);
-        resume(Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker timed out'))));
-      }, timeoutMs);
-      pending.set(id, { expectedCount: input.length, timer, resolve: (result) => resume(Effect.succeed(result)) });
-      child.stdin.write(JSON.stringify({ id, texts: input }) + '\n', (error) => {
-        if (error !== undefined && error !== null) {
-          clearTimeout(timer);
-          pending.delete(id);
-          resume(Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker write failed'))));
-        }
-      });
     });
+  });
 
   const embedMany = (
     input: readonly string[],
@@ -328,17 +444,27 @@ export const makeProcessEmbeddingPort = (options: ProcessEmbeddingOptions): Mana
   ): Effect.Effect<Result<readonly (readonly number[])[], DomainError>> => {
     const startedAtMs = Date.now();
     const operation = Effect.gen(function* () {
-      const ready = yield* awaitIdentity();
-      if (ready._tag === 'Err') return ready;
-      return yield* issueEmbedding(input);
+      const session = ensureSession();
+      if (session === undefined) {
+        return { session, result: err(domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker closed')) };
+      }
+      const ready = yield* awaitIdentity(session);
+      const result = ready._tag === 'Err' ? ready : yield* issueEmbedding(session, input);
+      return { session, result };
     });
-    return Effect.map(operation, (result) => {
-      const identity = effectiveIdentity?._tag === 'Ok' ? effectiveIdentity.value : undefined;
+    return Effect.map(operation, ({ session, result }) => {
+      const identity = session?.identity?._tag === 'Ok' ? session.identity.value : undefined;
       providerTraceEvent(options.trace ?? noopProviderTrace, {
         provider: 'embedding',
         providerVersion: identity === undefined
           ? options.providerVersion ?? 'process-worker/unknown'
-          : `${identity.provider}|model=${identity.model}@${identity.modelRevision}|artifact=${identity.artifactModel}@${identity.artifactRevision}#${identity.artifactDigest}|mode=${identity.executionMode}|runtime=${identity.runtimeBuild}@${identity.runtimeVersion}`,
+          : [
+            identity.provider,
+            'model=' + identity.model + '@' + identity.modelRevision,
+            'artifact=' + identity.artifactModel + '@' + identity.artifactRevision + '#' + identity.artifactDigest,
+            'mode=' + identity.executionMode,
+            'runtime=' + identity.runtimeBuild + '@' + identity.runtimeVersion,
+          ].join('|'),
         operation: 'embed_many',
         status: result._tag === 'Ok' ? 'success' : 'failure',
         durationMs: Math.max(0, Date.now() - startedAtMs),
@@ -351,16 +477,19 @@ export const makeProcessEmbeddingPort = (options: ProcessEmbeddingOptions): Mana
   };
 
   const probe = (): Effect.Effect<Result<void, DomainError>> => Effect.gen(function* () {
-    const ready = yield* awaitIdentity();
+    const session = ensureSession();
+    if (session === undefined) return err(domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker closed'));
+    const ready = yield* awaitIdentity(session);
     if (ready._tag === 'Err') return ready;
-    const result = yield* embedMany(['ace_embedding_provider_probe']);
+    const result = yield* issueEmbedding(session, ['ace_embedding_provider_probe']);
     return result._tag === 'Err' ? result : ok(undefined);
   });
 
   const close = (): void => {
-    if (!child.killed) {
-      failPending(domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker closed'));
-      child.kill('SIGTERM');
+    if (closed) return;
+    closed = true;
+    if (activeSession !== undefined) {
+      retireSession(activeSession, domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'embedding worker closed'));
     }
   };
 
@@ -368,6 +497,6 @@ export const makeProcessEmbeddingPort = (options: ProcessEmbeddingOptions): Mana
     embedMany,
     close,
     probe,
-    identity: () => effectiveIdentity?._tag === 'Ok' ? effectiveIdentity.value : undefined,
+    identity: () => activeSession?.identity?._tag === 'Ok' ? activeSession.identity.value : undefined,
   };
 };

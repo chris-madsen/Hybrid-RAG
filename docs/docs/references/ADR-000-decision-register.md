@@ -2,61 +2,61 @@
 
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
-# ADR-000 — Реестр согласованных архитектурных решений
+# ADR-000 — Register of agreed architecture decisions
 
-**Статус:** Recorded  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** Recorded  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and project owner's choices of 2026-10-17.  
+**Decision statuses:** `Accepted` — decision approved; `Proposed` — spike/verification required; `Deferred` — consciously postponed.  
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records decisions, alternatives, rationale, and reconsideration criteria. Specific classes, database schemas, API contracts, Kubernetes manifests, and topology are to be defined in the subsequent Architecture Design.
 
-## Матрица ответов владельца проекта
+## Project owner's answer matrix
 
 > **2026-10-24 precedence:** retired optional tool-call protocol-first rows and the Hermes retired optional tool-call protocol injection text below are dated historical decisions. ADR-017 now governs planned Bifrost model-bound delivery, ADR-016 documents native Hermes, and retired optional tool-call protocol remains explicit tools only. LangGraph orchestration is external to ACE.
 
-| № вопроса | Решение пользователя | Где зафиксировано |
+| Question no. | Owner's decision | Recorded in |
 |---|---|---|
-| 1 | C — независимое ядро; сначала Codex | ADR-001 |
-| 2 | B — гибридно: code intelligence локально, документы в облаке | ADR-001, ADR-003 |
-| 3 | B — один Unified retired optional tool-call protocol; сохранить возможность изучить более глубокую интеграцию C | ADR-001 |
-| 4 | Jev как кандидат Strategy Selector; сравнить с правилами, решение пока открыто | ADR-002 |
-| 5 | A — Vertex AI RAG Engine для документов | ADR-003 |
-| 6 | A — Qdrant для локального RAG по исходникам | ADR-003 |
-| 7 | C — сравнить локальные и облачные embeddings | ADR-003 |
-| 8 | B — Tree-sitter / ast-grep для AST | ADR-004 |
+| 1 | C — independent core; Codex first | ADR-001 |
+| 2 | B — hybrid: code intelligence locally, documentation in the cloud | ADR-001, ADR-003 |
+| 3 | B — one unified retired optional tool-call protocol; retain the option to study deeper integration C | ADR-001 |
+| 4 | Jev as a candidate Strategy Selector; compare it with rules, decision still open | ADR-002 |
+| 5 | A — Vertex AI RAG Engine for documentation | ADR-003 |
+| 6 | A — Qdrant for local source-code RAG | ADR-003 |
+| 7 | C — compare local and cloud embeddings | ADR-003 |
+| 8 | B — Tree-sitter / ast-grep for AST | ADR-004 |
 | 9 | D — benchmark Serena vs TypeScript Language Service | ADR-004 |
-| 10 | C — AST/LSP сначала; дополнительный граф при подтверждённой пользе | ADR-004 |
+| 10 | C — AST/LSP first; add a graph only if its benefit is demonstrated | ADR-004 |
 | 11 | B — incremental indexing + working-tree overlay | ADR-004 |
-| 12 | D — ступенчатый AST/LSP → data-flow/CFG → runtime/tests при необходимости | ADR-004 |
-| 13 | D, уточнение — immutable archive + **Graphiti** (не Mem0 как обязательный компонент) | ADR-005 |
-| 14 | C — архив автоматически, извлечённые факты; критические решения подтверждаются | ADR-005 |
-| 15 | C — расширяемый импорт, первый Codex | ADR-005 |
-| 16 | B — структурированный Context Bundle + progressive disclosure | ADR-006 |
-| 17 | D — relevance-first, **без фиксированного token cap**; длинный созданный агентом код не обрезать | ADR-006 |
-| 18 | B — fallback к стандартным инструментам Codex при технических сбоях; auth/security fail-closed и журналирование | ADR-007 |
-| 19 | B — код локально по умолчанию; облачные embeddings строго opt-in | ADR-007 |
-| 20 | E — уже установленный локальный Kubernetes; модульный монолит; без искусственных микросервисов | ADR-008 |
-| 21 | Пока только учёт токенов и обязательные security/failure logs; остальная observability отдельно | ADR-009, ADR-010 |
-| 22 | D — baseline + Serena на раннем этапе, Augment и графовые системы в итоговом сравнении | ADR-009 |
-| 23 | **Harbor** как выбранный framework; token usage из Codex, benchmarks с качественным gating | ADR-009 |
-| 24 | Cursor-like **hybrid context architecture principles**, но собственные maintained компоненты; универсальная retired optional tool-call protocol-граница; Qdrant остаётся local code store | ADR-014 |
-| 25 | Для текущего Harbor feedback loop primary agent меняется с Codex на **Hermes**; GPT остаётся через ChatGPT/Codex OAuth (`openai-codex`), ACE подключается как native Hermes retired optional tool-call protocol; Codex остаётся comparison client | ADR-015 |
-| 26 | Event Storming + functional DDD как default modeling style; TypeSpec как source language для new/migrated public machine contracts | ADR-019 |
+| 12 | D — staged AST/LSP → data-flow/CFG → runtime/tests when needed | ADR-004 |
+| 13 | D, clarification — immutable archive + **Graphiti** (Mem0 is not a mandatory component) | ADR-005 |
+| 14 | C — automatic archival and extracted facts; critical decisions require confirmation | ADR-005 |
+| 15 | C — extensible imports, Codex first | ADR-005 |
+| 16 | B — structured Context Bundle + progressive disclosure | ADR-006 |
+| 17 | D — relevance-first, **no fixed token cap**; do not truncate long agent-generated code | ADR-006 |
+| 18 | B — fallback to standard Codex tools on technical failures; fail closed on authentication/security and retain audit logs | ADR-007 |
+| 19 | B — code stays local by default; cloud embeddings strictly opt-in | ADR-007 |
+| 20 | E — existing local Kubernetes; modular monolith; no artificial microservices | ADR-008 |
+| 21 | For now, only token accounting and mandatory security/failure logs; other observability separately | ADR-009, ADR-010 |
+| 22 | D — baseline + Serena initially, Augment and graph systems in the final comparison | ADR-009 |
+| 23 | **Harbor** as the selected framework; token usage from Codex, benchmarks with quality gating | ADR-009 |
+| 24 | Cursor-like **hybrid context architecture principles**, but independently selected maintained components; universal retired optional tool-call protocol boundary; Qdrant remains the local code store | ADR-014 |
+| 25 | For the current Harbor feedback loop, the primary agent changes from Codex to **Hermes**; GPT remains accessed through ChatGPT/Codex OAuth (`openai-codex`), ACE connects as native Hermes retired optional tool-call protocol, and Codex remains a comparison client | ADR-015 |
+| 26 | Event Storming + functional DDD as the default modeling style; TypeSpec as the source language for new/migrated public machine contracts | ADR-019 |
 
-## Открытые исследования (не путать с несогласованными требованиями)
+## Open research (not to be confused with unapproved requirements)
 
-- **Jev**: выигрывает ли у rule-based routing по end-to-end метрикам?
-- **LSP**: Serena или прямой TypeScript Language Service, с учётом latency/полноты/лицензии?
-- **Embeddings**: какой локальный/облачный вариант даёт лучший retrieval и полную стоимость?
-- **Code Graph**: когда дополнительный движок окупает свои расходы?
-- **Context optimisation**: достаточно ли relevance-first или адаптивная стратегия даёт дополнительный выигрыш без потери фактов?
-- **Harbor**: конкретные dataset adapters, совместимость версий Codex и сбор полных затрат требуют технического spike.
+- **Jev**: Does it outperform rule-based routing on end-to-end metrics?
+- **LSP**: Serena or direct TypeScript Language Service, considering latency, completeness, and licensing?
+- **Embeddings**: Which local/cloud option provides the best retrieval quality and total cost?
+- **Code Graph**: At what point does an additional engine justify its cost?
+- **Context optimisation**: Is relevance-first sufficient, or does an adaptive strategy deliver additional improvement without losing facts?
+- **Harbor**: The precise dataset adapters, Codex version compatibility, and complete cost accounting require a technical spike.
 
-## Отложено
+## Deferred
 
-Полная observability (OTel, Prometheus/Grafana, Langfuse и т. п.), широкая multi-agent поддержка, enterprise AIOps и подробный Kubernetes topology design. Отложено **не означает запрещено**.
+Full observability (OTel, Prometheus/Grafana, Langfuse, etc.), broad multi-agent support, enterprise AIOps, and detailed Kubernetes topology design. **Deferred does not mean prohibited.**
 
 ## Owner clarification — 2026-10-19 (after PR #2)
 
@@ -69,18 +69,18 @@
 
 ## Owner clarification — 2026-10-21: Hybrid Context Engine
 
-- **ADR-014 Accepted.** ACE строится как agent-neutral многоуровневый Context Engine через retired optional tool-call protocol: structural chunks + dense semantic + sparse lexical + optional reranking + LSP enrichment + working-state priors + docs + temporal memory + progressive/delta delivery.
-- Мы **не копируем private implementation Cursor**. Берём архитектурные принципы, а maintained компоненты выбираем свои.
-- **Qdrant retained.** Turbopuffer не выбран для текущего local-first developer runtime; пересмотр только при измеренном cloud/multi-tenant scale bottleneck.
-- После PR #94 de-bespoke migration structural/Qdrant/LSP в основном выполнена; следующий retrieval gap — hybrid sparse/BM25 + fusion, reranking, working-state context и repeated-context suppression.
+- **ADR-014 Accepted.** ACE is designed as an agent-neutral multi-layer Context Engine through the retired optional tool-call protocol: structural chunks + dense semantic + sparse lexical + optional reranking + LSP enrichment + working-state priors + docs + temporal memory + progressive/delta delivery.
+- We **do not copy Cursor's private implementation**. We adopt its architectural principles while selecting our own maintained components.
+- **Qdrant retained.** Turbopuffer was not selected for the current local-first developer runtime; reconsider only if a cloud/multi-tenant scale bottleneck is measured.
+- After PR #94, the de-bespoke structural/Qdrant/LSP migration was substantially completed; the next retrieval gap was hybrid sparse/BM25 + fusion, reranking, working-state context, and repeated-context suppression.
 
 
 ## Owner clarification — 2026-10-23: Hermes primary feedback agent
 
-- **ADR-015 Accepted.** Для текущих парных Harbor-прогонов primary agent — Hermes, а не Codex.
-- Модель/подписка не меняются автоматически вместе с harness: GPT подключается через Hermes provider `openai-codex` с Hermes-owned OAuth store `~/.hermes/auth.json` (либо явно заданным `HERMES_HOME` / `HERMES_AUTH_JSON_PATH`); `~/.codex/auth.json` не переиспользуется, отдельный OpenAI/OpenRouter API key не является требованием этого маршрута.
-- ACE остаётся agent-neutral retired optional tool-call protocol-сервисом. В ACE-optional arm Hermes получает `ace_context`/`ace_expand` через native retired optional tool-call protocol registration; baseline arm не получает ACE.
-- Исторические Codex benchmark artifacts остаются историческими Codex artifacts и не используются как доказательство Hermes E2E.
+- **ADR-015 Accepted.** For the current paired Harbor trials, the primary agent is Hermes rather than Codex.
+- The model/subscription does not change automatically with the harness: GPT is accessed via Hermes provider `openai-codex` using Hermes-owned OAuth store `~/.hermes/auth.json` (or explicitly configured `HERMES_HOME` / `HERMES_AUTH_JSON_PATH`); `~/.codex/auth.json` is not reused, and a separate model-provider API key is not required for this route.
+- ACE remains an agent-neutral retired optional tool-call protocol service. On the ACE-optional arm Hermes receives `ace_context`/`ace_expand` via native retired optional tool-call protocol registration; the baseline arm does not receive ACE.
+- Historical Codex benchmark artifacts remain historical Codex artifacts and are not evidence of Hermes E2E.
 
 
 ## Owner clarification — 2026-10-24: Bifrost and retired optional tool-call protocol roles

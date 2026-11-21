@@ -59,6 +59,8 @@ def main() -> int:
         try:
             request = json.loads(line)
             request_id = request["id"]
+            if isinstance(request_id, bool) or not isinstance(request_id, int) or request_id < 1:
+                raise ValueError("id must be a positive integer")
             texts = request["texts"]
             if not isinstance(texts, list) or not texts or not all(isinstance(text, str) and text.strip() for text in texts):
                 raise ValueError("texts must be a non-empty list of non-empty strings")
