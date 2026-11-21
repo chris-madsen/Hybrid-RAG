@@ -31,8 +31,33 @@ case "$version" in
 esac
 if [[ "$OUTPUT" = /* ]]; then output_path="$OUTPUT"; else output_path="$(pwd)/$OUTPUT"; fi
 mkdir -p "$(dirname "$output_path")"
-# -mod=readonly is non-negotiable: no silent dependency updates or local
-# checksum creation. The missing sum must be fixed in upstream source first.
-(cd "$root/transports" && GOWORK=off "$GO_BIN" build -mod=readonly -o "$output_path" ./bifrost-http)
+# The pinned source ships UI sources, not prebuilt embedded assets.
+# This follows the upstream ui/package.json build and copy-build contract.
+(cd "$root/ui" && npm ci --no-audit --no-fund && npm run build)
+test -s "$root/transports/bifrost-http/ui/index.html" || {
+  echo 'Real UI output is required for the embedded HTTP server' >&2
+  exit 2
+}
+
+# The pinned Bifröst checkout is a multi-module Go repository. Its published
+# versions predate packages in core/streamusage and the routing plugin. The
+# official LOCAL build uses a Go workspace with these packages.
+# Generate that workspace OUTSIDE the checkout; never sync or tidy pinned mods.
+workspace_dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ace-bifrost-work.XXXXXX")
+trap 'rm -rf "$workspace_dir"' EXIT
+modules=("$root/core" "$root/framework" "$root/transports")
+for plugin in "$root"/plugins/*; do
+  if [[ -f "$plugin/go.mod" ]]; then modules+=("$plugin"); fi
+done
+(cd "$workspace_dir" && GOWORK=off "$GO_BIN" work init "${modules[@]}")
+# -mod=readonly enforces the pinned versions; workspace sums, if needed,
+# remain inside a disposable directory.
+(cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" build \
+  -mod=readonly -tags sqlite_static -o "$output_path" ./bifrost-http)
+test -s "$output_path"
+if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
+  echo 'Bifröst build modified tracked source files; refusing artifact' >&2
+  exit 2
+fi
 printf 'bifrost=%s\n' "$actual"
 sha256sum "$output_path"
