@@ -130,6 +130,7 @@ for name in (
 class HermesOptions:
     pass
 
+install_state = {"installed": False, "version_probes": 0, "upstream_install": 0}
 class Hermes:
     @classmethod
     def preflight(cls, kwargs=None, env=None):
@@ -137,6 +138,21 @@ class Hermes:
 
     def __init__(self, *args, **kwargs):
         pass
+
+    async def install(self, environment):
+        install_state["upstream_install"] += 1
+        install_state["installed"] = True
+        # Harbor 0.24.0 has installed the CLI, but its final
+        # `hermes version` probe fails despite a valid `--version`.
+        raise base.NonZeroAgentExitCodeError("unsupported version subcommand")
+
+    async def exec_as_agent(self, environment, command, timeout_sec=None):
+        assert "hermes pm repair" not in command
+        assert "hermes --version" in command
+        install_state["version_probes"] += 1
+        if not install_state["installed"]:
+            raise base.NonZeroAgentExitCodeError("Hermes not installed yet")
+        return None
 
 base = types.ModuleType("harbor.agents.installed.base")
 base.NonZeroAgentExitCodeError = type("NonZeroAgentExitCodeError", (Exception,), {})
@@ -181,6 +197,14 @@ except ValueError:
     pass
 else:
     raise AssertionError("a trailing-dot direct provider host bypassed the denylist")
+
+# Probe the actual subclass's install implementation without invoking
+# the network or relying on a globally installed Harbor package.
+import asyncio
+agent = module.HermesCodexOAuth()
+asyncio.run(agent.install(None))
+assert install_state["upstream_install"] == 1
+assert install_state["version_probes"] == 2
 `;
   const run = spawnSync('python3', ['-c', script, 'scripts/harbor_hermes_codex_oauth.py'], {
     cwd: resolve('.'),
