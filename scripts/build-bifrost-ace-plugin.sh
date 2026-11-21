@@ -49,5 +49,5 @@ else
   output_path="$repo_root/$OUTPUT"
 fi
 mkdir -p "$(dirname "$output_path")"
-(cd "$build_root" && "$GO_BIN" mod tidy && "$GO_BIN" test -tags=bifrost_plugin -count=1 . && "$GO_BIN" build -tags=bifrost_plugin -buildmode=plugin -ldflags "-X main.aceSourceCommit=$ace_commit" -o "$output_path" .)
+(cd "$build_root" && "$GO_BIN" mod tidy && "$GO_BIN" test -tags=bifrost_plugin -count=1 . && "$GO_BIN" build -tags=bifrost_plugin -buildmode=plugin -ldflags "-X main.aceSourceCommit=$ace_commit -X main.aceBifrostCommit=$actual" -o "$output_path" .)
 sha256sum "$output_path"

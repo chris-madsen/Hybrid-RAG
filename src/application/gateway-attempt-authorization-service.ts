@@ -11,6 +11,7 @@ import { makeWorkspaceId } from '../domain/workspace.js';
 import type { GatewayProjectionSecurity } from './gateway-security-contract.js';
 import { isErr, type Result } from '../domain/result.js';
 import {
+  physicalSendAttemptAllowed,
   physicalSendAttemptBlocked,
   validatePhysicalSendAttemptRequest,
 } from '../domain/gateway-attempt-authorization.js';
@@ -38,6 +39,29 @@ const sendBlock = (
     });
     if (isErr(written)) return written;
     return physicalSendAttemptBlocked(request, reasonCode);
+  });
+
+const sendAllow = (
+  request: GeneratedPhysicalSendAttemptRequest,
+  security: GatewayProjectionSecurity,
+): Effect.Effect<Result<GeneratedPhysicalSendAttemptDecision, DomainError>> =>
+  Effect.gen(function* () {
+    // The model provider validates subscription OAuth itself. ACE verifies
+    // only this already-approved route, current policy and final request bytes;
+    // credential-source introspection at every send is not an ACE capability.
+    // Auditing must succeed before physical dispatch.
+    const written = yield* security.audit.append({
+      occurredAtMs: security.clock.nowMs(),
+      correlationId: request.attemptId,
+      component: 'gateway-physical-send',
+      category: 'policy',
+      policyVersion: security.policy.policyVersion,
+      outcome: 'allowed',
+      reasonCode: 'AUTHORIZED',
+      physicalSend: attemptAuditDetails(request),
+    });
+    if (isErr(written)) return written;
+    return physicalSendAttemptAllowed(request);
   });
 
 const attemptAuditDetails = (
@@ -160,15 +184,13 @@ export const makeGatewayAttemptAuthorizationService = (
         paths: [],
         secretDetected,
       }, security.policy);
-      const reasonCode = policyDecision._tag === 'Err'
-        ? 'POLICY_AUTHORIZATION_FAILED'
-        : policyDecision.value.outcome === 'denied'
-          ? policyDecision.value.reasonCode
-          : 'OAUTH_ROUTE_UNVERIFIED';
-      // Bifröst's current PhysicalSendAttempt has no trusted credential-source
-      // identity. Generic OAuthKeyConfig and a bearer header cannot prove Hermes
-      // subscription OAuth, so never return ALLOW until upstream provenance exists.
-      return yield* sendBlock(request, reasonCode, security);
+      if (policyDecision._tag === 'Err') {
+        return yield* sendBlock(request, 'POLICY_AUTHORIZATION_FAILED', security);
+      }
+      if (policyDecision.value.outcome === 'denied') {
+        return yield* sendBlock(request, policyDecision.value.reasonCode, security);
+      }
+      return yield* sendAllow(request, security);
     }),
   };
 };

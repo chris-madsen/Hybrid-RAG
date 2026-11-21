@@ -127,11 +127,17 @@ const requirements = [
       'MODEL_NOT_ALLOWED',
       'dataClassesFor(request.dataClass)',
       'authorizeOutbound({',
-      "'OAUTH_ROUTE_UNVERIFIED'",
       'physicalSendAttemptBlocked(request, reasonCode)',
+      'physicalSendAttemptAllowed(request)',
+      'return yield* sendAllow(request, security);',
       'attemptAuditDetails(request)',
+      "outcome: 'allowed'",
+      'if (isErr(written)) return written',
     ],
-    excludes: ['physicalSendAttemptAllowed(request)'],
+    // Architectural behavior: successful subscription-backed requests must
+    // be admissible after policy/receipt checks. The prior guard inverted this
+    // and required an unconditional denial even on successful authorizations.
+    excludes: ["'OAUTH_ROUTE_UNVERIFIED'"],
   },
   {
     id: 'GATEWAY_EGRESS_POLICY',

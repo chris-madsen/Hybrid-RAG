@@ -21,6 +21,10 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(script, /test -tags=bifrost_plugin -count=1/u);
   assert.match(script, /-buildmode=plugin/u);
   assert.match(script, /-X main\.aceSourceCommit=\$ace_commit/u);
+  assert.match(script, /-X main\.aceBifrostCommit=\$actual/u);
+  assert.match(plugin, /ACE Bifröst source commit provenance is unavailable/u);
+  assert.match(plugin, /aceSourceCommit \+ ":" \+ aceBifrostCommit/u);
+  assert.doesNotMatch(plugin, /pinnedBifrostCommit/u);
   assert.match(plugin, /ACE plugin source commit provenance is unavailable/u);
   assert.match(plugin, /ace-bifrost-plugin:" \+ aceSourceCommit/u);
   assert.match(plugin, /func HTTPTransportPreHook\(/u);

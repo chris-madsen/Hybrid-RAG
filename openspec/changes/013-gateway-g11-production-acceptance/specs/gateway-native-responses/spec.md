@@ -40,10 +40,13 @@ ACE SHALL authorize every final physical outbound provider attempt independently
 - **THEN** every actual physical provider-bound send has a fresh single-use ACE decision bound to final exact bytes, provider/model/destination, source policy and audit identity
 - **AND** an outer HTTP/PreLLM hook, a prior receipt or an unverified internal retry never grants send permission.
 
-#### Scenario: RESP-006 — OAuth, privacy and exact model invariants
-- **WHEN** the configured Hermes OAuth/native Responses route is selected for private or project source
-- **THEN** verify exact provider/model/reasoning, effective token counter/window, caller authorization and `store:false` on the actual final wire even across raw-body rewrites
-- **AND** fail closed on unsupported subscription routing, hidden continuation, secret content, unapproved destination or incomplete privacy evidence.
+#### Scenario: RESP-006 — Subscription-native provider authentication and exact model/privacy invariants (owner correction, 2026-11-21)
+- **WHEN** Hermes is configured to use the single approved ChatGPT/Codex subscription OAuth route
+- **THEN** the model provider authenticates the bearer and controls subscription entitlement; ACE SHALL NOT repeat provider OAuth validation, require an otherwise unavailable per-attempt credential-source attestation, or replace the bearer with an API key
+- **AND** Bifröst MUST forward the caller's subscription bearer only through a documented supported ChatGPT Codex backend route, not silently to an API-key Responses endpoint; exact allowed provider/model/destination and `store:false` remain verified on the physical attempt
+- **AND** preserve native Responses input, requested reasoning effort and all protected payload semantics; let provider-reported context/usage remain UNKNOWN when unavailable (no invented token ceiling)
+- **AND** reject changed provider/model/destination, a destination outside the single configured subscription route, hidden continuation, detected secrets or insufficient data-class permission; an upstream 401/403 is a provider error, not a reason for API-key fallback
+- **AND** a local ACE `ALLOW` decision and deterministic tests are only evidence of admission logic, not proof that the pinned Bifröst binary supports subscription passthrough or that a real provider response was received.
 
 ### Requirement: Acceptance requires full agent evidence and quality
 

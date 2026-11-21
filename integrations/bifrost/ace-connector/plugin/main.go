@@ -24,7 +24,6 @@ const (
 	workspaceKey               schemas.BifrostContextKey = "ace.workspace_id"
 	physicalRequestIDKey       schemas.BifrostContextKey = "ace.projection.physical_request_id"
 	sessionCorrelationKey      schemas.BifrostContextKey = "ace.projection.session_correlation"
-	pinnedBifrostCommit                                  = "fe7634a6c828927d05ffdd57c62be0aaab04193f"
 	physicalSendMaxHeaderBytes                           = 64 * 1024
 )
 
@@ -48,12 +47,17 @@ type projectionBinding struct {
 	deadlineEpochMs            int64
 }
 
-// Set only by scripts/build-bifrost-ace-plugin.sh from the exact clean ACE checkout.
+// Injected by scripts/build-bifrost-ace-plugin.sh after verifying BOTH source trees.
+// The Bifröst commit must never be duplicated as a hand-maintained source constant.
 var aceSourceCommit = "unknown"
+var aceBifrostCommit = "unknown"
 
 func Init(config any) error {
 	if len(aceSourceCommit) != 40 || strings.Trim(aceSourceCommit, "0123456789abcdef") != "" {
 		return errors.New("ACE plugin source commit provenance is unavailable")
+	}
+	if len(aceBifrostCommit) != 40 || strings.Trim(aceBifrostCommit, "0123456789abcdef") != "" {
+		return errors.New("ACE Bifröst source commit provenance is unavailable")
 	}
 	endpoint := os.Getenv("ACE_GATEWAY_RESPONSES_URL")
 	if values, ok := config.(map[string]any); ok {
@@ -162,7 +166,7 @@ func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string
 	// request/session context is populated only later by ConvertToBifrostContext.
 	// The coding-harness session value remains correlation, not authentication.
 	attestationValue := map[string]any{
-		"hostBuildDigest":                    sha256Hex([]byte("ace-bifrost-plugin:" + aceSourceCommit + ":" + pinnedBifrostCommit)),
+		"hostBuildDigest":                    sha256Hex([]byte("ace-bifrost-plugin:" + aceSourceCommit + ":" + aceBifrostCommit)),
 		"sessionId":                          sessionID,
 		"activeEngineId":                     "bifrost-visible-request-only",
 		"effectiveCompressionControlsDigest": sha256Hex([]byte("host-compression-controls:unattested")),

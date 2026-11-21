@@ -21,6 +21,15 @@ const nonempty = (value: unknown): value is string =>
 const rejected = (field: string, reason: string): Result<never, DomainError> =>
   err(domainError('INVALID_INPUT', field, reason));
 
+// Native Responses provider targets have two maintained wire paths:
+// OpenAI-compatible /v1/responses and the official ChatGPT subscription Codex
+// backend. Credential checks remain the provider's responsibility; ACE's
+// separately configured exact destination allowlist decides admissibility.
+export const isNativeResponsesDestinationPath = (parsed: URL): boolean =>
+  parsed.pathname.replace(/\/+$/u, '').endsWith('/v1/responses')
+  || (parsed.origin === 'https://chatgpt.com'
+    && parsed.pathname === '/backend-api/codex/responses');
+
 export const validatePhysicalSendAttemptRequest = (
   value: unknown,
 ): Result<PhysicalSendAttemptRequest, DomainError> => {
@@ -63,8 +72,8 @@ export const validatePhysicalSendAttemptRequest = (
     || parsed.search !== '' || parsed.hash !== '' || parsed.pathname === '') {
     return rejected('destination', 'only credential-free HTTPS destination paths are supported');
   }
-  if (!parsed.pathname.replace(/\/+$/u, '').endsWith('/v1/responses')) {
-    return rejected('destination', 'only provider-native Responses endpoints are supported');
+  if (!isNativeResponsesDestinationPath(parsed)) {
+    return rejected('destination', 'only native Responses or ChatGPT Codex subscription endpoints are supported');
   }
   if (!/^https:\/\//u.test(destination) || parsed.toString().replace(/\/$/u, '') !== destination.replace(/\/$/u, '')) {
     return rejected('destination', 'provider destination must use canonical URL spelling');
