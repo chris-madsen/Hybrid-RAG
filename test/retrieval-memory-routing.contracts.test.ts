@@ -386,12 +386,13 @@ test('EXT-02 Vertex and Graphiti boundaries deny before HTTP without policy/toke
   assert.equal(requests, 0);
   const successHttp: HttpPort = {
     request: (request) => Effect.succeed(ok(request.method === 'POST'
-      ? { status: 200, body: { documents: [{ evidence_id: 'doc-1', citation: 'ADR-003#decision', content: 'Use local-first retrieval.' }] } }
+      ? { status: 200, body: { documents: [{ evidence_id: 'doc-1', citation: 'ADR-003#decision', content: 'Use local-first retrieval.\n' }] } }
       : { status: 204, body: {} })),
   };
   const vertex = makeVertexDocumentationPort({ endpoint: 'https://vertex.invalid', http: successHttp, policy: allowedPolicy, accessToken: () => 'token' });
   const documents = mustOk(await Effect.runPromise(vertex.search({ workspaceId, query: 'retrieval rationale', topK: 2 })));
   assert.equal(documents[0]?.citation, 'ADR-003#decision');
+  assert.equal(documents[0]?.content, 'Use local-first retrieval.\n');
   const projected = makeGraphitiProjectionPort({ endpoint: 'https://graphiti.invalid', http: successHttp, policy: allowedPolicy, workspaceId, accessToken: () => 'token' });
   const receipt = mustOk(await Effect.runPromise(projected.project({ episodeId, occurredAtMs: 1_700_000_000_000, extractorVersion: 'extractor-1', claims: [{ subject: 'index', predicate: 'uses', object: 'local' }] })));
   assert.equal(receipt.status, 'projected');

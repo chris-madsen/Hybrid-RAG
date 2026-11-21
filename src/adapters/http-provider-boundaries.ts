@@ -40,6 +40,11 @@ const stringField = (value: Record<string, unknown>, key: string): Result<string
     ? ok(value[key].trim())
     : err(domainError('INVALID_EXTERNAL_RESPONSE', key, `external response field ${key} is required`));
 
+const contentField = (value: Record<string, unknown>, key: string): Result<string, DomainError> =>
+  typeof value[key] === 'string' && value[key].trim().length > 0
+    ? ok(value[key])
+    : err(domainError('INVALID_EXTERNAL_RESPONSE', key, `external response field ${key} is required`));
+
 const integerField = (value: Record<string, unknown>, key: string): Result<number, DomainError> =>
   typeof value[key] === 'number' && Number.isSafeInteger(value[key]) && value[key] >= 1
     ? ok(value[key])
@@ -86,7 +91,7 @@ const candidateFromPayload = (point: Record<string, unknown>, workspaceId: Works
   const id = stringField(payload, 'candidate_id');
   const repoPath = stringField(payload, 'repo_path');
   const digest = stringField(payload, 'source_digest');
-  const text = stringField(payload, 'text');
+  const text = contentField(payload, 'text');
   const claimedWorkspace = stringField(payload, 'workspace_id');
   const startLine = integerField(payload, 'start_line');
   const endLine = integerField(payload, 'end_line');
@@ -417,7 +422,7 @@ export const makeVertexDocumentationPort = (config: VertexConfig): Documentation
       const document = object(raw);
       if (document === undefined) return err(domainError('INVALID_EXTERNAL_RESPONSE', 'documents', 'Vertex document must be an object'));
       const citation = stringField(document, 'citation');
-      const content = stringField(document, 'content');
+      const content = contentField(document, 'content');
       if (citation._tag === 'Err') return citation;
       if (content._tag === 'Err') return content;
       const evidenceId = stringField(document, 'evidence_id');
