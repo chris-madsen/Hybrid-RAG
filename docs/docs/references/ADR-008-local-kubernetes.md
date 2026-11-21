@@ -1,51 +1,51 @@
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
-# ADR-008 — Локальный Kubernetes и модульный монолит вместо зоопарка микросервисов
+# ADR-008 — Local Kubernetes and a modular monolith instead of unnecessary microservices
 
-**Статус:** **Accepted (deployment constraints)**  
-**Вопрос:** 20E — явное уточнение владельца  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** **Accepted (deployment constraints)**  
+**Decision item:** 20E — explicit owner clarification  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and owner decisions of 2026-10-17.  
+**Status definitions:** `Accepted` — approved; `Proposed` — requires a spike or validation; `Deferred` — deliberately postponed.
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records the decision, alternatives, rationale, and reconsideration criteria. Concrete classes, database schemas, API contracts, Kubernetes manifests, and topology belong in subsequent Architecture Design.
 
-## Контекст
+## Context
 
-У владельца **уже установлен локальный Kubernetes**. Харнесс преимущественно служит одному пользователю и текущим проектам; разносить каждую внутреннюю функцию по микросервисам без эксплуатационной причины не требуется. Нужна возможность воспроизводимого размещения и экономной локальной работы.
+The project owner **already runs a local Kubernetes cluster**. The harness mainly serves one user and their current projects. Splitting every internal capability into separate microservices is not justified without an operational need. Deployment should be reproducible and economical on local hardware.
 
-## Решение
+## Decision
 
-1. Развёртывать харнесс **в существующем локальном Kubernetes** (не требовать нового кластера).
-2. Собственный Unified retired optional tool-call protocol Harness реализовать как **модульный монолит**: внутренние модули routing, code retrieval, AST/LSP, docs adapter, memory adapter, Context Builder, usage collector — **не отдельные микросервисы по умолчанию**.
-3. Qdrant и необходимый для Graphiti графовый backend допускаются как **отдельные stateful зависимости**, только если их нельзя разумно встроить в процесс. Vertex AI — внешний managed service.
-4. Исследовать практический доступ индексатора к рабочей директории Codex, незакоммиченным изменениям и локальным файловым событиям. **Не утверждать** преждевременно PVC/PV mount topology, CSI, hostPath или sidecar-паттерн.
-5. Не выносить сервис в облачный Kubernetes и не включать autoscaling/distributed queues на первой стадии без нагрузки, оправдывающей это.
-6. Харнесс должен выдерживать перезапуски, корректно переподключаться и не терять долговременные знания/индексы без явного операционного решения.
+1. Deploy the harness to **the existing local Kubernetes cluster**; do not require a new cluster.
+2. Build the historical Unified optional tool-call Harness as a **modular monolith**. Routing, code retrieval, AST/LSP, documentation and memory adapters, Context Builder, and usage collection are internal modules, **not standalone microservices by default**.
+3. Allow Qdrant and the graph backend used by Graphiti to run as **separate stateful dependencies** when running in-process is not practical. Vertex AI is an external managed service.
+4. Investigate how the indexer accesses the Codex workspace, uncommitted changes and local filesystem events. **Do not prematurely mandate** PVC/PV topology, CSI, hostPath mounts or sidecars.
+5. Do not introduce cloud Kubernetes, autoscaling or distributed queues in the initial phase without a workload that justifies them.
+6. Support restarts and reconnection without losing long-term knowledge or indexes unless an explicit operating policy allows deletion.
 
-## Альтернативы
+## Alternatives
 
-- Docker Compose — проще для первого запуска, но владелец выбрал уже имеющийся Kubernetes.
-- Множество специализированных микросервисов — не имеет обоснования в начальной нагрузке.
-- Все функции в одном процессе, включая Qdrant/Graphiti storage — невозможно/непрактично для некоторых готовых компонентов.
+- Docker Compose: simpler for the first deployment, but the owner chose an existing Kubernetes cluster.
+- Multiple specialized microservices: unjustified at the initial scale.
+- A single process for all components, including Qdrant/Graphiti storage: impractical or impossible for some established dependencies.
 
-## Критерии проверки
+## Verification criteria
 
-- Все необходимые процессы работают на существующем Kubernetes без обязательной внешней multi-node инфраструктуры.
-- Количество Deployments/StatefulSets минимально и объяснимо зависимостями, а не доменными названиями.
-- Доступ к актуальному working tree тестируется после изменений Codex; запрещены небезопасные mount permissions.
-- Воспроизводимая конфигурация и восстановление индексов/архива после pod restart.
+- Required processes run on the existing cluster without mandatory external multi-node infrastructure.
+- The number of Deployments and StatefulSets is minimal and justified by actual dependencies, not domain labels.
+- Access to the current working tree is tested after Codex changes; unsafe mount permissions are prohibited.
+- Configuration is reproducible and the archive/indexes recover after a pod restart.
 
-## Примечание о Harbor
+## Harbor note
 
-**Harbor — инструмент запуска изолированных бенчмарков**, а не обязательный production-сервис Kubernetes. Его локальный путь обычно использует Docker-based environments. Не обещать работу Harbor «внутри K8s из коробки» без отдельной проверки совместимого environment provider. Evaluation deployment будет проектироваться отдельно от рабочего retired optional tool-call protocol Harness (ADR-009).
+**Harbor is an isolated benchmark runner**, not a required production Kubernetes service. Its local execution usually relies on Docker environments. Do not claim that Harbor works inside K8s out of the box without confirming a supported environment provider. Evaluation deployment is separate from the historical production harness (ADR-009).
 
-## Пересмотр
+## Reconsideration
 
-Только при измеренных требованиях к масштабированию, изоляции, отказоустойчивости или издержках текущей конфигурации.
+Revisit only if measurable requirements for scale, isolation, reliability or operating cost justify a different deployment.
 
-## Ссылки
+## References
 
 - https://github.com/harbor-framework/harbor
 - ADR-003, ADR-005, ADR-007, ADR-009
