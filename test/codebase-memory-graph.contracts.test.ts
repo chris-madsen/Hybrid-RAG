@@ -177,7 +177,8 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
       'native CBM must supply useful real ACE code candidates');
     assert.ok(built.value.index.candidates.some((item) =>
       item.repoPath === 'src/adapters/qdrant-context-provider.ts'));
-  }  } finally {
+  }
+  } finally {
     await provider.close();
   }
 });
