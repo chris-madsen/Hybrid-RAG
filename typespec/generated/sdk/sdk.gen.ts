@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { AuthorizePhysicalSendData, AuthorizePhysicalSendErrors, AuthorizePhysicalSendResponses, CapabilitiesData, CapabilitiesResponses, HealthData, HealthResponses, ProjectData, ProjectErrors, ProjectResponses, RecordDeliveryData, RecordDeliveryErrors } from './types.gen.js';
+import type { AuthorizePhysicalSendData, AuthorizePhysicalSendErrors, AuthorizePhysicalSendResponses, CapabilitiesData, CapabilitiesResponses, HealthData, HealthResponses, ProjectData, ProjectErrors, ProjectResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -39,5 +39,3 @@ export const project = <ThrowOnError extends boolean = false>(options: Options<P
         ...options.headers
     }
 });
-
-export const recordDelivery = <ThrowOnError extends boolean = false>(options?: Options<RecordDeliveryData, ThrowOnError>): RequestResult<unknown, RecordDeliveryErrors, ThrowOnError> => (options?.client ?? client).post<unknown, RecordDeliveryErrors, ThrowOnError>({ url: '/internal/ace-context/v3/record-delivery', ...options });

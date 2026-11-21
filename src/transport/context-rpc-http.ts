@@ -5,9 +5,8 @@ import type { ResponsesProjectionService } from '../application/responses-projec
 import type { GatewayAttemptAuthorizationService } from '../application/gateway-attempt-authorization-service.js';
 import { isIP } from 'node:net';
 import type {
-  GatewayHealth as GeneratedGatewayHealth,
-  GatewayCapabilities as GeneratedGatewayCapabilities,
-  DeliveryNotCertified as GeneratedDeliveryNotCertified,
+  ContextHealth as GeneratedContextHealth,
+  ContextCapabilities as GeneratedContextCapabilities,
 } from '../generated/ace-context/v3/types.gen.js';
 
 export interface ContextRpcHttpService {
@@ -53,13 +52,12 @@ const error = (statusCode: number, code: string, message: string): ContextRpcHtt
   body: { error: { code, message } },
 });
 
-type ContextRpcRouteId = 'health' | 'capabilities' | 'record-delivery' | 'project' | 'authorize-attempt' | 'not-found' | 'method-not-allowed';
+type ContextRpcRouteId = 'health' | 'capabilities' | 'project' | 'authorize-attempt' | 'not-found' | 'method-not-allowed';
 
 const contextRpcRouteId = (method: string, path: string): ContextRpcRouteId => {
   switch (`${method} ${path}`) {
     case 'GET /internal/ace-context/v3/health': return 'health';
     case 'GET /internal/ace-context/v3/capabilities': return 'capabilities';
-    case 'POST /internal/ace-context/v3/record-delivery': return 'record-delivery';
     case 'POST /internal/ace-context/v3/project': return 'project';
     case 'POST /internal/ace-context/v3/authorize-attempt': return 'authorize-attempt';
     default: return method === 'POST' ? 'not-found' : 'method-not-allowed';
@@ -67,14 +65,14 @@ const contextRpcRouteId = (method: string, path: string): ContextRpcRouteId => {
 };
 
 const healthRoute = async (): Promise<ContextRpcHttpResponse> => {
-  const wire: GeneratedGatewayHealth = {
+  const wire: GeneratedContextHealth = {
     schemaVersion, liveness: 'ready', readiness: 'adapter_implemented', providerWire: 'not_certified',
   };
   return json(wire as unknown as Readonly<Record<string, unknown>>);
 };
 
 const capabilitiesRoute = async (maxBodyBytes: number): Promise<ContextRpcHttpResponse> => {
-  const wire: GeneratedGatewayCapabilities = {
+  const wire: GeneratedContextCapabilities = {
     schemaVersion,
     // No provider generation route is advertised until final-wire certification.
     routes: [],
@@ -83,13 +81,6 @@ const capabilitiesRoute = async (maxBodyBytes: number): Promise<ContextRpcHttpRe
     providerWireCertification: 'not_certified',
   };
   return json(wire as unknown as Readonly<Record<string, unknown>>);
-};
-
-const recordDeliveryRoute = async (): Promise<ContextRpcHttpResponse> => {
-  const unavailable: GeneratedDeliveryNotCertified = {
-    error: { code: 'PROVIDER_WIRE_NOT_CERTIFIED', message: 'delivery recording requires a verified final-send integration' },
-  };
-  return error(501, unavailable.error.code, unavailable.error.message);
 };
 
 const projectRoute = async (
@@ -138,10 +129,9 @@ export const handleContextRpcHttp = (
   switch (contextRpcRouteId(method, path)) {
     case 'health': return healthRoute();
     case 'capabilities': return capabilitiesRoute(maxBodyBytes);
-    case 'record-delivery': return recordDeliveryRoute();
     case 'project': return projectRoute(service, body, signal);
     case 'authorize-attempt': return authorizeAttemptRoute(service, body, signal);
-    case 'method-not-allowed': return Promise.resolve(error(405, 'METHOD_NOT_ALLOWED', 'unsupported gateway method'));
+    case 'method-not-allowed': return Promise.resolve(error(405, 'METHOD_NOT_ALLOWED', 'unsupported ACE context RPC method'));
     case 'not-found': return Promise.resolve(error(404, 'NOT_FOUND', 'unknown ACE context RPC endpoint'));
   }
 };
@@ -202,10 +192,10 @@ export const createContextRpcServer = (
         response.off('close', abort);
       }
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'gateway request failed';
+      const message = cause instanceof Error ? cause.message : 'ACE context RPC request failed';
       if (!response.destroyed) {
         writeResponse(response, error(message === 'BODY_TOO_LARGE' ? 413 : 400, message,
-          message === 'BODY_TOO_LARGE' ? 'request body exceeds gateway bound' : 'request could not be read'));
+          message === 'BODY_TOO_LARGE' ? 'request body exceeds ACE context RPC bound' : 'request could not be read'));
       }
     }
   });
