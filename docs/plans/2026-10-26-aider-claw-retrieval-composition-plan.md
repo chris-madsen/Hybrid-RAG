@@ -1,3 +1,5 @@
+> **HISTORICAL / SUPERSEDED by PR #316:** This Aider/Claw/ast-grep composition is retained as dated planning evidence; it must not restore the removed runtime parser/RepoMap. Codebase Memory now owns native structural/graph/semantic/BM25 code intelligence, while Qdrant still runs as an overlapping code index pending A/B results. Agent-facing delivery is Bifröst Native Responses only. [Current runtime](../operations/current-architecture.md).
+
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
 # Plan: compose Aider RepoMap + ast-grep CST/AST + real LSP + Qdrant into a smaller ACE retrieval path

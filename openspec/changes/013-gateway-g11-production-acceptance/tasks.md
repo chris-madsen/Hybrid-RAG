@@ -19,6 +19,8 @@ Eight automatically chosen vertical implementation chunks, estimated **handwritt
 | C07 — Real Hermes long agent loop | C05, C06 | RESP-007, G11-013, G11-014, G11-015, G11-016 | 350 / 450 / 140 = **940** | A real Hermes coding session performs a multi-turn Responses reasoning/function-call/tool-result loop through pinned Bifröst and ACE with true source evidence and independently checked task outcome; bypass and hidden state are ineligible. |
 | C08 — Paired Harbor quality, cost and owner release | C07 | RESP-008, G11-017, G11-018, G11-019, G11-020 | 320 / 430 / 140 = **890** | Harbor can compare real native Responses Hermes baseline/ACE arms with identical model/effort/tools, exact usage provenance, full failure denominator and independent correctness; no unproved 5x or release claim. |
 
+**Documentation reconciliation (2026-11-21):** The phase checkboxes below track accepted verification, not merely code present in main. The source contains native Responses implementation candidates through C07, while real C05 final-wire acknowledgement, C06 stream wire, C07 live Hermes and C08 Harbor/5× economic proof remain unverified. Do not mark them `[x]` from an offline test or documentation edit. [Current runtime map](../../../docs/operations/current-architecture.md).
+
 ## Canonical phase tracker
 
 - [x] C01 — Merged by PR #282; C01 provider-wire certification and release acceptance remain open. The historical CodeQL failure at the #282 head was resolved by PR #283; see [C01](phases/C01.md).

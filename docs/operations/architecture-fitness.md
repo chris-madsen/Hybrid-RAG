@@ -1,57 +1,25 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+# ACE architecture fitness — installed SDLC rules
 
-# ACE architecture fitness pilot
+**Active tool role:** the pinned `@ast-grep/cli` is used for syntax-based **architecture lint**, not runtime code AST/graph/retrieval. Codebase Memory v0.12.1 is the production candidate's native structural/graph/search engine. See [current architecture](current-architecture.md).
 
-ACE uses the already pinned `@ast-grep/cli@0.51.0` for the first report-only architecture fitness checks.
-
-**Authority:** `docs/research/sdlc/source/standards/Architecture Layers.md`, root `AGENTS.md`, and the retired optional tool-call protocol/Gateway plane separation in ADR-014/ADR-017.
-
-## Commands
-
-Native rule tests:
+## Installed commands
 
 ```bash
 npm run test:arch-rules
-```
-
-Report-only production scan:
-
-```bash
 npm run check:arch
+npm run check:gateway-only
+npm run test:gateway-only-audit
 ```
 
-The rules remain `severity: warning`, so real findings are visible but do not block a PR during the pilot. Configuration/runtime failures still fail the command.
+The first two commands use native ast-grep syntax rules; the latter two are the separate Gateway-only contract/audit checks. A green syntax warning scan is not real provider-wire or Hermes acceptance.
 
-## Rules
+## Actual rule files in `architecture/rules/`
 
-- `ACE-ARCH-001 / ace-domain-no-adapter-import` — domain does not directly import or re-export concrete adapters.
-- `ACE-ARCH-002 / ace-retired-tool-protocol-transport-no-gateway-projection-import` — explicit retired optional tool-call protocol stdio transport does not import or re-export Gateway Projection implementation modules.
-- `ACE-ARCH-003 / ace-gateway-transport-no-retired-tool-protocol-import` — Gateway Projection HTTP transport does not import or re-export retired optional tool-call protocol SDK/framing modules.
-- `ACE-ARCH-007 / ace-domain-no-provider-io-import` — pure functional domain modules must not import Node filesystem, network or process-execution capabilities; keep provider I/O in adapters and application orchestration.
-- `ACE-ARCH-004 / ace-application-no-retired-tool-protocol-gateway-import` — application interfaces must not import the retired optional tool-call protocol-specific gateway implementation. Shared `ContextProvider` is owned by `src/application/ports.ts` (#237).
-- `ACE-ARCH-005 / ace-application-no-adapter-import` — Effect application code depends on inward ports, not concrete adapters. The historical `AsyncMemoryArchivePort` import was repaired in #237; initial rule stays report-only as required by QG2.
-- `ACE-ARCH-006 / ace-domain-no-application-import` — pure domain logic must not import application orchestration. It complements the existing domain→adapters rule.
+- `ace-domain-no-adapter-import.yml`
+- `ace-application-no-adapter-import.yml`
+- `ace-domain-no-application-import.yml`
+- `ace-domain-no-provider-io-import.yml`
 
+`check:arch` scans only these installed rules. `test:arch-rules` uses `architecture/sgconfig.yml` fixtures. Consult the configured rule severity before asserting a policy violation. Retired optional-tool transport rules ACE-ARCH-002/003/004 described in older pilots are **not installed** in the current active rule directory.
 
-Each native ast-grep rule test contains:
-- invalid code that must be reported;
-- valid code that must not be reported;
-- a string containing a suspicious import path to prove text alone is not a finding;
-- an `export ... from` crossing the same boundary, which must also be reported.
-
-## Why the pilot is narrow
-
-The pilot intentionally does not encode fuzzy architecture judgments such as business policy in controllers or provider failure semantics. Those require stronger semantic or design-level evidence than a simple syntax rule.
-
-It also does not add a broad application-to-adapter prohibition in this slice because current accepted code has explicit outward dependencies that need a separate owner-reviewed architecture cleanup rather than a surprise merge blocker.
-
-## Promotion
-
-Changing a rule from `warning` to blocking `error` requires:
-1. stable native valid/invalid/false-positive fixtures;
-2. production scan evidence;
-3. representative real-PR observation;
-4. repair or owner-approved treatment of existing debt;
-5. explicit owner approval of the blocking transition.
-
-This pilot does not change the SDLC or architecture authority.
+For new blocking rules require valid/invalid/false-positive fixtures, source observations and owner approval. Do not restore a second ast-grep runtime code parser just because SDLC lint uses the CLI.

@@ -1,5 +1,7 @@
 # Local ACE memory backup and restore
 
+**Scope warning (2026-11-21):** This is an **archive CLI/backup** procedure, not evidence that Graphiti memory works in the Gateway-native runtime. The current `src/bin/ace-runtime.ts` refuses `ACE_ENABLE_GRAPHITI=true`; full-unified production remains blocked pending a native Gateway memory adapter and real lifecycle acceptance. See [current architecture](current-architecture.md).
+
 This procedure covers only ACE-owned local memory source truth:
 
 - immutable session archive metadata/content blobs;

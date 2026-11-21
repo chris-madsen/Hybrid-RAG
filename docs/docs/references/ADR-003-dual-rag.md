@@ -1,3 +1,5 @@
+> **Implementation note (2026-11-21):** The original accepted distinction **Vertex AI RAG for project documents** versus **local code intelligence** still holds. Its Qdrant choice predates PR #316, which installed Codebase Memory native AST, graph and semantic/BM25 discovery. The runtime *currently* still composes Qdrant for an overlapping code search, but whether to retain it is pending an owner-requested matched CBM-only vs CBM+Qdrant benchmark. Never repurpose Qdrant for documentation or temporal memory to justify it. The original decision below remains historical; see [current architecture](../../operations/current-architecture.md).
+
 # ADR-003 — Разделение RAG: Google Vertex AI для документации, локальный Qdrant для кода
 
 **Статус:** **Accepted** — движки выбраны; embedding-модели определим по результатам оценки  

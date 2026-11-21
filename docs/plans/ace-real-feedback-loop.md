@@ -1,4 +1,4 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+> **HISTORICAL / SUPERSEDED evaluation plan:** This plan measures an old Hermes + model-invoked ACE-tool arm, which is not an authorized current ACE delivery route. The current agent-facing path is Hermes Native Responses → Bifröst → ACE Gateway v2; the code engine is CBM v0.12.1 plus presently Qdrant/LSP. Do not run the old protocol scripts, follow the old Superpowers/subagent workflow or call its results production acceptance. Current G11 C07–C08 [OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md), [runtime status](../operations/current-architecture.md) and independent upstream Harbor/ContextBench/ARB evaluation supersede its implementation instructions. Historical content below retained for provenance.
 
 # ACE Real Feedback Loop — Full Completion Plan
 

@@ -1,3 +1,5 @@
+> **CURRENT BLOCKER (source-inspected 2026-11-21):** The native Responses-only Gateway implementation is not certified for live provider/Hermes/Harbor acceptance. In addition, `src/bin/ace-runtime.ts` explicitly rejects `ACE_ENABLE_GRAPHITI=true` because the Gateway-native memory provider has not been configured; full code+docs+memory production cannot boot in the requested full-unified mode. Configuration/evidence gate success does not override executable runtime behavior. See [current architecture](../operations/current-architecture.md) and [runtime configuration evidence](../operations/runtime-configuration-evidence.md). No 5× economics are demonstrated.
+
 # Unified ACE production release preflight
 
 This gate is for the **full code + documentation + memory** production claim. It intentionally stays BLOCKED until real external evidence and owner approval exist.

@@ -1,6 +1,8 @@
 # ACE — operational AI-assisted SDLC
 
 ## Goal and scope
+
+**Active entry:** [intent-first stage selection](implementation-entry-resume.md). An explicit I or V request uses existing accepted inputs; do not restart R/S/A/P/X or fabricate missing G02 approval by default.
 This is a **single-agent, client-independent** development process for the ACE repository. It makes the Research → Design → Plan → Implement method executable through detailed prompts and gates. Full reusable procedures are in [docs/research/sdlc/](../research/sdlc/README.md); use [PROMPTS-ACE.md](../research/sdlc/PROMPTS-ACE.md) as the entrypoint and individual full files, not a five-line substitute.
 
 **Authorities:** explicit owner instructions > Accepted ADR > applicable OpenSpec > root/nested AGENTS.md > current code/tests as present-state evidence > temporary plans. This procedure never weakens security, source provenance, runtime boundaries, PR delivery or production proof requirements.
@@ -62,13 +64,13 @@ Full procedure: [research_codebase.md](../research/sdlc/source/commands/research
 
 Read the full [research comparison](../research/sdlc/QUALITY-GATES-VIDEO-SPHERICON-ACE.md), [gate catalog](../research/sdlc/QUALITY-GATES-CATALOG.md), and [detailed adoption plan](../research/sdlc/QUALITY-GATES-IMPLEMENTATION-PLAN.md). The working reviewer checklist is [Quality Gates](../research/sdlc/source/standards/Quality%20Gates.md).
 
-The new **G02 pre-code Design Consistency** check is mandatory for a T2 design: every acceptance criterion must have an owner, accepted decision, interface/state, implementation phase, deterministic oracle and real-provider oracle if needed. In a local T1 defect use a short criterion→invariant→RED/GREEN mapping; for T0 mark N/A. G02 is a *procedure* now, not a new CI command.
+The **G02 Design Consistency** check is required for new material T2 design decisions; an explicit owner instruction to implement existing canonical phase code permits scoped offline implementation without another G02 interview. Provider egress remains gated. For a new T2 design: every acceptance criterion must have an owner, accepted decision, interface/state, implementation phase, deterministic oracle and real-provider oracle if needed. In a local T1 defect use a short criterion→invariant→RED/GREEN mapping; for T0 mark N/A. G02 is a *procedure* now, not a new CI command.
 
 Use existing fast ACE commands, then the four separate review passes from implement_backend.md. If a new automated check is not installed, record **PLANNED / NOT-RUN**, never PASS. The catalog distinguishes current scripts from proposed ast-grep rules, offline Markdown links, secret/workflow scanners, Knip, architecture dependency pilot and nightly tools.
 
 **Five execution layers, not five new mandatory tools:**
 1. G00/G01: source identity, factual evidence, scope.
-2. G02: Design Consistency **before implementation** (T2).
+2. G02: review of new material T2 design choices before their dependent implementation, not a blanket veto of owner-directed offline phase code.
 3. G03–G05: actual fast inner-loop commands/rules/hooks only if present.
 4. G06–G10: scoped PR architecture/security/docs/contract/acceptance gates.
 5. G11–G14: applicable real providers, nightly, release provenance and final owner review.

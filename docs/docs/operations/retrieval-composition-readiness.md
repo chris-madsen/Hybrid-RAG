@@ -1,4 +1,4 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+> **SUPERSEDED historical snapshot (pre-PR #316):** The sections below describe earlier Aider RepoMap / ast-grep CLI-NAPI architecture at historical SHAs. Those runtime providers, scripts and parity comparisons are no longer current. Current ACE uses Codebase Memory v0.12.1 for structural graph/AST/semantic/BM25 with Qdrant still composed as an overlapping code retrieval index, while separate external LSP validates exact symbol identities. **Do not execute old parity commands or regard the historical `PASS` claims here as evidence for current main.** See [current architecture](../../operations/current-architecture.md) and [native CBM runbook](../../operations/codebase-memory-provider.md).
 
 # Retrieval replacement foundation readiness
 

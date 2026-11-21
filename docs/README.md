@@ -1,18 +1,12 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+# Adaptive Context Engine (ACE) — architecture and OpenSpec documentation
 
-# Adaptive Context Engine (ACE) — DDD Architecture + OpenSpec SDD Blueprint
+**Current runtime reading path (source-inspected 2026-11-21):** [Current implementation/status](operations/current-architecture.md) → [configuration/readiness](operations/ace-configuration-and-readiness-matrix.md) → [Codebase Memory integration](operations/codebase-memory-provider.md) → [testing](operations/testing-strategy.md). Full provider-wire/Hermes/Harbor acceptance remains open.
 
-**Version:** evolving implementation · **Updated:** 2026-10-24 · **Status:** active TypeScript + Effect implementation with real local retrieval, memory, provider and acceptance slices; full unified production approval is still evidence-gated.
+**Current code composition:** Hermes uses Bifröst native Responses and the versioned ACE Gateway projection API. Codebase Memory v0.12.1 is the sole structural AST/graph engine and also provides semantic/BM25 discovery; Qdrant remains used for code-only dense/sparse retrieval until independent A/B evidence permits its removal. External LSP checks exact symbol definitions. Vertex AI RAG is for authorized project documentation; Graphiti/FalkorDB are the selected temporal-memory architecture and the immutable archive has supporting code, **but Gateway-native Graphiti is not configured**: the inspected runtime intentionally rejects `ACE_ENABLE_GRAPHITI=true`. Full unified production is therefore not available. The former Hermes-native ContextEngine bridge and model-invoked ACE tools are retired.
 
-## Runtime status
+**Authoritative acceptance:** [OpenSpec 013](../openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014](../openspec/changes/014-ace-audit-reliability-remediation/tasks.md). [ADR-020](docs/references/ADR-020-native-responses-only.md) supersedes earlier Gateway protocol assumptions. [ADR-014](docs/references/ADR-014-hybrid-context-engine.md) remains a dated accepted *historical* decision; read its current-implementation note before treating older ast-grep/ContextEngine instructions as live.
 
-**Current architecture (ADR-016/017, 2026-10-24):** LangGraph or another external orchestrator owns agent coordination. For agents supporting configurable LLM endpoints, Bifrost is the **selected future model-bound context delivery path** through a thin Go connector and versioned ACE projection API; implementation and provider-wire conformance are **not yet complete**. Hermes already has a native ContextEngine bridge. retired optional tool-call protocol remains a separate existing **explicit tool-call interface**, not mandatory for context injection.
-
-The statement that this repository contains only a blueprint is obsolete. The current implementation includes the official retired optional tool-call protocol runtime for explicit tools/expansion, the direct Hermes ContextEngine integration bridge for request-time ACE context projection, exact workspace/artifact reads, Qdrant retrieval, embedding-worker and ast-grep provider identity checks, generic LSP confirmation through the configured language server (TypeScript by default), temporal-memory archive/Graphiti integration, deterministic source routing, Vertex/Harbor acceptance tooling, request-time workspace reconciliation, snapshot/retry recovery, and evidence-backed release gates.
-
-Use [`operations/ace-configuration-and-readiness-matrix.md`](operations/ace-configuration-and-readiness-matrix.md) for the authoritative runtime/configuration meanings. A provider flag enables a code path; it does not by itself constitute production approval.
-
-Use [`plans/2026-10-21-cursor-like-hybrid-context-completion-plan.md`](plans/2026-10-21-cursor-like-hybrid-context-completion-plan.md) for the current retrieval/context architecture work, [`docs/references/ADR-014-hybrid-context-engine.md`](docs/references/ADR-014-hybrid-context-engine.md) for the accepted target architecture, and [`plans/unified-production-release-preflight.md`](plans/unified-production-release-preflight.md) for the full release evidence contract.
+**Historical plans:** the [plans index](plans/README.md) is retained for provenance; old retrieval queues are not the current runtime specification. The [release-preflight runbook](plans/unified-production-release-preflight.md) remains the evidence-based promotion procedure.
 
 ## Deliverables
 
