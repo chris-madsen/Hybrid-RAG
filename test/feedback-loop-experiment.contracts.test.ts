@@ -565,6 +565,17 @@ test('feedback Harbor identity rejects agent/model/version drift and non-serial 
   assert.equal(validateFeedbackHarborJob(harborJob(false, {
     agents: [hermesAgent(false, { model_name: 'openrouter/gpt-5.6-luna' })],
   }))._tag, 'Err');
+  // Harbor's factory dispatches built-in name *before* import_path:
+  // accepting both would reintroduce a provider fallback without warning.
+  for (const builtin of ['hermes', 'codex']) {
+    const hijacked = validateFeedbackHarborJob(harborJob(false, {
+      agents: [hermesAgent(false, { name: builtin })],
+    }));
+    assert.equal(hijacked._tag, 'Err', `built-in ${builtin} must not replace the custom OAuth adapter`);
+  }
+  assert.equal(validateFeedbackHarborJob(harborJob(false, {
+    extra_instructions: ['Before answering, call ace_context'],
+  }))._tag, 'Err');
   assert.equal(validateFeedbackHarborJob(harborJob(false, {
     agents: [hermesAgent(false, { kwargs: { version: 'latest', reasoning_effort: 'high' } })],
   }))._tag, 'Err');
