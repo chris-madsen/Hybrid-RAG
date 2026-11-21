@@ -1,3 +1,5 @@
+> **Current implementation note, 2026-11-21:** This 2026-10-24 ADR selected Bifröst; its phrase “gateway contract not implemented” reflects that date. Native Responses v2 TypeSpec/Go/TS implementation candidates exist (OpenSpec 013, C01–C07); **physical provider-wire, actual Hermes agent loop and Harbor production acceptance remain unverified**. [ADR-020](ADR-020-native-responses-only.md) is the later protocol authority; [current runtime](../../operations/current-architecture.md) records the actual source-inspected composition.
+
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
 # ADR-017 — Bifrost as the unified external LLM gateway for ACE

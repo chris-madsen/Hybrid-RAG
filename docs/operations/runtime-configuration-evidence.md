@@ -54,6 +54,8 @@ The capture is accepted only when:
 
 ## Full-unified acceptance
 
+**Current executable limitation (source-inspected 2026-11-21):** These are configuration-evidence *schema* conditions, not proof the full-unified runtime can start. `src/bin/ace-runtime.ts` currently throws when `ACE_ENABLE_GRAPHITI=true` because its Gateway-native memory provider is not configured. A `runtime-config-accepted` artifact cannot override this startup block or be reported as full-unified provider readiness. This remains BLOCKED pending implemented and tested Gateway-native memory integration plus real lifecycle/Harbor/provider acceptance.
+
 The capture is accepted only when:
 
 - deployment profile is k3s;

@@ -1,4 +1,4 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+> **ARCHIVED / NOT EXECUTABLE ON CURRENT MAIN:** This old Qdrant crash runbook invokes a removed model-invoked binary, ast-grep runtime parser and the retired alias-switch publication algorithm. Its `test:real-qdrant-crash` script is absent from current `package.json`. Do **not** run these old commands on live Qdrant or report them as AR03 acceptance. See [current stable-collection authority](qdrant-single-writer-authority.md), [current runtime](current-architecture.md) and targeted deterministic `test/qdrant-crash-runner.contracts.test.ts`; independent real local multiprocess proof remains open.
 
 # C-A / W04 real Qdrant interrupted-writer publication runbook
 

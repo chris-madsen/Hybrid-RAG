@@ -1,6 +1,6 @@
 # Tasks — ACE audit remediation single-context implementation DAG
 
-**Change:** §014-ace-audit-reliability-remediation§. **T2, Stage P planning only.** This is the **one canonical acceptance/checkbox tracker**. R reused from audit PR #290; S #292, A #293 are staged Draft inputs. Stage X writes executable §phases/<ID>.md§ briefs linked below; Stage I is **not authorized** by this document. Relevant accepted ADR and source roles remain above this plan. Branch candidates #288/#291 are **not credited to main**; re-evaluate merge status before any implementation.
+**Change:** §014-ace-audit-reliability-remediation§. **Historical T2 Stage P/X plan and the one canonical acceptance/checkbox ledger.** R originated in audit PR #290, S #292 and A #293. **Current source reconciliation (2026-11-21, `main@8591adc9da77f8eb395df43ea7a51eea16e78062`):** many repair implementations were merged after this plan (e.g. #291, #299, #308–310), and PR #316 replaced the old ast-grep structural runtime / homemade RepoMap with native Codebase Memory. Therefore old branch/Stage-I statements below are historical planning context, **not** a claim that current main lacks every AR implementation. Conversely a merged PR and a deterministic PASS do **not** establish real-provider acceptance, so unchecked boxes are preserved pending evidence-based reconciliation. See [current runtime](../../../docs/operations/current-architecture.md).
 
 ## Dependency DAG and LOC budget
 
@@ -18,6 +18,8 @@ Automatically sized via §ace-to-tickets§ rules: ten coherent **vertical** one-
 | AR08 — Evidence-led RepoMap recall and AST extraction decision | AR02, AR07 | REM-018, REM-019 | 350 / 390 / 130 = **870** | Measured multi-file Qdrant shortlist behavior; canonical CLI preserved until true corpus parity |
 | AR09 — Bound serial Python embedding-worker timeout | none | REM-020 | 300 / 430 / 100 = **830** | Timed-out worker cannot indefinitely monopolize queue or contaminate a subsequent request |
 | AR10 — Join Harbor usage and task acceptance evidence | none | REM-021, REM-022 | 410 / 470 / 100 = **980** | Usage/retry/failure events bound to frozen task/model/arm/attempt; 5x measured on total accepted-task tokens |
+
+**AR08 implementation update:** The historical AR08 CLI-vs-NAPI parity, RepoMap and Qdrant-only shortlist rationale was superseded by PR #316 as a *runtime design*. Do not reinstall the retired providers or run the old parity test as if current. Native CBM graph/source retrieval and independent A/B retrieval quality must now be measured; this does **not** itself mark REM-018/019 accepted.
 
 ## Canonical phase tracker
 

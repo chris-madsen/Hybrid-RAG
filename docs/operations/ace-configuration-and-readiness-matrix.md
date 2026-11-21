@@ -1,132 +1,71 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
-
 # ACE configuration and readiness matrix
 
-**Status:** operational reference. This document describes what the current runtime can do and, just as importantly, what each configuration is allowed to claim.
+**Active runtime reference, source-inspected at `main@8591adc9da77f8eb395df43ea7a51eea16e78062`.** Read [current architecture](current-architecture.md). This does not certify any live provider. A process starting or a unit test passing cannot authorize model egress or imply accepted-task token savings.
 
-ACE has no `PRODUCTION=true` switch. Provider flags enable code paths; they do not approve models, providers, cloud scope, benchmarks, deployment security, or the combined system. Full code + documentation + memory production readiness is established only by the evidence-backed release preflight described in `docs/plans/unified-production-release-preflight.md`.
+## Actual configured capability boundaries
 
-## Runtime modes
+| Source / mode | Runtime configuration | What may truthfully be claimed |
+| --- | --- | --- |
+| Code retrieval off | `ACE_ENABLE_EXPERIMENTAL_QDRANT` absent/false | No real code-retrieval runtime; **CBM-only is not an active production fallback** |
+| Code retrieval on | `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` + local Qdrant + embedding workers + pinned CBM + maintained LSP | CBM structural/graph/semantic/BM25 discovery **and** Qdrant dense/sparse retrieval; ready only with verified current indexed source, not merely environment variables |
+| Codebase Memory unavailable | Native index CLI not installed, timed out or returned invalid data | Required code retrieval unavailable/not_ready; no fallback to ast-grep runtime parser |
+| Qdrant / embedding unavailable | Search, worker or publication failed | Required code retrieval not_ready; no undocumented CBM-only production fallback |
+| LSP unavailable or not supported for language | No trustworthy native symbol/definition evidence | Do not claim LSP verification; exact source bytes may still be independently checked |
+| Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Vertex AI RAG for authorized `project_document`, not a Qdrant documentation corpus |
+| Temporal memory | `ACE_ENABLE_GRAPHITI=true` | **UNSUPPORTED / startup error**: `ace-runtime.ts` refuses the retired tool-server adapter; Gateway-native Graphiti is not configured. Archive CLI/reconciliation code exists separately, but full unified temporal retrieval is NOT_READY |
+| Host worktree helper | Registered workspace + mTLS where required | Read-only scoped source evidence, separately gated k3s containment |
+| Release | Exact source SHA + real provider, agent, privacy, quality and owner evidence | No unconditional READY from configuration flags |
 
-| Mode | Key configuration | Expected capability state | Allowed claim |
-| --- | --- | --- | --- |
-| Offline / provider-disabled | `ACE_ENABLE_EXPERIMENTAL_QDRANT=false` | code/unified context `not_ready` | retired optional tool-call protocol process/tool surface exists; no code retrieval readiness |
-| Provider unavailable | Qdrant/embedding/structural provider is unavailable | code/unified context `not_ready` | No lexical substitute is composed into the production retired optional tool-call protocol runtime |
-| Real local retrieval composition | `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` plus Qdrant, embedding worker, ast-grep and LSP runtime | `ready` only after real startup preflights and complete index coverage; otherwise `degraded/not_ready` | measured real-provider path; still not production-approved merely because it starts |
-| Temporal memory enabled | `ACE_ENABLE_GRAPHITI=true` plus archive, local Graphiti command/args/group | memory starts `degraded` until the real provider lifecycle is proven | local temporal-memory integration is available; production memory requires real lifecycle/deletion/recovery evidence |
-| Vertex documentation enabled | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true`, project/corpus config | documentation configured as `degraded` until real retrieval evidence exists | explicitly authorized documentation retrieval only; source code remains current-behavior truth |
-| Host worktree helper | `ACE_WORKTREE_HELPER_URL` plus workspace ID and mTLS CA/cert/key | worktree `ready` after authenticated helper creation | exact read-only host worktree boundary; production deployment still requires real k3s containment/race evidence |
-| Full unified production | all selected providers + retained acceptance artifacts | release preflight `READY` | code + docs + memory may be called production-ready for the exact approved commit/capability scope |
+A missing/unavailable/stale/partial/denied provider is not a successful empty source. Required-source coverage must be verified. `PREPARED` is not physical send authorization.
 
-A green process is not the same thing as a ready provider. `ace_workspace_status` is the runtime truth surface for configured capabilities; `ContextBundle.complete` is the per-request truth surface and is based on **required** source coverage, not on absence of thrown exceptions.
+## Startup and source freshness
 
-## Startup failure disposition
+Invalid trust configuration, snapshot/source identity or mTLS may be fatal; transient provider failures can leave the process alive with `not_ready`/`degraded`. The current executable and receipts determine the precise failure state, **not** historical model-invoked `ace_workspace_status` documentation.
 
-ACE intentionally distinguishes failures that make the process configuration itself unsafe from provider/capability failures that can be represented truthfully while the retired optional tool-call protocol process stays alive.
+For code results ACE must reconcile the workspace manifest, including non-Git files and dirty worktree, and reread exact UTF-8 source bytes with SHA-256/range verification. CBM graph, Qdrant vectors and LSP claims never override current original bytes. An explicit source obligation must not force an unapproved Vertex document egress.
 
-| Failure class | Process behavior | Capability/readiness behavior | Operator meaning |
-| --- | --- | --- | --- |
-| Invalid/missing mandatory base config, workspace registration/observation failure, invalid host-helper mTLS configuration | **fatal** — startup exits non-zero | no runtime readiness claim | configuration/trust boundary is unusable; fix before restart |
-| Pinned embedding identity/configuration mismatch, corrupt snapshot state, or trust-boundary failure | **fatal** — startup exits non-zero | no semantic retrieval claim | requested identity cannot be proven; do not fall back silently |
-| Transient embedding/provider timeout or unavailable startup probe | process stays alive | code/unified context = `not_ready` | retry/reconcile is required; provider failure is never promoted to `ready` |
-| Corrupt workspace/provider identity state or semantic snapshot identity race | **fatal** — startup exits non-zero | no current-source claim | continuing could break source/provider truth |
-| Selected LSP construction/preflight failure after the configured real composition is being built | **fatal** for an invalid/corrupt semantic snapshot; otherwise `not_ready` for a transient provider outage | no selected semantic-provider claim | selected semantic contract is unavailable; exact bytes may remain citable without current semantic confirmation |
-| Qdrant collection unavailable with fallback disabled | process stays alive | code/unified context = `not_ready` | retired optional tool-call protocol/tool surface may still report status; code retrieval is unavailable |
-| Qdrant collection unavailable with explicit local fallback enabled | process stays alive | code/unified context = `degraded` if fallback index builds, otherwise `not_ready` | development fallback only; never production semantic readiness |
-| Required embedding/ast-grep executable missing before provider startup | process stays alive | code/unified context = `not_ready` | installation/runtime dependency missing |
-| Structural index build or Qdrant population failure | process stays alive | code/unified context = `not_ready` | provider path exists but current index could not be made trustworthy |
-| Partial index coverage from explicit file failures | process stays alive | code/unified context = `degraded` | evidence may be returned, but required code coverage is incomplete |
-| Graphiti startup failure | process stays alive | memory = `not_ready` | code/docs can remain available; memory must not be represented as healthy |
-| Graphiti initialized but not health/lifecycle-proven | process stays alive | memory = `degraded` | integration is present but production memory evidence is still missing |
-| Vertex disabled or cloud opt-in absent | process stays alive | documentation = `disabled` | deliberate policy/config state, not a technical outage |
-| Vertex enabled but config missing | process stays alive | documentation = `not_ready` | requested capability cannot start |
-| Vertex configured but not provider-health-probed | process stays alive | documentation = `degraded` | configured path exists; real citation/provider acceptance still required |
-
-**Invariant:** a fatal startup failure is reserved for cases where continuing would make identity, source truth, persistence, or the selected provider contract ambiguous. A non-fatal failure must be visible through `ace_workspace_status` as `disabled`, `not_ready`, or `degraded`; it must never be converted into `ready` merely to keep the process alive.
-
-The k3s pod readiness probe checks container/config material only. It is not a provider-health probe and therefore cannot replace `ace_workspace_status` or release evidence.
-
-## Working-tree reconciliation and source obligations
-
-Before a context response can claim `complete`, the runtime compares the
-authoritative workspace manifest (path, scope fingerprint, size/state and
-content digest) with the manifest used to publish the `index_key`. This check
-does not depend on watcher delivery. A changed, added, deleted or renamed path,
-or an include/exclude scope change, makes the current provider `not_ready`
-until reconciliation builds a new source generation; an old index is never
-returned as a fresh `complete` result. Watchers may optimize when reconciliation
-runs, but they are not the source of truth.
-
-`ace_context` also accepts the backwards-compatible explicit plan:
-
-```json
-{"source_obligations":{"required":["code"],"optional":["documentation"]}}
-```
-
-The required and optional lists must not overlap. Explicit obligations take
-precedence over deterministic routing, and the result exposes the source plan
-and per-source coverage. `denied`, `unavailable`, `empty`, `partial`, and
-`not_requested` remain distinct outcomes.
-
-## Code retrieval
-
-The current real local composition is:
+## Code retrieval — current native Responses path
 
 ```text
-retired optional tool-call protocol -> ace_context
-    -> embedding worker
-    -> Qdrant
-    -> exact workspace reread
-    -> ast-grep structural anchor
-    -> TypeScript Language Service confirmation
-    -> final exact workspace reread
+Hermes native /v1/responses -> Bifröst -> ACE Gateway projection v2
+      -> CBM index_repository/get_file_outline (Tree-sitter AST)
+      -> CBM search_graph: semantic_query + BM25 + native graph edges/trace
+      -> Qdrant SDK dense/sparse hybrid candidate search (also active)
+      -> ACE bounded candidate combination + current workspace reread
+      -> optional external LSP documentSymbols/definition confirmation
+      -> verified source evidence + projection receipt
+      -> separate Bifröst final physical-send authorization (NOT CERTIFIED)
 ```
 
-Minimum development configuration normally includes:
+CBM's own semantic/BM25 code search **overlaps** with the Qdrant index. Qdrant is not the source for documentation (Vertex AI RAG) or project memory (Graphiti/archive). CBM-only vs CBM+Qdrant and external-LSP necessity require independent matched retrieval/real-agent benchmarks before an architectural removal.
+
+Minimal local configuration, subject to separate policy/identity prerequisites:
 
 ```bash
 ACE_WORKSPACE_ROOT=/absolute/repo
 ACE_ALLOWED_ROOTS=/absolute/allowed-parent
 ACE_STATE_DIR=/absolute/state
-ACE_WORKSPACE_ID=<stable-workspace-id>
-
+ACE_WORKSPACE_ID=<registered-workspace>
 ACE_ENABLE_EXPERIMENTAL_QDRANT=true
 ACE_QDRANT_URL=http://127.0.0.1:6333
 ACE_EMBEDDING_WORKER=$PWD/scripts/fastembed-worker.sh
-ACE_AST_GREP_COMMAND=$PWD/node_modules/.bin/ast-grep
-# Optional generic LSP override; the default is typescript-language-server --stdio.
+ACE_SPARSE_EMBEDDING_WORKER=$PWD/scripts/fastembed-sparse-worker.sh
+# Install codebase-memory-mcp@0.12.1; optional:
+# ACE_CBM_COMMAND=/absolute/path/to/codebase-memory-mcp
+# Optional maintained language server override (default TypeScript):
 ACE_LSP_COMMAND=$PWD/node_modules/.bin/typescript-language-server
 ACE_LSP_ARGS='["--stdio"]'
 ACE_LSP_SERVER=typescript-language-server
-# Add mappings only for a server that really supports those languages.
-ACE_LSP_LANGUAGE_IDS='{".rs":"rust"}'
+# Stable collection, coordinated single-host writer fencing:
+ACE_QDRANT_WRITER_TOPOLOGY=single_host
+ACE_QDRANT_PUBLICATION_DIR=/var/lib/ace/qdrant-publication
 ```
 
-`ACE_LSP_ARGS` and `ACE_LSP_LANGUAGE_IDS` are parsed as JSON at startup. Invalid
-configuration fails closed. The runtime includes the command, arguments, server
-version and semantic snapshot identity in the provider fingerprint. Structural
-retrieval remains available for languages without an LSP; an `lsp` obligation for
-such a language is `not_ready`, never silently satisfied by ast-grep output.
+Invalid JSON for `ACE_LSP_ARGS` / `ACE_LSP_LANGUAGE_IDS`, bad effective provider identity, missing current source or invalid authorization fail closed. For release-quality studies `ACE_REQUIRE_PINNED_EMBEDDING=true` requires an effective pinned embedding identity, not a claimed environment label.
 
-The name `ACE_ENABLE_EXPERIMENTAL_QDRANT` is intentional. It enables the real Qdrant-based runtime path; it does **not** mean the embedding or semantic provider has passed the production-selection gates.
+### Current Qdrant publication — stable collection
 
-For a release candidate, embedding identity must be pinned and match the worker's effective runtime identity. The relevant enforcement starts with:
-
-```bash
-ACE_REQUIRE_PINNED_EMBEDDING=true
-```
-
-and the configured model/artifact revision and digest values required by `ace-retired-tool-protocol.ts`. Production approval is still a separate evidence/owner decision.
-
-For each workspace and embedding identity, ACE publishes a verified immutable Qdrant collection and exposes it through the native `..._current` alias. The collection name includes the effective provider/model/artifact digest, preprocessing, execution mode, runtime build/version and source `index_key`. A requested environment label therefore cannot place a different loaded artifact/runtime into the same collection namespace. The alias is the only read surface used by the production runtime; an unverified collection is never made current.
-
-The production retired optional tool-call protocol runtime has no lexical fallback switch. Qdrant, embedding or structural-provider failure remains `not_ready`; local lexical providers are test/spike-only and cannot satisfy a production retrieval gate.
-
-### Qdrant publication and cleanup
-
-ACE does not use a filesystem snapshot-state database, reader/writer leases or an explicit collection override. A rebuild creates a separate content-addressed collection, verifies its count and membership, then switches the workspace/embedding `current` alias atomically. A crash before the switch leaves the previous alias target unchanged; a restart can publish the verified new collection. Unchanged vectors are reused from the previous alias by embedding content identity.
-
-Obsolete collections may be removed asynchronously only after the deployment's bounded grace/retention policy proves that no current reader requires them. Cleanup must never delete the collection currently targeted by the alias. Qdrant snapshots, PVC backup and restore are separate operational evidence and are not replaced by ACE's publication protocol.
+[AR03 single-host authority](qdrant-single-writer-authority.md) describes durable epoch reservations, shared `flock` state and complete SDK membership verification. The **old** content-addressed collection / `..._current` atomic-alias switching procedure is retired in current runtime. Multi-host writers without coordinated fencing are unsupported. Real local cross-process Qdrant acceptance is **not** inferred from deterministic crash tests.
 
 ## Documentation / Vertex
 
@@ -148,17 +87,9 @@ Enabling Vertex therefore does not authorize source-code or private-dialogue upl
 
 ## Temporal memory / Graphiti
 
-Graphiti is local-first and independently enabled:
+**Current runtime blocker:** setting `ACE_ENABLE_GRAPHITI=true` makes `src/bin/ace-runtime.ts` throw before startup: the old agent-tool adapter was retired, and no Gateway-native temporal-memory provider is wired. **There is no supported environment-variable recipe to enable Graphiti in the current Gateway.** Historical examples using `ACE_GRAPHITI_COMMAND` and `ACE_GRAPHITI_ARGS_JSON` are not current instructions. A full-unified release is BLOCKED, even if a standalone runtime-configuration evidence validator accepts its declared flags.
 
-```bash
-ACE_ENABLE_GRAPHITI=true
-ACE_MEMORY_ARCHIVE_ROOT=/absolute/local/archive
-ACE_GRAPHITI_COMMAND=<supported-local-graphiti-retired-tool-protocol-command>
-ACE_GRAPHITI_ARGS_JSON='[...]'
-ACE_GRAPHITI_GROUP_ID=<workspace-scoped-group>
-```
-
-The immutable archive is source truth. Graphiti is a derived projection/search layer. A successful enqueue can remain `pending`; durable retry/backoff/dead-letter/reconciliation exists, and manual repair is available through:
+The immutable archive, memory CLI and projection outbox exist separately; their verification is not a Gateway-native Graphiti integration test. In the independently supported archive CLI, manual repair is invoked with:
 
 ```bash
 npm run memory:sync -- repair <episode-id>
@@ -184,7 +115,7 @@ The host owns `workspace_id -> canonical root`; callers never supply an absolute
 
 The Harbor Hermes adapter uses Hermes's native `openai-codex` Responses provider. For an ACE trial, it must receive an explicit `HERMES_CODEX_BASE_URL` pointing at the selected Bifröst endpoint and a `bifrost_endpoint_sha256` that matches the frozen experiment's `bifrostEndpointSha256`. The digest covers the trimmed endpoint after trailing slashes are removed. The URL is passed through Hermes's supported Codex endpoint override. Default permitted hosts are local `localhost`, `127.0.0.1`, `::1`, `host.docker.internal`, `bifrost`, and `bifrost-gateway`; remote deployments need an explicit comma-separated `ACE_HERMES_ALLOWED_BIFROST_HOSTS` operator allowlist in the preflight and adapter environments. Direct `*.openai.com` and `*.chatgpt.com` hosts remain prohibited even if allowlisted. The digest pins configuration identity only: it does not prove the endpoint is Bifröst or authorize provider egress.
 
-Both paired Harbor jobs must pin the same Bifröst endpoint digest, model, Hermes version and reasoning effort. `npm run preflight:feedback-loop` checks those bindings, but its full readiness procedure also queries the configured task-verifier endpoint, Harbor registry and Qdrant. Do not run that full procedure as an offline C07 check without separate external-probe authorization. It remains blocked until independent provider-native token-counter/context-window evidence, final-send authorization and the applicable C05/C06 gates are present; no token window is inferred from agent-reported usage.
+Both paired Harbor jobs must pin the same Bifröst endpoint digest, model, Hermes version and reasoning effort. `npm run preflight:feedback-loop` checks those bindings, but its full readiness procedure also queries the configured task-verifier endpoint, Harbor registry and Qdrant. Do not run that full procedure as an offline C07 check without separate external-probe authorization. Real provider/agent execution remains blocked by actual C03–C06 final-send, policy and route gates and their specific authorization. **Do not create an ACE-invented token counter/window gate or block source delivery solely because exact model token accounting is unavailable**; preserve unknown token metrics and do not claim measured savings (see `ace-token-savings.md`).
 
 The Harbor trial's original `agent/hermes-session.jsonl` and `agent/hermes.txt` are private transcript artifacts and must remain outside the repository. The collector refuses a session export located inside the repository, hashes the original bytes, and excludes the raw session export, Hermes text log, projection body, context receipts and final-wire envelope from copied output. `agent-loop-evidence.json` retains only the digest, redacted event counts, tool-call/result ID hashes, Gateway request IDs and signature-checked receipt summaries. Caller session IDs are correlation only; when a same-session correlation is not observed, agent-loop evidence remains `NOT_RUN`. Hermes export alone cannot attest durable host history or compaction, and retrieval provider traces are not final LLM egress receipts.
 

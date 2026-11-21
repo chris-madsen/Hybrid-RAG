@@ -1,4 +1,4 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+**Active testing strategy** for the [current CBM + Qdrant runtime](current-architecture.md). Older historical runbooks are not executable gates unless their scripts still exist in `package.json`.
 
 # ACE testing strategy
 
@@ -74,14 +74,19 @@ Real-provider and acceptance commands are not part of the edit-by-edit loop. Run
 
 Typical mapping:
 
-- Qdrant / embeddings / index lifecycle: `test:real-provider*`, `test:real-qdrant-crash`, and `test:real-index-scale` when scale behavior changed.
-- ast-grep structural / generic LSP provider: `test:real-semantic`, `test:real-same-name`, and `test:real-non-ts-lsp` when a selected non-TypeScript server/runtime is available.
-- retired optional tool-call protocol runtime/container composition: `test:container-provider`.
+- Native CBM structural/search/graph: run the pinned real-binary tests in `.github/workflows/ace-codebase-memory.yml` (set `ACE_TEST_REAL_CBM=true` locally with CBM v0.12.1 installed).
+- Current local Qdrant + embeddings + source/failure integration: `npm run test:real-projection`, `test:real-projection-race`, `test:real-projection-outage`, and `test:real-projection-hard-outage` when local infrastructure permits; `npm run probe:retrieval-rank -- ...` against frozen holdout.
+- Exact external LSP verification: `npm run test:real-same-name` and `npm run test:real-non-ts-lsp` if supported language servers are available.
+- Gateway local/container runtime: `npm run test:ace-container-runtime -- ...` and TypeSpec/native Responses Go/TS contract tests. These do **not** certify a physical provider send.
 - Graphiti / retained memory / outbox: `test:real-graphiti-lifecycle`, `test:real-graphiti-crash`.
 - Vertex documentation path: `test:real-vertex-conflict`.
 - Harbor / DBC / release: run the relevant gates only for acceptance or release evidence, not after ordinary edits.
 
 Several expensive commands against unchanged source should reuse the same emitted build. TypeScript incremental compilation is enabled so repeated `npm run build` calls do not intentionally perform a clean rebuild.
+
+## Independent benchmark evidence (separate from deterministic regression)
+
+Use upstream Agent Retrieval Bench and ContextBench to score *real retrieval outputs*, CodeGraph Bench to evaluate native graph quality, and Harbor's supported Hermes adapter for end-to-end coding tasks. Freeze task sets, source SHA, model, context budget and agent configuration; report all failures and complete provider usage. Compare CBM-only vs CBM+Qdrant only through matched independent evaluation. Do not invent a custom scorer, report a mock as E2E, or claim 5× without verified accepted-task economics. Provider-wire trials remain gated by OpenSpec 013 C03–C08. See [current architecture](current-architecture.md).
 
 ## CI policy
 

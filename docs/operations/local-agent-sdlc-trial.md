@@ -1,4 +1,4 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+**Active local SDLC trial, not provider-wire acceptance:** model-invoked ACE tools and Hermes-native ContextEngine are retired. Verify the current Native Responses/Bifröst/CBM runtime. See [current architecture](current-architecture.md).
 
 # Local agent SDLC trial — reproducible operator procedure
 
@@ -24,9 +24,9 @@ The preflight is **read-only and offline**: it does not fetch or update Git, run
 
 Provide the coding agent with this exact task:
 
-> Follow `AGENTS.md`, `.agents/skills/ace-sdlc/SKILL.md` and the full Research stage of `docs/operations/ai-assisted-sdlc.md`. Research the actual source-backed path by which `ace_context` is registered in retired optional tool-call protocol stdio. Identify the runtime composition, source identity, typed unavailable behavior and real versus mocked provider evidence. Record the current SHA and file/line citations. Do **not** change code or suggest a redesign during Research.
+> Follow `AGENTS.md`, `.agents/skills/ace-sdlc/SKILL.md` and the full Research stage of `docs/operations/ai-assisted-sdlc.md`. Research the actual source-backed Hermes Native Responses → Bifröst connector → authenticated ACE Gateway v2 → CBM/Qdrant/LSP runtime path. Identify the runtime composition, source identity, typed unavailable behavior and real versus mocked provider evidence. Record the current SHA and file/line citations. Do **not** change code or suggest a redesign during Research.
 
-Acceptance: no modified source files; research facts tied to real code, and no Bifröst model-bound injection claim derived from retired optional tool-call protocol tool success.
+Acceptance: no modified source files; research facts tied to real code, and no real provider egress claim derived from local projection or mock-wire success.
 
 ## 3. Second agent trial — isolated T1 defect or bounded improvement
 
@@ -60,7 +60,7 @@ npm run sdlc:preflight -- --tier T2 --stage implement \
   --task-id sdlc-local-t2 --plan docs/plans/<existing-plan>.md --json
 ```
 
-Expected: exit **2**, verdict `BLOCKED`, `G02=BLOCKED` even if the plan exists. Add `--g02 openspec/changes/<change>/design.md` **only after** an actual G02 crosswalk exists and the owner has reviewed its decisions. The tool must still return `G02=REVIEW_REQUIRED`, **never** automatic `PASS` merely because a file exists. Do not mark a real T2 task delivered until design, accepted decisions, implementation tests, provider evidence if needed, CI and human review are observed.
+This negative preflight can report exit 2 / `G02=BLOCKED` for a missing crosswalk; that **diagnostic is not itself a prohibition** on owner-directed offline implementation of an existing canonical phase. A new material architecture choice still requires G02 and real provider egress requires independent approval. A `--g02` file does not establish owner approval. Preserve exact tool output and owner authorization as separate evidence.
 
 ## 5. What to preserve in the trial report
 

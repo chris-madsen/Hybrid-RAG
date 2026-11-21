@@ -1,3 +1,5 @@
+> **Full-unified measurement blocker (source-inspected 2026-11-21):** The current Gateway runtime refuses `ACE_ENABLE_GRAPHITI=true` before startup because Gateway-native temporal memory is unconfigured. Thus `memory_query_p95_ms` cannot be legitimately recorded for a functioning current full-unified ACE; retain BLOCKED/NOT_RUN rather than fabricate a measurement or infer it from isolated archive/Graphiti tests. Code-only measurements remain separately meaningful. See [current architecture](current-architecture.md).
+
 # ACE resource-budget release evidence
 
 This gate exists to make W15 resource budgets explicit and machine-checkable. It deliberately does **not** invent product limits.
