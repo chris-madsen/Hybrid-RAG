@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | Code retrieval off | `ACE_ENABLE_EXPERIMENTAL_QDRANT` absent/false | No real code-retrieval runtime; **CBM-only is not an active production fallback** |
 | Code retrieval on | `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` + local Qdrant + embedding workers + pinned CBM + maintained LSP | CBM structural/graph/semantic/BM25 discovery **and** Qdrant dense/sparse retrieval; ready only with verified current indexed source, not merely environment variables |
-| Codebase Memory unavailable | Native index CLI not installed, timed out or returned invalid data | Required code retrieval unavailable/not_ready; no fallback to ast-grep runtime parser |
+| Codebase Memory unavailable | Pinned native stdio server missing, protocol identity incompatible, session lost or index incomplete | Required native graph/source discovery is not_ready; a new session requires explicit reindex, never fallback to ast-grep runtime parser |
 | Qdrant / embedding unavailable | Search, worker or publication failed | Required code retrieval not_ready; no undocumented CBM-only production fallback |
 | LSP unavailable or not supported for language | No trustworthy native symbol/definition evidence | Do not claim LSP verification; exact source bytes may still be independently checked |
 | Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Vertex AI RAG for authorized `project_document`, not a Qdrant documentation corpus |
