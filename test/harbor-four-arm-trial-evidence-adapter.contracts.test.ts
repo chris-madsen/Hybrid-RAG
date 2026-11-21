@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -164,4 +164,23 @@ test('AR10 malformed JSONL is BLOCKED, not silently treated as empty usage', asy
     await assert.rejects(readHarborFourArmLedgerArtifacts(root, ['trial-1/agent/usage.jsonl'], 'usage'),
       /malformed Harbor event JSONL/u);
   });
+});
+
+
+test('AR10 rejects a symlink to a file outside the frozen workspace using the opened file identity', {
+  skip: process.platform !== 'linux',
+}, async () => {
+  const external = await mkdtemp(join(tmpdir(), 'ace-ar10-escape-'));
+  try {
+    const externalFile = join(external, 'outside.jsonl');
+    await writeFile(externalFile, '{"kind":"usage"}\n');
+    await withTrial(async (root, dir) => {
+      await symlink(externalFile, join(dir, 'agent', 'escape.jsonl'));
+      await assert.rejects(
+        readHarborFourArmLedgerArtifacts(root, ['trial-1/agent/escape.jsonl'], 'usage'),
+      );
+    });
+  } finally {
+    await rm(external, { recursive: true, force: true });
+  }
 });
