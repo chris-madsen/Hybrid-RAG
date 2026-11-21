@@ -4,6 +4,13 @@ These instructions apply to **all work in this repository** (`src/`, `test/`, `s
 
 **This is a durable rules document, not a sprint plan, task queue, progress report, or a substitute for OpenSpec.** Do not add a current milestone, one-time execution instructions, dated status updates, checklists to complete this week, or links directing the agent to execute one particular change. Put those in the relevant OpenSpec `proposal.md` / `design.md` / `tasks.md` or a separate execution plan.
 
+## Repository language policy
+
+- **Write all new or edited repository-maintained prose in English**, including Markdown, ADR/OpenSpec, SDLC instructions, code comments, user-facing messages, GitHub issue/PR titles and bodies, and review discussion. The language of the owner's chat request does not change the language required in GitHub.
+- Translate meaning and technical nuance manually; do not use machine transliteration or mechanically rename established identifiers, Git object references, API fields, command names or external quotations.
+- Preserve immutable benchmark evidence, third-party vendored content, and exact Unicode/i18n test fixtures when altering them would invalidate their provenance or tests. Explain such exceptions in the relevant review rather than concealing them.
+- During language-only changes, keep decisions, acceptance statuses, IDs, links, code blocks and historical context intact. Do not silently turn a historical proposal into a current implementation instruction.
+
 ## 1. Mission and source of authority
 
 - ACE is an **agent-neutral Adaptive Context Engine**, independent of external LangGraph multi-agent orchestration. For configurable-endpoint agents, **Bifröst is the sole approved ACE context delivery architecture**. The Go connector and local Gateway Projection API exist. The owner authorizes controlled real Hermes Native Responses provider trials through Bifröst for G11 C03–C05 (decision recorded 2026-11-19), subject to verified per-send admission, exact destination/data policy and explicit `store:false`. This permission is not a blanket production route certification and does not grant alternate generation protocols or a direct-provider bypass. **Bifröst is the sole agent-facing ACE integration; model-invoked context tools are prohibited by owner decision (2026-11-14).** The legacy native bridge is not a second supported agent-facing route. Codex remains a comparison client.
