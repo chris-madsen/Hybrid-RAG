@@ -115,7 +115,7 @@ Vertex documentation requires `ACE_ENABLE_VERTEX=true` **and**
 Permission covers the `project_document` class only; secret-like queries are
 denied before HTTP.
 
-With local Qdrant, pinned CBM and embedding workers installed, `npm run test:real-projection` runs the real **Gateway HTTP projection** against a local workspace. `npm run test:real-projection-race`, `npm run test:real-projection-outage` and `npm run test:real-projection-hard-outage` exercise changed-source and provider failure paths. These are local integration tests, not Bifröst final-provider egress or Hermes task acceptance.
+With local Qdrant, pinned CBM and embedding workers installed, `npm run test:real-projection` runs the real **ACE context RPC projection** against a local workspace. `npm run test:real-projection-race`, `npm run test:real-projection-outage` and `npm run test:real-projection-hard-outage` exercise changed-source and provider failure paths. These are local integration tests, not Bifröst final-provider egress or Hermes task acceptance.
 
 `npm run test:memory-process` tests immutable archive identity and
 cross-process safety. `npm run test:real-same-name` checks structural
