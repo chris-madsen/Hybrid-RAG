@@ -148,3 +148,89 @@ test('embedding process fails closed when worker receipt names a different model
     port.close();
   }
 });
+
+
+// The actual Python worker processes stdin serially: a timed-out inference still
+// occupies the worker until it finishes unless the owning subprocess is retired.
+test('AR09: timed-out serial work cannot block or poison the next request', async () => {
+  const delayedScript = workerScript()
+    .replace(
+      'const vectors = request.texts.map(() => [0.25, 0.75]);',
+      "if (request.texts.includes('slow')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1200);\n  const vectors = request.texts.map((text) => text === 'healthy' ? [0.7, 0.3] : [0.25, 0.75]);",
+    );
+  const port = makeProcessEmbeddingPort({
+    command: process.execPath,
+    args: ['-e', delayedScript],
+    dimension: 2,
+    expectedIdentity: expected,
+    timeoutMs: 350,
+  });
+  try {
+    const slow = await Effect.runPromise(port.embedMany(['slow']));
+    assert.equal(slow._tag, 'Err');
+    if (slow._tag === 'Err') assert.equal(slow.error.code, 'EXTERNAL_UNAVAILABLE');
+
+    const started = Date.now();
+    const healthy = await Effect.runPromise(port.embedMany(['healthy']));
+    assert.equal(healthy._tag, 'Ok');
+    if (healthy._tag === 'Ok') assert.deepEqual(healthy.value, [[0.7, 0.3]]);
+    assert.ok(Date.now() - started < 800, 'new request should not wait for the old Python-style serial backlog');
+    assert.ok(port.identity() !== undefined, 'restarted worker must re-validate identity');
+  } finally {
+    port.close();
+  }
+});
+
+test('AR09: timeout fails all queued requests without assigning a late frame to a new session', async () => {
+  const delayedScript = workerScript()
+    .replace(
+      'const vectors = request.texts.map(() => [0.25, 0.75]);',
+      "if (request.texts.includes('slow')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);\n  const vectors = request.texts.map((text) => text === 'new' ? [0.9, 0.1] : [0.25, 0.75]);",
+    );
+  const port = makeProcessEmbeddingPort({
+    command: process.execPath,
+    args: ['-e', delayedScript],
+    dimension: 2,
+    expectedIdentity: expected,
+    timeoutMs: 400,
+  });
+  try {
+    const [slow, queued] = await Promise.all([
+      Effect.runPromise(port.embedMany(['slow'])),
+      Effect.runPromise(port.embedMany(['queued'])),
+    ]);
+    assert.equal(slow._tag, 'Err');
+    assert.equal(queued._tag, 'Err');
+    const recovered = await Effect.runPromise(port.embedMany(['new']));
+    assert.equal(recovered._tag, 'Ok');
+    if (recovered._tag === 'Ok') assert.deepEqual(recovered.value, [[0.9, 0.1]]);
+  } finally {
+    port.close();
+  }
+});
+
+test('AR09: interrupted inference retires serial worker before another request', async () => {
+  const delayedScript = workerScript().replace(
+    'const vectors = request.texts.map(() => [0.25, 0.75]);',
+    "if (request.texts.includes('slow')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);\n  const vectors = request.texts.map(() => [0.25, 0.75]);",
+  );
+  const port = makeProcessEmbeddingPort({
+    command: process.execPath,
+    args: ['-e', delayedScript],
+    dimension: 2,
+    expectedIdentity: expected,
+    timeoutMs: 600,
+  });
+  try {
+    const controller = new AbortController();
+    const interrupted = Effect.runPromise(port.embedMany(['slow']), { signal: controller.signal })
+      .catch(() => undefined);
+    await new Promise((resolve) => { setTimeout(resolve, 150); });
+    controller.abort();
+    await interrupted;
+    const healthy = await Effect.runPromise(port.embedMany(['healthy']));
+    assert.equal(healthy._tag, 'Ok');
+  } finally {
+    port.close();
+  }
+});

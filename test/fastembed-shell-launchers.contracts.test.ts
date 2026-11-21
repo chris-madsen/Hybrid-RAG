@@ -7,6 +7,7 @@ import test from 'node:test';
 import { Effect } from 'effect';
 import { makeProcessRerankerPort } from '../src/adapters/process-reranker.js';
 import { makeProcessSparseEmbeddingPort } from '../src/adapters/process-sparse-embedding.js';
+import { makeProcessEmbeddingPort } from '../src/adapters/process-embedding.js';
 
 const rerankerShell = resolve('scripts/fastembed-reranker-worker.sh');
 const sparseShell = resolve('scripts/fastembed-sparse-worker.sh');
@@ -179,5 +180,67 @@ test('FastEmbed launchers reject incompatible Nix libraries before exporting the
     assert.match(source, /candidate_library_path=/u);
     assert.match(source, /LD_LIBRARY_PATH="\$candidate_library_path" "\$\{python_command\}" -c 'import numpy'/u);
     assert.match(source, /else\n\s+unset LD_LIBRARY_PATH\n\s+fi/u);
+  }
+});
+
+
+test('AR09: real Python FastEmbed worker entrypoint recovers from a stalled serial inference', {
+  skip: process.platform === 'win32' || (() => {
+    try { execFileSync('python3', ['--version'], { stdio: 'pipe' }); return false; } catch { return true; }
+  })(),
+}, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ace-ar09-python-'));
+  const shim = join(root, 'stub-fastembed.py');
+  const script = [
+    'import sys, types, runpy, time',
+    'class Vector:',
+    '    def __init__(self, values): self.values = values',
+    '    def tolist(self): return self.values',
+    'class TextEmbedding:',
+    '    def __init__(self, model_name): self.model_name = model_name',
+    '    def embed(self, texts):',
+    '        for text in texts:',
+    '            if text == "slow": time.sleep(1.4)',
+    '            yield Vector([0.7, 0.3] if text == "healthy" else [0.25, 0.75])',
+    'fastembed = types.ModuleType("fastembed")',
+    'fastembed.TextEmbedding = TextEmbedding',
+    'sys.modules["fastembed"] = fastembed',
+    'verifier = types.ModuleType("embedding_artifact_verifier")',
+    'verifier.verify_loaded_artifact = lambda model: "a" * 64',
+    'sys.modules["embedding_artifact_verifier"] = verifier',
+    'sys.argv = ' + JSON.stringify([resolve('scripts/fastembed-worker.py'), 'fixture/model']),
+    'runpy.run_path(sys.argv[0], run_name="__main__")',
+  ].join('\n');
+  await writeFile(shim, script, 'utf8');
+  const port = makeProcessEmbeddingPort({
+    command: 'python3',
+    args: [shim],
+    dimension: 2,
+    timeoutMs: 450,
+    expectedIdentity: {
+      provider: 'fastembed/onnx',
+      model: 'fixture/model',
+      modelRevision: 'unknown',
+      artifactModel: 'fixture/model',
+      artifactRevision: 'unknown',
+      artifactDigest: 'a'.repeat(64),
+      dimension: 2,
+      preprocessing: 'raw_text_v1',
+      executionMode: 'experimental-unpinned',
+      pinned: false,
+    },
+  });
+  try {
+    const initial = await Effect.runPromise(port.probe());
+    assert.equal(initial._tag, 'Ok');
+    const stalled = await Effect.runPromise(port.embedMany(['slow']));
+    assert.equal(stalled._tag, 'Err');
+    const healthy = await Effect.runPromise(port.embedMany(['healthy']));
+    assert.equal(healthy._tag, 'Ok');
+    if (healthy._tag === 'Ok') assert.deepEqual(healthy.value, [[0.7, 0.3]]);
+    assert.equal(port.identity()?.model, 'fixture/model');
+  } finally {
+    port.close();
+    await rm(root, { recursive: true, force: true });
   }
 });
