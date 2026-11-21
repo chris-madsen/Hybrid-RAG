@@ -6,7 +6,7 @@ on:
       - 'typespec/**'
       - 'src/generated/ace-context/**'
       - 'src/transport/context-rpc-http.ts'
-      - 'test/typespec-gateway-*.ts'
+      - 'test/typespec-context-*.ts'
       - '.github/workflows/ace-typespec-codegen.yml'
       - 'docs/docs/references/ADR-020-native-responses-only.md'
       - 'openspec/changes/013-gateway-g11-production-acceptance/**'
@@ -62,4 +62,4 @@ jobs:
       - name: Check exhaustive generated DTO to existing domain type mapping
         run: npm run check:public-contract-types
       - name: Exercise native projection and fail-closed contract tests
-        run: ./node_modules/.bin/tsx --test test/context-rpc-http.contracts.test.ts test/responses-projection.contracts.test.ts test/responses-projection-service.contracts.test.ts test/gateway-schema.contracts.test.ts test/data-class-policy.contracts.test.ts test/bifrost-plugin.contracts.test.ts
+        run: ./node_modules/.bin/tsx --test test/context-rpc-http.contracts.test.ts test/responses-projection.contracts.test.ts test/responses-projection-service.contracts.test.ts test/context-rpc-schema.contracts.test.ts test/data-class-policy.contracts.test.ts test/bifrost-plugin.contracts.test.ts
