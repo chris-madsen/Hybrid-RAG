@@ -1,45 +1,45 @@
-# ADR-007 — Безопасность данных, политика облачных вызовов и сбои
+# ADR-007 — Data security, cloud-call policy and failure handling
 
-**Статус:** **Accepted**  
-**Вопросы:** 18B (с журналированием), 19B  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** **Accepted**  
+**Decision items:** 18B (with logging), 19B  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and owner decisions dated 2026-10-17.  
+**Status definitions:** `Accepted` — approved; `Proposed` — requires a spike or validation; `Deferred` — deliberately postponed.
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records the decision, alternatives, rationale, and review criteria. Detailed classes, database schemas, API contracts, Kubernetes manifests, and topology belong in subsequent Architecture Design.
 
-## Контекст
+## Context
 
-Харнесс обрабатывает исходники, приватные обсуждения, API keys и проектные документы. Падение LSP/Qdrant/Vertex не должно беспричинно блокировать работу Codex, но отказ авторизации или нарушение policy нельзя лечить небезопасным fallback.
+The harness handles source code, private discussions, API keys and project documentation. Failures of LSP, Qdrant or Vertex must not unnecessarily prevent Codex from using safe tools, but authorization failures or policy violations must never trigger an unsafe fallback.
 
-## Решение
+## Decision
 
-1. Код и исходные разговоры **по умолчанию остаются локально**. Облачные embeddings/decision API для приватных кодовых данных — только проектный opt-in с зафиксированной границей данных.
-2. Не передавать секреты, токены, `.env`, приватные key material и чувствительные payload в Vertex, Jev, embedding provider или usage logs. Классификация и redaction — требования, их механизмы определит архитектура.
-3. Обычные **technical failures** (timeout, retrieval backend unavailable, LSP down) обрабатывать как degraded mode: информировать Codex о недоступном источнике, разрешать стандартные безопасные инструменты, не симулировать успешный retrieval.
-4. **AuthN/AuthZ failure, policy-denied, data-residency violation, secrets leak attempt** — fail-closed: прекращать запрещённую операцию; не переходить молча на другой endpoint/provider.
-5. **Все такие сбои журналируются** безопасно: timestamp, service/component, error category, correlation ID, action/outcome; никакие пароли, приватные промпты или исходники в логах не записывать.
-6. Не выдавать устаревший кэш как достоверный актуальный источник при деградации; маркировать `unavailable/unknown/stale`.
-7. Не создавать скрытые автономные изменения в коде или инфраструктуре в обход разрешений Codex/пользователя.
+1. Source code and original conversations **stay local by default**. Cloud embedding/decision APIs for private code require project-specific opt-in and an explicitly defined data boundary.
+2. Do not send secrets, tokens, `.env` contents, private key material or sensitive payloads to Vertex, Jev, embedding providers or usage logs. Classification and redaction are requirements; the implementation architecture defines the mechanisms.
+3. Treat ordinary **technical failures** (timeouts, retrieval backends unavailable, LSP down) as degraded operation: disclose the unavailable source, allow normal safe tools, and never simulate successful retrieval.
+4. **Authentication/authorization failures, policy denials, data-residency violations and attempted secret leaks** are fail-closed: stop the forbidden operation without silently switching endpoint or provider.
+5. **Log all such failures safely**, including timestamp, component/service, error category, correlation ID and action/outcome. Do not log passwords, private prompts or source.
+6. Do not present stale cached content as trustworthy current evidence during degradation; label it `unavailable/unknown/stale`.
+7. Do not make covert autonomous changes to code or infrastructure outside Codex/user permissions.
 
-## Варианты, от которых отказались
+## Rejected alternatives
 
-- Always fail-open, в том числе после отказов доступа — недопустимо.
-- Полный fail-stop при любом недоступном retrieval — снижает ценность системы.
-- Полная передача локального кода в облако по умолчанию — противоречит выбранной privacy policy.
+- Always fail-open, including after access denials: unacceptable.
+- Completely halt on every retrieval outage: unnecessarily reduces system usefulness.
+- Send all local source to the cloud by default: violates the chosen privacy policy.
 
-## Acceptance
+## Acceptance criteria
 
-- Fault injection: Qdrant/LSP/Vertex недоступны → корректный degraded status, безопасный fallback, ошибка сохранена в журнале.
-- Invalid API credential / opt-in отсутствует → запрос во внешний сервис заблокирован, без обходного канала.
-- Secret scanning логов и тесты redaction; нет private code leakage в external requests по default.
-- Retrieval не сообщает ложный success при таймауте/ошибке.
+- Fault injection: Qdrant/LSP/Vertex unavailable → correct degraded status, safe fallback and recorded error.
+- Invalid API credentials or missing opt-in → outbound request blocked with no alternate route.
+- Secret scans of logs and redaction tests show no private-code leakage in external requests by default.
+- Retrieval never reports false success after a timeout or failure.
 
-## Пересмотр
+## Reconsideration
 
-При внедрении в корпоративную среду с другими IAM/KMS, лицензиями и требованиями data residency.
+Revisit for enterprise deployments with different IAM/KMS, licensing and data-residency requirements.
 
-## Ссылки
+## References
 
 - ADR-001, ADR-003, ADR-005, ADR-008
