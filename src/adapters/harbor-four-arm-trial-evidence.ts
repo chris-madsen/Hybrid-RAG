@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
+import { constants as fsConstants, existsSync } from 'node:fs';
+import { open, readFile, readdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { HarborFourArmName } from '../domain/harbor-four-arm.js';
 import {
@@ -166,18 +166,35 @@ export const readHarborFourArmLedgerArtifacts = async (
       const child = relative(root, candidate);
       return child.length > 0 && child !== '..' && !child.startsWith('..' + sep) && !isAbsolute(child);
     };
-    if (!inside(pathname) || !inside(await realpath(pathname))) {
+    if (!inside(pathname)) {
       throw new Error('BLOCKED: Harbor evidence artifact escapes the frozen workspace');
     }
     if (seen.has(pathname)) throw new Error('BLOCKED: duplicate Harbor event artifact path');
     seen.add(pathname);
-    const info = await lstat(pathname);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 8 * 1024 * 1024) {
-      throw new Error('BLOCKED: Harbor evidence artifact must be a bounded regular file');
+    // Do not check one pathname and read it again after an attacker can swap
+    // it. Open with NOFOLLOW, then verify and read the same OS file handle.
+    // The current Harbor/Qdrant evidence runtime is Linux; refuse a platform
+    // without an authoritative /proc/self/fd target rather than weakening it.
+    if (process.platform !== 'linux') {
+      throw new Error('BLOCKED: Harbor file-descriptor evidence verification requires Linux');
     }
-    const bytes = await readFile(pathname);
-    if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
-      throw new Error('BLOCKED: Harbor evidence artifact is empty or oversized');
+    const handle = await open(pathname, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    let bytes: Buffer;
+    try {
+      const openedPath = await realpath('/proc/self/fd/' + handle.fd);
+      if (!inside(openedPath)) {
+        throw new Error('BLOCKED: Harbor evidence artifact escapes the frozen workspace');
+      }
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > 8 * 1024 * 1024) {
+        throw new Error('BLOCKED: Harbor evidence artifact must be a bounded regular file');
+      }
+      bytes = await handle.readFile();
+      if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
+        throw new Error('BLOCKED: Harbor evidence artifact is empty or oversized');
+      }
+    } finally {
+      await handle.close();
     }
     const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     const lines = content.split(/\r?\n/u).filter((line) => line.trim().length > 0);
