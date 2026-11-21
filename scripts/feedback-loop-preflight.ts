@@ -466,8 +466,10 @@ const main = async (): Promise<void> => {
     hermesCodexAuth: await hermesCodexAuth(),
     bifrostEndpoint: hermesBifrostEndpoint(experimentManifest?.bifrostEndpointSha256),
     providerTokenWindow: {
-      status: 'not_ready',
-      reason: 'provider-native token counter and context-window evidence is not independently certified; live Hermes trials remain blocked',
+      // Unknown provider-native telemetry is NOT a route or model admission
+      // failure. Full task-economics acceptance must still report UNKNOWN.
+      status: 'unknown',
+      reason: 'provider-native counter and context window have no independently certified values; economics remain UNKNOWN',
     },
     docker: command('docker', ['--version']),
     harborJobs: harborJobs.check,
@@ -511,7 +513,7 @@ const main = async (): Promise<void> => {
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
     'embeddingPython', 'sparseEmbedding', 'harbor', 'harborRun', 'harborDatasetPinned',
-    'hermesCodexAuth', 'bifrostEndpoint', 'providerTokenWindow', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
+    'hermesCodexAuth', 'bifrostEndpoint', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
     'embeddingCache', 'qdrant', 'taskVerifier',
   ];
   const blocked = required.filter((name) => !['ready', 'not_required'].includes(checks[name]?.status ?? 'not_ready'));
