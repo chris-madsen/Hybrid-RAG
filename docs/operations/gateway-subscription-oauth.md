@@ -18,6 +18,7 @@ Maintained upstream Bifröst **transports v2.6.0** documents a ChatGPT passthrou
 ## Admission semantics / no extra OAuth gate
 
 - `src/application/gateway-attempt-authorization-service.ts` returns `ALLOW` only if existing effective receipt/body/source/data policy and the explicit provider/model/destination allowlists accept. No per-attempt `credential_source` proof is demanded.
+- `src/domain/gateway-attempt-authorization.ts` and `src/application/gateway-security-contract.ts` recognize **both** the standard `/v1/responses` and exact `https://chatgpt.com/backend-api/codex/responses` native provider paths. The latter is never accepted on arbitrary hosts; actual permission still requires the precise destination allowlist. A custom ChatGPT-shaped URL is invalid.
 - **Subscription-only deployment:** configure the ACE destination allowlist to **only** `https://chatgpt.com/backend-api/codex/responses` for the corresponding supported wire transport. Do not list `https://api.openai.com/v1/responses`, Azure, OpenRouter or other API-key routes as fallbacks.
 - This exact destination is the final **outbound provider URL**, not the Hermes-to-Bifröst base URL; the current pinned Bifröst fork may not be able to produce it. Configuration and an `ALLOW` fixture alone do not implement the missing Gateway adapter.
 - Continue checking `store:false`, preserved input, caller's approved source data classes, and final-attempt replay. These are integrity and data-routing checks, not a second login.

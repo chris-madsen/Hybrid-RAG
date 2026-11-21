@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Effect } from 'effect';
 import { makeGatewayAttemptAuthorizationService } from '../src/application/gateway-attempt-authorization-service.js';
+import { validateNativeResponsesStreamingRoutes } from '../src/application/gateway-security-contract.js';
 import { makeResponsesProjectionService } from '../src/application/responses-projection-service.js';
 import { verifyProjectionReceipt } from '../src/application/projection-receipt.js';
 import { handleGatewayProjectionHttp, createGatewayProjectionServer } from '../src/transport/gateway-projection-http.js';
@@ -297,6 +298,11 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     assert.equal(apiKeyEndpoint.value.reasonCode, 'DESTINATION_NOT_ALLOWED');
   }
 
+  const spoofedSubscriptionHost = await Effect.runPromise(authorization.authorizePhysicalSend(
+    attempt('bf-attempt-' + 'a'.repeat(32), 'https://untrusted.example/backend-api/codex/responses'),
+  ));
+  assert.equal(spoofedSubscriptionHost._tag, 'Err');
+
   const changedProviderModel = await Effect.runPromise(authorization.authorizePhysicalSend(
     attempt('bf-attempt-' + '9'.repeat(32), 'https://azure.example/v1/responses', 'azure', 'azure/different-model'),
   ));
@@ -364,6 +370,13 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     deadlineEpochMs: streamingRequest.deadlineEpochMs,
   });
   const route = { provider: 'openai', model: native.model, destination: subscriptionResponsesUrl };
+  assert.deepEqual(validateNativeResponsesStreamingRoutes([route]), [route]);
+  assert.throws(
+    () => validateNativeResponsesStreamingRoutes([
+      { ...route, destination: 'https://untrusted.example/backend-api/codex/responses' },
+    ]),
+    /canonical credential-free HTTPS Responses URL/u,
+  );
   const streamingAttemptId = 'bf-attempt-' + 'f'.repeat(32);
   const streaming = await Effect.runPromise(authorization.authorizePhysicalSend(streamingAttemptFor(streamingAttemptId)));
   assert.equal(streaming._tag, 'Ok');

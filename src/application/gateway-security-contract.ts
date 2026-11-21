@@ -1,4 +1,5 @@
 import type { ProjectDataPolicy } from '../domain/policy.js';
+import { isNativeResponsesDestinationPath } from '../domain/gateway-attempt-authorization.js';
 import type { AuditSink, ClockPort } from './ports.js';
 
 export interface NativeResponsesStreamingRoute {
@@ -37,7 +38,7 @@ export const validateNativeResponsesStreamingRoutes = (
       throw new Error('streaming route destination is invalid');
     }
     if (parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== ''
-      || parsed.search !== '' || parsed.hash !== '' || !parsed.pathname.endsWith('/v1/responses')
+      || parsed.search !== '' || parsed.hash !== '' || !isNativeResponsesDestinationPath(parsed)
       || parsed.toString() !== destination) {
       throw new Error('streaming route destination must be a canonical credential-free HTTPS Responses URL');
     }
