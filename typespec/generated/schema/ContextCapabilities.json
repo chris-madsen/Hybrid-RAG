@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "GatewayCapabilities.json",
+    "$id": "ContextCapabilities.json",
     "type": "object",
     "properties": {
         "schemaVersion": {
@@ -10,7 +10,7 @@
         "routes": {
             "type": "array",
             "items": {
-                "$ref": "#/$defs/GatewayRouteCapability"
+                "$ref": "#/$defs/ContextRouteCapability"
             }
         },
         "maxBodyBytes": {
@@ -40,7 +40,7 @@
         "not": {}
     },
     "$defs": {
-        "GatewayRouteCapability": {
+        "ContextRouteCapability": {
             "type": "object",
             "properties": {
                 "protocol": {

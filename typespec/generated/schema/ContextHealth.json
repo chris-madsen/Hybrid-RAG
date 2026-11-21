@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "GatewayHealth.json",
+    "$id": "ContextHealth.json",
     "type": "object",
     "properties": {
         "schemaVersion": {
