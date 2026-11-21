@@ -200,6 +200,15 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   assert.equal(firstAudit?.physicalSend?.preparedBodySha256, projection.value.projectedBodySha256);
   assert.equal(firstAudit?.physicalSend?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
   assert.deepEqual(firstAudit?.physicalSend?.dataClasses, ['private_source', 'private_conversation']);
+  // A failed audit write must not turn a policy-allowed attempt into a physical send.
+  const auditFailureAuthorization = makeGatewayAttemptAuthorizationService({
+    ...security,
+    audit: { append: () => Effect.succeed(err(domainError('INVALID_INPUT', 'audit', 'simulated audit failure'))) },
+  });
+  const auditFailure = await Effect.runPromise(auditFailureAuthorization.authorizePhysicalSend(
+    attempt('bf-attempt-' + 'a'.repeat(32)),
+  ));
+  assert.equal(auditFailure._tag, 'Err');
   assert.equal(firstAudit?.physicalSend?.destinationSha256, hash(subscriptionResponsesUrl));
   assert.equal(JSON.stringify(firstAudit).includes(subscriptionResponsesUrl), false);
   assert.equal(auditRecords.filter((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed').length, 1);
@@ -281,7 +290,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   // A valid subscription token is not permission to send to an API-key endpoint.
   // The only configured destination is the subscription Codex backend.
   const apiKeyEndpoint = await Effect.runPromise(authorization.authorizePhysicalSend(
-    attempt('bf-attempt-' + 'a'.repeat(32), 'https://api.openai.com/v1/responses'),
+    attempt('bf-attempt-' + 'd'.repeat(32), 'https://api.openai.com/v1/responses'),
   ));
   assert.equal(apiKeyEndpoint._tag, 'Ok');
   if (apiKeyEndpoint._tag === 'Ok' && apiKeyEndpoint.value.kind === 'BLOCK') {
