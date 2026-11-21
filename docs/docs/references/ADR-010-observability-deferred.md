@@ -1,29 +1,29 @@
-# ADR-010 — Полноценную observability откладываем; измерение токенов не откладываем
+# ADR-010 — Defer full observability, not token measurement
 
-**Статус:** **Deferred** (не относится к базовым метрикам и security logging)  
-**Вопрос:** 21  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** **Deferred** (does not apply to core metrics or security logging)  
+**Decision item:** 21  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and project-owner selections dated 2026-10-17.  
+**Status definitions:** `Accepted` — approved; `Proposed` — requires a spike or validation; `Deferred` — deliberately postponed.
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records decisions, alternatives, rationale, and review criteria. Concrete classes, database schemas, API contracts, Kubernetes manifests, and topology belong in a later Architecture Design.
 
-## Контекст
+## Context
 
-У владельца проекта есть отдельные планы по observability, которые будут обсуждаться позднее. Подключение OTel/Langfuse/Prometheus/Grafana на старте может увеличить scope и отвлечь от основной цели — экономии токенов с сохранением качества.
+The project owner has separate observability plans to discuss later. Introducing OTel, Langfuse, Prometheus, and Grafana at startup would expand scope and distract from the central objective: saving tokens without compromising quality.
 
-## Решение
+## Decision
 
-- **Не проектировать сейчас полную observability платформу**, включая выбор telemetry backend, дашбордов, trace store, SLO, alerting и длительного retention.
-- **Не откладывать** минимальные benchmark metrics: real Codex token usage, cached/uncached, output/reasoning (где доступны), pass/fail, elapsed time, сопутствующие вызовы/стоимость — согласно ADR-009.
-- **Не откладывать** безопасность: auth/policy failures и технические degraded-события логируются без секретов (ADR-007).
-- Экспериментальные результаты можно хранить локально в JSONL/CSV; не требовать Grafana или Langfuse ради запуска тестов.
+- **Do not design a full observability platform yet**, including telemetry backend selection, dashboards, trace storage, SLOs, alerting, or long-term retention.
+- **Do not postpone** minimum benchmark metrics: actual Codex token usage, cached/uncached input, output/reasoning where available, pass/fail, elapsed time, and associated calls/costs, as specified in ADR-009.
+- **Do not postpone security logging:** record authentication and policy failures, along with technical degraded-mode events, without secrets (ADR-007).
+- Exploratory results may be stored locally in JSONL/CSV; do not require Grafana or Langfuse to run tests.
 
-## Пересмотр
+## Reconsideration
 
-Начать отдельный архитектурный цикл по observability после первых объективных benchmark результатов или раньше, если без телеметрии невозможно локализовать существенные отказы.
+Start a separate observability architecture cycle after the first objective benchmark results, or earlier if important failures cannot be diagnosed without telemetry.
 
-## Ссылки
+## References
 
 - ADR-007, ADR-009
