@@ -21,6 +21,7 @@ import type { GatewayProjectionSecurity } from '../src/application/gateway-secur
 const sourcePlan = resolveExplicitSourceRequirements({ required: ['code'] });
 if (sourcePlan._tag === 'Err') throw new Error(sourcePlan.error.message);
 const hash = (x: string): string => createHash('sha256').update(x).digest('hex');
+const subscriptionResponsesUrl = 'https://chatgpt.com/backend-api/codex/responses';
 const encodeBase64Utf8 = (value: string): string => {
   let binary = '';
   for (const byte of new TextEncoder().encode(value)) binary += String.fromCharCode(byte);
@@ -91,7 +92,7 @@ const makeSecurity = (options: MakeOptions = {}): GatewayProjectionSecurity => {
     policy,
     allowedProviders: options.allowedProviders ?? ['openai'],
     allowedModelsByProvider: options.allowedModelsByProvider ?? { openai: [native.model] },
-    allowedDestinations: options.allowedDestinations ?? ['https://api.openai.com/v1/responses'],
+    allowedDestinations: options.allowedDestinations ?? [subscriptionResponsesUrl],
     allowedStreamingRoutes: options.allowedStreamingRoutes ?? [],
     receiptSigningKey: 'test-projection-receipt-secret',
     clock: { nowMs: () => Date.now() },
@@ -164,7 +165,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   if (projection._tag === 'Err' || projection.value.kind !== 'PREPARED') return;
   const attempt = (
     attemptId: string,
-    destination = 'https://api.openai.com/v1/responses',
+    destination = subscriptionResponsesUrl,
     provider = 'openai',
     model = native.model,
   ) => ({
@@ -184,19 +185,24 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   ));
   assert.equal(first._tag, 'Ok');
   if (first._tag === 'Err') return;
-  assert.equal(first.value.kind, 'BLOCK');
-  if (first.value.kind === 'BLOCK') assert.equal(first.value.reasonCode, 'OAUTH_ROUTE_UNVERIFIED');
+  assert.equal(first.value.kind, 'ALLOW');
+  if (first.value.kind === 'ALLOW') {
+    assert.equal(first.value.provider, 'openai');
+    assert.equal(first.value.model, native.model);
+    assert.equal(first.value.destination, subscriptionResponsesUrl);
+    assert.equal(first.value.bodySha256, projection.value.projectedBodySha256);
+  }
   const firstAudit = auditRecords.find((record) => record.correlationId === firstAttemptId);
-  assert.equal(firstAudit?.outcome, 'denied');
-  assert.equal(firstAudit?.reasonCode, 'OAUTH_ROUTE_UNVERIFIED');
+  assert.equal(firstAudit?.outcome, 'allowed');
+  assert.equal(firstAudit?.reasonCode, 'AUTHORIZED');
   assert.equal(firstAudit?.physicalSend?.workspaceId, 'ws1');
   assert.equal(firstAudit?.physicalSend?.bodySha256, projection.value.projectedBodySha256);
   assert.equal(firstAudit?.physicalSend?.preparedBodySha256, projection.value.projectedBodySha256);
   assert.equal(firstAudit?.physicalSend?.projectionReceiptSha256, hash(projection.value.projectionReceipt));
   assert.deepEqual(firstAudit?.physicalSend?.dataClasses, ['private_source', 'private_conversation']);
-  assert.equal(firstAudit?.physicalSend?.destinationSha256, hash('https://api.openai.com/v1/responses'));
-  assert.equal(JSON.stringify(firstAudit).includes('https://api.openai.com/v1/responses'), false);
-  assert.equal(auditRecords.some((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed'), false);
+  assert.equal(firstAudit?.physicalSend?.destinationSha256, hash(subscriptionResponsesUrl));
+  assert.equal(JSON.stringify(firstAudit).includes(subscriptionResponsesUrl), false);
+  assert.equal(auditRecords.filter((record) => record.correlationId === firstAttemptId && record.outcome === 'allowed').length, 1);
 
   const sourceOnlySecurity: GatewayProjectionSecurity = {
     ...security,
@@ -257,11 +263,11 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   ]);
   const concurrentKinds = concurrentResults.map((result) =>
     result._tag === 'Ok' ? result.value.kind : 'ERROR');
-  assert.equal(concurrentKinds.filter((kind) => kind === 'ALLOW').length, 0);
-  assert.equal(concurrentKinds.filter((kind) => kind === 'BLOCK').length, 2);
+  assert.equal(concurrentKinds.filter((kind) => kind === 'ALLOW').length, 1);
+  assert.equal(concurrentKinds.filter((kind) => kind === 'BLOCK').length, 1);
   const concurrentReasons = concurrentResults.map((result) =>
     result._tag === 'Ok' && result.value.kind === 'BLOCK' ? result.value.reasonCode : 'ERROR');
-  assert.ok(concurrentReasons.includes('OAUTH_ROUTE_UNVERIFIED'));
+  assert.ok(concurrentKinds.includes('ALLOW'));
   assert.ok(concurrentReasons.includes('ATTEMPT_REPLAYED_OR_CAPACITY_EXHAUSTED'));
 
   const changedDestination = await Effect.runPromise(authorization.authorizePhysicalSend(
@@ -272,6 +278,16 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     assert.equal(changedDestination.value.kind, 'BLOCK');
     if (changedDestination.value.kind === 'BLOCK') assert.equal(changedDestination.value.reasonCode, 'DESTINATION_NOT_ALLOWED');
   }
+  // A valid subscription token is not permission to send to an API-key endpoint.
+  // The only configured destination is the subscription Codex backend.
+  const apiKeyEndpoint = await Effect.runPromise(authorization.authorizePhysicalSend(
+    attempt('bf-attempt-' + 'a'.repeat(32), 'https://api.openai.com/v1/responses'),
+  ));
+  assert.equal(apiKeyEndpoint._tag, 'Ok');
+  if (apiKeyEndpoint._tag === 'Ok' && apiKeyEndpoint.value.kind === 'BLOCK') {
+    assert.equal(apiKeyEndpoint.value.reasonCode, 'DESTINATION_NOT_ALLOWED');
+  }
+
   const changedProviderModel = await Effect.runPromise(authorization.authorizePhysicalSend(
     attempt('bf-attempt-' + '9'.repeat(32), 'https://azure.example/v1/responses', 'azure', 'azure/different-model'),
   ));
@@ -288,7 +304,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
 
   const alternateAllowedDestinationSecurity: GatewayProjectionSecurity = {
     ...security,
-    allowedDestinations: ['https://api.openai.com/v1/responses', 'https://alternate.example/v1/responses'],
+    allowedDestinations: [subscriptionResponsesUrl, 'https://alternate.example/v1/responses'],
     policy: { ...security.policy, allowedCloudDataClassesByProvider: { other_external: [] } },
   };
   const changedDestinationDataClass = await Effect.runPromise(makeGatewayAttemptAuthorizationService(alternateAllowedDestinationSecurity)
@@ -330,7 +346,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   );
   assert.equal(streamingProjection._tag, 'Ok');
   if (streamingProjection._tag === 'Err' || streamingProjection.value.kind !== 'PREPARED') return;
-  const streamingAttemptFor = (attemptId: string, destination = 'https://api.openai.com/v1/responses') => ({
+  const streamingAttemptFor = (attemptId: string, destination = subscriptionResponsesUrl) => ({
     ...attempt(attemptId, destination),
     bodyBase64: streamingProjection.value.bodyBase64,
     bodySha256: streamingProjection.value.projectedBodySha256,
@@ -338,7 +354,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     projectionReceipt: streamingProjection.value.projectionReceipt,
     deadlineEpochMs: streamingRequest.deadlineEpochMs,
   });
-  const route = { provider: 'openai', model: native.model, destination: 'https://api.openai.com/v1/responses' };
+  const route = { provider: 'openai', model: native.model, destination: subscriptionResponsesUrl };
   const streamingAttemptId = 'bf-attempt-' + 'f'.repeat(32);
   const streaming = await Effect.runPromise(authorization.authorizePhysicalSend(streamingAttemptFor(streamingAttemptId)));
   assert.equal(streaming._tag, 'Ok');
@@ -355,9 +371,9 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   ));
   assert.equal(enabledStream._tag, 'Ok');
   if (enabledStream._tag === 'Err') return;
-  assert.equal(enabledStream.value.kind, 'BLOCK');
-  if (enabledStream.value.kind === 'BLOCK') {
-    assert.equal(enabledStream.value.reasonCode, 'OAUTH_ROUTE_UNVERIFIED');
+  assert.equal(enabledStream.value.kind, 'ALLOW');
+  if (enabledStream.value.kind === 'ALLOW') {
+    assert.equal(enabledStream.value.destination, subscriptionResponsesUrl);
   }
 
   const wrongStreamRoute = makeGatewayAttemptAuthorizationService({
@@ -365,7 +381,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     allowedStreamingRoutes: [{ ...route, destination: 'https://api.openai.com/v1/other' }],
   });
   const wrongStream = await Effect.runPromise(wrongStreamRoute.authorizePhysicalSend(
-    streamingAttemptFor('bf-attempt-' + 'd'.repeat(32), 'https://api.openai.com/v1/responses'),
+    streamingAttemptFor('bf-attempt-' + 'd'.repeat(32), subscriptionResponsesUrl),
   ));
   assert.equal(wrongStream._tag, 'Ok');
   if (wrongStream._tag === 'Ok' && wrongStream.value.kind === 'BLOCK') {
