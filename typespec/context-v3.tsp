@@ -8,7 +8,7 @@ using JsonSchema;
 
 @service(#{ title: "ACE Context Extension for Bifröst" })
 @TypeSpec.OpenAPI.info(#{ version: "3.0.0" })
-namespace ACE.ResponsesV2 {
+namespace ACE.ContextV3 {
   model HostCompactionAttestation {
     @pattern("^[a-f0-9]{64}$") hostBuildDigest: string;
     @minLength(1) sessionId: string;
@@ -72,34 +72,26 @@ namespace ACE.ResponsesV2 {
   }
 
   @jsonSchema
-  model GatewayHealth {
+  model ContextHealth {
     schemaVersion: "ace.context.v3";
     liveness: "ready";
     readiness: "adapter_implemented";
     providerWire: "not_certified";
   }
 
-  model GatewayRouteCapability {
+  model ContextRouteCapability {
     protocol: "openai.responses";
     mode: "structured";
     capability: "NATIVE_RESPONSES_NOT_CERTIFIED";
   }
 
   @jsonSchema
-  model GatewayCapabilities {
+  model ContextCapabilities {
     schemaVersion: "ace.context.v3";
-    routes: GatewayRouteCapability[];
+    routes: ContextRouteCapability[];
     @minValue(0) maxBodyBytes: int64;
     projectionModes: "bifrost_hook"[];
     providerWireCertification: "not_certified";
-  }
-
-  model DeliveryNotCertified {
-    @statusCode status: 501;
-    error: {
-      code: "PROVIDER_WIRE_NOT_CERTIFIED";
-      message: string;
-    };
   }
 
   @jsonSchema
@@ -152,29 +144,24 @@ namespace ACE.ResponsesV2 {
     reasonCode: string;
   }
 
-  model GatewayError {
-    @statusCode status: 400 | 401 | 404 | 405 | 409 | 413 | 501 | 503;
+  model ContextError {
+    @statusCode status: 400 | 401 | 404 | 405 | 409 | 413 | 503;
     error: { code: string; message: string };
   }
 
   @get
   @route("/internal/ace-context/v3/health")
-  op health(): GatewayHealth;
+  op health(): ContextHealth;
 
   @get
   @route("/internal/ace-context/v3/capabilities")
-  op capabilities(): GatewayCapabilities;
-
-  @TypeSpec.OpenAPI.extension("x-ace-final-provider-wire", "not_certified")
-  @post
-  @route("/internal/ace-context/v3/record-delivery")
-  op recordDelivery(): DeliveryNotCertified;
+  op capabilities(): ContextCapabilities;
 
   @post
   @route("/internal/ace-context/v3/project")
-  op project(@body request: ProjectionRequest): ProjectionDecision | GatewayError;
+  op project(@body request: ProjectionRequest): ProjectionDecision | ContextError;
 
   @post
   @route("/internal/ace-context/v3/authorize-attempt")
-  op authorizePhysicalSend(@body request: PhysicalSendAttemptRequest): PhysicalSendAttemptDecision | GatewayError;
+  op authorizePhysicalSend(@body request: PhysicalSendAttemptRequest): PhysicalSendAttemptDecision | ContextError;
 }

@@ -11,25 +11,16 @@ export type BlockedProjection = {
     [key: string]: unknown;
 };
 
-export type DeliveryNotCertified = {
-    error: {
-        code: 'PROVIDER_WIRE_NOT_CERTIFIED';
-        message: string;
-        [key: string]: unknown;
-    };
-    [key: string]: unknown;
-};
-
-export type GatewayCapabilities = {
+export type ContextCapabilities = {
     schemaVersion: 'ace.context.v3';
-    routes: Array<GatewayRouteCapability>;
+    routes: Array<ContextRouteCapability>;
     maxBodyBytes: number;
     projectionModes: Array<'bifrost_hook'>;
     providerWireCertification: 'not_certified';
     [key: string]: unknown;
 };
 
-export type GatewayError = {
+export type ContextError = {
     error: {
         code: string;
         message: string;
@@ -38,7 +29,7 @@ export type GatewayError = {
     [key: string]: unknown;
 };
 
-export type GatewayHealth = {
+export type ContextHealth = {
     schemaVersion: 'ace.context.v3';
     liveness: 'ready';
     readiness: 'adapter_implemented';
@@ -46,7 +37,7 @@ export type GatewayHealth = {
     [key: string]: unknown;
 };
 
-export type GatewayRouteCapability = {
+export type ContextRouteCapability = {
     protocol: 'openai.responses';
     mode: 'structured';
     capability: 'NATIVE_RESPONSES_NOT_CERTIFIED';
@@ -160,35 +151,31 @@ export type AuthorizePhysicalSendErrors = {
     /**
      * The server could not understand the request due to invalid syntax.
      */
-    400: GatewayError;
+    400: ContextError;
     /**
      * Access is unauthorized.
      */
-    401: GatewayError;
+    401: ContextError;
     /**
      * The server cannot find the requested resource.
      */
-    404: GatewayError;
+    404: ContextError;
     /**
      * Client error
      */
-    405: GatewayError;
+    405: ContextError;
     /**
      * The request conflicts with the current state of the server.
      */
-    409: GatewayError;
+    409: ContextError;
     /**
      * Client error
      */
-    413: GatewayError;
-    /**
-     * Server error
-     */
-    501: GatewayError;
+    413: ContextError;
     /**
      * Service unavailable.
      */
-    503: GatewayError;
+    503: ContextError;
 };
 
 export type AuthorizePhysicalSendError = AuthorizePhysicalSendErrors[keyof AuthorizePhysicalSendErrors];
@@ -213,7 +200,7 @@ export type CapabilitiesResponses = {
     /**
      * The request has succeeded.
      */
-    200: GatewayCapabilities;
+    200: ContextCapabilities;
 };
 
 export type CapabilitiesResponse = CapabilitiesResponses[keyof CapabilitiesResponses];
@@ -229,7 +216,7 @@ export type HealthResponses = {
     /**
      * The request has succeeded.
      */
-    200: GatewayHealth;
+    200: ContextHealth;
 };
 
 export type HealthResponse = HealthResponses[keyof HealthResponses];
@@ -245,35 +232,31 @@ export type ProjectErrors = {
     /**
      * The server could not understand the request due to invalid syntax.
      */
-    400: GatewayError;
+    400: ContextError;
     /**
      * Access is unauthorized.
      */
-    401: GatewayError;
+    401: ContextError;
     /**
      * The server cannot find the requested resource.
      */
-    404: GatewayError;
+    404: ContextError;
     /**
      * Client error
      */
-    405: GatewayError;
+    405: ContextError;
     /**
      * The request conflicts with the current state of the server.
      */
-    409: GatewayError;
+    409: ContextError;
     /**
      * Client error
      */
-    413: GatewayError;
-    /**
-     * Server error
-     */
-    501: GatewayError;
+    413: ContextError;
     /**
      * Service unavailable.
      */
-    503: GatewayError;
+    503: ContextError;
 };
 
 export type ProjectError = ProjectErrors[keyof ProjectErrors];
@@ -287,18 +270,3 @@ export type ProjectResponses = {
 
 export type ProjectResponse = ProjectResponses[keyof ProjectResponses];
 
-export type RecordDeliveryData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/internal/ace-context/v3/record-delivery';
-};
-
-export type RecordDeliveryErrors = {
-    /**
-     * Server error
-     */
-    501: DeliveryNotCertified;
-};
-
-export type RecordDeliveryError = RecordDeliveryErrors[keyof RecordDeliveryErrors];
