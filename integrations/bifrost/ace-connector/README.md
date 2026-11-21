@@ -79,3 +79,7 @@ GOWORK=off GO_BIN=/absolute/path/to/go1.27.4/bin/go \
 ```
 
 The script requires clean pinned Bifröst and ACE checkouts and embeds **both actual Git commit SHAs** (ACE and the verified external Bifröst checkout) into the plugin; `Init` rejects either missing provenance. The host-build digest derives from these exact injected SHAs, **not** from a separately maintained constant. The script returns the plugin SHA-256. Passing this build, Go tests and local HTTPS mocks is **not** a real subscription-provider trial. Full C03–C05 certification requires a real, correlated provider acknowledgement through the installed Hermes + Bifröst + ACE route; C07/C08 additionally require real Hermes/Harbor trials. **There is only one agent-facing LLM Gateway: Bifröst.**
+
+### ACE context RPC initialization contract
+
+`ACE_CONTEXT_RPC_URL` must contain the full canonical loopback project endpoint, e.g. `http://127.0.0.1:8765/internal/ace-context/v3/project`, and `ACE_CONTEXT_RPC_TOKEN` must match the colocated ACE process's `ACE_CONTEXT_RPC_SHARED_SECRET`. Bifröst's plugin `Init` rejects non-loopback URLs, query strings, mismatched v2 paths and the obsolete `responses_projection_url` map key. The optional configuration override key is `context_rpc_url` and has the same validation. This is a versioned internal policy/context seam, never an independent model-facing endpoint. The provider-delivery stub was removed from v3 because Bifröst owns final response accounting.

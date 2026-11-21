@@ -21,7 +21,6 @@
 | `POST /internal/ace-context/v3/project` | native Responses request, session/workspace identity, provider/model, exact body digest+Base64, query, deadline, attestation | `PREPARED` with projected body or `BLOCK` | authenticated loopback caller, strict schema/digest/body identity, policy/freshness; preparation is not send authorization |
 | `GET /internal/ace-context/v3/health` | none | liveness, adapter readiness and provider-wire certification state | authenticated loopback caller; liveness is not production readiness |
 | `GET /internal/ace-context/v3/capabilities` | none | native Responses route capability and certification state | authenticated loopback caller; unsupported route never becomes implicit pass |
-| `POST /internal/ace-context/v3/record-delivery` | no certified final-send evidence | `501 PROVIDER_WIRE_NOT_CERTIFIED` | cannot accept unverified client claims as delivery proof |
 | Bifröst provider-attempt guard | normalized native Responses request + local projection decision | **currently blocks every physical attempt** | no fallback/retry reuse; final-send authorization requires independent certification |
 
 The public agent-facing contract is Gateway-only. Exact source retrieval, memory lookup and expansion remain internal ACE capabilities behind application ports. A model does not choose whether to call ACE.

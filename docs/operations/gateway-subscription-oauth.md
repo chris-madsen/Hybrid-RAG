@@ -29,6 +29,11 @@ The local ACE endpoints do not accept `Authorization: Bearer <ChatGPT token>`; t
 
 ## Configuration — no second gateway
 
+Set `ACE_CONTEXT_RPC_URL=http://127.0.0.1:8765/internal/ace-context/v3/project` for the Bifröst Go plugin and `ACE_CONTEXT_RPC_SHARED_SECRET` to the same high-entropy value as its `ACE_CONTEXT_RPC_TOKEN` on the colocated ACE process. The plugin now validates the complete loopback URL and version at **Init**, not after the first agent request. The plugin's optional `context_rpc_url` map setting may override the URL only with an equally valid v3 loopback project endpoint; the obsolete `responses_projection_url` key is rejected explicitly.
+
+The internal `record-delivery` endpoint was removed from v3: final provider delivery and usage telemetry belong to Bifröst, not ACE.
+
+
 Set `HERMES_CODEX_BASE_URL` to the Bifröst **passthrough base**, with the trailing prefix:
 
 ```text
