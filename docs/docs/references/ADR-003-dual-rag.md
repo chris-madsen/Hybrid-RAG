@@ -1,53 +1,53 @@
 > **Implementation note (2026-11-21):** The original accepted distinction **Vertex AI RAG for project documents** versus **local code intelligence** still holds. Its Qdrant choice predates PR #316, which installed Codebase Memory native AST, graph and semantic/BM25 discovery. The runtime *currently* still composes Qdrant for an overlapping code search, but whether to retain it is pending an owner-requested matched CBM-only vs CBM+Qdrant benchmark. Never repurpose Qdrant for documentation or temporal memory to justify it. The original decision below remains historical; see [current architecture](../../operations/current-architecture.md).
 
-# ADR-003 — Разделение RAG: Google Vertex AI для документации, локальный Qdrant для кода
+# ADR-003 — Split RAG responsibilities: Vertex AI for documentation, local Qdrant for code
 
-**Статус:** **Accepted** — движки выбраны; embedding-модели определим по результатам оценки  
-**Вопросы:** 2B, 5A, 6A, 7C  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** **Accepted** — engines selected at the time; embedding models subject to evaluation  
+**Decision items:** 2B, 5A, 6A, 7C  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and owner decisions of 2026-10-17.  
+**Status definitions:** `Accepted` — approved; `Proposed` — requires a spike or validation; `Deferred` — deliberately postponed.
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records the decision, alternatives, rationale and reconsideration criteria. Detailed classes, schemas, contracts, Kubernetes manifests and deployment topology belong in subsequent Architecture Design.
 
-## Контекст
+## Context
 
-Документация отражает требования и архитектурные решения; кодовая база меняется внутри агентной сессии и требует локальных актуальных индексов. Универсальный облачный индекс для обоих типов данных не соответствует выбранной стратегии локальности кода.
+Documentation captures requirements and architecture decisions; source code changes during an agent session and requires local, fresh indexes. A single cloud index for both classes conflicts with the chosen local-first code strategy.
 
-## Решение
+## Decision (historical)
 
-1. **Google Vertex AI RAG Engine** — основной retrieval engine для документации проекта: README, ADR, specs, runbooks, контракты, руководства (при условии разрешённой отправки материалов).
-2. **Qdrant** — выбранный локальный движок RAG по исходному коду, с hybrid dense + lexical/sparse поиском по необходимости. Это **не** означает, что Qdrant выполняет AST/LSP-верификацию.
-3. Для кода использовать symbol-aware единицы: файл/символ/диапазон, плюс `repo`, `revision`, `working_tree_hash`, язык, provenance. Конкретная схема индексирования — отдельный design.
-4. **Embeddings:** оценить облачные и локальные модели. Для приватного кода cloud embeddings доступны **только по opt-in на конкретный проект** (ADR-007).
-5. Перекрывать устаревшие индексные попадания текущим working-tree overlay (ADR-004). Не выдавать старый сниппет как точный текущий код.
-6. Документация может противоречить реализации. Возвращать оба факта с источниками, не молча заменять один другим.
+1. **Google Vertex AI RAG Engine** is the primary retrieval engine for project documentation, including READMEs, ADRs, specifications, runbooks, contracts and guides, when transmission is authorized.
+2. **Qdrant** was chosen for local source-code RAG, using dense and lexical/sparse hybrid retrieval as needed. This **does not mean** Qdrant performs AST or LSP verification.
+3. Index code in symbol-aware units—file, symbol and range—with `repo`, `revision`, `working_tree_hash`, language and provenance. Define the exact indexing schema separately.
+4. **Embeddings:** evaluate local and cloud models. Cloud embeddings for private code require **project-specific opt-in** (ADR-007).
+5. Reconcile stale index hits against the current working-tree overlay (ADR-004); never present an old snippet as current source.
+6. Documentation can conflict with implementation. Return both sourced facts rather than silently replacing one with the other.
 
-## Альтернативы
+## Alternatives
 
-- Единый Vertex RAG для документации и исходников — проще cloud pipeline, хуже изоляция и контроль рабочего дерева.
-- LanceDB, SQLite FTS/vector — разумные альтернативы, но **первоначальное решение владельца уже Qdrant**. Пересмотр при явной эксплуатационной/качественной проблеме.
-- Только grep/lexical индекс — нужен как baseline и fallback, но семантический retrieval по неизвестному поведению не покрывает.
+- One Vertex RAG index for both documentation and source: simpler cloud pipeline, worse locality and working-tree control.
+- LanceDB or SQLite FTS/vector: reasonable alternatives, but **the owner's initial choice was Qdrant**; revisit based on observable quality or operating problems.
+- Grep/lexical-only index: useful as a baseline and fallback, but insufficient for discovering unknown behavior semantically.
 
-## Последствия
+## Consequences
 
-**Плюсы:** независимость code retrieval от внешнего облака, раздельные политики данных, быстрый поиск по локальным изменениям через overlay.  
-**Минусы:** две инфраструктуры retrieval, embedding pipeline, синхронизация версий и стоимость Vertex; повышенная интеграционная сложность.
+**Benefits:** Code retrieval remains independent of cloud services; separate data policies and a local overlay support rapid lookup of changes.  
+**Costs:** Two retrieval infrastructures, an embedding pipeline, version synchronization, Vertex cost and higher integration complexity.
 
-## Критерии проверки
+## Verification criteria
 
-- Запрос «найди функциональность без имени символа» работает на коде; запрос «почему решили так» — на документации.
-- Не возникает скрытой отправки приватного кода в Vertex или embedding API без разрешения.
-- Все найденные code entries привязаны к точному source/hash/revision; stale не объявляется current.
-- Benchmark code retrieval: lexical baseline vs Qdrant (для разных embedding-моделей), relevance, latency, индексирование, конечные токены/успех.
-- Полная стоимость включает embeddings, indexing, cloud requests, не только токены Codex.
+- A "find behavior without knowing its symbol name" query works against source; a "why was this decided?" query works against documentation.
+- Private code is not silently sent to Vertex or external embedding APIs.
+- Code entries carry exact source/hash/revision evidence; stale data is never labeled current.
+- Benchmark lexical baselines against Qdrant and different embedding models, covering relevance, latency, indexing, tokens and task success.
+- Total cost includes embeddings, indexing and cloud requests, not just Codex tokens.
 
-## Пересмотр
+## Reconsideration
 
-Если Qdrant проигрывает специализированному движку на наших задачах с заметной эксплуатационной нагрузкой или Vertex RAG не удовлетворяет требованиям к доступу, версии либо стоимости.
+Revisit if Qdrant underperforms a specialized engine on real tasks with significant operational overhead, or Vertex RAG fails access, versioning or cost requirements.
 
-## Ссылки
+## References
 
 - https://docs.cloud.google.com/vertex-ai/generative-ai/docs/rag-quickstart
 - https://docs.cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-rag-import-files
@@ -57,7 +57,6 @@
 ## Owner clarification — 2026-10-19: Ollama is not required
 
 The selected code retrieval engine is **Qdrant**, not a model-serving wrapper. **Ollama is explicitly not selected or required.** Genuine code embeddings can be produced by a ready-made *local* inference library such as **Qdrant FastEmbed / ONNX Runtime**, with model and inference backend evaluated separately. These are candidates, not a silently approved production model. Codex may run real local candidate E2E and benchmark now; decide production model after measured recall, latency, multi-language behavior, throughput, resource usage, licensing and full agent quality/cost. Keep a distinct Qdrant collection/generation when models, dimensions or preprocessing change. See proposed ADR-013 and ADR-007.
-
 
 ## Owner clarification — 2026-10-21: Qdrant stays, hybrid retrieval becomes first-class
 
