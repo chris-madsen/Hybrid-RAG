@@ -245,3 +245,42 @@ test('AR10: total token ratio refuses an unsafe integer sum even if both counter
     totalTokensPerAcceptedTaskRatio: totalTokensPerAcceptedTaskRatio(native, candidate),
   }).allowed, false);
 });
+
+
+test('AR10: incomplete usage, zero reuse and unsuccessful quality remain observable UNKNOWN, not parse failures', () => {
+  const partial = {
+    schemaVersion: 1,
+    holdoutSha256: 'a'.repeat(64),
+    qualityNonInferior: false,
+    rawTracePaths: [],
+    usageEventPaths: [],
+    failedRunPaths: [],
+    costTelemetryComplete: false,
+    arms: {
+      native: arm(0),
+      dense: arm(0),
+      hybrid: arm(0),
+      'hybrid-delta': arm(0, 0),
+    },
+  };
+  const result = validateHarborFourArmReport(partial);
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Ok') {
+    assert.equal(result.value.qualityNonInferior, false);
+    assert.equal(result.value.costTelemetryComplete, false);
+    assert.deepEqual(result.value.usageEventPaths, []);
+    assert.equal(result.value.arms['hybrid-delta'].reusedContextBytes, 0);
+    assert.equal(assessHarborFourArmFiveX({
+      qualityNonInferior: result.value.qualityNonInferior,
+      costTelemetryComplete: result.value.costTelemetryComplete,
+      rawTrialEvidenceVerified: false, attemptUsageVerified: false, providerEgressVerified: false,
+      totalTokensPerAcceptedTaskRatio: 0.01,
+    }).allowed, false);
+  }
+  assert.equal(validateHarborFourArmReport({
+    ...partial, qualityNonInferior: 'yes',
+  })._tag, 'Err', 'invalid status is not UNKNOWN');
+  assert.equal(validateHarborFourArmReport({
+    ...partial, usageEventPaths: ['valid.jsonl', ''],
+  })._tag, 'Err', 'invalid paths are never accepted');
+});

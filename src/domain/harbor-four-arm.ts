@@ -244,14 +244,15 @@ const normalizeArm = (value: unknown, name: string): Result<HarborFourArmReportA
 export const validateHarborFourArmReport = (value: unknown): Result<HarborFourArmReport, DomainError> => {
   const root = object(value);
   if (root?.schemaVersion !== 1 || !sha256(root.holdoutSha256)
-    || root.qualityNonInferior !== true
-    || !Array.isArray(root.rawTracePaths) || root.rawTracePaths.length === 0
+    || typeof root.qualityNonInferior !== 'boolean'
+    || !Array.isArray(root.rawTracePaths)
     || !root.rawTracePaths.every((path) => typeof path === 'string' && path.trim().length > 0)
-    || !Array.isArray(root.usageEventPaths) || root.usageEventPaths.length === 0
+    || !Array.isArray(root.usageEventPaths)
     || !root.usageEventPaths.every((path) => typeof path === 'string' && path.trim().length > 0)
     || !Array.isArray(root.failedRunPaths)
-    || root.costTelemetryComplete !== true) {
-    return err(domainError('INVALID_BENCHMARK', 'harbor_report', 'four-arm report requires quality, raw trace, usage, failure and complete cost evidence'));
+    || !root.failedRunPaths.every((path) => typeof path === 'string' && path.trim().length > 0)
+    || typeof root.costTelemetryComplete !== 'boolean') {
+    return err(domainError('INVALID_BENCHMARK', 'harbor_report', 'four-arm report requires explicit quality and cost statuses and well-formed evidence path arrays'));
   }
   const armsRoot = object(root.arms);
   if (armsRoot === undefined) return err(domainError('INVALID_BENCHMARK', 'harbor_report.arms', 'four arms are required'));
@@ -273,9 +274,8 @@ export const validateHarborFourArmReport = (value: unknown): Result<HarborFourAr
   if (native.aceObservedCalls !== 0) {
     return err(domainError('INVALID_BENCHMARK', 'harbor_report.native.aceObservedCalls', 'native baseline must not declare ACE tool calls'));
   }
-  if (delta.reusedContextBytes === 0) {
-    return err(domainError('INVALID_BENCHMARK', 'harbor_report.hybrid_delta', 'receipt/delta arm requires observed reused context bytes'));
-  }
+  // Zero reuse is an observed diagnostic, not a parsing error. Final reuse
+  // evidence and release eligibility are checked against raw trials below.
   if (![dense, hybrid, delta].every((arm) => JSON.stringify(arm.taskNames) === JSON.stringify(native.taskNames))) {
     return err(domainError('INVALID_BENCHMARK', 'harbor_report.taskNames', 'all arms must report the same ordered trials'));
   }
@@ -285,11 +285,11 @@ export const validateHarborFourArmReport = (value: unknown): Result<HarborFourAr
   return ok({
     schemaVersion: 1,
     holdoutSha256: root.holdoutSha256,
-    qualityNonInferior: true,
+    qualityNonInferior: root.qualityNonInferior as boolean,
     rawTracePaths: root.rawTracePaths as readonly string[],
     usageEventPaths: root.usageEventPaths as readonly string[],
     failedRunPaths: root.failedRunPaths as readonly string[],
-    costTelemetryComplete: true,
+    costTelemetryComplete: root.costTelemetryComplete as boolean,
     arms: {
       native,
       dense,
