@@ -32,7 +32,7 @@ const attestation = {
 const req = (override:Partial<ResponsesProjectionRequest> = {}, requestBody:unknown = input):ResponsesProjectionRequest=>{
   const bodyBase64 = body(requestBody);
   return {
-    schemaVersion:'ace.gateway.v2', protocol:'openai.responses', requestId:'r1', attemptGroupId:'a1',
+    schemaVersion:'ace.context.v3', protocol:'openai.responses', requestId:'r1', attemptGroupId:'a1',
     agentSessionId:'hermes-session', workspaceId:'workspace-1', dataClass:'private',
     provider:'openai', model:'openai/gpt-test', bodyBase64,
     bodySha256:createHash('sha256').update(Buffer.from(bodyBase64, 'base64')).digest('hex'),

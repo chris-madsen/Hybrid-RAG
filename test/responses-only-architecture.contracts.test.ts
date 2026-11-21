@@ -45,10 +45,10 @@ test('TypeSpec and generated SDK publish only the native v2 projection contract'
 test('active Gateway and Bifröst wiring stays on native v2 and blocks unguarded dispatch', async () => {
   const runtime = await source('src/bin/ace-runtime.ts');
   assert.match(runtime, /makeResponsesProjectionService/u);
-  const server = await source('src/bin/ace-gateway-http.ts');
-  assert.match(server, /ACE_GATEWAY_HTTP_MODE/u);
+  const server = await source('src/bin/ace-context-rpc.ts');
+  assert.match(server, /ACE_CONTEXT_RPC_MODE/u);
   assert.match(server, /ace-runtime\.js/u);
-  const gateway = await source('src/transport/gateway-projection-http.ts');
+  const gateway = await source('src/transport/context-rpc-http.ts');
   assert.match(gateway, /ace-gateway\/v2/u);
   assert.match(gateway, /routes: \[\]/u, 'gateway must not advertise uncertified generation');
   assert.match(gateway, /providerWire: 'not_certified'/u);
