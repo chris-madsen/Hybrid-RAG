@@ -129,6 +129,7 @@ const requirements = [
       'authorizeOutbound({',
       'physicalSendAttemptBlocked(request, reasonCode)',
       'physicalSendAttemptAllowed(request)',
+      'return yield* sendAllow(request, security);',
       'attemptAuditDetails(request)',
       "outcome: 'allowed'",
       'if (isErr(written)) return written',
