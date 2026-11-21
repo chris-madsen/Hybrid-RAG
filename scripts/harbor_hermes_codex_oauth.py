@@ -78,6 +78,10 @@ class HermesCodexOAuth(Hermes):
                 raise ValueError("unsafe endpoint")
         except ValueError as exc:
             raise ValueError("Hermes Bifrost endpoint is not a safe HTTP(S) URL") from exc
+        # Hermes Codex appends /backend-api/codex/responses to this prefix.
+        # /v1 would bypass the subscribed route, even on the same local host.
+        if parsed.path != "/chatgpt_passthrough":
+            raise ValueError("Hermes openai-codex requires Bifrost /chatgpt_passthrough base path")
         if (hostname == "openai.com" or hostname.endswith(".openai.com")
                 or hostname == "chatgpt.com" or hostname.endswith(".chatgpt.com")):
             raise ValueError("direct OpenAI/Codex endpoints bypass Bifrost and are prohibited")
