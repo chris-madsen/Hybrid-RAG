@@ -52,6 +52,8 @@ export interface AceTransformResult {
   /** Original provider trace request identity, distinct from the caller's transform request ID. */
   readonly providerRequestId: string;
   readonly limitations: readonly string[];
+  /** Stable, source-redacted failure category for operator diagnostics. */
+  readonly notReadyReason?: 'REQUIRED_CODE_COVERAGE_INCOMPLETE' | 'CONTEXT_BUDGET_TRUNCATED';
 }
 
 export interface ContextTransformPorts {
@@ -261,6 +263,8 @@ export const makeContextTransformService = (ports: ContextTransformPorts): Conte
       turnId: turnId.value,
       workspaceId: workspaceId.value,
       status,
+      ...(status === 'ready' ? {} : { notReadyReason: !projected.complete
+        ? 'REQUIRED_CODE_COVERAGE_INCOMPLETE' as const : 'CONTEXT_BUDGET_TRUNCATED' as const }),
       contextText: assembled.value.text,
       evidence: assembled.value.selected,
       selectedEvidenceIds: selectedIds,

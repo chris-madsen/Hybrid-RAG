@@ -112,7 +112,17 @@ export const makeResponsesProjectionService = (
       || result.turnId !== request.attemptGroupId || result.workspaceId !== request.workspaceId) {
       return block(request, 'TRANSFORM_IDENTITY_MISMATCH');
     }
-    if (result.status !== 'ready') return block(request, 'TRANSFORM_NOT_READY');
+    if (result.status !== 'ready') {
+      // Never echo limitations: they may contain private paths or excerpts.
+      // Only stable diagnostics, supplied by our own transform owner, cross
+      // the Gateway boundary. The physical-send guard remains fail closed.
+      const reason = result.notReadyReason === 'REQUIRED_CODE_COVERAGE_INCOMPLETE'
+        ? 'TRANSFORM_REQUIRED_CODE_COVERAGE_INCOMPLETE'
+        : result.notReadyReason === 'CONTEXT_BUDGET_TRUNCATED'
+          ? 'TRANSFORM_CONTEXT_BUDGET_TRUNCATED'
+          : 'TRANSFORM_NOT_READY';
+      return block(request, reason);
+    }
     // The native Gateway's source obligation is code-only. A mistaken or
     // replaced transform cannot smuggle optional/unverified structural
     // RepoMap, documentation or memory into a PREPARED provider request.
@@ -150,7 +160,7 @@ export const makeResponsesProjectionService = (
       });
     }
     if (!result.contextText.trim() || result.selectedEvidenceIds.length === 0) {
-      return block(request, 'TRANSFORM_NOT_READY');
+      return block(request, 'TRANSFORM_INCONSISTENT_CONTEXT_EVIDENCE');
     }
     if (containsLikelySecret(result.contextText)) {
       // Preserve the denial in the audit sink before exiting.

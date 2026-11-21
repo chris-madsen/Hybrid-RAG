@@ -201,7 +201,9 @@ const recordBenchmarkStage = (
       sourceDigest: candidate.sourceDigest,
       range: candidate.range,
     })),
-    durationMs: Math.max(0, Date.now() - startedAtMs),
+    // Non-executed placeholders have NO elapsed time. startedAtMs=0 is a
+    // sentinel, not Unix epoch zero; never contaminate latency aggregates.
+    durationMs: status === 'executed' ? Math.max(0, Date.now() - startedAtMs) : 0,
     ...(providerIdentities === undefined ? {} : { providerIdentities }),
   });
 };

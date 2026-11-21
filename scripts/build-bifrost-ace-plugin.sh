@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${BIFROST_SOURCE_ROOT:?set BIFROST_SOURCE_ROOT to the exact Bifrost checkout}"
-: "${BIFROST_COMMIT:=6baf302dc73a9858bb96da017a436ef2e60f82f1}"
+: "${BIFROST_COMMIT:=72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0}"
 : "${GO_BIN:=go}"
 temp_root=${RUNNER_TEMP:-${TMPDIR:-$HOME/.cache/ace}}
 : "${OUTPUT:=$temp_root/ace-gateway-projection.so}"

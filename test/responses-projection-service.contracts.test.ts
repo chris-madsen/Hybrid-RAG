@@ -480,6 +480,26 @@ test('verified empty context preserves native request byte-for-byte; incomplete 
   }
 });
 
+test('incomplete source coverage and truncated context are distinct fail-closed Gateway reasons', async () => {
+  const reasons = [
+    ['REQUIRED_CODE_COVERAGE_INCOMPLETE', 'TRANSFORM_REQUIRED_CODE_COVERAGE_INCOMPLETE'],
+    ['CONTEXT_BUDGET_TRUNCATED', 'TRANSFORM_CONTEXT_BUDGET_TRUNCATED'],
+  ] as const;
+  for (const [notReadyReason, expected] of reasons) {
+    const response = await Effect.runPromise(make({
+      result: {
+        status: 'partial', notReadyReason,
+        limitations: ['private/path/never-expose.ts: partial'],
+      },
+    }).projectResponses(req()));
+    assert.equal(response._tag, 'Ok');
+    if (response._tag !== 'Ok') continue;
+    assert.equal(response.value.kind, 'BLOCK');
+    assert.equal(response.value.reasonCode, expected);
+    assert.equal(JSON.stringify(response.value).includes('private/path'), false);
+  }
+});
+
 test('hidden provider state and active host compaction block before retrieval', async () => {
   let transforms = 0;
   const context: ContextTransformService = { transform: () => {

@@ -130,6 +130,7 @@ for name in (
 class HermesOptions:
     pass
 
+install_state = {"installed": False, "version_probes": 0, "upstream_install": 0}
 class Hermes:
     @classmethod
     def preflight(cls, kwargs=None, env=None):
@@ -137,6 +138,21 @@ class Hermes:
 
     def __init__(self, *args, **kwargs):
         pass
+
+    async def install(self, environment):
+        install_state["upstream_install"] += 1
+        install_state["installed"] = True
+        # Harbor 0.24.0 has installed the CLI, but its final
+        # invalid Hermes version subcommand fails despite a valid --version.
+        raise base.NonZeroAgentExitCodeError("unsupported version subcommand")
+
+    async def exec_as_agent(self, environment, command, timeout_sec=None):
+        assert "hermes pm repair" not in command
+        assert "hermes --version" in command
+        install_state["version_probes"] += 1
+        if not install_state["installed"]:
+            raise base.NonZeroAgentExitCodeError("Hermes not installed yet")
+        return None
 
 base = types.ModuleType("harbor.agents.installed.base")
 base.NonZeroAgentExitCodeError = type("NonZeroAgentExitCodeError", (Exception,), {})
@@ -160,13 +176,14 @@ spec = importlib.util.spec_from_file_location("c07_harbor_adapter", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 validate = module.HermesCodexOAuth._validate_bifrost_endpoint
-endpoint = "http://127.0.0.1:8080/v1"
+endpoint = "http://127.0.0.1:8080/chatgpt_passthrough"
 pin = hashlib.sha256(endpoint.encode()).hexdigest()
 assert validate(endpoint, pin) == endpoint
 for bad_endpoint, bad_pin in (
     ("https://chatgpt.com/backend-api/codex", hashlib.sha256(b"https://chatgpt.com/backend-api/codex").hexdigest()),
     ("https://api.anthropic.com/v1", hashlib.sha256(b"https://api.anthropic.com/v1").hexdigest()),
     (endpoint, "f" * 64),
+    ("http://127.0.0.1:8080/v1", hashlib.sha256(b"http://127.0.0.1:8080/v1").hexdigest()),
     (None, pin),
 ):
     try:
@@ -181,6 +198,14 @@ except ValueError:
     pass
 else:
     raise AssertionError("a trailing-dot direct provider host bypassed the denylist")
+
+# Probe the actual subclass's install implementation without invoking
+# the network or relying on a globally installed Harbor package.
+import asyncio
+agent = module.HermesCodexOAuth()
+asyncio.run(agent.install(None))
+assert install_state["upstream_install"] == 1
+assert install_state["version_probes"] == 2
 `;
   const run = spawnSync('python3', ['-c', script, 'scripts/harbor_hermes_codex_oauth.py'], {
     cwd: resolve('.'),
@@ -194,7 +219,7 @@ else:
 test('Hermes Bifrost endpoint contract rejects direct provider URLs and endpoint drift', () => {
   assert.equal(typeof routeContract.inspectHermesBifrostEndpoint, 'function');
   if (routeContract.inspectHermesBifrostEndpoint === undefined) return;
-  const bifrostEndpoint = 'http://127.0.0.1:8080/v1';
+  const bifrostEndpoint = 'http://127.0.0.1:8080/chatgpt_passthrough';
   const endpointSha256 = sha256(bifrostEndpoint);
   const acceptedIdentity = routeContract.inspectHermesBifrostEndpoint({
     endpoint: `${bifrostEndpoint}/`,
@@ -202,6 +227,20 @@ test('Hermes Bifrost endpoint contract rejects direct provider URLs and endpoint
     expectedSha256: endpointSha256,
   });
   assert.equal(acceptedIdentity.status, 'ready');
+  const wrongRoute = 'http://127.0.0.1:8080/v1';
+  const wrong = routeContract.inspectHermesBifrostEndpoint({
+    endpoint: wrongRoute,
+    endpointSha256: sha256(wrongRoute),
+    expectedSha256: sha256(wrongRoute),
+  });
+  assert.notEqual(wrong.status, 'ready', 'a pinned local /v1 is not the Codex subscriber route');
+  const wrongDigest = routeContract.inspectHermesBifrostEndpoint({
+    endpoint: bifrostEndpoint,
+    endpointSha256: 'd'.repeat(64),
+    expectedSha256: 'd'.repeat(64),
+  });
+  assert.notEqual(wrongDigest.status, 'ready', 'the endpoint digest must hash the URL itself');
+
   assert.equal(acceptedIdentity.identity, endpointSha256);
   assert.doesNotMatch(JSON.stringify(acceptedIdentity), /127\.0\.0\.1/u);
 
@@ -229,9 +268,9 @@ test('Hermes Bifrost endpoint contract rejects direct provider URLs and endpoint
   assert.notEqual(fakeGateway.status, 'ready',
     'a self-pinned arbitrary provider URL does not prove a Bifröst Gateway');
   const explicitlyApproved = routeContract.inspectHermesBifrostEndpoint({
-    endpoint: 'https://gateway.private.example/v1',
-    endpointSha256: sha256('https://gateway.private.example/v1'),
-    expectedSha256: sha256('https://gateway.private.example/v1'),
+    endpoint: 'https://gateway.private.example/chatgpt_passthrough',
+    endpointSha256: sha256('https://gateway.private.example/chatgpt_passthrough'),
+    expectedSha256: sha256('https://gateway.private.example/chatgpt_passthrough'),
     allowedHosts: ['gateway.private.example'],
   });
   assert.equal(explicitlyApproved.status, 'ready');

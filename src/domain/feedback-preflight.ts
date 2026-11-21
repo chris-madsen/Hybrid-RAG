@@ -1,4 +1,5 @@
 import type { FeedbackReasoningEffort } from './feedback-harbor-config.js';
+import { sha256 } from './retrieval-benchmark.js';
 
 export const hermesCodexAuthenticationRoute = 'Hermes openai-codex uses a dedicated host ~/.hermes/auth.json and synchronizes refreshed OAuth state back after each serial Harbor trial; credentials are not retained in benchmark artifacts';
 
@@ -180,6 +181,13 @@ export const inspectHermesBifrostEndpoint = (input: {
   } catch {
     return { status: 'invalid_configuration', reason: 'Hermes Bifröst endpoint is not a safe HTTP(S) URL' };
   }
+  // Hermes openai-codex appends the native /backend-api/codex/responses
+  // route to this Bifröst prefix. A /v1 base instead selects an unrelated
+  // API-key route, even if a hash of that URL happens to match.
+  if (parsed.pathname !== '/chatgpt_passthrough') {
+    return { status: 'invalid_configuration',
+      reason: 'Hermes openai-codex requires Bifröst /chatgpt_passthrough base route' };
+  }
   const host = parsed.hostname.toLowerCase().replace(/\.+$/u, '');
   if (host === 'openai.com' || host.endsWith('.openai.com')
     || host === 'chatgpt.com' || host.endsWith('.chatgpt.com')) {
@@ -198,7 +206,7 @@ export const inspectHermesBifrostEndpoint = (input: {
     || input.expectedSha256 === undefined || !/^[a-f0-9]{64}$/u.test(input.expectedSha256)) {
     return { status: 'missing_configuration', reason: 'Bifröst endpoint digest is not pinned in both runtime and experiment identity' };
   }
-  if (input.endpointSha256 !== input.expectedSha256) {
+  if (sha256(endpoint) !== input.endpointSha256 || input.endpointSha256 !== input.expectedSha256) {
     return { status: 'invalid_configuration', reason: 'Hermes Bifröst endpoint differs from the frozen experiment identity' };
   }
   return {

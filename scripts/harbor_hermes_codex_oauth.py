@@ -1,7 +1,6 @@
 """Harbor Hermes adapter using ChatGPT/Codex subscription OAuth.
 
-Harbor 0.24.0's built-in Hermes adapter routes OpenAI through
-API keys or OpenRouter. ACE context must be delivered through the configured LLM Gateway. This adapter preserves Harbor's Hermes runtime and
+Harbor 0.24.0's built-in Hermes adapter is incompatible with the mandated\nsubscription-only Gateway route. This custom class must be selected by\nimport_path; it never uses the built-in provider fallback. It preserves Harbor's Hermes runtime and
 session/ATIF behavior while selecting Hermes's native openai-codex provider and
 staging a dedicated host Hermes auth store into the ephemeral task container.
 Hermes owns the refresh-token chain; Codex CLI / VS Code credentials are never
@@ -79,6 +78,10 @@ class HermesCodexOAuth(Hermes):
                 raise ValueError("unsafe endpoint")
         except ValueError as exc:
             raise ValueError("Hermes Bifrost endpoint is not a safe HTTP(S) URL") from exc
+        # Hermes Codex appends /backend-api/codex/responses to this prefix.
+        # /v1 would bypass the subscribed route, even on the same local host.
+        if parsed.path != "/chatgpt_passthrough":
+            raise ValueError("Hermes openai-codex requires Bifrost /chatgpt_passthrough base path")
         if (hostname == "openai.com" or hostname.endswith(".openai.com")
                 or hostname == "chatgpt.com" or hostname.endswith(".chatgpt.com")):
             raise ValueError("direct OpenAI/Codex endpoints bypass Bifrost and are prohibited")
@@ -97,29 +100,30 @@ class HermesCodexOAuth(Hermes):
         return normalized
 
     async def install(self, environment: BaseEnvironment) -> None:
+        """Reuse Harbor's supported installer, then verify the *real* Hermes CLI.
+
+        Harbor 0.24.0 ends its upstream installer with `hermes version`,
+        which is not supported by the pinned Hermes CLI. The upstream
+        installer may already have completed before that final probe exits.
+        Do not run `hermes pm repair` as a substitute for installation and
+        never ignore genuine installer failures.
+        """
+        check = 'export PATH="$HOME/.local/bin:$PATH"; hermes --version'
         try:
-            await self.exec_as_agent(
-                environment,
-                command='export PATH="$HOME/.local/bin:$PATH"; hermes --version',
-                timeout_sec=30,
-            )
+            await self.exec_as_agent(environment, command=check, timeout_sec=30)
             return
         except NonZeroAgentExitCodeError:
             pass
+
         try:
-            await self.exec_as_agent(
-                environment,
-                command='export PATH="$HOME/.local/bin:$PATH"; hermes pm repair && hermes --version',
-                timeout_sec=180,
-            )
-            return
+            await super().install(environment)
         except NonZeroAgentExitCodeError:
-            pass
-        await self.exec_as_agent(
-            environment,
-            command='export PATH="$HOME/.local/bin:$PATH"; hermes pm repair && hermes --version',
-            timeout_sec=180,
-        )
+            # The only recoverable upstream failure is the invalid *final*
+            # version command. A fresh --version probe must succeed now;
+            # otherwise the installation failure is propagated.
+            await self.exec_as_agent(environment, command=check, timeout_sec=30)
+        else:
+            await self.exec_as_agent(environment, command=check, timeout_sec=30)
 
     @staticmethod
     def _default_auth_path() -> Path:

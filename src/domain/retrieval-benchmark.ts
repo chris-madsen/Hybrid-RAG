@@ -246,6 +246,11 @@ export const validateRetrievalBenchmarkTraceArtifact = (
         failures.push(`event_${index}_invalid_shape`);
         continue;
       }
+      // Non-executed stages must not claim elapsed time: epoch-time values
+      // poison latency measurements and must invalidate the trace.
+      if (value.status === 'unavailable' || value.status === 'not_applicable') {
+        if (value.durationMs !== 0) failures.push(`event_${index}_nonexecuted_latency`);
+      }
       parsed.push(value as unknown as RetrievalBenchmarkTraceEvent);
     } catch {
       failures.push(`event_${index}_invalid_json`);

@@ -62,6 +62,18 @@ export const validateFeedbackHarborJob = (
     taskPaths.push(taskPath);
   }
   const agent = object(agents[0]);
+  // Harbor 0.24.0's AgentFactory prefers a known `name` over `import_path`.
+  // A job with both name='hermes' and our custom import silently runs its
+  // built-in Hermes implementation, whose provider fallback is prohibited.
+  if (agent?.name !== undefined && agent.name !== null) {
+    return invalid(`${path}.agents[0].name`,
+      'omit name: Harbor must select the pinned custom import_path, not its built-in agent');
+  }
+  const instructions = root.extra_instructions;
+  if (Array.isArray(instructions) && instructions.some((part) =>
+    typeof part === 'string' && /ace_context|ace_expand|retired-tool-protocol/iu.test(part))) {
+    return invalid(`${path}.extra_instructions`, 'model-invoked ACE context instructions are retired');
+  }
   const kwargs = object(agent?.kwargs);
   const model = agent?.model_name;
   const effort = kwargs?.reasoning_effort;
