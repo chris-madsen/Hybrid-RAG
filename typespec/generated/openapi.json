@@ -1,12 +1,12 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "ACE Native Responses Projection",
-    "version": "2.0.0"
+    "title": "ACE Context Extension for Bifröst",
+    "version": "3.0.0"
   },
   "tags": [],
   "paths": {
-    "/internal/ace-gateway/v2/authorize-attempt": {
+    "/internal/ace-context/v3/authorize-attempt": {
       "post": {
         "operationId": "authorizePhysicalSend",
         "parameters": [],
@@ -114,7 +114,7 @@
         }
       }
     },
-    "/internal/ace-gateway/v2/capabilities": {
+    "/internal/ace-context/v3/capabilities": {
       "get": {
         "operationId": "capabilities",
         "parameters": [],
@@ -132,7 +132,7 @@
         }
       }
     },
-    "/internal/ace-gateway/v2/health": {
+    "/internal/ace-context/v3/health": {
       "get": {
         "operationId": "health",
         "parameters": [],
@@ -150,7 +150,7 @@
         }
       }
     },
-    "/internal/ace-gateway/v2/project": {
+    "/internal/ace-context/v3/project": {
       "post": {
         "operationId": "project",
         "parameters": [],
@@ -258,7 +258,7 @@
         }
       }
     },
-    "/internal/ace-gateway/v2/record-delivery": {
+    "/internal/ace-context/v3/record-delivery": {
       "post": {
         "operationId": "recordDelivery",
         "parameters": [],
@@ -351,7 +351,7 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "ace.gateway.v2"
+              "ace.context.v3"
             ]
           },
           "routes": {
@@ -370,7 +370,7 @@
             "items": {
               "type": "string",
               "enum": [
-                "gateway"
+                "bifrost_hook"
               ]
             }
           },
@@ -426,7 +426,7 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "ace.gateway.v2"
+              "ace.context.v3"
             ]
           },
           "liveness": {
@@ -686,7 +686,7 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "ace.gateway.v2"
+              "ace.context.v3"
             ]
           },
           "requestId": {
@@ -848,7 +848,7 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "ace.gateway.v2"
+              "ace.context.v3"
             ]
           },
           "protocol": {
@@ -905,7 +905,7 @@
           "projectionMode": {
             "type": "string",
             "enum": [
-              "gateway"
+              "bifrost_hook"
             ]
           },
           "deadlineEpochMs": {
