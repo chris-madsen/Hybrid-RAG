@@ -105,76 +105,80 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     candidates: () => [candidate],
     timeoutMs: 165_000,
   });
-  const indexed = await Effect.runPromise(provider.reindex());
-  assert.equal(indexed._tag, 'Ok', JSON.stringify(indexed));
-  // ACE may republish the same revision after a restart or a no-op sync.
-  // Native CBM's second index must remain usable without an index rebuild.
-  const second = await Effect.runPromise(provider.reindex());
-  assert.equal(second._tag, 'Ok', JSON.stringify(second));
-  const found = await Effect.runPromise(provider.search({ query: 'makeQdrantContextProvider', limit: 100 }));
-  assert.equal(found._tag, 'Ok', JSON.stringify(found));
-  if (found._tag === 'Ok') {
-    assert.ok(found.value.length > 0, 'native CBM must discover at least one matching ACE symbol');
-    assert.ok(found.value.every((item) => item.candidate.candidateId === candidate.candidateId));
-  }
-  const outline = await Effect.runPromise(provider.outline(path as never));
-  assert.equal(outline._tag, 'Ok', JSON.stringify(outline));
-  if (outline._tag === 'Ok') {
-    assert.ok(outline.value.some((item) => item.name.includes('makeQdrantContextProvider')),
-      'native CBM must extract source declarations');
-  }
-  const graph = await Effect.runPromise(provider.queryGraph(
-    'MATCH (n:Function) RETURN n.name AS name LIMIT 5'));
-  assert.equal(graph._tag, 'Ok', JSON.stringify(graph));
-  // Do not mistake a successful Cypher invocation for a dependency edge:
-  // exercise native cross-file relations from actual ACE TypeScript code.
-  const realEdges = await Effect.runPromise(provider.queryGraph(
-    'MATCH (origin)-[r:CALLS|IMPORTS|REFERENCES_FILE]->(other) '
-    + 'WHERE origin.file_path = \'src/bin/ace-runtime.ts\' '
-    + 'RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50'));
-  assert.equal(realEdges._tag, 'Ok', JSON.stringify(realEdges));
-  if (realEdges._tag === 'Ok') {
-    const files = nativeQueryGraphFiles(root, realEdges.value);
-    assert.ok(files, 'native edge result must expose source-qualified file columns');
-    assert.ok(files?.some((file) => file !== 'src/bin/ace-runtime.ts'),
-      'real ACE runtime must have a CBM-discovered cross-file dependency; '
-      + 'a seed-only node lookup is not dependency discovery');
-  }
-  const exactGraphSymbol = outline._tag === 'Ok'
-    ? outline.value.find((item) => item.name === 'makeQdrantContextProvider')?.qualifiedName
-    : undefined;
-  assert.ok(exactGraphSymbol, 'real CBM must return the declaration qualified name');
-  const trace = await Effect.runPromise(provider.trace(exactGraphSymbol!));
-  assert.equal(trace._tag, 'Ok', JSON.stringify(trace));
-  const impact = await Effect.runPromise(provider.detectChanges('HEAD~1'));
-  assert.equal(impact._tag, 'Ok', JSON.stringify(impact));
-  // This is the actual ACE indexing pipeline on its real checkout, not a
-  // synthetic fixture: native CBM -> source-checked symbol spans -> Qdrant
-  // candidate inventory (vectors are tested by the existing Qdrant suite).
-  const files = makeNodeWorkspacePort({ allowedRoots: [root] });
-  const observed = await Effect.runPromise(files.snapshot(root, Date.now()));
-  assert.equal(observed._tag, 'Ok', JSON.stringify(observed._tag === 'Err' ? observed.error : 'ok'));
-  if (observed._tag === 'Err') return;
-  // CBM indexed the FULL REAL ACE repository above. The candidate-extraction
-  // smoke reads a bounded, pinned subset of real source files, avoiding
-  // hundreds of per-file native CLI invocations in a short PR CI job.
-  const included = observed.value.files.filter((file) =>
-    file.repoPath.startsWith('src/') && file.repoPath.endsWith('.ts'));
-  const selected = [
-    ...included.filter((file) => file.repoPath === 'src/adapters/qdrant-context-provider.ts'),
-    ...included.filter((file) => file.repoPath !== 'src/adapters/qdrant-context-provider.ts').slice(0, 17),
-  ];
-  const built = await Effect.runPromise(buildLocalCodeIndex(
-    files, 'cbm-actual-source-smoke' as never, root,
-    { generation: 1, structural: makeCodebaseMemoryStructuralPort(provider),
-      parserVersion: 'codebase-memory/0.12.1', extensions: ['.ts'],
-      snapshot: { ...observed.value, files: selected } },
-  ));
-  assert.equal(built._tag, 'Ok', JSON.stringify(built._tag === 'Err' ? built.error : 'ok'));
-  if (built._tag === 'Ok') {
-    assert.ok(built.value.index.candidates.length > 30,
-      'native CBM must supply useful real ACE code candidates');
-    assert.ok(built.value.index.candidates.some((item) =>
-      item.repoPath === 'src/adapters/qdrant-context-provider.ts'));
+  try {
+    const indexed = await Effect.runPromise(provider.reindex());
+    assert.equal(indexed._tag, 'Ok', JSON.stringify(indexed));
+    // ACE may republish the same revision after a restart or a no-op sync.
+    // Native CBM's second index must remain usable without an index rebuild.
+    const second = await Effect.runPromise(provider.reindex());
+    assert.equal(second._tag, 'Ok', JSON.stringify(second));
+    const found = await Effect.runPromise(provider.search({ query: 'makeQdrantContextProvider', limit: 100 }));
+    assert.equal(found._tag, 'Ok', JSON.stringify(found));
+    if (found._tag === 'Ok') {
+      assert.ok(found.value.length > 0, 'native CBM must discover at least one matching ACE symbol');
+      assert.ok(found.value.every((item) => item.candidate.candidateId === candidate.candidateId));
+    }
+    const outline = await Effect.runPromise(provider.outline(path as never));
+    assert.equal(outline._tag, 'Ok', JSON.stringify(outline));
+    if (outline._tag === 'Ok') {
+      assert.ok(outline.value.some((item) => item.name.includes('makeQdrantContextProvider')),
+        'native CBM must extract source declarations');
+    }
+    const graph = await Effect.runPromise(provider.queryGraph(
+      'MATCH (n:Function) RETURN n.name AS name LIMIT 5'));
+    assert.equal(graph._tag, 'Ok', JSON.stringify(graph));
+    // Do not mistake a successful Cypher invocation for a dependency edge:
+    // exercise native cross-file relations from actual ACE TypeScript code.
+    const realEdges = await Effect.runPromise(provider.queryGraph(
+      'MATCH (origin)-[r:CALLS|IMPORTS|REFERENCES_FILE]->(other) '
+      + 'WHERE origin.file_path = \'src/bin/ace-runtime.ts\' '
+      + 'RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50'));
+    assert.equal(realEdges._tag, 'Ok', JSON.stringify(realEdges));
+    if (realEdges._tag === 'Ok') {
+      const files = nativeQueryGraphFiles(root, realEdges.value);
+      assert.ok(files, 'native edge result must expose source-qualified file columns');
+      assert.ok(files?.some((file) => file !== 'src/bin/ace-runtime.ts'),
+        'real ACE runtime must have a CBM-discovered cross-file dependency; '
+        + 'a seed-only node lookup is not dependency discovery');
+    }
+    const exactGraphSymbol = outline._tag === 'Ok'
+      ? outline.value.find((item) => item.name === 'makeQdrantContextProvider')?.qualifiedName
+      : undefined;
+    assert.ok(exactGraphSymbol, 'real CBM must return the declaration qualified name');
+    const trace = await Effect.runPromise(provider.trace(exactGraphSymbol!));
+    assert.equal(trace._tag, 'Ok', JSON.stringify(trace));
+    const impact = await Effect.runPromise(provider.detectChanges('HEAD~1'));
+    assert.equal(impact._tag, 'Ok', JSON.stringify(impact));
+    // This is the actual ACE indexing pipeline on its real checkout, not a
+    // synthetic fixture: native CBM -> source-checked symbol spans -> Qdrant
+    // candidate inventory (vectors are tested by the existing Qdrant suite).
+    const files = makeNodeWorkspacePort({ allowedRoots: [root] });
+    const observed = await Effect.runPromise(files.snapshot(root, Date.now()));
+    assert.equal(observed._tag, 'Ok', JSON.stringify(observed._tag === 'Err' ? observed.error : 'ok'));
+    if (observed._tag === 'Err') return;
+    // CBM indexed the FULL REAL ACE repository above. The candidate-extraction
+    // smoke reads a bounded, pinned subset of real source files, avoiding
+    // hundreds of per-file native CLI invocations in a short PR CI job.
+    const included = observed.value.files.filter((file) =>
+      file.repoPath.startsWith('src/') && file.repoPath.endsWith('.ts'));
+    const selected = [
+      ...included.filter((file) => file.repoPath === 'src/adapters/qdrant-context-provider.ts'),
+      ...included.filter((file) => file.repoPath !== 'src/adapters/qdrant-context-provider.ts').slice(0, 17),
+    ];
+    const built = await Effect.runPromise(buildLocalCodeIndex(
+      files, 'cbm-actual-source-smoke' as never, root,
+      { generation: 1, structural: makeCodebaseMemoryStructuralPort(provider),
+        parserVersion: 'codebase-memory/0.12.1', extensions: ['.ts'],
+        snapshot: { ...observed.value, files: selected } },
+    ));
+    assert.equal(built._tag, 'Ok', JSON.stringify(built._tag === 'Err' ? built.error : 'ok'));
+    if (built._tag === 'Ok') {
+      assert.ok(built.value.index.candidates.length > 30,
+        'native CBM must supply useful real ACE code candidates');
+      assert.ok(built.value.index.candidates.some((item) =>
+        item.repoPath === 'src/adapters/qdrant-context-provider.ts'));
+    }
+  } finally {
+    await provider.close();
   }
 });

@@ -359,6 +359,7 @@ const main = async (): Promise<void> => {
   }
   const history = makeGitHistoryPort({ trace: providerTrace, providerVersion: 'git/cli' });
   let closeSemantics: (() => void) | undefined;
+  let closeCodebaseMemory: (() => Promise<void>) | undefined;
   const lspRegistry = makeLspServerRegistry();
   let closeReranker: (() => void) | undefined;
   let closeSparseEmbeddings: (() => void) | undefined;
@@ -633,6 +634,7 @@ const main = async (): Promise<void> => {
             ...(process.env.ACE_CBM_COMMAND?.trim() ? { command: process.env.ACE_CBM_COMMAND.trim() } : {}),
             candidates: () => codebaseMemoryCandidates,
           });
+          closeCodebaseMemory = codebaseMemory.close;
           const structural = makeCodebaseMemoryStructuralPort(codebaseMemory);
           let activeCodeGraph: typeof codebaseMemory | undefined;
           let latestBuild: LocalCodeIndexBuild | undefined;
@@ -1257,6 +1259,7 @@ const main = async (): Promise<void> => {
   } finally {
     let cleanupError: unknown;
     try {
+      if (closeCodebaseMemory !== undefined) await closeCodebaseMemory();
       if (closeSemantics !== undefined) closeSemantics();
       await Effect.runPromise(lspRegistry.close());
       if (closeReranker !== undefined) closeReranker();
