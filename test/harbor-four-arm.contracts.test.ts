@@ -113,7 +113,7 @@ test('external four-arm design requires one task manifest and immutable revision
   assert.equal(result._tag, 'Ok');
 });
 
-test('four-arm Harbor report rejects savings without real ACE calls or observed receipts', () => {
+test('Gateway-only four-arm reports permit zero legacy tool calls but cannot claim evidence-based savings', () => {
   const base = {
     schemaVersion: 1 as const,
     holdoutSha256: 'a'.repeat(64),
@@ -129,7 +129,16 @@ test('four-arm Harbor report rejects savings without real ACE calls or observed 
       'hybrid-delta': arm(1, 100),
     },
   };
-  assert.equal(validateHarborFourArmReport(base)._tag, 'Err');
+  const gatewayOnly = validateHarborFourArmReport(base);
+  assert.equal(gatewayOnly._tag, 'Ok', 'zero model-invoked tool calls is normal for the Gateway-only route');
+  assert.equal(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true, rawTrialEvidenceVerified: false,
+    attemptUsageVerified: false, providerEgressVerified: false, totalTokensPerAcceptedTaskRatio: 0.1,
+  }).allowed, false, 'a shaped report is not independent model delivery or usage evidence');
+  assert.equal(validateHarborFourArmReport({
+    ...base,
+    arms: { ...base.arms, native: arm(1) },
+  })._tag, 'Err', 'native baseline cannot declare ACE tool calls');
   const accepted = validateHarborFourArmReport({
     ...base,
     arms: {
@@ -149,7 +158,7 @@ test('5x gate measures total tokens per accepted task, not merely input', () => 
   assert.ok(ratio !== null && ratio > 1, 'more total tokens despite 5x input reduction');
   assert.equal(assessHarborFourArmFiveX({
     qualityNonInferior: true, costTelemetryComplete: true,
-    totalTokensPerAcceptedTaskRatio: ratio, rawTrialEvidenceVerified: true,
+    totalTokensPerAcceptedTaskRatio: ratio, rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
   }).allowed, false);
   assert.equal(totalTokensPerAcceptedTaskRatio(
     { ...native, successes: 0 }, candidate,
@@ -162,7 +171,7 @@ test('5x gate measures total tokens per accepted task, not merely input', () => 
   ), 130 / 1100);
   assert.equal(assessHarborFourArmFiveX({
     qualityNonInferior: true, costTelemetryComplete: true,
-    totalTokensPerAcceptedTaskRatio: 130 / 1100, rawTrialEvidenceVerified: true,
+    totalTokensPerAcceptedTaskRatio: 130 / 1100, rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
   }).allowed, true);
 });
 
@@ -171,7 +180,7 @@ test('five-X evidence gate rejects self-declared success when raw trials were on
     qualityNonInferior: true,
     costTelemetryComplete: true,
     totalTokensPerAcceptedTaskRatio: 0.1,
-    rawTrialEvidenceVerified: false,
+    rawTrialEvidenceVerified: false, attemptUsageVerified: true, providerEgressVerified: true,
   };
   assert.deepEqual(assessHarborFourArmFiveX(advertisedWin), {
     allowed: false,
@@ -179,16 +188,99 @@ test('five-X evidence gate rejects self-declared success when raw trials were on
   });
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,
-    rawTrialEvidenceVerified: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
     totalTokensPerAcceptedTaskRatio: 0.25,
   }).allowed, false);
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,
-    rawTrialEvidenceVerified: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
     qualityNonInferior: false,
   }).allowed, false);
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,
-    rawTrialEvidenceVerified: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
   }).allowed, true);
+});
+
+
+test('AR10: five-X cannot be claimed from hashes or self-declared quality when attempt usage is unverified', () => {
+  assert.deepEqual(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true,
+    totalTokensPerAcceptedTaskRatio: 0.1,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: false, providerEgressVerified: true,
+  }), { allowed: false, reason: 'provider_attempt_usage_not_reconciled' });
+  const inputOnly = totalTokensPerAcceptedTaskRatio(
+    { rawInputTokens: 1000, rawOutputTokens: 100, successes: 1 },
+    { rawInputTokens: 200, rawOutputTokens: 1100, successes: 1 },
+  );
+  assert.ok(inputOnly !== null && inputOnly > 1);
+  assert.equal(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true,
+    totalTokensPerAcceptedTaskRatio: inputOnly,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
+  }).allowed, false);
+});
+
+
+test('AR10: internally matched usage does not authorize a real-provider five-X savings claim', () => {
+  assert.deepEqual(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    providerEgressVerified: false, totalTokensPerAcceptedTaskRatio: 0.1,
+  }), { allowed: false, reason: 'independent_provider_egress_not_certified' });
+});
+
+
+test('AR10: total token ratio refuses an unsafe integer sum even if both counters are individually valid', () => {
+  const native = { rawInputTokens: Number.MAX_SAFE_INTEGER, rawOutputTokens: 1, successes: 1 };
+  const candidate = { rawInputTokens: 100, rawOutputTokens: 20, successes: 1 };
+  assert.equal(totalTokensPerAcceptedTaskRatio(native, candidate), null);
+  assert.equal(totalTokensPerAcceptedTaskRatio(candidate, native), null);
+  assert.equal(assessHarborFourArmFiveX({
+    qualityNonInferior: true,
+    costTelemetryComplete: true,
+    rawTrialEvidenceVerified: true,
+    attemptUsageVerified: true,
+    providerEgressVerified: true,
+    totalTokensPerAcceptedTaskRatio: totalTokensPerAcceptedTaskRatio(native, candidate),
+  }).allowed, false);
+});
+
+
+test('AR10: incomplete usage, zero reuse and unsuccessful quality remain observable UNKNOWN, not parse failures', () => {
+  const partial = {
+    schemaVersion: 1,
+    holdoutSha256: 'a'.repeat(64),
+    qualityNonInferior: false,
+    rawTracePaths: [],
+    usageEventPaths: [],
+    failedRunPaths: [],
+    costTelemetryComplete: false,
+    arms: {
+      native: arm(0),
+      dense: arm(0),
+      hybrid: arm(0),
+      'hybrid-delta': arm(0, 0),
+    },
+  };
+  const result = validateHarborFourArmReport(partial);
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Ok') {
+    assert.equal(result.value.qualityNonInferior, false);
+    assert.equal(result.value.costTelemetryComplete, false);
+    assert.deepEqual(result.value.usageEventPaths, []);
+    assert.equal(result.value.arms['hybrid-delta'].reusedContextBytes, 0);
+    assert.equal(assessHarborFourArmFiveX({
+      qualityNonInferior: result.value.qualityNonInferior,
+      costTelemetryComplete: result.value.costTelemetryComplete,
+      rawTrialEvidenceVerified: false, attemptUsageVerified: false, providerEgressVerified: false,
+      totalTokensPerAcceptedTaskRatio: 0.01,
+    }).allowed, false);
+  }
+  assert.equal(validateHarborFourArmReport({
+    ...partial, qualityNonInferior: 'yes',
+  })._tag, 'Err', 'invalid status is not UNKNOWN');
+  assert.equal(validateHarborFourArmReport({
+    ...partial, usageEventPaths: ['valid.jsonl', ''],
+  })._tag, 'Err', 'invalid paths are never accepted');
 });

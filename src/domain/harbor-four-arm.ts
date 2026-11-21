@@ -244,14 +244,15 @@ const normalizeArm = (value: unknown, name: string): Result<HarborFourArmReportA
 export const validateHarborFourArmReport = (value: unknown): Result<HarborFourArmReport, DomainError> => {
   const root = object(value);
   if (root?.schemaVersion !== 1 || !sha256(root.holdoutSha256)
-    || root.qualityNonInferior !== true
-    || !Array.isArray(root.rawTracePaths) || root.rawTracePaths.length === 0
+    || typeof root.qualityNonInferior !== 'boolean'
+    || !Array.isArray(root.rawTracePaths)
     || !root.rawTracePaths.every((path) => typeof path === 'string' && path.trim().length > 0)
-    || !Array.isArray(root.usageEventPaths) || root.usageEventPaths.length === 0
+    || !Array.isArray(root.usageEventPaths)
     || !root.usageEventPaths.every((path) => typeof path === 'string' && path.trim().length > 0)
     || !Array.isArray(root.failedRunPaths)
-    || root.costTelemetryComplete !== true) {
-    return err(domainError('INVALID_BENCHMARK', 'harbor_report', 'four-arm report requires quality, raw trace, usage, failure and complete cost evidence'));
+    || !root.failedRunPaths.every((path) => typeof path === 'string' && path.trim().length > 0)
+    || typeof root.costTelemetryComplete !== 'boolean') {
+    return err(domainError('INVALID_BENCHMARK', 'harbor_report', 'four-arm report requires explicit quality and cost statuses and well-formed evidence path arrays'));
   }
   const armsRoot = object(root.arms);
   if (armsRoot === undefined) return err(domainError('INVALID_BENCHMARK', 'harbor_report.arms', 'four arms are required'));
@@ -266,12 +267,15 @@ export const validateHarborFourArmReport = (value: unknown): Result<HarborFourAr
   const dense = normalized.get('dense') as HarborFourArmReportArm;
   const hybrid = normalized.get('hybrid') as HarborFourArmReportArm;
   const delta = normalized.get('hybrid-delta') as HarborFourArmReportArm;
-  if (![dense, hybrid, delta].every((arm) => arm.aceObservedCalls > 0)) {
-    return err(domainError('INVALID_BENCHMARK', 'harbor_report.aceObservedCalls', 'all ACE arms require observed real ACE calls'));
+  // The current Gateway-only route does not expose model-invoked ACE tools.
+  // Zero legacy tool calls are a valid raw observation, not evidence that
+  // Bifröst projected or delivered source. The independent raw-trial and
+  // provider-wire gates must establish that separately.
+  if (native.aceObservedCalls !== 0) {
+    return err(domainError('INVALID_BENCHMARK', 'harbor_report.native.aceObservedCalls', 'native baseline must not declare ACE tool calls'));
   }
-  if (delta.reusedContextBytes === 0) {
-    return err(domainError('INVALID_BENCHMARK', 'harbor_report.hybrid_delta', 'receipt/delta arm requires observed reused context bytes'));
-  }
+  // Zero reuse is an observed diagnostic, not a parsing error. Final reuse
+  // evidence and release eligibility are checked against raw trials below.
   if (![dense, hybrid, delta].every((arm) => JSON.stringify(arm.taskNames) === JSON.stringify(native.taskNames))) {
     return err(domainError('INVALID_BENCHMARK', 'harbor_report.taskNames', 'all arms must report the same ordered trials'));
   }
@@ -281,11 +285,11 @@ export const validateHarborFourArmReport = (value: unknown): Result<HarborFourAr
   return ok({
     schemaVersion: 1,
     holdoutSha256: root.holdoutSha256,
-    qualityNonInferior: true,
+    qualityNonInferior: root.qualityNonInferior as boolean,
     rawTracePaths: root.rawTracePaths as readonly string[],
     usageEventPaths: root.usageEventPaths as readonly string[],
     failedRunPaths: root.failedRunPaths as readonly string[],
-    costTelemetryComplete: true,
+    costTelemetryComplete: root.costTelemetryComplete as boolean,
     arms: {
       native,
       dense,
@@ -314,7 +318,8 @@ export const totalTokensPerAcceptedTaskRatio = (
       || !Number.isFinite(arm.rawInputTokens) || !Number.isFinite(arm.rawOutputTokens)
       || arm.rawInputTokens < 0 || arm.rawOutputTokens < 0 || !Number.isSafeInteger(arm.successes)
       || arm.successes <= 0
-      ? null : arm.rawInputTokens + arm.rawOutputTokens;
+      ? null : Number.isSafeInteger(arm.rawInputTokens + arm.rawOutputTokens)
+        ? arm.rawInputTokens + arm.rawOutputTokens : null;
   const baseline = total(native);
   const proposed = total(candidate);
   if (baseline === null || proposed === null || baseline <= 0) return null;
@@ -326,7 +331,13 @@ export const assessHarborFourArmFiveX = (input: {
   readonly costTelemetryComplete: boolean;
   readonly totalTokensPerAcceptedTaskRatio: number | null;
   readonly rawTrialEvidenceVerified: boolean;
+  readonly attemptUsageVerified: boolean;
+  /** Independently certified physical model egress belongs to C07/C08, not AR10. */
+  readonly providerEgressVerified: boolean;
 }): { readonly allowed: boolean; readonly reason: string } => {
+  if (!input.attemptUsageVerified) {
+    return { allowed: false, reason: 'provider_attempt_usage_not_reconciled' };
+  }
   if (!input.rawTrialEvidenceVerified) {
     return { allowed: false, reason: 'raw_trial_evidence_not_independently_reconciled' };
   }
@@ -336,6 +347,9 @@ export const assessHarborFourArmFiveX = (input: {
   if (input.totalTokensPerAcceptedTaskRatio === null || !Number.isFinite(input.totalTokensPerAcceptedTaskRatio)
     || input.totalTokensPerAcceptedTaskRatio < 0 || input.totalTokensPerAcceptedTaskRatio > 0.2) {
     return { allowed: false, reason: 'token_ratio_did_not_meet_five_x' };
+  }
+  if (!input.providerEgressVerified) {
+    return { allowed: false, reason: 'independent_provider_egress_not_certified' };
   }
   return { allowed: true, reason: 'independent_quality_cost_and_trial_evidence_satisfied' };
 };

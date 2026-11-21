@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { readHarborFourArmTrialObservations } from '../src/adapters/harbor-four-arm-trial-evidence.js';
+import { readHarborFourArmLedgerArtifacts, readHarborFourArmTrialObservations } from '../src/adapters/harbor-four-arm-trial-evidence.js';
 import { readHarborFeedbackTrialObservations } from '../src/adapters/harbor-feedback-trial-evidence.js';
 import { evaluateNativeResponsesStreamEvidence } from '../src/domain/native-responses-stream-receipt.js';
 
@@ -134,4 +134,53 @@ test('feedback adapter binds unsigned stream summaries to the exact Gateway proj
     })}\n`);
     await assert.rejects(readHarborFeedbackTrialObservations('ace_optional', aggregate), /not bound to a retained Gateway projection request/u);
   });
+});
+
+
+test('AR10 parses and hashes a same-byte versioned usage event from a real evidence file', async () => {
+  await withTrial(async (root, dir) => {
+    const data = {
+      schemaVersion: 'ace.harbor.attempt-ledger.v1', kind: 'usage',
+      arm: 'native', trialId: 't1', taskName: 'task-1', attemptId: 'a1',
+      modelIdentity: 'model', providerIdentity: 'provider', runtimeImageIdentity: 'runtime',
+      inputTokens: 1000, outputTokens: 100, cachedInputTokens: 200, reasoningOutputTokens: 20,
+    };
+    const path = join(dir, 'agent', 'usage.jsonl');
+    await writeFile(path, JSON.stringify(data) + '\n');
+    const read = await readHarborFourArmLedgerArtifacts(root, ['trial-1/agent/usage.jsonl'], 'usage');
+    assert.equal(read.events.length, 1);
+    assert.equal(read.events[0]?.kind, 'usage');
+    assert.match(read.artifacts[0]?.sha256 ?? '', /^[a-f0-9]{64}$/u);
+    await assert.rejects(readHarborFourArmLedgerArtifacts(root, ['trial-1/agent/usage.jsonl'], 'attempt'), /invalid Harbor attempt event/u);
+    await assert.rejects(readHarborFourArmLedgerArtifacts(root, ['../outside.jsonl'], 'usage'), /escapes the frozen workspace/u);
+    await assert.rejects(readHarborFourArmLedgerArtifacts(root,
+      ['trial-1/agent/usage.jsonl', 'trial-1/agent/usage.jsonl'], 'usage'), /duplicate Harbor event artifact path/u);
+  });
+});
+
+test('AR10 malformed JSONL is BLOCKED, not silently treated as empty usage', async () => {
+  await withTrial(async (root, dir) => {
+    await writeFile(join(dir, 'agent', 'usage.jsonl'), '{"kind":\\n');
+    await assert.rejects(readHarborFourArmLedgerArtifacts(root, ['trial-1/agent/usage.jsonl'], 'usage'),
+      /malformed Harbor event JSONL/u);
+  });
+});
+
+
+test('AR10 rejects a symlink to a file outside the frozen workspace using the opened file identity', {
+  skip: process.platform !== 'linux',
+}, async () => {
+  const external = await mkdtemp(join(tmpdir(), 'ace-ar10-escape-'));
+  try {
+    const externalFile = join(external, 'outside.jsonl');
+    await writeFile(externalFile, '{"kind":"usage"}\n');
+    await withTrial(async (root, dir) => {
+      await symlink(externalFile, join(dir, 'agent', 'escape.jsonl'));
+      await assert.rejects(
+        readHarborFourArmLedgerArtifacts(root, ['trial-1/agent/escape.jsonl'], 'usage'),
+      );
+    });
+  } finally {
+    await rm(external, { recursive: true, force: true });
+  }
 });

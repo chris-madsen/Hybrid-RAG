@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { readHarborFourArmTrialObservations } from '../src/adapters/harbor-four-arm-trial-evidence.js';
+import { readHarborFourArmLedgerArtifacts, readHarborFourArmTrialObservations } from '../src/adapters/harbor-four-arm-trial-evidence.js';
 import { verifyHarborJobByteBinding } from '../src/application/harbor-byte-binding.js';
 import { assessHarborFourArmFiveX, totalTokensPerAcceptedTaskRatio, validateHarborFourArmDesign, validateHarborFourArmReport } from '../src/domain/harbor-four-arm.js';
-import { bindHarborTrialsToFrozenTasks, reconcileHarborFourArmTrials } from '../src/domain/harbor-four-arm-evidence.js';
+import { bindHarborTrialsToFrozenTasks, reconcileHarborFourArmAttemptLedger, reconcileHarborFourArmTrials } from '../src/domain/harbor-four-arm-evidence.js';
 
 const [nativeJobPath, denseJobPath, hybridJobPath, deltaJobPath, reportPath, outputPath,
   nativeTrialsPath, denseTrialsPath, hybridTrialsPath, deltaTrialsPath] = process.argv.slice(2);
@@ -61,15 +61,14 @@ const [nativeJobSha256, denseJobSha256, hybridJobSha256, deltaJobSha256, reportS
   sha256File(deltaJobPath as string),
   sha256File(reportPath as string),
 ]);
-const readEvidenceArtifact = async (path: string, category: string): Promise<{ readonly path: string; readonly sha256: string }> => {
-  const resolved = resolve(workspaceRoot, path);
-  const bytes = await readFile(resolved);
-  if (bytes.length === 0) throw new Error(`BLOCKED: ${category} artifact is empty: ${path}`);
-  return { path, sha256: createHash('sha256').update(bytes).digest('hex') };
-};
-const rawTraceArtifacts = await Promise.all(checkedReport.value.rawTracePaths.map((path) => readEvidenceArtifact(path, 'raw trace')));
-const usageEventArtifacts = await Promise.all(checkedReport.value.usageEventPaths.map((path) => readEvidenceArtifact(path, 'usage event')));
-const failedRunArtifacts = await Promise.all(checkedReport.value.failedRunPaths.map((path) => readEvidenceArtifact(path, 'failure')));
+const [traceLedger, usageLedger, failureLedger] = await Promise.all([
+  readHarborFourArmLedgerArtifacts(workspaceRoot, checkedReport.value.rawTracePaths, 'attempt'),
+  readHarborFourArmLedgerArtifacts(workspaceRoot, checkedReport.value.usageEventPaths, 'usage'),
+  readHarborFourArmLedgerArtifacts(workspaceRoot, checkedReport.value.failedRunPaths, 'failure'),
+]);
+const rawTraceArtifacts = traceLedger.artifacts;
+const usageEventArtifacts = usageLedger.artifacts;
+const failedRunArtifacts = failureLedger.artifacts;
 const designFingerprint = createHash('sha256').update(JSON.stringify(design.value), 'utf8').digest('hex');
 const native = checkedReport.value.arms.native;
 const delta = checkedReport.value.arms['hybrid-delta'];
@@ -97,27 +96,59 @@ const rawTrialEvidence = trialPaths.every((path): path is string => path !== und
       if (reconciled._tag === 'Err') {
         throw new Error(`BLOCKED: raw Harbor trial evidence: ${reconciled.error.path}: ${reconciled.error.message}`);
       }
-      return reconciled.value;
+      return { reconciled: reconciled.value, observations: checkedGroups.flat() };
     });
     return observations;
   })()
   : undefined;
-const reconciledEvidence = rawTrialEvidence === undefined ? undefined : await rawTrialEvidence;
-const measuredNativeInputTokens = reconciledEvidence?.arms.native.rawInputTokens ?? native.rawInputTokens;
-const measuredDeltaInputTokens = reconciledEvidence?.arms['hybrid-delta'].rawInputTokens ?? delta.rawInputTokens;
+const rawTrial = rawTrialEvidence === undefined ? undefined : await rawTrialEvidence;
+const reconciledEvidence = rawTrial?.reconciled;
+const frozenIdentity = design.value.native.externalEvidence;
+if (frozenIdentity === undefined) throw new Error('BLOCKED: missing frozen Harbor model/provider/runtime identity');
+const ledger = rawTrial === undefined ? undefined : reconcileHarborFourArmAttemptLedger(
+  rawTrial.observations,
+  [...traceLedger.events, ...usageLedger.events, ...failureLedger.events],
+  {
+    modelIdentity: frozenIdentity.modelIdentity,
+    providerIdentity: frozenIdentity.providerIdentity,
+    runtimeImageIdentity: frozenIdentity.runtimeImageIdentity,
+  },
+);
+if (ledger?._tag === 'Err') throw new Error('BLOCKED: AR10 attempt ledger: ' + ledger.error.path + ': ' + ledger.error.message);
+const ledgerEvidence = ledger?._tag === 'Ok' ? ledger.value : undefined;
+const measuredNativeInputTokens = ledgerEvidence?.arms.native.inputTokens ?? reconciledEvidence?.arms.native.rawInputTokens ?? native.rawInputTokens;
+const measuredDeltaInputTokens = ledgerEvidence?.arms['hybrid-delta'].inputTokens ?? reconciledEvidence?.arms['hybrid-delta'].rawInputTokens ?? delta.rawInputTokens;
 // Historical input-only ratio remains an explicitly labeled diagnostic; it
 // cannot establish the product's total-token/accepted-task objective.
 const inputTokenRatio = measuredNativeInputTokens === null || measuredDeltaInputTokens === null || measuredNativeInputTokens === 0
   ? null
   : measuredDeltaInputTokens / measuredNativeInputTokens;
-const totalTokenRatio = totalTokensPerAcceptedTaskRatio(
-  reconciledEvidence?.arms.native ?? native,
-  reconciledEvidence?.arms['hybrid-delta'] ?? delta,
-);
+// Only independently joined per-attempt provider totals may enter the 5x
+// gate. Report-declared and Harbor trial totals remain diagnostics only.
+const attemptUsageVerified = ledgerEvidence?.status === 'verified';
+const totalTokenRatio = attemptUsageVerified && ledgerEvidence !== undefined
+  ? totalTokensPerAcceptedTaskRatio(
+    {
+      rawInputTokens: ledgerEvidence.arms.native.inputTokens,
+      rawOutputTokens: ledgerEvidence.arms.native.outputTokens,
+      successes: ledgerEvidence.arms.native.acceptedTasks,
+    },
+    {
+      rawInputTokens: ledgerEvidence.arms['hybrid-delta'].inputTokens,
+      rawOutputTokens: ledgerEvidence.arms['hybrid-delta'].outputTokens,
+      successes: ledgerEvidence.arms['hybrid-delta'].acceptedTasks,
+    },
+  )
+  : null;
 // Without raw trial paths, or when their independently observed telemetry is
 // unknown, a self-declared aggregate cannot authorize the five-X claim.
 const rawTrialEvidenceVerified = reconciledEvidence?.releaseEligible === true;
 const releaseGate = assessHarborFourArmFiveX({
+  attemptUsageVerified,
+  // This historical four-arm report does not include C07/C08 independently
+  // certified provider-wire evidence. An internally consistent JSONL ledger
+  // is diagnostic, never an authorization to claim end-to-end 5x savings.
+  providerEgressVerified: false,
   qualityNonInferior: checkedReport.value.qualityNonInferior,
   costTelemetryComplete: checkedReport.value.costTelemetryComplete,
   totalTokensPerAcceptedTaskRatio: totalTokenRatio,
@@ -150,6 +181,15 @@ const reportOutput = {
     fiveXAllowed: releaseGate.allowed,
     fiveXBlocker: releaseGate.allowed ? null : releaseGate.reason,
     rawTrialEvidenceVerified,
+    providerEgressVerified: false,
+    attemptUsage: ledgerEvidence === undefined
+      ? { status: 'not_supplied', unknownFields: ['raw_harbor_trials_missing'] }
+      : {
+        status: ledgerEvidence.status,
+        unknownFields: ledgerEvidence.unknownFields,
+        arms: ledgerEvidence.arms,
+        evidenceScope: 'offline_observation_only_not_final_wire_certification',
+      },
     rawTrialEvidence: reconciledEvidence === undefined
       ? { status: 'not_supplied', releaseEligible: false }
       : {
