@@ -39,7 +39,7 @@ type DomainSendDecisionCoversGenerated = Expect<PhysicalSendAttemptDecision exte
 const request: GeneratedProjectionRequest = {
   schemaVersion: 'ace.context.v3', protocol: 'openai.responses', requestId: 'r1', attemptGroupId: 'a1',
   agentSessionId: 's1', workspaceId: 'ws1', dataClass: 'private', provider: 'openai', model: 'openai/model',
-  bodyBase64: 'e30=', bodySha256: 'a'.repeat(64), query: 'query', projectionMode: 'gateway',
+  bodyBase64: 'e30=', bodySha256: 'a'.repeat(64), query: 'query', projectionMode: 'bifrost_hook',
   deadlineEpochMs: 1, attestation: {
     hostBuildDigest: 'a'.repeat(64), sessionId: 's1', activeEngineId: 'bifrost-visible-request-only',
     effectiveCompressionControlsDigest: 'b'.repeat(64), durableActiveTranscriptRevision: 'unattested',
