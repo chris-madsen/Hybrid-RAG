@@ -6,8 +6,8 @@
 
 ```text
 Hermes native Responses client
-      -> Bifröst /v1/responses + Go ACE connector
-      -> authenticated ACE Gateway projection (TypeSpec ace.gateway.v2)
+      -> Bifröst /chatgpt_passthrough/backend-api/codex/responses + Go ACE plugin
+      -> authenticated ACE context projection (TypeSpec ace.context.v3)
       -> ACE TypeScript/Effect application
            code       CBM v0.12.1 native index/AST/graph/semantic/BM25 discovery
                       + currently required Qdrant dense/sparse code retrieval
