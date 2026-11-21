@@ -105,6 +105,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     candidates: () => [candidate],
     timeoutMs: 165_000,
   });
+  try {
   const indexed = await Effect.runPromise(provider.reindex());
   assert.equal(indexed._tag, 'Ok', JSON.stringify(indexed));
   // ACE may republish the same revision after a restart or a no-op sync.
@@ -176,5 +177,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
       'native CBM must supply useful real ACE code candidates');
     assert.ok(built.value.index.candidates.some((item) =>
       item.repoPath === 'src/adapters/qdrant-context-provider.ts'));
+  }  } finally {
+    await provider.close();
   }
 });
