@@ -120,6 +120,22 @@ test('unsupported binary version and request timeout fail closed', async () => {
   } finally { await hanging.close(); }
 });
 
+test('closing during initialization cancels the native child instead of waiting for the request deadline', {
+  timeout: 4_000,
+}, async () => {
+  const client = makeCodebaseMemoryStdio({
+    rootPath: root, command: process.execPath,
+    args: [fixture, '--hang-initialize'], timeoutMs: 10_000,
+  });
+  const inFlight = client.invoke('index_repository', { repo_path: root });
+  try {
+    await client.close();
+    const response = await inFlight;
+    assert.equal(response._tag, 'Err');
+    if (response._tag === 'Err') assert.equal(response.error.code, 'NOT_READY');
+  } finally { await client.close(); }
+});
+
 test('native result decoding uses structuredContent, rejects errors and never trusts text as code evidence', () => {
   const structured = parseCodebaseMemoryToolResult({
     isError: false,
