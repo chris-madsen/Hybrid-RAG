@@ -1,54 +1,54 @@
-# ADR-002 — Адаптивный выбор стратегии поиска; Jev только после сравнительного spike
+# ADR-002 — Adaptive retrieval routing; evaluate Jev before adoption
 
-**Статус:** **Proposed (spike)** — реализация Jev не утверждена  
-**Вопрос:** 4  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** **Proposed (spike)** — Jev implementation is not approved  
+**Decision item:** 4  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and project-owner selections dated 2026-10-17.  
+**Status definitions:** `Accepted` — approved; `Proposed` — requires a spike or validation; `Deferred` — deliberately postponed.
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records decisions, alternatives, rationale, and review criteria. Concrete classes, database schemas, API contracts, Kubernetes manifests, and topology belong in a later Architecture Design.
 
-## Контекст
+## Context
 
-Не каждая задача требует RAG, AST, LSP, Vertex AI и памяти одновременно. Дополнительные маршрутизирующие запросы сами имеют стоимость и могут ошибочно исключить необходимый источник.
+Not every request requires RAG, AST, LSP, Vertex AI, and memory simultaneously. Extra routing-model calls have their own cost and may incorrectly exclude a necessary source.
 
-Jev (TypeSafe AI, System One) предлагает **типизированные решения по заданным альтернативам**; это подходящий кандидат для routing/classification. Но валидный тип ответа не доказывает правильность решения. Заявленные в анонсе скорость и стоимость производителя следует перепроверить.
+Jev (TypeSafe AI, System One) provides **typed decisions among specified alternatives**, making it a candidate for routing and classification. A valid output type does not establish that a decision is correct. Vendor-reported speed and cost claims require independent validation.
 
-## Решение на данном этапе
+## Decision at this stage
 
-- **Принять проведение time-boxed experiment**, но **не утверждать Jev обязательным компонентом**.
-- Контрольный роутер: детерминированные правила без отдельного model call.
-- Экспериментальный роутер: Jev, рассматриваемый как Strategy Selector; при необходимости добавить small-LLM вариант как третью группу.
-- Допускать **multi-source планы** и эскалацию при неуверенности. Нельзя принудительно направлять все запросы в одну технологию.
-- Fail-safe default при сомнительном выборе: дать агенту возможность продолжить поиск, не заявлять об отсутствии данных.
-- При отсутствии разрешения на передачу данных во внешний Jev API — не вызывать его; обезличенные метаданные тоже считать потенциально чувствительными до проверки.
+- **Approve a time-boxed experiment**, **not Jev as a required component**.
+- Control arm: deterministic rules without an additional model call.
+- Experimental arm: Jev as a strategy selector; optionally add a small-LLM third arm where useful.
+- Allow **multi-source retrieval plans** and escalation under uncertainty. Do not force every request into one provider.
+- Fail-safe default for uncertain routing: let the agent continue searching rather than assert the data does not exist.
+- Without authorization for external Jev API transmission, do not call it. Even anonymized metadata is potentially sensitive until assessed.
 
-## Набор маршрутов для сравнения (предложение, не окончательный API)
+## Candidate routes (not a final API)
 
 `lexical`, `code_semantic`, `symbol_lsp`, `structural_ast`, `documentation`, `project_memory`, `multi_source`.
 
-## Что сравниваем
+## Comparison criteria
 
-1. **Route correctness** по размеченным сценариям, включая неоднозначные запросы.
-2. Recall целевых файлов/символов/документов после реального retrieval (а не только совпадение метки).
-3. End-to-end success, токены всех провайдеров, платёжные расходы, tool calls и wall-clock latency.
-4. Доля fallback и ошибочно исключённых источников.
-5. Устойчивость к частным случаям: известный file path; прошлое ADR; multi-repo; свежая правка; неоднозначная функция.
+1. **Route correctness** on labeled scenarios, including ambiguous requests.
+2. Recall of relevant files, symbols, and documents after actual retrieval—not just route-label accuracy.
+3. End-to-end task success, all-provider tokens, monetary cost, tool calls, and wall-clock latency.
+4. Fallback frequency and sources incorrectly excluded.
+5. Behavior on known paths, past ADRs, multiple repositories, recent edits, and ambiguous function names.
 
-## Gate принятия будущего решения
+## Gate for a future adoption decision
 
-Jev включается в основной путь **только если** на holdout улучшает полезность или полную эффективность по сравнению с rule-based с неухудшением успешности и без недопустимых cloud-передач. Если нет — оставить rule-based. Числовые пороги и тестовый corpus будут согласованы в Evaluation Design, а не выдуманы в ADR.
+Enable Jev on the main path **only if** held-out results show higher usefulness or better total efficiency than rule-based routing, with no reduction in task success and no unauthorized cloud transmission. Otherwise retain rule-based routing. Numeric thresholds and the corpus are to be agreed in Evaluation Design, not invented in this ADR.
 
-## Риски
+## Risks
 
-- Облачная зависимость, vendor lock-in, API churn.
-- Вероятностная оценка не равно доказательство.
-- Неверный маршрут может снизить качество сильнее, чем экономит один вызов.
-- Возможен эффект многократной маршрутизации в длинной агентной петле.
+- Cloud dependency, vendor lock-in, and API churn.
+- A probabilistic decision is not proof.
+- A wrong route can harm quality more than one model call costs.
+- Repeated routing may compound overhead in a long agent loop.
 
-## Ссылки
+## References
 
-- Первичный анонс: https://typesafe.ai/blog/introducing-system-one-models-and-jev
-- Официальная документация: https://docs.typesafe.ai/
+- Original announcement: https://typesafe.ai/blog/introducing-system-one-models-and-jev
+- Official documentation: https://docs.typesafe.ai/
 - ADR-006, ADR-007, ADR-009
