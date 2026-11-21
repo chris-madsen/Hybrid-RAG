@@ -9,7 +9,7 @@ test('generated ACE context RPC contract is native Responses v2 only', async () 
   const openapi = await loadJson('typespec/generated/openapi.json');
   assert.equal((openapi.info as { version?: string }).version, '3.0.0');
   const paths = Object.keys(openapi.paths as Record<string, unknown>)
-    .filter((path) => path.startsWith('/internal/ace-gateway/'))
+    .filter((path) => path.startsWith('/internal/ace-context/'))
     .sort();
   assert.deepEqual(paths, [
     '/internal/ace-context/v3/authorize-attempt',

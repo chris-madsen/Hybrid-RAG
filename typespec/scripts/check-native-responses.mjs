@@ -5,10 +5,10 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const loadJson = (path) => JSON.parse(readFileSync(resolve(root, path), 'utf8'));
 const openapi = loadJson('generated/openapi.json');
-assert.equal(openapi.info?.version, '2.0.0', 'generated API version must be 2.0.0');
+assert.equal(openapi.info?.version, '3.0.0', 'generated API version must be 3.0.0');
 
 const routes = Object.keys(openapi.paths ?? {})
-  .filter((path) => path.startsWith('/internal/ace-gateway/'))
+  .filter((path) => path.startsWith('/internal/ace-context/'))
   .sort();
 assert.deepEqual(routes, [
   '/internal/ace-context/v3/authorize-attempt',

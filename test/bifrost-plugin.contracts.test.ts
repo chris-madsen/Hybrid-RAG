@@ -41,7 +41,7 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(plugin, /ExpectedProvider: binding\.provider, ExpectedModel: binding\.model/u);
   assert.match(plugin, /Do not decide a route-changing fallback from normalized request fields here/u);
   assert.match(plugin, /ctx\.TrustedValue\(projectionBindingKey\{\}\)/u);
-  assert.match(plugin, /ACE context RPC endpoint is unsupported/u);
+  assert.match(plugin, /Bifröst native Responses route is unsupported by the ACE context extension/u);
   assert.match(plugin, /func PreLLMHook\(/u);
   assert.match(plugin, /req\.PassthroughRequest/u);
   assert.match(plugin, /p\.UpstreamURL != chatGPTProviderOrigin/u);

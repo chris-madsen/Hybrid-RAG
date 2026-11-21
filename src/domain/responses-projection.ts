@@ -29,7 +29,7 @@ export const validateResponsesProjectionRequest = (value: unknown): Result<Respo
   if (value.schemaVersion !== 'ace.context.v3' || value.protocol !== 'openai.responses') {
     return rejected('protocol', 'native Responses v2 only; alternate provider protocols are rejected');
   }
-  if (value.projectionMode !== 'gateway') return rejected('projectionMode', 'only automatic Bifröst hook projection is supported');
+  if (value.projectionMode !== 'bifrost_hook') return rejected('projectionMode', 'only automatic Bifröst hook projection is supported');
   for (const key of ['requestId', 'attemptGroupId', 'agentSessionId', 'workspaceId', 'provider', 'model', 'bodyBase64', 'bodySha256', 'query']) {
     if (!nonempty(value[key])) return rejected(key, 'missing required Responses identity');
   }
