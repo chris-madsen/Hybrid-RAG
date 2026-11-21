@@ -246,7 +246,7 @@ export const validateRetrievalBenchmarkTraceArtifact = (
         failures.push(`event_${index}_invalid_shape`);
         continue;
       }
-      parsed.push(value as unknown as RetrievalBenchmarkTraceEvent);
+      // Non-executed stages must not claim elapsed time: an epoch-derived\n      // duration is not performance evidence and poisons aggregate latency.\n      if (value.status === 'unavailable' || value.status === 'not_applicable') {\n        if (value.durationMs !== 0) failures.push(`event_${index}_nonexecuted_latency`);\n      }\n      parsed.push(value as unknown as RetrievalBenchmarkTraceEvent);
     } catch {
       failures.push(`event_${index}_invalid_json`);
     }
