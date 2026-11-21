@@ -98,7 +98,7 @@ const requirements = [
       'func HTTPTransportPreHook',
       'case "/v1/responses":',
       'func prepareNativeResponses',
-      'ACE context extension endpoint is unsupported',
+      'Bifröst native Responses route is unsupported by the ACE context extension',
       'ctx.SetPhysicalSendGuard(guard)',
       'AuthorizeNativeResponsesAttempt',
       'func PreLLMHook',
@@ -266,7 +266,7 @@ const publicContractAuthorityGuard = async () => {
   const unexpected = files;
   let typeSpecMissing = [];
   try {
-    const source = await readFile(resolve(root, 'typespec/responses-v2.tsp'), 'utf8');
+    const source = await readFile(resolve(root, 'typespec/context-v3.tsp'), 'utf8');
     for (const needle of [
       'namespace ACE.ResponsesV2',
       'model ProjectionRequest',
@@ -279,7 +279,7 @@ const publicContractAuthorityGuard = async () => {
       if (!source.includes(needle)) typeSpecMissing.push(needle);
     }
   } catch {
-    typeSpecMissing = ['typespec/responses-v2.tsp'];
+    typeSpecMissing = ['typespec/context-v3.tsp'];
   }
   return {
     id: 'PUBLIC_CONTRACT_TYPESPEC_AUTHORITY',
