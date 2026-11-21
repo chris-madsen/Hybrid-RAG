@@ -36,12 +36,13 @@ const req = (override:Partial<ResponsesProjectionRequest> = {}, requestBody:unkn
     agentSessionId:'hermes-session', workspaceId:'workspace-1', dataClass:'private',
     provider:'openai', model:'openai/gpt-test', bodyBase64,
     bodySha256:createHash('sha256').update(Buffer.from(bodyBase64, 'base64')).digest('hex'),
-    query:'entrypoint found', projectionMode:'gateway', deadlineEpochMs:Date.now() + 60000,
+    query:'entrypoint found', projectionMode:'bifrost_hook', deadlineEpochMs:Date.now() + 60000,
     attestation, ...override,
   };
 };
-test('v2 validates exact original provider bytes and rejects unknown versions', ()=>{
+test('v3 ACE context RPC validates exact original provider bytes and rejects unknown versions', ()=>{
   assert.equal(validateResponsesProjectionRequest(req())._tag, 'Ok');
+  assert.equal(validateResponsesProjectionRequest(req({ projectionMode:'gateway' as never }))._tag, 'Err', 'legacy ACE Gateway projection mode must not be accepted');
   assert.equal(validateResponsesProjectionRequest(req({ protocol:'unsupported.protocol' as never }))._tag, 'Err');
   assert.equal(validateResponsesProjectionRequest(req({ schemaVersion:'unsupported-version' as never }))._tag, 'Err');
   assert.equal(validateResponsesProjectionRequest(req({ bodySha256:digest('wrong') }))._tag, 'Err');
