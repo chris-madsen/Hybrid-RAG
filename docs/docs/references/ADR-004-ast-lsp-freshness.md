@@ -1,3 +1,5 @@
+> **Current implementation note, 2026-11-21:** PR #316 supersedes the *provider-selection implementation details* below: native Codebase Memory v0.12.1 now owns runtime AST/graph and has Hybrid LSP plus semantic/BM25 discovery. Separate LSP still validates identifier selection/definition; ast-grep remains only the architecture linter. This annotation does not rewrite the accepted historical decision. [Current architecture](../../operations/current-architecture.md).
+
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
 # ADR-004 — AST, LSP, анализ зависимостей и актуальность индекса

@@ -1,3 +1,5 @@
+> **Current implementation note, 2026-11-21:** The accepted 2026-10-21 selection of Qdrant vs Turbopuffer was made *before* Codebase Memory became the sole native structural/graph engine (PR #316). CBM now also has semantic/BM25 search, overlapping with Qdrant. The running ACE still composes Qdrant, but the owner has requested independent CBM-only vs CBM+Qdrant evidence before retaining or removing it. Older ast-grep/RepoMap and Hermes-native/optional-tool text below is **historical**, not executable architecture. [Current architecture](../../operations/current-architecture.md) and [ADR-020](ADR-020-native-responses-only.md).
+
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
 # ADR-014 — Агентонезависимый многоуровневый Hybrid Context Engine

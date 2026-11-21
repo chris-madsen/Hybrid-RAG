@@ -2,6 +2,8 @@
 
 OpenSpec records capability requirements and accepted change deltas. It does **not** override explicit owner decisions or Accepted ADRs. Current project context is in `openspec/config.yaml`.
 
+**Current structural implementation note (2026-11-21):** PR #316 replaced runtime ast-grep and homemade RepoMap with native Codebase Memory v0.12.1. The currently wired code-retrieval mode still includes Qdrant dense/sparse alongside CBM's own semantic/BM25 search; removing Qdrant is an unverified architecture hypothesis, not implemented. [Current code/readiness](../docs/operations/current-architecture.md) and [CBM provider](../docs/operations/codebase-memory-provider.md). OpenSpec 014 tracks audit remediation; OpenSpec 013 tracks G11 provider/Hermes acceptance.
+
 ## Current integration authority
 
 The repository owner selected **Bifröst Gateway-only ACE delivery** on 2026-11-14 and **native Responses-only Gateway traffic** for G11 C01 on 2026-11-18.
