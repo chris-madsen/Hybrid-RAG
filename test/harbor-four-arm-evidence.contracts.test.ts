@@ -381,3 +381,26 @@ test('AR10: duplicate or native-contaminating Gateway projection IDs are not ind
     if (result._tag === 'Err') assert.equal(result.error.path, 'harbor_trial_evidence.gatewayProjectionRequestIds');
   }
 });
+
+
+test('AR10: an unknown physical outcome cannot be promoted to success or mistaken for definitive failure', () => {
+  const trial = allObservations()[0] as HarborFourArmTrialObservation;
+  const events = completeAr10Events().map((event) => event.kind === 'attempt'
+    && event.arm === trial.arm && event.trialId === trial.trialId
+    ? { ...event, outcome: 'unknown' as const }
+    : event);
+  const unknown = reconcileHarborFourArmAttemptLedger(allObservations(), events, ar10Identity);
+  assert.equal(unknown._tag, 'Ok');
+  if (unknown._tag === 'Ok') {
+    assert.equal(unknown.value.status, 'unknown');
+    assert.ok(unknown.value.unknownFields.some((field) => field.endsWith('.outcome.' + trial.trialId + '-a1')));
+  }
+  const definitiveFailure = events.map((event) => event.kind === 'attempt'
+    && event.arm === trial.arm && event.trialId === trial.trialId
+    ? { ...event, outcome: 'failed' as const }
+    : event);
+  definitiveFailure.push(ar10Event(trial, 'failure'));
+  const contradicted = reconcileHarborFourArmAttemptLedger(allObservations(), definitiveFailure, ar10Identity);
+  assert.equal(contradicted._tag, 'Err');
+  if (contradicted._tag === 'Err') assert.equal(contradicted.error.path, 'harbor_attempt_ledger.outcome');
+});

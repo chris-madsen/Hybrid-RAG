@@ -541,8 +541,11 @@ export const reconcileHarborFourArmAttemptLedger = (
       let trialInputKnown = trialAttempts.length > 0;
       let trialOutputKnown = trialAttempts.length > 0;
       let trialCachedKnown = trialAttempts.length > 0;
+      // A missing or UNKNOWN provider outcome must stay UNKNOWN even when
+      // Harbor's independent verifier accepted the task. Only definitive
+      // failed/timeout outcomes contradict that independent success.
       if (trial.success && trialAttempts.length > 0
-        && !trialAttempts.some((event) => event.outcome === 'completed')) {
+        && trialAttempts.every((event) => event.outcome === 'failed' || event.outcome === 'timeout')) {
         return invalid('harbor_attempt_ledger.outcome', 'accepted trial contradicts observed physical attempt outcomes');
       }
       for (const attempt of trialAttempts) {
