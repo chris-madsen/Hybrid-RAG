@@ -1,6 +1,6 @@
 # ACE — Architecture Fitness and Bertrand Meyer Design-by-Contract Gates
 
-**Status:** Accepted Design-by-Contract evaluation policy, updated 2026-11-14. Deterministic structural/contract gates are installed; each real-provider/real-agent DBC still requires its own observed evidence before production claims. **Scope:** architecture/spec acceptance, not blanket runtime certification. **Source:** PRD, ADR-001/003/004/005/006/007/009, review `docs/reviews/2026-10-18-architecture-failure-review.md`. Owner acceptance policy approved; implementation and production readiness still require evidence. Existing small unit tests remain valuable but **cannot replace these end-to-end contracts**.
+**Status:** Accepted Design-by-Contract evaluation policy from 2026-11-14. **2026-11-21 implementation reconciliation:** Native Codebase Memory v0.12.1 replaced runtime ast-grep/RepoMap in PR #316; the current code also composes Qdrant and LSP. The Gateway-native Graphiti provider remains unconfigured, and real provider-wire/Hermes/Harbor acceptance remains open. See [current source-inspected architecture](../../operations/current-architecture.md). Deterministic structural/contract gates are installed; each real-provider/real-agent DBC still requires its own observed evidence before production claims. **Scope:** architecture/spec acceptance, not blanket runtime certification. **Source:** PRD, ADR-001/003/004/005/006/007/009, review `docs/reviews/2026-10-18-architecture-failure-review.md`. Owner acceptance policy approved; implementation and production readiness still require evidence. Existing small unit tests remain valuable but **cannot replace these end-to-end contracts**.
 
 ## 1. The architectural mistake we are preventing
 
@@ -19,10 +19,10 @@ flowchart LR
   Gate --> O["Context Orchestration / Effect"]
   O --> Plan["Deterministic retrieval routing"]
   Plan --> Q["Qdrant dense + sparse"]
-  Plan --> AST["ast-grep structural facts"]
+  Plan --> AST["Codebase Memory AST, graph, semantic/BM25"]
   Plan --> LS["Language service / LSP"]
   Plan --> Docs["Authorized Vertex docs"]
-  Plan --> Mem["Archive + Graphiti memory"]
+  Plan --> Mem["Archive; Graphiti Gateway NOT_READY"]
   Q --> V["Exact source verification"]
   AST --> V
   LS --> V
@@ -49,7 +49,7 @@ IDs are stable acceptance criteria. Each case must be implemented as **agent-fac
 
 | Contract | `require` / test fixture | `ensure` / oracle | `invariant` / negative oracle |
 |---|---|---|---|
-| **DBC-01 Prod composition** | Approved local Qdrant+embedding+Tree-sitter/ast-grep+LSP available; supported Gateway route active | Trace identifies Bifröst→ACE plus actual invocation of each needed provider for a query requiring them | A disconnected adapter/fallback alone is **not** a passing result; unavailable required providers -> explicit not-ready/partial/block |
+| **DBC-01 Prod composition** | Current candidate: native CBM v0.12.1 + local Qdrant/embedding + required external LSP; supported Native Responses/Bifröst Gateway route active | Trace identifies Bifröst→ACE plus actual invocation of each needed provider for a query requiring them | A disconnected adapter/fallback alone is **not** a passing result; unavailable required providers -> explicit not-ready/partial/block |
 | **DBC-02 Symbol precision** | 2000-line TS file with 25-line target function and similar names elsewhere | Answer includes AST-bound target span, correct digest and exact citation; full file is retrievable through the authorized host's exact source reader | Initial excerpt must not copy the full file merely because a symbol name matched |
 | **DBC-03 Behavior-based RAG** | Query describes behavior without lexical names; labeled semantic/lexical distractors | Approved semantic retrieval surfaces relevant candidate; hits verified against source; report recall/precision | SHA-256 hash-vector baseline cannot be counted as semantic embedding quality |
 | **DBC-04 Same-name semantics** | Classes A/B each implement `save()`; distinct call sites | LSP references/definitions identify correct symbol; tests preserve compiler semantics | Write access is **not** equivalent to definition; name equality is not symbol identity |

@@ -1,3 +1,5 @@
+> **HISTORICAL / SUPERSEDED BENCHMARK PROPOSAL (2026-11-21 source inspection):** The October plan refers to old Hermes optional tool transport, older provider ownership and pre-G11 authorization. It is preserved to explain earlier benchmark decisions, **not** a current command queue or a model-egress permit. Current architecture is [native Responses via Bifröst + CBM and currently Qdrant](../operations/current-architecture.md); current agent acceptance is [OpenSpec 013 C07/C08](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md). The CBM-only vs CBM+Qdrant necessity question is to be measured with maintained upstream evaluators, not justified from this historical plan.
+
 # Execution plan: real ACE/Hermes token-economics measurement, then benchmark cleanup
 
 **Date:** 2026-10-26
