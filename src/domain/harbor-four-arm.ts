@@ -314,7 +314,8 @@ export const totalTokensPerAcceptedTaskRatio = (
       || !Number.isFinite(arm.rawInputTokens) || !Number.isFinite(arm.rawOutputTokens)
       || arm.rawInputTokens < 0 || arm.rawOutputTokens < 0 || !Number.isSafeInteger(arm.successes)
       || arm.successes <= 0
-      ? null : arm.rawInputTokens + arm.rawOutputTokens;
+      ? null : Number.isSafeInteger(arm.rawInputTokens + arm.rawOutputTokens)
+        ? arm.rawInputTokens + arm.rawOutputTokens : null;
   const baseline = total(native);
   const proposed = total(candidate);
   if (baseline === null || proposed === null || baseline <= 0) return null;

@@ -276,3 +276,57 @@ test('AR10 rejects mismatched provider usage, impossible cache/reasoning subsets
     assert.equal(missing.value.arms.native.inputTokens, null);
   }
 });
+
+
+test('AR10: an unobserved accepted trial is UNKNOWN instead of an error or zero-token success', () => {
+  const trial = allObservations()[0] as HarborFourArmTrialObservation;
+  const events = completeAr10Events().filter((event) =>
+    !(event.arm === trial.arm && event.trialId === trial.trialId));
+  const reconciled = reconcileHarborFourArmAttemptLedger(allObservations(), events, ar10Identity);
+  assert.equal(reconciled._tag, 'Ok');
+  if (reconciled._tag === 'Ok') {
+    assert.equal(reconciled.value.status, 'unknown');
+    assert.equal(reconciled.value.arms.native.inputTokens, null);
+    assert.equal(reconciled.value.arms.native.outputTokens, null);
+    assert.ok(reconciled.value.unknownFields.includes('native.' + trial.trialId + '.attempts'));
+  }
+});
+
+test('AR10: safe individual usage counters cannot overflow cumulative trial or arm totals', () => {
+  const trial = allObservations()[0] as HarborFourArmTrialObservation;
+  const observations = allObservations().map((item) => item.arm === trial.arm && item.trialId === trial.trialId
+    ? { ...item, rawInputTokens: null }
+    : item);
+  const massive = completeAr10Events().map((event) =>
+    event.kind === 'usage' && event.trialId === trial.trialId && event.arm === trial.arm
+      ? { ...event, inputTokens: Number.MAX_SAFE_INTEGER }
+      : event);
+  const events = [
+    ...massive,
+    ar10Event(trial, 'attempt', { attemptId: 'overflow-extra-attempt' }),
+    ar10Event(trial, 'usage', {
+      attemptId: 'overflow-extra-attempt', inputTokens: 1,
+      outputTokens: 0, cachedInputTokens: 0, reasoningOutputTokens: 0,
+    }),
+  ];
+  const reconciled = reconcileHarborFourArmAttemptLedger(observations, events, ar10Identity);
+  assert.equal(reconciled._tag, 'Err');
+  if (reconciled._tag === 'Err') {
+    assert.equal(reconciled.error.path, 'harbor_attempt_ledger.usage');
+  }
+
+  const second = allObservations()[1] as HarborFourArmTrialObservation;
+  const armObservations = allObservations().map((item) =>
+    item.arm === 'native' ? { ...item, rawInputTokens: null } : item);
+  const armEvents = completeAr10Events().map((event) => event.kind === 'usage' && event.arm === 'native'
+    && event.trialId === trial.trialId
+    ? { ...event, inputTokens: Number.MAX_SAFE_INTEGER }
+    : event.kind === 'usage' && event.arm === 'native' && event.trialId === second.trialId
+      ? { ...event, inputTokens: 1 }
+      : event);
+  const armReconciled = reconcileHarborFourArmAttemptLedger(armObservations, armEvents, ar10Identity);
+  assert.equal(armReconciled._tag, 'Err');
+  if (armReconciled._tag === 'Err') {
+    assert.equal(armReconciled.error.path, 'harbor_attempt_ledger.usage');
+  }
+});

@@ -522,8 +522,9 @@ export const reconcileHarborFourArmAttemptLedger = (
       let trialInputKnown = trialAttempts.length > 0;
       let trialOutputKnown = trialAttempts.length > 0;
       let trialCachedKnown = trialAttempts.length > 0;
-      if (trial.success && !trialAttempts.some((event) => event.outcome === 'completed')) {
-        return invalid('harbor_attempt_ledger.outcome', 'accepted trial has no completed physical attempt');
+      if (trial.success && trialAttempts.length > 0
+        && !trialAttempts.some((event) => event.outcome === 'completed')) {
+        return invalid('harbor_attempt_ledger.outcome', 'accepted trial contradicts observed physical attempt outcomes');
       }
       for (const attempt of trialAttempts) {
         attemptCount += 1;
@@ -549,19 +550,39 @@ export const reconcileHarborFourArmAttemptLedger = (
         if (usage.inputTokens === null) {
           trialInputKnown = false;
           unknownFields.push(where + '.inputTokens.' + attempt.attemptId);
-        } else trialInput += usage.inputTokens;
+        } else {
+          trialInput += usage.inputTokens;
+          if (!Number.isSafeInteger(trialInput)) {
+            return invalid('harbor_attempt_ledger.usage', 'per-trial input token sum exceeds safe integer precision');
+          }
+        }
         if (usage.outputTokens === null) {
           trialOutputKnown = false;
           unknownFields.push(where + '.outputTokens.' + attempt.attemptId);
-        } else trialOutput += usage.outputTokens;
+        } else {
+          trialOutput += usage.outputTokens;
+          if (!Number.isSafeInteger(trialOutput)) {
+            return invalid('harbor_attempt_ledger.usage', 'per-trial output token sum exceeds safe integer precision');
+          }
+        }
         if (usage.cachedInputTokens === null) {
           trialCachedKnown = false;
           unknownFields.push(where + '.cachedInputTokens.' + attempt.attemptId);
-        } else trialCached += usage.cachedInputTokens;
+        } else {
+          trialCached += usage.cachedInputTokens;
+          if (!Number.isSafeInteger(trialCached)) {
+            return invalid('harbor_attempt_ledger.usage', 'per-trial cached token sum exceeds safe integer precision');
+          }
+        }
         if (usage.reasoningOutputTokens === null) {
           reasoningKnown = false;
           unknownFields.push(where + '.reasoningOutputTokens.' + attempt.attemptId);
-        } else reasoningSum += usage.reasoningOutputTokens;
+        } else {
+          reasoningSum += usage.reasoningOutputTokens;
+          if (!Number.isSafeInteger(reasoningSum)) {
+            return invalid('harbor_attempt_ledger.usage', 'reasoning token sum exceeds safe integer precision');
+          }
+        }
       }
       const check = (
         field: 'inputTokens' | 'outputTokens' | 'cachedInputTokens',
@@ -589,6 +610,9 @@ export const reconcileHarborFourArmAttemptLedger = (
       inputSum += trialInput;
       outputSum += trialOutput;
       cacheSum += trialCached;
+      if (![inputSum, outputSum, cacheSum].every(Number.isSafeInteger)) {
+        return invalid('harbor_attempt_ledger.usage', 'per-arm token sum exceeds safe integer precision');
+      }
     }
     if (armTrials.length === 0) {
       unknownFields.push(arm + '.missing_trials');

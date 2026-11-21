@@ -220,3 +220,19 @@ test('AR10: internally matched usage does not authorize a real-provider five-X s
     providerEgressVerified: false, totalTokensPerAcceptedTaskRatio: 0.1,
   }), { allowed: false, reason: 'independent_provider_egress_not_certified' });
 });
+
+
+test('AR10: total token ratio refuses an unsafe integer sum even if both counters are individually valid', () => {
+  const native = { rawInputTokens: Number.MAX_SAFE_INTEGER, rawOutputTokens: 1, successes: 1 };
+  const candidate = { rawInputTokens: 100, rawOutputTokens: 20, successes: 1 };
+  assert.equal(totalTokensPerAcceptedTaskRatio(native, candidate), null);
+  assert.equal(totalTokensPerAcceptedTaskRatio(candidate, native), null);
+  assert.equal(assessHarborFourArmFiveX({
+    qualityNonInferior: true,
+    costTelemetryComplete: true,
+    rawTrialEvidenceVerified: true,
+    attemptUsageVerified: true,
+    providerEgressVerified: true,
+    totalTokensPerAcceptedTaskRatio: totalTokensPerAcceptedTaskRatio(native, candidate),
+  }).allowed, false);
+});
