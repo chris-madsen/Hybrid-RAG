@@ -19,9 +19,9 @@ CBM CLI bottleneck was superseded by merged PR #321.
 ## Hard safety boundaries
 
 - Hermes uses its OWN `openai-codex` subscription OAuth; no Codex CLI credential borrowing.
-- Do not set `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, direct model provider endpoints,
-  or default to Harbor's built-in `name: hermes` agent. OpenRouter is a **negative
-  test case**, never an authorized fallback.
+- Do not configure API-key-based model routes or direct model-provider endpoints.
+  Never default to Harbor's built-in `name: hermes` agent; select only the pinned
+  custom OAuth adapter through `import_path`.
 - Set `HERMES_CODEX_BASE_URL` to the full Bifröst passthrough **base prefix**,
   for example `http://bifrost:8080/chatgpt_passthrough`, not `/v1`,
   `/v1/responses`, ACE's context projection endpoint, or a direct provider URL.

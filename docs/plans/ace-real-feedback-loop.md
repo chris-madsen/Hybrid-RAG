@@ -12,7 +12,7 @@
 
 **Architecture:** preserve the existing retired optional tool-call protocol facade, exact-source reread, provider receipts, source-coverage semantics, OAuth auth-file route, and fail-closed statuses. Do not replace an unavailable provider with a mock or lexical success.
 
-**Auth decision:** Harbor Hermes jobs use Hermes provider `openai-codex` with a dedicated host Hermes OAuth store (`~/.hermes/auth.json`, or the explicitly configured `HERMES_HOME` / `HERMES_AUTH_JSON_PATH`). The benchmark never borrows `~/.codex/auth.json`; Hermes owns and refreshes its own token chain. The store is staged into `HERMES_HOME=/tmp/hermes` inside the ephemeral task container and synchronized back atomically after each serial trial. A manually supplied `OPENAI_API_KEY` or `OPENROUTER_API_KEY` is not required for this subscription route. A task-specific remote verifier may declare its own requirement; that is separate from agent authentication.
+**Auth decision:** Harbor Hermes jobs use Hermes provider `openai-codex` with a dedicated host Hermes OAuth store (`~/.hermes/auth.json`, or the explicitly configured `HERMES_HOME` / `HERMES_AUTH_JSON_PATH`). The benchmark never borrows `~/.codex/auth.json`; Hermes owns and refreshes its own token chain. The store is staged into `HERMES_HOME=/tmp/hermes` inside the ephemeral task container and synchronized back atomically after each serial trial. A manually supplied model-provider API key is not required for this subscription route. A task-specific remote verifier may declare its own requirement; that is separate from agent authentication.
 
 ---
 
@@ -75,7 +75,7 @@ AUTH-01 OAuth-first preflight
 
 - Validate the Hermes-owned `~/.hermes/auth.json` (or explicit Hermes auth path) and its `providers.openai-codex` OAuth state without logging token bytes.
 - Record the Hermes `openai-codex` authentication route and pin the custom Harbor adapter plus retired optional tool-call protocol entrypoint digests.
-- Do not require `OPENAI_API_KEY`, `OPENAI_API_BASE` or `OPENROUTER_API_KEY` for the agent route.
+- Do not require direct-provider API credentials or a provider base-URL override for the agent route.
 - Remove the global API verifier from the required base checks.
 - Check a remote verifier only when the selected Harbor task explicitly requires one.
 - Emit preflight manifest schema version 2 and reject stale schema-1 manifests for current trials.
