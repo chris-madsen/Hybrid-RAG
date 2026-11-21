@@ -4,12 +4,13 @@
 
 ### Requirement: Agent route must be provider-native Responses
 
-ACE SHALL use Bifröst's provider-native Responses transport for its only agent-facing context delivery. No other protocol, converter, alias or fallback may authorize model egress or silently change an agent's input.
+ACE SHALL use **Bifröst as its only agent-facing LLM Gateway**, with its native Responses protocol. The ACE Core and authenticated `ace.gateway.v2` local HTTP API are **internal context projection and source-policy services**, never provider-facing LLM gateways. Reuse Bifröst's native ChatGPT/Codex subscription passthrough rather than implementing a second model route, proxy, OAuth handler or Chat/Completions converter.
 
 #### Scenario: RESP-001 — Native Responses is the only generation protocol
 - **WHEN** Hermes sends a model request to the configured ACE/Bifröst endpoint
-- **THEN** only the independently certified native /v1/responses path can become eligible for generation
-- **AND** every non-Responses alias, protocol converter, automatic provider substitution and unsupported passthrough is blocked before external egress.
+- **THEN** the supported Bifröst native Responses ingress paths are `POST /v1/responses` (generic native API) and `POST /chatgpt_passthrough/backend-api/codex/responses` (the **only** Hermes subscription route); both use the same Bifröst Gateway pipeline and ACE internal projector
+- **AND** the subscribed request retains its original bare Codex model, ChatGPT bearer and native Responses body, with only verified additive context; it is sent through Bifröst's existing ChatGPT passthrough to `https://chatgpt.com/backend-api/codex/responses`, not an API-key endpoint
+- **AND** every non-Responses route, non-ChatGPT passthrough, protocol converter, automatic provider substitution and unverified route bypass is blocked before provider egress; a valid local `PREPARED` response is not permission to send.
 
 #### Scenario: RESP-002 — Explicit fail-closed capability surface
 - **WHEN** a required native route, model, auth, privacy or per-physical-send guard is missing, or general provider-wire certification is incomplete
@@ -46,7 +47,7 @@ ACE SHALL authorize every final physical outbound provider attempt independently
 - **AND** Bifröst MUST forward the caller's subscription bearer only through a documented supported ChatGPT Codex backend route, not silently to an API-key Responses endpoint; exact allowed provider/model/destination and `store:false` remain verified on the physical attempt
 - **AND** preserve native Responses input, requested reasoning effort and all protected payload semantics; let provider-reported context/usage remain UNKNOWN when unavailable (no invented token ceiling)
 - **AND** reject changed provider/model/destination, a destination outside the single configured subscription route, hidden continuation, detected secrets or insufficient data-class permission; an upstream 401/403 is a provider error, not a reason for API-key fallback
-- **AND** a local ACE `ALLOW` decision and deterministic tests are only evidence of admission logic, not proof that the pinned Bifröst binary supports subscription passthrough or that a real provider response was received.
+- **AND** the pinned Bifröst fork's subscription passthrough is source-verified; ACE extends the same native path through its Go post-auth hook, per-LLM binding and terminal physical-send guard. Local `ALLOW` and synthetic TLS provider tests do not prove that a deployed Hermes session used the configured route or that a **real** ChatGPT provider response was received.
 
 ### Requirement: Acceptance requires full agent evidence and quality
 
