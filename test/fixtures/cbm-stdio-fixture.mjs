@@ -16,6 +16,7 @@ const log = (value) => {
 
 connection.onRequest('initialize', (input) => {
   log({ method: 'initialize' });
+  if (process.argv.includes('--hang-initialize')) return new Promise(() => undefined);
   return {
     protocolVersion: input.protocolVersion,
     serverInfo: {
