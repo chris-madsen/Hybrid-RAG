@@ -2,7 +2,7 @@
 
 # ACE post-merge correctness and acceptance plan
 
-> **Этот план объединён в [единый рабочий план](./2026-10-19-unified-ace-correctness-and-production-plan.md).** Для новых задач используйте единый backlog; этот файл сохранён для истории и проверки источников. Он не является самостоятельной очередью выполнения.
+> **This plan has been consolidated into the [unified execution plan](./2026-10-19-unified-ace-correctness-and-production-plan.md).** Use the unified backlog for new work. This file is retained for historical context and source verification, not as an independent task queue.
 
 
 Date: 2026-10-19
