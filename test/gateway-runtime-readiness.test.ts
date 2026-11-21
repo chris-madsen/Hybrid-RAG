@@ -132,7 +132,7 @@ test('C07 operator guidance pins Bifröst routing and keeps real agent evidence 
   const readiness = await readFile('docs/operations/ace-configuration-and-readiness-matrix.md', 'utf8');
   assert.match(readiness, /HERMES_CODEX_BASE_URL/u);
   assert.match(readiness, /bifrost_endpoint_sha256/u);
-  assert.match(readiness, /A missing provider-native token counter or context-window value is \\*\\*UNKNOWN telemetry\\*\\*/u);
+  assert.match(readiness, /A missing provider-native token counter or context-window value is \*\*UNKNOWN telemetry\*\*/u);
   assert.match(readiness, /agent-loop-evidence\.json/u);
   assert.match(readiness, /real Hermes\/provider\/Harbor trials remain unauthorized/u);
 });
