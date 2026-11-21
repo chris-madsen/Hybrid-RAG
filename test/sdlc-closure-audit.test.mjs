@@ -32,7 +32,7 @@ test('SDLC closure gate rejects a regression to unconditional OAuth-route denial
     const guard = result.results.find((entry) => entry.id === 'GATEWAY_PHYSICAL_SEND_POLICY');
     assert.equal(guard?.status, 'FAIL');
     assert.ok(guard?.forbidden?.includes("'OAUTH_ROUTE_UNVERIFIED'"));
-    assert.ok(guard?.missing?.includes('physicalSendAttemptAllowed(request)'));
+    assert.ok(guard?.missing?.includes('return yield* sendAllow(request, security);'));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
