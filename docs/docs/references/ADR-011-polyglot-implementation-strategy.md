@@ -3,7 +3,7 @@
 # ADR-011 — TypeScript + Effect core with measured Rust extraction
 
 **Status:** Accepted for the initial ACE implementation · **Date:** 2026-10-17
-**Related source:** `docs/docs/conversations/ChatGPT-Обсуждение RAG AST LSP-20261017-2228.md`
+**Related source:** archived ChatGPT discussion of RAG, AST and LSP (2026-10-17, 22:28). The original historical filename contains Cyrillic characters; retain its Git history rather than renaming a missing source.
 **Related ADRs:** ADR-001, ADR-004, ADR-008
 
 ## Context
