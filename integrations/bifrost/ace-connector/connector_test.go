@@ -73,6 +73,33 @@ func TestValidateLoopbackEndpoint(t *testing.T) {
 	}
 }
 
+
+func TestValidateContextRPCProjectEndpointRejectsObsoleteOrRemoteContracts(t *testing.T) {
+	valid := []string{
+		"http://127.0.0.1:8765/internal/ace-context/v3/project",
+		"http://[::1]:8765/internal/ace-context/v3/project",
+		"http://localhost:8765/internal/ace-context/v3/project",
+	}
+	for _, endpoint := range valid {
+		if err := ValidateContextRPCProjectEndpoint(endpoint); err != nil {
+			t.Errorf("valid internal context RPC %q rejected: %v", endpoint, err)
+		}
+	}
+	bad := []string{
+		"http://127.0.0.1:8765/internal/ace-gateway/v2/project",
+		"http://127.0.0.1:8765/internal/ace-context/v3/authorize-attempt",
+		"http://127.0.0.1:8765/internal/ace-context/v3/project?debug=true",
+		"http://127.0.0.1:8765/internal/ace-context/v3/project?",
+		"http://127.0.0.1:8765/internal/ace-context/v3/%70roject",
+		"https://example.com/internal/ace-context/v3/project",
+	}
+	for _, endpoint := range bad {
+		if err := ValidateContextRPCProjectEndpoint(endpoint); err == nil {
+			t.Errorf("invalid internal context RPC %q accepted", endpoint)
+		}
+	}
+}
+
 func TestProjectNativeResponsesRefusesRedirect(t *testing.T) {
 	var targetCalls atomic.Int32
 	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

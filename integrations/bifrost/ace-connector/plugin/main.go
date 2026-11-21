@@ -68,12 +68,22 @@ func Init(config any) error {
 	}
 	endpoint := os.Getenv("ACE_CONTEXT_RPC_URL")
 	if values, ok := config.(map[string]any); ok {
-		if configured, ok := values["responses_projection_url"].(string); ok && configured != "" {
-			endpoint = configured
+		if _, deprecated := values["responses_projection_url"]; deprecated {
+			return errors.New("deprecated responses_projection_url is unsupported; configure context_rpc_url for the v3 ACE context contract")
+		}
+		if configured, present := values["context_rpc_url"]; present {
+			value, ok := configured.(string)
+			if !ok || strings.TrimSpace(value) == "" {
+				return errors.New("context_rpc_url must be a non-empty string")
+			}
+			endpoint = value
 		}
 	}
 	if endpoint == "" {
 		return errors.New("ACE_CONTEXT_RPC_URL is required")
+	}
+	if err := connector.ValidateContextRPCProjectEndpoint(endpoint); err != nil {
+		return fmt.Errorf("invalid ACE context RPC endpoint at plugin initialization: %w", err)
 	}
 	token := os.Getenv("ACE_CONTEXT_RPC_TOKEN")
 	if token == "" {

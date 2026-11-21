@@ -302,12 +302,8 @@ func (c Client) ProjectNativeResponsesAndApply(ctx context.Context, req Response
 	if c.Endpoint == "" || c.AuthToken == "" {
 		return invalid, nil, errors.New("local native Responses projector is not configured")
 	}
-	if err := validateLoopbackEndpoint(c.Endpoint); err != nil {
+	if err := ValidateContextRPCProjectEndpoint(c.Endpoint); err != nil {
 		return invalid, nil, err
-	}
-	target, err := url.Parse(c.Endpoint)
-	if err != nil || target.Path != "/internal/ace-context/v3/project" || target.RawQuery != "" || target.Fragment != "" {
-		return invalid, nil, errors.New("native Responses projection requires the exact local v2 path")
 	}
 	maxBody := c.MaxBodyBytes
 	if maxBody <= 0 {
@@ -411,12 +407,12 @@ func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req Physica
 	if c.Endpoint == "" || c.AuthToken == "" {
 		return invalid, errors.New("local physical-send authorizer is not configured")
 	}
-	if err := validateLoopbackEndpoint(c.Endpoint); err != nil {
+	if err := ValidateContextRPCProjectEndpoint(c.Endpoint); err != nil {
 		return invalid, err
 	}
 	target, err := url.Parse(c.Endpoint)
-	if err != nil || target.Path != "/internal/ace-context/v3/project" || target.RawQuery != "" || target.Fragment != "" {
-		return invalid, errors.New("physical-send authorization requires the exact local v2 base path")
+	if err != nil {
+		return invalid, errors.New("ACE context RPC URL parsing failed")
 	}
 	target.Path = "/internal/ace-context/v3/authorize-attempt"
 	target.RawPath = ""

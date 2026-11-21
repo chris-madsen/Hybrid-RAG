@@ -546,6 +546,36 @@ func TestInitRejectsMissingBifrostBuildProvenance(t *testing.T) {
 }
 
 
+
+func TestInitValidatesContextV3URLAndRejectsStaleConfigAtStartup(t *testing.T) {
+	originalACE, originalBifrost := aceSourceCommit, aceBifrostCommit
+	originalClient, originalWorkspace := projectionClient, defaultWorkspaceID
+	t.Cleanup(func() {
+		aceSourceCommit, aceBifrostCommit = originalACE, originalBifrost
+		projectionClient, defaultWorkspaceID = originalClient, originalWorkspace
+	})
+	aceSourceCommit, aceBifrostCommit = strings.Repeat("a", 40), strings.Repeat("b", 40)
+	t.Setenv("ACE_CONTEXT_RPC_URL", "http://127.0.0.1:8765/internal/ace-context/v3/project")
+	t.Setenv("ACE_CONTEXT_RPC_TOKEN", "test-local-secret")
+	t.Setenv("ACE_BIFROST_TENANCY_MODE", "single-workspace")
+	t.Setenv("ACE_BIFROST_WORKSPACE_ID", "test-workspace")
+	if err := Init(map[string]any{"responses_projection_url": "http://127.0.0.1:8765/internal/ace-gateway/v2/project"}); err == nil {
+		t.Fatal("obsolete configuration key must fail closed even when the environment URL is valid")
+	}
+	for _, url := range []string{
+		"http://127.0.0.1:8765/internal/ace-gateway/v2/project",
+		"https://example.com/internal/ace-context/v3/project",
+		"http://127.0.0.1:8765/internal/ace-context/v3/project?bad=1",
+	} {
+		if err := Init(map[string]any{"context_rpc_url": url}); err == nil {
+			t.Fatalf("plugin must reject incompatible endpoint %q at startup", url)
+		}
+	}
+	if err := Init(map[string]any{"context_rpc_url": "http://127.0.0.1:8765/internal/ace-context/v3/project"}); err != nil {
+		t.Fatalf("valid co-located ACE v3 sidecar must be accepted: %v", err)
+	}
+}
+
 func TestChatGPTSubscriptionPassthroughUsesExistingNativePluginAndTerminalGuard(t *testing.T) {
 	model := "gpt-5.6-sol"
 	original := []byte(`{"model":"gpt-5.6-sol","store":false,"stream":false,"input":[{"role":"user","content":"find entrypoint"}]}`)
