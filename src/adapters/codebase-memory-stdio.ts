@@ -144,6 +144,9 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     const current: Session = {
       child, connection, dead: false, exitHook: () => { try { child.kill(); } catch { /* exited */ } },
     };
+    // Own the child immediately, including during the initialize handshake:
+    // close() must be able to cancel a stalled startup without waiting for its deadline.
+    session = current;
     const lost = (): void => { discard(current); };
     child.once('error', lost);
     child.once('exit', lost);
