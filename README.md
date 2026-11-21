@@ -1,27 +1,27 @@
 # Adaptive Context Engine (ACE) Harness
 
-ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler. LangGraph or another external orchestrator owns multi-agent workflows. ACE supplies verified context to model requests. For configurable-endpoint agents, **Bifröst is the sole LLM Gateway integration** (ADR-017 and explicit 2026-11-14 owner decision). Its local connector/contract tests exist; actual final-provider delivery and production approval remain unverified. The model does not select or invoke ACE tools.
+ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler or a second LLM proxy. **Bifröst is the single agent-facing LLM Gateway** (ADR-017, ADR-021 and explicit owner decisions). Hermes already owns subscription OAuth; pinned Bifröst already provides ChatGPT/Codex native passthrough. The Go ACE plugin uses that existing route to call the **local context projection service** in ACE Core and apply verified context to the same outgoing native Responses request. ACE does not log into ChatGPT, select billing keys, perform provider generation or open a separate model proxy. Deterministic tests and the pinned Go plugin build are not proof of a real Hermes/provider E2E.
 
 
 ## Architecture at a glance
 
 ```text
-LangGraph / other external orchestrator -> existing agents
-                        | configured LLM endpoint
-                        v
-              Bifrost LLM Gateway (planned; mock provider-wire conformance is implemented, real-provider approval is not)
-                 |               |
-       Go ACE Connector          +--> LLM provider
-             (IMPLEMENTED; mock-wire certified, real-provider approval pending)
-                 |
-       ACE Gateway Projection API (contract/application seam and HTTP endpoint implemented; production approval not)
-                 |
-         ACE Core (TS + Effect)
-           |-- code: Qdrant dense/sparse RRF + ast-grep/LSP
-           |-- docs: authorized Vertex RAG
-           |-- memory: Graphiti/archive
-           +-- verified context / receipts
-
+Hermes (own ChatGPT/Codex subscription OAuth, native Responses input)
+       |
+       v
+Bifröst (single LLM Gateway; existing ChatGPT/Codex passthrough)
+       |  post-auth HTTP plugin intercepts the same POST
+       +-- ACE Go connector -- local authenticated projection/attempt API
+       |                        |
+       |                     ACE Core (TypeScript + Effect)
+       |                        |-- code: CBM + Qdrant dense/sparse + external LSP
+       |                        |-- documents: authorized Vertex RAG
+       |                        +-- durable archive / temporal provider readiness
+       |                        |
+       |                    additive context + signed receipt
+       |
+       +-- native request, guarded exact final bytes --> chatgpt.com
+           Bifröst handles OAuth bearer forwarding, retries, streaming and response
 ```
 
 Private source and conversations remain local by default; Vertex is a
@@ -85,7 +85,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
 
 Before enabling Gateway projection, configure a shared high-entropy secret in the ACE process (`ACE_GATEWAY_HTTP_SHARED_SECRET`) and the Bifröst plugin (`ACE_GATEWAY_PROJECTION_TOKEN`). Without it the projection POST endpoint returns `NOT_READY` (503); callers without the correct Bearer token receive 401. Model egress remains separately blocked until final-send authorization is certified. The local projector requires explicit provider policy before preparing private source context; that policy is not a send permit. Bifröst-visible request binding does not imply coding-host transcript/compaction attestation.
 
-For Gateway projection, run `ACE_WORKSPACE_ROOT=/path/to/repo npm run gateway:http` and configure the coding agent's model endpoint through Bifröst.
+For the internal ACE context service, run `ACE_WORKSPACE_ROOT=/path/to/repo npm run gateway:http` and configure Hermes to use **Bifröst's existing** `/chatgpt_passthrough` base route; Bifröst calls the authenticated ACE local `ace.gateway.v2` context service. This local service is **not** another model Gateway. See [ChatGPT subscription runbook](docs/operations/gateway-subscription-oauth.md).
 Without the real retrieval provider it exposes an honest `not_ready` status,
 not a simulated production search. For the **experimental** local retrieval
 path, forward the local k3s Qdrant port and configure:
