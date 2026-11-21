@@ -573,7 +573,7 @@ test('feedback Harbor identity rejects agent/model/version drift and non-serial 
     agents: [hermesAgent(false, { import_path: 'harbor.agents.installed.hermes:Hermes' })],
   }))._tag, 'Err');
   assert.equal(validateFeedbackHarborJob(harborJob(false, {
-    agents: [hermesAgent(false, { model_name: 'openrouter/gpt-5.6-luna' })],
+    agents: [hermesAgent(false, { model_name: 'unsupported-provider/gpt-5.6-luna' })],
   }))._tag, 'Err');
   // Harbor's factory dispatches built-in name *before* import_path:
   // accepting both would reintroduce a provider fallback without warning.
