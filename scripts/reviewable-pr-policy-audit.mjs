@@ -6,7 +6,13 @@ import { readFileSync } from 'node:fs';
 
 const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
   .split('\0').filter(Boolean);
-const documentation = files.filter((file) => /\.(?:md|mdx|rst|txt)$/iu.test(file));
+// The pinned upstream Matt Pocock skill files are immutable, verified separately
+// by Git-blob and SHA-256 provenance. Do not rewrite their original vocabulary.
+const manifest = JSON.parse(readFileSync('.agents/matt-pocock-skills-v1.3.2-manifest.json', 'utf8'));
+if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.files)) throw new Error('pinned skill manifest missing');
+const vendored = new Set(manifest.files.map((entry) => entry.path));
+const trackedDocumentation = files.filter((file) => /\.(?:md|mdx|rst|txt)$/iu.test(file));
+const documentation = trackedDocumentation.filter((file) => !vendored.has(file));
 const forbidden = /\bdraft(?:s|ed|ing)?\b|чернов/iu;
 const violations = [];
 for (const path of documentation) {
@@ -20,6 +26,7 @@ for (const path of documentation) {
 process.stdout.write(JSON.stringify({
   schemaVersion: 'ace.reviewable-pr-docs-audit.v1',
   checkedFiles: documentation.length,
+  provenancePinnedExclusions: trackedDocumentation.length - documentation.length,
   violations,
   verdict: violations.length === 0 ? 'PASS' : 'FAIL',
 }) + '\n');
