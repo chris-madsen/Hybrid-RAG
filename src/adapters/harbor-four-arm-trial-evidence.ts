@@ -1,8 +1,14 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { HarborFourArmName } from '../domain/harbor-four-arm.js';
-import type { HarborFourArmTrialObservation } from '../domain/harbor-four-arm-evidence.js';
+import {
+  parseHarborFourArmAttemptLedgerEvent,
+  type HarborFourArmAttemptLedgerEvent,
+  type HarborFourArmLedgerKind,
+  type HarborFourArmTrialObservation,
+} from '../domain/harbor-four-arm-evidence.js';
 
 // The Gateway-only adapter intentionally reads native projection decisions,
 // not optional model-selected tool events. Projection is NOT proof of final model
@@ -130,3 +136,65 @@ export const readHarborFourArmTrialObservations = async (
   aggregatePath: string,
 ): Promise<readonly HarborFourArmTrialObservation[]> =>
   Promise.all((await readHarborFourArmTrialDirectories(aggregatePath)).map((directory) => readTrial(arm, directory)));
+
+
+export interface HarborFourArmLedgerArtifacts {
+  readonly artifacts: readonly { readonly path: string; readonly sha256: string }[];
+  readonly events: readonly HarborFourArmAttemptLedgerEvent[];
+}
+
+/**
+ * AR10: read the EXISTING rawTracePaths/usageEventPaths/failedRunPaths as
+ * versioned, internal, redacted Harbor observation events. Retain UNKNOWN
+ * when none are present; never promote a file hash into a provider attempt.
+ */
+export const readHarborFourArmLedgerArtifacts = async (
+  workspaceRoot: string,
+  paths: readonly string[],
+  expectedKind: HarborFourArmLedgerKind,
+): Promise<HarborFourArmLedgerArtifacts> => {
+  const root = await realpath(workspaceRoot);
+  const artifacts: { path: string; sha256: string }[] = [];
+  const events: HarborFourArmAttemptLedgerEvent[] = [];
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (path.trim().length === 0 || isAbsolute(path)) {
+      throw new Error('BLOCKED: Harbor evidence artifact path must be workspace-relative');
+    }
+    const pathname = resolve(root, path);
+    const inside = (candidate: string): boolean => {
+      const child = relative(root, candidate);
+      return child.length > 0 && child !== '..' && !child.startsWith('..' + sep) && !isAbsolute(child);
+    };
+    if (!inside(pathname) || !inside(await realpath(pathname))) {
+      throw new Error('BLOCKED: Harbor evidence artifact escapes the frozen workspace');
+    }
+    if (seen.has(pathname)) throw new Error('BLOCKED: duplicate Harbor event artifact path');
+    seen.add(pathname);
+    const info = await lstat(pathname);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 8 * 1024 * 1024) {
+      throw new Error('BLOCKED: Harbor evidence artifact must be a bounded regular file');
+    }
+    const bytes = await readFile(pathname);
+    if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
+      throw new Error('BLOCKED: Harbor evidence artifact is empty or oversized');
+    }
+    const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const lines = content.split(/\r?\n/u).filter((line) => line.trim().length > 0);
+    if (lines.length === 0) throw new Error('BLOCKED: Harbor evidence artifact has no events');
+    for (const [index, line] of lines.entries()) {
+      let parsed: unknown;
+      try { parsed = JSON.parse(line) as unknown; } catch {
+        throw new Error('BLOCKED: malformed Harbor event JSONL line ' + (index + 1));
+      }
+      const result = parseHarborFourArmAttemptLedgerEvent(parsed, expectedKind);
+      if (result._tag === 'Err') {
+        throw new Error('BLOCKED: invalid Harbor ' + expectedKind + ' event ' + (index + 1)
+          + ': ' + result.error.path + ': ' + result.error.message);
+      }
+      events.push(result.value);
+    }
+    artifacts.push({ path, sha256: createHash('sha256').update(bytes).digest('hex') });
+  }
+  return { artifacts, events };
+};

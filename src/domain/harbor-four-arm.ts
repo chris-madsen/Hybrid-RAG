@@ -326,7 +326,11 @@ export const assessHarborFourArmFiveX = (input: {
   readonly costTelemetryComplete: boolean;
   readonly totalTokensPerAcceptedTaskRatio: number | null;
   readonly rawTrialEvidenceVerified: boolean;
+  readonly attemptUsageVerified: boolean;
 }): { readonly allowed: boolean; readonly reason: string } => {
+  if (!input.attemptUsageVerified) {
+    return { allowed: false, reason: 'provider_attempt_usage_not_reconciled' };
+  }
   if (!input.rawTrialEvidenceVerified) {
     return { allowed: false, reason: 'raw_trial_evidence_not_independently_reconciled' };
   }

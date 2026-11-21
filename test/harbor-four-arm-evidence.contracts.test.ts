@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { HarborFourArmName, HarborFourArmReportArm } from '../src/domain/harbor-four-arm.js';
-import { bindHarborTrialsToFrozenTasks, reconcileHarborFourArmTrials, type HarborFourArmTrialObservation } from '../src/domain/harbor-four-arm-evidence.js';
+import { bindHarborTrialsToFrozenTasks, parseHarborFourArmAttemptLedgerEvent, reconcileHarborFourArmAttemptLedger, reconcileHarborFourArmTrials, type HarborFourArmAttemptLedgerEvent, type HarborFourArmTrialObservation } from '../src/domain/harbor-four-arm-evidence.js';
 
 const taskNames = ['task-a', 'task-a', 'task-b'];
 const armNames: readonly HarborFourArmName[] = ['native', 'dense', 'hybrid', 'hybrid-delta'];
@@ -162,4 +162,117 @@ test('a successful native trial followed by ACE failure cannot be called quality
   const result = reconcileHarborFourArmTrials(allExpected(), events);
   assert.equal(result._tag, 'Err');
   if (result._tag === 'Err') assert.equal(result.error.path, 'harbor_trial_evidence.hybrid.paired_quality');
+});
+
+
+const ar10Identity = {
+  modelIdentity: 'model/revision@pinned',
+  providerIdentity: 'provider/route@pinned',
+  runtimeImageIdentity: 'image@sha256:' + 'a'.repeat(64),
+};
+const ar10Event = (
+  trial: HarborFourArmTrialObservation,
+  kind: 'attempt' | 'usage' | 'failure',
+  overrides: Readonly<Record<string, unknown>> = {},
+): HarborFourArmAttemptLedgerEvent => {
+  const raw = {
+    schemaVersion: 'ace.harbor.attempt-ledger.v1',
+    kind,
+    arm: trial.arm,
+    trialId: trial.trialId,
+    taskName: trial.taskName,
+    attemptId: trial.trialId + '-a1',
+    ...ar10Identity,
+    ...(kind === 'attempt' ? { outcome: 'completed' } : {}),
+    ...(kind === 'usage' ? {
+      inputTokens: 10, outputTokens: 2, cachedInputTokens: 1, reasoningOutputTokens: 0,
+    } : {}),
+    ...(kind === 'failure' ? { code: 'PROVIDER_TIMEOUT' } : {}),
+    ...overrides,
+  };
+  const parsed = parseHarborFourArmAttemptLedgerEvent(raw, kind);
+  assert.equal(parsed._tag, 'Ok');
+  if (parsed._tag === 'Err') throw new Error(parsed.error.message);
+  return parsed.value;
+};
+const completeAr10Events = (): HarborFourArmAttemptLedgerEvent[] => allObservations().flatMap((trial) => [
+  ar10Event(trial, 'attempt'), ar10Event(trial, 'usage'),
+]);
+
+test('AR10 REM-021/022 binds every attempt and usage to frozen arm/task/trial/provider/model', () => {
+  const result = reconcileHarborFourArmAttemptLedger(allObservations(), completeAr10Events(), ar10Identity);
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Err') return;
+  assert.equal(result.value.status, 'verified');
+  assert.equal(result.value.arms.native.attemptCount, 3);
+  assert.equal(result.value.arms.native.inputTokens, 30);
+  assert.equal(result.value.arms.native.outputTokens, 6);
+  assert.equal(result.value.arms.native.cachedInputTokens, 3);
+  assert.equal(result.value.arms.native.reasoningOutputTokens, 0);
+  assert.equal(result.value.arms.native.acceptedTasks, 3);
+});
+
+test('AR10 rejects wrong task, arm, model, provider, runtime, duplicate attempt and orphan usage', () => {
+  const events = completeAr10Events();
+  const trial = allObservations()[0] as HarborFourArmTrialObservation;
+  for (const changed of [
+    { taskName: 'not-in-frozen-job' }, { arm: 'dense' },
+    { modelIdentity: 'wrong-model' }, { providerIdentity: 'wrong-provider' },
+    { runtimeImageIdentity: 'wrong-image' },
+  ]) {
+    const forged = { ...events[0], ...changed } as HarborFourArmAttemptLedgerEvent;
+    assert.equal(reconcileHarborFourArmAttemptLedger(
+      allObservations(), [forged, ...events.slice(1)], ar10Identity,
+    )._tag, 'Err');
+  }
+  assert.equal(reconcileHarborFourArmAttemptLedger(
+    allObservations(), [...events, events[0] as HarborFourArmAttemptLedgerEvent], ar10Identity,
+  )._tag, 'Err');
+  assert.equal(reconcileHarborFourArmAttemptLedger(
+    allObservations(), [...events.filter((event) => !(event.kind === 'attempt' && event.trialId === trial.trialId)),], ar10Identity,
+  )._tag, 'Err');
+});
+
+test('AR10 missing retry usage and failed attempts stay UNKNOWN, not free tokens', () => {
+  const observations = allObservations();
+  const slow = observations[0] as HarborFourArmTrialObservation;
+  const extra = ar10Event(slow, 'attempt', { attemptId: 'retry-timeout', outcome: 'timeout' });
+  const events = [...completeAr10Events(), extra, ar10Event(slow, 'failure', {
+    attemptId: 'retry-timeout', code: 'PROVIDER_TIMEOUT',
+  })];
+  const result = reconcileHarborFourArmAttemptLedger(observations, events, ar10Identity);
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Err') return;
+  assert.equal(result.value.status, 'unknown');
+  assert.equal(result.value.arms.native.inputTokens, null);
+  assert.equal(result.value.arms.native.outputTokens, null);
+  assert.ok(result.value.unknownFields.some((x) => x.includes('retry-timeout')));
+});
+
+test('AR10 rejects mismatched provider usage, impossible cache/reasoning subsets and missing input counter', () => {
+  const observations = allObservations();
+  const events = completeAr10Events();
+  const replaceUsage = (updates: Readonly<Record<string, unknown>>): HarborFourArmAttemptLedgerEvent[] => [
+    events[0] as HarborFourArmAttemptLedgerEvent,
+    ar10Event(observations[0] as HarborFourArmTrialObservation, 'usage', updates),
+    ...events.slice(2),
+  ];
+  assert.equal(reconcileHarborFourArmAttemptLedger(
+    observations, replaceUsage({ inputTokens: 100 }), ar10Identity,
+  )._tag, 'Err');
+  for (const invalid of [
+    { cachedInputTokens: 1000 },
+    { reasoningOutputTokens: 200 },
+    { inputTokens: -1 },
+  ]) {
+    const raw = { ...events[1], ...invalid };
+    assert.equal(parseHarborFourArmAttemptLedgerEvent(raw, 'usage')._tag, 'Err');
+  }
+  const missing = reconcileHarborFourArmAttemptLedger(observations,
+    replaceUsage({ inputTokens: null }), ar10Identity);
+  assert.equal(missing._tag, 'Ok');
+  if (missing._tag === 'Ok') {
+    assert.equal(missing.value.status, 'unknown');
+    assert.equal(missing.value.arms.native.inputTokens, null);
+  }
 });

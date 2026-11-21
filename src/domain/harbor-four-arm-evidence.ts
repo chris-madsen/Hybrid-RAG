@@ -318,3 +318,301 @@ export const reconcileHarborFourArmTrials = (
     arms,
   });
 };
+
+
+/**
+ * AR10 uses the existing Harbor raw-trace, usage and failure evidence paths as
+ * an INTERNAL observation ledger. A hash or caller quality flag is not a
+ * provider attestation. C07/C08 still own external final-wire acceptance.
+ */
+export type HarborFourArmLedgerKind = 'attempt' | 'usage' | 'failure';
+export type HarborFourArmLedgerOutcome = 'completed' | 'failed' | 'timeout' | 'unknown';
+
+interface HarborFourArmLedgerBase {
+  readonly schemaVersion: 'ace.harbor.attempt-ledger.v1';
+  readonly kind: HarborFourArmLedgerKind;
+  readonly arm: HarborFourArmName;
+  readonly trialId: string;
+  readonly taskName: string;
+  readonly attemptId: string;
+  readonly modelIdentity: string;
+  readonly providerIdentity: string;
+  readonly runtimeImageIdentity: string;
+}
+
+export interface HarborFourArmAttemptEvent extends HarborFourArmLedgerBase {
+  readonly kind: 'attempt';
+  readonly outcome: HarborFourArmLedgerOutcome;
+}
+
+export interface HarborFourArmUsageEvent extends HarborFourArmLedgerBase {
+  readonly kind: 'usage';
+  /** Null means provider telemetry was not available, not zero usage. */
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  /** Cached input and reasoning output are subsets, not additive costs. */
+  readonly cachedInputTokens: number | null;
+  readonly reasoningOutputTokens: number | null;
+}
+
+export interface HarborFourArmFailureEvent extends HarborFourArmLedgerBase {
+  readonly kind: 'failure';
+  readonly code: string;
+}
+
+export type HarborFourArmAttemptLedgerEvent =
+  | HarborFourArmAttemptEvent | HarborFourArmUsageEvent | HarborFourArmFailureEvent;
+
+const ledgerRecord = (value: unknown): Readonly<Record<string, unknown>> | undefined =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+
+const nullableToken = (value: unknown): value is number | null =>
+  value === null || integer(value);
+
+export const parseHarborFourArmAttemptLedgerEvent = (
+  value: unknown,
+  expectedKind: HarborFourArmLedgerKind,
+): Result<HarborFourArmAttemptLedgerEvent, DomainError> => {
+  const raw = ledgerRecord(value);
+  const kind = raw?.kind;
+  if (raw?.schemaVersion !== 'ace.harbor.attempt-ledger.v1' || kind !== expectedKind
+    || !armNames.includes(raw.arm as HarborFourArmName)
+    || typeof raw.trialId !== 'string' || !nonEmpty(raw.trialId)
+    || typeof raw.taskName !== 'string' || !nonEmpty(raw.taskName)
+    || typeof raw.attemptId !== 'string' || !nonEmpty(raw.attemptId)
+    || typeof raw.modelIdentity !== 'string' || !nonEmpty(raw.modelIdentity)
+    || typeof raw.providerIdentity !== 'string' || !nonEmpty(raw.providerIdentity)
+    || typeof raw.runtimeImageIdentity !== 'string' || !nonEmpty(raw.runtimeImageIdentity)) {
+    return invalid('harbor_attempt_ledger', 'event schema, type or frozen identity is missing or invalid');
+  }
+  const base = {
+    schemaVersion: 'ace.harbor.attempt-ledger.v1' as const,
+    arm: raw.arm as HarborFourArmName,
+    trialId: raw.trialId,
+    taskName: raw.taskName,
+    attemptId: raw.attemptId,
+    modelIdentity: raw.modelIdentity,
+    providerIdentity: raw.providerIdentity,
+    runtimeImageIdentity: raw.runtimeImageIdentity,
+  };
+  if (kind === 'attempt') {
+    if (!['completed', 'failed', 'timeout', 'unknown'].includes(String(raw.outcome))) {
+      return invalid('harbor_attempt_ledger.outcome', 'attempt outcome is unsupported');
+    }
+    return ok({ ...base, kind, outcome: raw.outcome as HarborFourArmLedgerOutcome });
+  }
+  if (kind === 'failure') {
+    if (typeof raw.code !== 'string' || !nonEmpty(raw.code)) {
+      return invalid('harbor_attempt_ledger.failure', 'failure code must be present');
+    }
+    return ok({ ...base, kind, code: raw.code });
+  }
+  const inputTokens = raw.inputTokens ?? null;
+  const outputTokens = raw.outputTokens ?? null;
+  const cachedInputTokens = raw.cachedInputTokens ?? null;
+  const reasoningOutputTokens = raw.reasoningOutputTokens ?? null;
+  if (!nullableToken(inputTokens) || !nullableToken(outputTokens)
+    || !nullableToken(cachedInputTokens) || !nullableToken(reasoningOutputTokens)
+    || cachedInputTokens !== null && inputTokens !== null && cachedInputTokens > inputTokens
+    || reasoningOutputTokens !== null && outputTokens !== null && reasoningOutputTokens > outputTokens) {
+    return invalid('harbor_attempt_ledger.usage', 'usage counters must be safe integers with valid cached/reasoning subsets');
+  }
+  return ok({ ...base, kind: 'usage', inputTokens, outputTokens, cachedInputTokens, reasoningOutputTokens });
+};
+
+export interface HarborFourArmLedgerTotals {
+  readonly attemptCount: number;
+  readonly failedAttemptCount: number;
+  readonly acceptedTasks: number;
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  readonly cachedInputTokens: number | null;
+  readonly reasoningOutputTokens: number | null;
+}
+
+export interface HarborFourArmLedgerSummary {
+  readonly status: 'verified' | 'unknown';
+  readonly unknownFields: readonly string[];
+  readonly arms: Readonly<Record<HarborFourArmName, HarborFourArmLedgerTotals>>;
+}
+
+export interface HarborFourArmFrozenProviderIdentity {
+  readonly modelIdentity: string;
+  readonly providerIdentity: string;
+  readonly runtimeImageIdentity: string;
+}
+
+const ledgerKey = (arm: string, trialId: string): string => JSON.stringify([arm, trialId]);
+const eventIdentityMatches = (
+  left: HarborFourArmAttemptLedgerEvent,
+  right: HarborFourArmAttemptLedgerEvent,
+): boolean => left.arm === right.arm && left.trialId === right.trialId
+  && left.taskName === right.taskName && left.modelIdentity === right.modelIdentity
+  && left.providerIdentity === right.providerIdentity && left.runtimeImageIdentity === right.runtimeImageIdentity;
+
+/**
+ * Reconcile every provider attempt, usage and failure with the independent
+ * Harbor trial outcome and frozen task/model/provider/runtime identity. A
+ * timeout, retry or failed attempt is part of total token economics. Any
+ * missing usage makes the whole affected arm UNKNOWN, never artificially 0.
+ */
+export const reconcileHarborFourArmAttemptLedger = (
+  observations: readonly HarborFourArmTrialObservation[],
+  events: readonly HarborFourArmAttemptLedgerEvent[],
+  identity: HarborFourArmFrozenProviderIdentity,
+): Result<HarborFourArmLedgerSummary, DomainError> => {
+  if (![identity.modelIdentity, identity.providerIdentity, identity.runtimeImageIdentity].every(nonEmpty)) {
+    return invalid('harbor_attempt_ledger.identity', 'frozen model/provider/runtime identity is required');
+  }
+  const trials = new Map<string, HarborFourArmTrialObservation>();
+  for (const trial of observations) {
+    const key = ledgerKey(trial.arm, trial.trialId);
+    if (trials.has(key)) return invalid('harbor_attempt_ledger.trials', 'duplicate raw Harbor trial identity');
+    trials.set(key, trial);
+  }
+  const attempts = new Map<string, HarborFourArmAttemptEvent>();
+  const usages = new Map<string, HarborFourArmUsageEvent>();
+  const failures = new Map<string, HarborFourArmFailureEvent>();
+  for (const event of events) {
+    const trial = trials.get(ledgerKey(event.arm, event.trialId));
+    if (trial === undefined || trial.taskName !== event.taskName
+      || event.modelIdentity !== identity.modelIdentity
+      || event.providerIdentity !== identity.providerIdentity
+      || event.runtimeImageIdentity !== identity.runtimeImageIdentity) {
+      return invalid('harbor_attempt_ledger.identity', 'attempt event is not bound to the exact frozen arm, task, trial, model, provider and image');
+    }
+    const destination = event.kind === 'attempt' ? attempts : event.kind === 'usage' ? usages : failures;
+    if (destination.has(event.attemptId)) {
+      return invalid('harbor_attempt_ledger.duplicate', 'duplicate attempt/usage/failure event for one physical attempt');
+    }
+    if (event.kind === 'attempt') attempts.set(event.attemptId, event);
+    else if (event.kind === 'usage') usages.set(event.attemptId, event);
+    else failures.set(event.attemptId, event);
+  }
+  for (const event of [...usages.values(), ...failures.values()]) {
+    const attempt = attempts.get(event.attemptId);
+    if (attempt === undefined || !eventIdentityMatches(attempt, event)) {
+      return invalid('harbor_attempt_ledger.orphan', 'usage or failure does not match one recorded attempt');
+    }
+  }
+  const unknownFields: string[] = [];
+  const totals = new Map<HarborFourArmName, HarborFourArmLedgerTotals>();
+  for (const arm of armNames) {
+    const armTrials = observations.filter((trial) => trial.arm === arm);
+    let inputSum = 0;
+    let outputSum = 0;
+    let cacheSum = 0;
+    let reasoningSum = 0;
+    let inputKnown = true;
+    let outputKnown = true;
+    let cacheKnown = true;
+    let reasoningKnown = true;
+    let failedAttemptCount = 0;
+    let attemptCount = 0;
+    for (const trial of armTrials) {
+      const trialAttempts = [...attempts.values()].filter((event) =>
+        event.arm === arm && event.trialId === trial.trialId);
+      const where = arm + '.' + trial.trialId;
+      if (trialAttempts.length === 0) unknownFields.push(where + '.attempts');
+      let trialInput = 0;
+      let trialOutput = 0;
+      let trialCached = 0;
+      let trialInputKnown = trialAttempts.length > 0;
+      let trialOutputKnown = trialAttempts.length > 0;
+      let trialCachedKnown = trialAttempts.length > 0;
+      if (trial.success && !trialAttempts.some((event) => event.outcome === 'completed')) {
+        return invalid('harbor_attempt_ledger.outcome', 'accepted trial has no completed physical attempt');
+      }
+      for (const attempt of trialAttempts) {
+        attemptCount += 1;
+        const failure = failures.get(attempt.attemptId);
+        if (attempt.outcome === 'completed' && failure !== undefined) {
+          return invalid('harbor_attempt_ledger.failure', 'completed attempt has an incompatible failure record');
+        }
+        if (attempt.outcome === 'failed' || attempt.outcome === 'timeout') {
+          failedAttemptCount += 1;
+          if (failure === undefined) unknownFields.push(where + '.failure.' + attempt.attemptId);
+        } else if (attempt.outcome === 'unknown') {
+          unknownFields.push(where + '.outcome.' + attempt.attemptId);
+        }
+        const usage = usages.get(attempt.attemptId);
+        if (usage === undefined) {
+          unknownFields.push(where + '.usage.' + attempt.attemptId);
+          trialInputKnown = false;
+          trialOutputKnown = false;
+          trialCachedKnown = false;
+          reasoningKnown = false;
+          continue;
+        }
+        if (usage.inputTokens === null) {
+          trialInputKnown = false;
+          unknownFields.push(where + '.inputTokens.' + attempt.attemptId);
+        } else trialInput += usage.inputTokens;
+        if (usage.outputTokens === null) {
+          trialOutputKnown = false;
+          unknownFields.push(where + '.outputTokens.' + attempt.attemptId);
+        } else trialOutput += usage.outputTokens;
+        if (usage.cachedInputTokens === null) {
+          trialCachedKnown = false;
+          unknownFields.push(where + '.cachedInputTokens.' + attempt.attemptId);
+        } else trialCached += usage.cachedInputTokens;
+        if (usage.reasoningOutputTokens === null) {
+          reasoningKnown = false;
+          unknownFields.push(where + '.reasoningOutputTokens.' + attempt.attemptId);
+        } else reasoningSum += usage.reasoningOutputTokens;
+      }
+      const check = (
+        field: 'inputTokens' | 'outputTokens' | 'cachedInputTokens',
+        measured: number,
+        complete: boolean,
+        reported: number | null,
+      ): Result<void, DomainError> => {
+        if (!complete || reported === null) {
+          unknownFields.push(where + '.' + field + '.harbor');
+          return ok(undefined);
+        }
+        return measured === reported
+          ? ok(undefined)
+          : invalid('harbor_attempt_ledger.' + where + '.' + field, 'attempt usage disagrees with the independent Harbor trial');
+      };
+      const a = check('inputTokens', trialInput, trialInputKnown, trial.rawInputTokens);
+      if (a._tag === 'Err') return a;
+      const b = check('outputTokens', trialOutput, trialOutputKnown, trial.rawOutputTokens);
+      if (b._tag === 'Err') return b;
+      const c = check('cachedInputTokens', trialCached, trialCachedKnown, trial.cachedInputTokens);
+      if (c._tag === 'Err') return c;
+      inputKnown = inputKnown && trialInputKnown && trial.rawInputTokens !== null;
+      outputKnown = outputKnown && trialOutputKnown && trial.rawOutputTokens !== null;
+      cacheKnown = cacheKnown && trialCachedKnown && trial.cachedInputTokens !== null;
+      inputSum += trialInput;
+      outputSum += trialOutput;
+      cacheSum += trialCached;
+    }
+    if (armTrials.length === 0) {
+      unknownFields.push(arm + '.missing_trials');
+      inputKnown = false;
+      outputKnown = false;
+      cacheKnown = false;
+      reasoningKnown = false;
+    }
+    totals.set(arm, {
+      attemptCount,
+      failedAttemptCount,
+      acceptedTasks: armTrials.filter((trial) => trial.success).length,
+      inputTokens: inputKnown ? inputSum : null,
+      outputTokens: outputKnown ? outputSum : null,
+      cachedInputTokens: cacheKnown ? cacheSum : null,
+      reasoningOutputTokens: reasoningKnown ? reasoningSum : null,
+    });
+  }
+  const arms = {
+    native: totals.get('native') as HarborFourArmLedgerTotals,
+    dense: totals.get('dense') as HarborFourArmLedgerTotals,
+    hybrid: totals.get('hybrid') as HarborFourArmLedgerTotals,
+    'hybrid-delta': totals.get('hybrid-delta') as HarborFourArmLedgerTotals,
+  };
+  const fields = [...new Set(unknownFields)];
+  return ok({ status: fields.length === 0 ? 'verified' : 'unknown', unknownFields: fields, arms });
+};
