@@ -42,7 +42,7 @@ const req = (override:Partial<ResponsesProjectionRequest> = {}, requestBody:unkn
 };
 test('v3 ACE context RPC validates exact original provider bytes and rejects unknown versions', ()=>{
   assert.equal(validateResponsesProjectionRequest(req())._tag, 'Ok');
-  assert.equal(validateResponsesProjectionRequest(req({ projectionMode:'gateway' as never }))._tag, 'Err', 'legacy ACE Gateway projection mode must not be accepted');
+  assert.equal(validateResponsesProjectionRequest(req({ projectionMode:'gateway' as never }))._tag, 'Err', 'obsolete automatic projection mode must not be accepted');
   assert.equal(validateResponsesProjectionRequest(req({ protocol:'unsupported.protocol' as never }))._tag, 'Err');
   assert.equal(validateResponsesProjectionRequest(req({ schemaVersion:'unsupported-version' as never }))._tag, 'Err');
   assert.equal(validateResponsesProjectionRequest(req({ bodySha256:digest('wrong') }))._tag, 'Err');

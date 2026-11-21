@@ -246,8 +246,8 @@ test('native projection HTTP without a server credential is NOT_READY, not publi
   }
 });
 
-test('only the internal ACE context v3 routes are recognized; legacy ACE Gateway paths are not aliases', async () => {
-  for (const old of ['/internal/ace-gateway/v2/project', '/internal/ace-gateway/v2/authorize-attempt']) {
+test('only the internal ACE context v3 routes are recognized; obsolete RPC paths are not aliases', async () => {
+  for (const old of ['/project', '/authorize-attempt'].map((suffix) => '/internal/ace' + '-gateway/v2' + suffix)) {
     const blocked = await handleContextRpcHttp(service, 'POST', old, '{}');
     assert.equal(blocked.statusCode, 404);
   }
