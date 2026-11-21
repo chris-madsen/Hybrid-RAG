@@ -269,4 +269,3 @@ export type ProjectResponses = {
 };
 
 export type ProjectResponse = ProjectResponses[keyof ProjectResponses];
-
