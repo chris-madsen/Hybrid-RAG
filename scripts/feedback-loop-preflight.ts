@@ -77,7 +77,7 @@ const taskRuntimeProbe = (
   void taskImages;
   return {
     status: 'not_ready',
-    reason: 'Gateway provider-wire and Harbor trial integration is not certified; retired direct Hermes plugin cannot satisfy this gate',
+    reason: 'a real, provenance-bound Hermes/Bifröst/ACE task-container probe and provider-wire receipt are still required; source-only preflight cannot certify C07',
   };
 };
 
