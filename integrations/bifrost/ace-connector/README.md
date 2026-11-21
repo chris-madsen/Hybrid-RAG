@@ -1,53 +1,81 @@
-> **Owner correction (2026-11-21):** ACE no longer imposes per-send OAuth credential-source attestation or an unconditional `OAUTH_ROUTE_UNVERIFIED` denial. The subscription bearer is authenticated by ChatGPT/Codex; ACE checks exact preconfigured provider/model/destination, policy and request/receipt binding and can ALLOW only those passing attempts. **This is not a verified working subscription route:** the current Bifröst fork/plugin needs independent compatibility verification against the maintained upstream ChatGPT passthrough, not a custom OAuth implementation. See [subscription route/runbook](../../../docs/operations/gateway-subscription-oauth.md) and canonical C04. Historical implementation notes below describe the pre-correction state.\n\n> **HISTORICAL C04 candidate (superseded): every physical provider send is BLOCKED until trusted credential-route provenance exists.** The active ACE runtime exposes only the authenticated loopback `ace.gateway.v2` projection and attempt-authorization routes. Bifröst admits native `/v1/responses` only when a fresh projection receipt and request-scoped physical-send guard are present. The guard stages and checks each physical request before dialing/writing; policy, receipt, route, deadline, size, unsupported-body, unknown credential-route and audit failures fail closed. The current Bifröst `PhysicalSendAttempt` does not identify whether the selected bearer came from an API key or OAuth configuration; generic OAuth configuration is not proof of Hermes/Codex subscription OAuth. Exact destination, provider, model and data-class opt-ins default to empty/off, and those allowlists cannot override `OAUTH_ROUTE_UNVERIFIED`. Final-send policy treats the preserved prompt/tool conversation as `private_conversation` in addition to `private_source`; approving either class alone does not authorize the combined request. No real provider call, Hermes agent loop, production readiness or C04 phase acceptance is claimed. The previous projection contract and every non-native route remain retired. See the canonical `openspec/changes/013-gateway-g11-production-acceptance/` specification and C04 phase record.
+# ACE ↔ Bifröst native Responses connector
 
-# ACE Bifrost connector
+**Updated for the owner’s 2026-11-21 subscription-only architecture decision.** This is the Go connector for the TypeSpec-owned `ace.gateway.v2` local projection and physical-send authorization API. ACE receives native Responses, prepares verified code context, and signs a short-lived request-bound receipt. Bifröst performs actual provider dispatch; the model provider—not ACE—validates the user's ChatGPT/Codex subscription OAuth token.
 
-This directory contains the thin Go IPC client for **native `ace.gateway.v2` local Responses projection**. The prior projection DTOs and wire schemas are removed; generated v2 types are the only Gateway contract surface.
+For active requirements and runbooks see [OpenSpec C04](../../../openspec/changes/013-gateway-g11-production-acceptance/phases/C04.md), [RESP-006](../../../openspec/changes/013-gateway-g11-production-acceptance/specs/gateway-native-responses/spec.md), and [subscription OAuth integration](../../../docs/operations/gateway-subscription-oauth.md).
 
-Current evidence status:
+## Actual local ACE authorization (after C04 correction)
 
-- `adapter-implemented`: authenticated TypeSpec v2 projection receipt, exact destination/provider/model binding, bounded staging, per-RoundTrip authorization, retry-specific IDs, non-inherited guard with fail-closed internal-child marker, and denial/no-dial contract tests are implemented. C04 returns audited `OAUTH_ROUTE_UNVERIFIED` because the current upstream attempt facts cannot prove the Hermes OAuth credential route.
-- `provider-wire-tested`: **NOT CERTIFIED for Native Responses**. Scripted TCP and serializer tests are local tests only; no current provider-wire capture or real-provider acknowledgement is present in this source tree.
-- `agent-E2E-tested`: **NOT RUN** for native Responses; compiling the plugin and local projection tests does not certify any provider dispatch or long Hermes loop.
+- ACE **does not** inspect/attest the origin, refresh state or entitlement of OAuth credentials. There is no `OAUTH_ROUTE_UNVERIFIED` unconditional deny path. Subscription OAuth is owned by Hermes and authenticated by ChatGPT/Codex.
+- The prepared projection receipt is signed and tied to exact request/workspace/session correlation, source data class, provider/model, prepared body digest, deadline and policy version. The per-attempt physical-send guard checks final provider route/destination and serialized native request body, `store:false`, secret and authorized data classes, then single-use attempt ID.
+- If those checks pass and the audit sink records the safe attempt metadata, ACE returns **`ALLOW`**; otherwise **`BLOCK`** or typed error. No API-key OAuth fallback, direct provider bypass or alternate Chat/Completions transport is implemented. Retried sends require a new attempt ID and independent authorization.
+- A permitted model-bound prompt with private conversation plus private source requires policy permission for **both** classes. Audit records contain only safe IDs, hashes, route identity and reason—not OAuth tokens, raw code or conversation.
+- The valid final provider destination path can be the ordinary native `/v1/responses` **or** the exact official subscription `https://chatgpt.com/backend-api/codex/responses`. **Allowing the syntax does not grant permission**: `ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON` must list the exact configured destination. A subscription-only deployment must **not** allowlist `https://api.openai.com/v1/responses`.
 
-The exact staging/semantic-binding and process-local single-use ledger are proposed C03 implementation mechanics awaiting G02 review. The provider-bound API defaults to deny because the destination list and external LLM opt-in are empty/false; even a fully populated destination/model/data-class allowlist does not bypass the C04 credential-route block. No live request was made for this PR.
+## Critical upstream compatibility, not yet certified
 
-The plugin build currently pins Bifröst commit `6baf302dc73a9858bb96da017a436ef2e60f82f1` from the review fork because the required core transport API is in the open upstream PR. After that PR merges, update this pin and the CI checkout to the merged `maximhq/bifrost` commit before treating the integration as a maintained upstream dependency.
+The connector's current Go plugin is built against a **pinned review fork**:
 
-Historical upstream source facts needed by C03–C05 were preserved in [Native Responses upstream evidence notes](../../../docs/reviews/2026-11-18-native-responses-upstream-evidence-notes.md) without retaining any retired generation contract. They require current-source revalidation; they are not provider-wire proof.
+`chris-madsen/bifrost@6baf302dc73a9858bb96da017a436ef2e60f82f1`
 
-**Request-bound Gateway binding:** `HTTPTransportPreHook` runs after Bifröst transport authentication but before Bifröst Core populates its request/session context. The plugin mints a fresh 128-bit ACE request ID, records the caller-asserted coding-harness session only as correlation, normalizes the explicit `provider/model` route, and binds the original ingress bytes through the host attestation. ACE returns an HMAC-signed, process-scoped projection receipt. `PreLLMHook` admits only a native Responses request carrying that receipt and its physical-send guard; it is not itself a send permit and does not decide route-changing fallbacks from normalized fields. Each actual `contextTransport.RoundTrip` stages the exact HTTP body, derives a fresh attempt ID and calls ACE before dialing. The connector checks same-route staged bodies for exact digest and lossless semantic equality; changed provider/model facts are sent to ACE with the original receipt so ACE can produce a safe `ATTEMPT_BINDING_MISMATCH` denial record before write. Same-route ACE authorization checks destination, data classes, `store:false`, source policy, deadline and audit, then returns `OAUTH_ROUTE_UNVERIFIED` because Bifröst supplied no trusted credential-source identity. There is currently no path to an `ALLOW`; the changed-route and unknown-OAuth denials are not cached or reused. A caller-supplied `x-request-id` is never ACE security identity.
+That fork provides ACE's request-scoped physical-send guard for the standard native `/v1/responses` transport. **It has not been shown to forward Hermes's subscription bearer to the ChatGPT Codex backend**. An apparent successful local ACE `ALLOW` does not make this transport subscription-compatible.
 
-**Bifröst is not a coding-host transcript attestor.** It cannot know whether the agent compacted, pruned or summarized its durable conversation before constructing the HTTP request. Therefore the connector deliberately sends `hostTranscriptAttested=false`, `hostCompactionEpoch="unknown"`, `providerManagedHistoryCapability="unknown"`, `activeEngineId="bifrost-visible-request-only"`, and an `unattested:<request-id>` revision marker. The current v2 native digest binds the exact visible request bytes only and MUST NOT be interpreted as proof of the host's durable transcript. ACE may still perform additive verified-evidence delivery for this honest lower-assurance state; any claim that ACE exclusively controlled host context/compaction requires a separate authenticated host attestor plus G11/benchmark evidence.
+Maintained upstream Bifröst transport `transports/v2.6.0` has a native subscription-preserving `/chatgpt_passthrough/backend-api/codex/responses` route (see [official Codex guide](https://github.com/maximhq/bifrost/blob/transports/v2.6.0/docs/cli-agents/codex-cli.mdx)). It forwards the original caller's ChatGPT `Authorization` to ChatGPT, while a Bifröst virtual key is carried separately in `x-bf-vk`. This removes any need to implement ACE's own OAuth mechanism.
 
-An explicit Bifröst `provider/model` identifier is mandatory; unprefixed models, provider-query conflicts, model aliases that change the route, changed request bodies and provider/model fallbacks fail closed. ACE requires `ACE_GATEWAY_EXTERNAL_LLM_OPT_IN=true`, an exact provider in `ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON`, a provider-to-model map in `ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON`, explicit data classes in `ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON`, and an exact canonical HTTPS Responses URL in `ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON` before policy can be considered. All allowlists default to empty, and none can override the current C04 `OAUTH_ROUTE_UNVERIFIED` block because Bifröst does not attest credential source. To send a request containing both private conversation and ACE source context, both `private_conversation` and `private_source` must be explicitly permitted; the final-send service derives these classes rather than trusting a caller-supplied conversation label. Native `stream:true` is preserved but additionally requires an exact provider/model/destination entry in `ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON`, which defaults to an empty list and must be a subset of the general provider/model/destination allowlists. This route opt-in is not final-wire or real-stream certification and cannot override C04 credential-route provenance or transmission-time policy; no streaming route is enabled by this change. The process-scoped receipt key and bounded in-memory attempt-ID ledger intentionally deny in-flight or replayed attempts after restart; this mechanism is a reviewable C03 proposal, not G02-approved durable storage. Missing/invalid session correlation, unavailable audit, expired receipt, policy denial, secret detection, unsupported body framing, oversized serialization or inability to mint request identity fails closed. No static transcript/session attestation or OAuth-route claim is accepted from environment variables.
+**Integration remains open:** verify that this maintained upstream route invokes ACE's *authenticated projection* and *post-mutation per-physical-send guard*, or supply a small upstream-compatible integration using maintained extension points. The review fork's plugin ABI and the current upstream v2.6 transport are not assumed compatible. Do not silently update the pin or bypass ACE by using a raw passthrough. This must be established before a genuine Hermes/Harbor subscription-based E2E PASS.
 
-**Workspace isolation / tenancy:** Bifröst's shared connector credential is NOT authentication of an individual coding user or session. Until an authenticated per-principal tenant mapping exists, set `ACE_BIFROST_TENANCY_MODE=single-workspace` and `ACE_BIFROST_WORKSPACE_ID=<the sole isolated workspace>` in the Bifröst plugin process. Initialization fails without both. Caller-provided workspace headers cannot select another workspace; mismatches are refused. Do **not** share this configured Bifröst listener among mutually untrusted workspaces or users. This is an explicit single-workspace deployment contract, not an implemented multi-tenant service.
+## Request and trust boundaries
 
-**Projection/attempt HTTP authentication:** Set the same high-entropy secret as `ACE_GATEWAY_HTTP_SHARED_SECRET` on the ACE service and `ACE_GATEWAY_PROJECTION_TOKEN` on the Bifröst plugin process. The plugin refuses initialization without the latter, and both ACE POST endpoints refuse unauthenticated requests even from loopback. Never commit the secret or put it in a request-body attestation. The credential authenticates the connector process only; it does not turn caller session headers into authenticated identity. ACE resolves its process-scoped receipt key at startup; a restart invalidates all outstanding receipts.
+1. Hermes targets Bifröst native Responses; never target a separate direct provider route for ACE trials.
+2. `HTTPTransportPreHook` binds the actual incoming message to its workspace and creates the ACE request identity. Caller-provided session headers are *correlation*, not authentication.
+3. `PreLLMHook` requires the ACE prepared projection receipt and installs the Bifröst physical-send guard. `PREPARED` alone cannot authorize provider network traffic.
+4. The guard stages final native body bytes, obtains an ACE single-use attempt decision and permits transmission only on `ALLOW`. A later plugin mutation or an unknown route invalidates the receipt; retry/fallback attempts cannot reuse a permit.
+5. On an unexpected upstream 401/403, surface the provider authentication error. Never retry via an OpenAI API key or another provider/model.
+6. Bifröst does not attest the coding host's full durable transcript or compaction history. The current connector honestly marks that as `unattested`; the known request bytes and signed source evidence remain the only proven context.
 
-**Terminal guard ordering:** Bifröst permits later custom `PreLLMHook` plugins to mutate a request. Keep `ace-gateway-projection` in `post_builtin` **after every other custom request-mutating plugin** to avoid needless denials; the final transport guard still rejects any changed provider/model/body semantics. Internal child requests shed the guard itself but inherit a guard-required marker, so an unguarded internal send is refused before dialing. Repository tests prove the local transport/connector boundary only; they do not prove the deployed plugin order or real provider bytes. G11 must retain the loaded plugin order and after-last-mutation provider-wire capture; final-wire certification remains `NOT-RUN`.
+## Current configuration
 
-The connector does not implement retrieval, compaction, reranking, policy selection or provider credentials. It calls `ProjectNativeResponses` and `AuthorizeNativeResponsesAttempt` through authenticated loopback HTTP. Only a `PREPARED` response with a signed receipt can install a guard; it cannot authorize dispatch by itself. The physical-send authorizer compares same-route staged bodies with prepared semantics and posts final body bytes/digest plus actual route facts to ACE. Changed provider/model attempts retain internal expected-route hints only inside the adapter, send actual facts to ACE, and reject any `ALLOW` response for a route bound to another receipt. Same-route attempts are blocked by `OAUTH_ROUTE_UNVERIFIED` until Bifröst exposes verifiable credential-source identity; changed provider/model attempts are denied as `ATTEMPT_BINDING_MISMATCH`. These deterministic tests are not provider-wire or agent certification. Native plugin compilation against the exact revised Bifröst commit is a PR gate. No real-provider call or production claim is made.
-
-Run the isolated contract tests with:
+For a private single-workspace Bifröst instance, set in the **Bifröst plugin process**:
 
 ```bash
+ACE_BIFROST_TENANCY_MODE=single-workspace
+ACE_BIFROST_WORKSPACE_ID=<registered-workspace>
+ACE_GATEWAY_PROJECTION_TOKEN=<private-shared-secret>
+```
+
+Set the same secret as `ACE_GATEWAY_HTTP_SHARED_SECRET` in the local ACE Gateway process. Never share it in logs or repository files. This authenticates the connector process; no multi-tenant identity claim is made.
+
+The ACE Gateway reads independent explicit destination/model/data-class permission:
+
+```bash
+ACE_GATEWAY_EXTERNAL_LLM_OPT_IN=true
+ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON='["openai"]'
+ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON='{"openai":["<selected-Bifrost-model-id>"]}'
+ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON='["https://chatgpt.com/backend-api/codex/responses"]'
+ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON='["private_source","private_conversation"]'
+```
+
+These are an **admission-policy example, not a runnable subscription deployment** on the current fork. The final physical URL must originate from a maintained, subscription-preserving Bifröst implementation. The default streaming allowlist is empty; nonempty `ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON` requires separate C06 proof. Configure Hermes's existing OAuth store and a compatible `HERMES_CODEX_BASE_URL` without copying tokens to ACE.
+
+## Local deterministic verification
+
+```bash
+# From repository root:
+npx tsx --test test/responses-projection-service.contracts.test.ts
+npm run check
+npm run test:gateway-only-audit
+
+# From integrations/bifrost/ace-connector:
 go test ./...
 ```
 
-Build the native Bifrost plugin against an exact external Bifrost checkout:
+Build the current fork-pinned plugin from repository root:
 
 ```bash
-GOWORK=off \
-  GO_BIN=/absolute/path/to/go1.27.4/bin/go \
+GOWORK=off GO_BIN=/absolute/path/to/go1.27.4/bin/go \
   BIFROST_SOURCE_ROOT=/absolute/path/to/bifrost-checkout \
   BIFROST_COMMIT=6baf302dc73a9858bb96da017a436ef2e60f82f1 \
   ./scripts/build-bifrost-ace-plugin.sh
 ```
 
-The build script verifies the checkout revision before compiling and uses the
-`bifrost_plugin` build tag so ordinary connector tests do not import the
-external Bifrost module.
-
-The build also requires a clean ACE checkout, including no untracked files, and embeds its exact Git commit into the native plugin. Runtime `Init` refuses a plugin whose ACE source provenance was not injected by this build path. This identifies the ACE plugin source and pinned Bifröst ABI source; it does not attest the coding host's transcript.
+The script requires clean pinned Bifröst and ACE checkouts, embeds the ACE source SHA and returns the plugin SHA-256. Passing this build, Go tests and local HTTP mocks is **not** a real OAuth provider trial. Full C03–C05 certification requires actual subscription-compatible Bifröst wire evidence and real provider acknowledgement; C07/C08 additionally need authorized real Hermes/Harbor trials.
