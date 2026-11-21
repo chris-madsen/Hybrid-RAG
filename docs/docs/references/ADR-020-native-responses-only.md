@@ -1,3 +1,5 @@
+> **2026-11-21 owner amendment:** [ADR-021 — Single Bifröst LLM Gateway; ACE as internal context engine](ADR-021-bifrost-single-gateway-ace-context-service.md) supersedes only ADR-020's exact **/v1/responses URL** restriction for the already-native ChatGPT/Codex subscriber route. Bifröst's existing `/chatgpt_passthrough/backend-api/codex/responses` remains native Responses, not a Chat/Completions fallback. The remaining requirements for source fidelity, authorized physical attempts and the sole agent-facing Gateway survive. The ADR-020 text below is preserved as historical rationale.
+
 # ADR-020 — Native Responses-only ACE Gateway
 
 **Status:** Accepted by explicit owner decision

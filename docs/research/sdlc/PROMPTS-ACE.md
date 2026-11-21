@@ -81,7 +81,7 @@ Do not implement code.
 - Error and trust-boundary sequences are included where needed.
 - Required actual runtime wiring is planned, not assumed completed.
 
-## Entrypoint S — full staged pipeline with overlapping Draft PR reviews
+## Entrypoint S — full staged pipeline with overlapping ordinary Ready-for-review PR reviews
 
 ```text
 Task: prepare the full T1/T2 SDLC pipeline for <change-id>.
@@ -126,7 +126,7 @@ THEN READ .agents/skills/ace-phase-plan/SKILL.md: for each chunk fill the
 phase-template as a linked non-tracking phases/<ID>.md executable brief,
 with exact code/test owners, command/expected result and material decisions.
 Run check:ace-phase-plan for each completed phase, reporting evidence limits.
-Publish planning Draft PR via ace-stage-handoff; do not implement until
+Publish an ordinary Ready-for-review planning PR (`draft: false`) via ace-stage-handoff; do not implement until
 G02 and material decisions are actually approved.
 ```
 

@@ -44,7 +44,7 @@ No embedding provider is currently selected or approved. Do not add provider URL
 - Never treat a checked `[x]` adapter task or green fake-provider unit test as DBC-01/02/03 production proof. OpenSpec 006 acceptance items remain unchecked until real evidence.
 - Preserve source bytes; no mandatory arbitrary context budget/truncation, with exact `ace_expand` round-trip.
 - Do not introduce extra microservices, custom parsers, rewritten retired optional tool-call protocol transport, or new architecture frameworks.
-- Keep this PR draft until full CI and owner architecture review. `main` must not be changed by this workflow.
+- **Historical instruction superseded:** create/retain an ordinary Ready-for-review PR regardless of pending CI or owner architecture review; report those pending gates truthfully in the PR body. Merge remains a separate owner decision. `main` must not be changed by this review workflow.
 
 ## Known delivery boundaries / limitations
 

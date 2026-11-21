@@ -4,7 +4,7 @@
 
 # ADR-017 — Bifrost as the unified external LLM gateway for ACE
 
-**Status:** Accepted direction (owner decision, 2026-10-24); gateway contract and production readiness **not yet implemented or approved**  
+**Status:** Accepted architecture; local TypeSpec v2 context RPC and Bifröst Go connector implemented. **Real subscription provider E2E and production readiness not yet certified.**  
 **Date:** 2026-10-24  
 **Project:** Adaptive Context Engine (ACE)  
 **Scope:** Coding agents using a configurable provider endpoint. The owner decision of 2026-11-14 supersedes all separate agent-facing ACE context paths.
@@ -30,7 +30,7 @@ The owner selected **Bifrost** as the candidate unified LLM gateway and confirme
 
 ## Conceptual boundaries
 
-LangGraph (or another external orchestrator) owns multi-agent scheduling; it is neither the ACE runtime nor the context transport. The gateway integration is planned, not yet implemented or provider-wire certified.
+LangGraph (or another external orchestrator) owns multi-agent scheduling; it is neither the ACE runtime nor the context transport. The TypeSpec v2 local context RPC and ACE Bifröst Go hook are implemented, including the existing ChatGPT/Codex subscription passthrough path under [ADR-021](ADR-021-bifrost-single-gateway-ace-context-service.md). **Provider-wire and agent-E2E certification are still open.**
 
 ~~~text
 Agent (Hermes / OpenCode / Pi / other)

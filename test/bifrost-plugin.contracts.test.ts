@@ -28,7 +28,9 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(plugin, /ACE plugin source commit provenance is unavailable/u);
   assert.match(plugin, /ace-bifrost-plugin:" \+ aceSourceCommit/u);
   assert.match(plugin, /func HTTPTransportPreHook\(/u);
-  assert.match(plugin, /case "\/v1\/responses":/u);
+  assert.match(plugin, /case "\/v1\/responses", chatGPTResponsesIngress:/u);
+  assert.match(plugin, /chatGPTResponsesIngress = "\/chatgpt_passthrough\/backend-api\/codex\/responses"/u);
+  assert.match(plugin, /chatGPTModelsIngress/u);
   assert.match(plugin, /func prepareNativeResponses\(/u);
   assert.match(plugin, /ProjectNativeResponses/u);
   assert.match(plugin, /AuthorizeNativeResponsesAttempt/u);
@@ -41,6 +43,11 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   assert.match(plugin, /ctx\.TrustedValue\(projectionBindingKey\{\}\)/u);
   assert.match(plugin, /ACE Gateway endpoint is unsupported/u);
   assert.match(plugin, /func PreLLMHook\(/u);
+  assert.match(plugin, /req\.PassthroughRequest/u);
+  assert.match(plugin, /p\.UpstreamURL != chatGPTProviderOrigin/u);
+  assert.match(plugin, /requestBoundIdentityForProvider/u);
+  assert.match(plugin, /req\.Path == "\/v1\/responses"/u);
+  assert.doesNotMatch(plugin, /OAuthKeyConfig|NewOAuth|refreshToken/u);
   assert.match(plugin, /LLMPluginShortCircuit/u);
   assert.match(plugin, /AllowFallbacks:\s*&allowFallbacks/u);
   assert.match(plugin, /ACE physical-send authorization guard is unavailable/u);
@@ -57,7 +64,7 @@ test('native plugin retains truthful request-bound identity helpers', async () =
   assert.match(plugin, /sessionCorrelationFromRequest/u);
   assert.match(plugin, /schemas\.HarnessSessionHeaders/u);
   assert.match(plugin, /schemas\.NormalizeSessionID/u);
-  assert.match(plugin, /schemas\.ParseModelString\(rawModel, ""\)/u);
+  assert.match(plugin, /schemas\.ParseModelString\(rawModel, expectedProvider\)/u);
   assert.match(plugin, /durableActiveTranscriptDigest/u);
   assert.match(plugin, /"hostTranscriptAttested"\s*:\s*false/u);
   assert.match(plugin, /"hostCompactionEpoch"\s*:\s*"unknown"/u);

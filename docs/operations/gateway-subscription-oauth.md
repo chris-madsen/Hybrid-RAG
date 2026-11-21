@@ -1,36 +1,63 @@
-# Hermes subscription OAuth through ACE/Bifröst — current implementation and evidence boundary
+# Hermes + Bifröst + ACE — native ChatGPT subscription route
 
-**Owner decision (2026-11-21):** A single ChatGPT/Codex subscription route selected in Hermes configuration is the only supported real model authentication mechanism for ACE. No API-key substitution, fallback provider, or duplicate OAuth-validation service is authorized.
+**Authority:** [ADR-021](../docs/references/ADR-021-bifrost-single-gateway-ace-context-service.md), [OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/). Updated 2026-11-21 for the current pinned Bifröst fork and ACE code. **There is exactly one agent-facing LLM Gateway: Bifröst.** The local TypeSpec v2 HTTP service is a Go↔TypeScript context/RPC seam, not a reverse proxy or a second LLM call.
 
-## Correct ownership
+## Source-verified existing features
 
-1. **Hermes:** owns OAuth login, refresh and the bearer token; `openai-codex` uses its dedicated auth store. Configure `HERMES_CODEX_BASE_URL` only to a known compatible Bifröst subscription route. Never copy tokens into ACE configuration, test fixtures or logs.
-2. **Bifröst:** must forward the actual caller-owned subscription bearer to a ChatGPT Codex endpoint that accepts subscription OAuth. The normal `api.openai.com/v1/responses` API-key endpoint is **not equivalent**.
-3. **ACE:** does not validate token identity, refresh tokens, or duplicate the provider's authorization decision. It verifies source/data policy, exact approved provider/model/destination, projection receipt, last serialized native Responses body, `store:false`, and single-use attempt identity; the service may return `ALLOW` when these pass. An authentic 401/403 is passed back as provider failure without API-key fallback.
-4. **Provider:** authenticates the bearer and checks subscription entitlement. ACE never claims that it independently certified the subscription.
+- **Hermes** uses its own `openai-codex` subscription OAuth store. Hermes refreshes bearer tokens; ChatGPT validates them. ACE does not inspect, copy, refresh, validate or log these credentials.
+- **Pinned Bifröst fork:** `chris-madsen/bifrost@6baf302dc73a9858bb96da017a436ef2e60f82f1` already implements `NewChatGPTPassthroughRouter` in `transports/bifrost-http/integrations/passthrough.go`. The router forwards `POST /chatgpt_passthrough/backend-api/codex/responses` to **`https://chatgpt.com/backend-api/codex/responses`**. In `router.go`, `applyPassthroughCallerAuth` keeps the ChatGPT subscriber `Authorization` header and skips key selection. It is **not** an API-key route to `api.openai.com`.
+- Bifröst's `Bifrost.Passthrough` / `PassthroughStream` already pass these requests through the standard Core plugin pipeline; its OpenAI provider uses the existing outgoing transport. The pinned fork also has a physical-send guard.
+- **ACE Go plugin in PR #319** now admits this exact native subscription POST in `HTTPTransportPreHook`, preserves the original bare Codex model and bearer header, calls ACE's local projection API, installs the existing Bifröst per-send guard and admits the corresponding `BifrostPassthroughRequest` in `PreLLMHook`. The read-only Codex `GET /chatgpt_passthrough/backend-api/codex/models` is not a model-generation request and is allowed to Bifröst. No separate Bifröst fork or new OAuth implementation was necessary.
+- The TypeScript `authorizePhysicalSend` checks **ACE source policy and last serialized provider attempt**, not subscription validity. The provider returns 401/403 if the bearer is invalid; no API-key fallback.
 
-## Upstream capability — reuse before build
+## One real request: ownership
 
-Maintained upstream Bifröst **transports v2.6.0** documents a ChatGPT passthrough (`/chatgpt_passthrough/backend-api/codex/responses`) forwarding ChatGPT subscription `Authorization` while its own virtual key is carried separately in `x-bf-vk`. See upstream [Codex CLI documentation](https://github.com/maximhq/bifrost/blob/transports/v2.6.0/docs/cli-agents/codex-cli.mdx) (section: *Keep your ChatGPT subscription*) and [WebSocket relay](https://github.com/maximhq/bifrost/blob/transports/v2.6.0/transports/bifrost-http/handlers/wscodexpassthrough.go). The route is a **native Responses subscription passthrough**, not general OpenAI API-key inference.
+```text
+Hermes (subscription bearer, model + native Responses body)
+  -> Bifröst POST /chatgpt_passthrough/backend-api/codex/responses
+       -> ACE plugin post-auth hook
+          -> local /internal/ace-gateway/v2/project (verified context, no model call)
+       -> same Bifröst PassthroughStream / Passthrough request
+          -> ACE plugin pre-LLM binding
+       -> same Bifröst provider transport/physical-send hook
+          -> local /internal/ace-gateway/v2/authorize-attempt (source policy only)
+       -> https://chatgpt.com/backend-api/codex/responses
+  <- Bifröst native provider response/stream returned to Hermes
+```
 
-**Important mismatch:** ACE currently builds its Go plugin against the pinned fork `6baf302dc73a9858bb96da017a436ef2e60f82f1` and expects the `/v1/responses` gateway projection/physical-send hook. Bifröst transports v2.6.0's ChatGPT passthrough is **not certified to execute this exact ACE hook and final-byte authorization**. Do not assume a `/chatgpt_passthrough` request is intercepted merely because Bifröst supports the provider route. Do not change the pin without a Go API and security-boundary compatibility review.
+The local ACE endpoints do not accept `Authorization: Bearer <ChatGPT token>`; they use a different connector-only secret and never call the provider. Never set `HERMES_CODEX_BASE_URL` to an ACE localhost projection endpoint.
 
-## Admission semantics / no extra OAuth gate
+## Configuration — no second gateway
 
-- `src/application/gateway-attempt-authorization-service.ts` returns `ALLOW` only if existing effective receipt/body/source/data policy and the explicit provider/model/destination allowlists accept. No per-attempt `credential_source` proof is demanded.
-- `src/domain/gateway-attempt-authorization.ts` and `src/application/gateway-security-contract.ts` recognize **both** the standard `/v1/responses` and exact `https://chatgpt.com/backend-api/codex/responses` native provider paths. The latter is never accepted on arbitrary hosts; actual permission still requires the precise destination allowlist. A custom ChatGPT-shaped URL is invalid.
-- **Subscription-only deployment:** configure the ACE destination allowlist to **only** `https://chatgpt.com/backend-api/codex/responses` for the corresponding supported wire transport. Do not list `https://api.openai.com/v1/responses`, Azure, OpenRouter or other API-key routes as fallbacks.
-- This exact destination is the final **outbound provider URL**, not the Hermes-to-Bifröst base URL; the current pinned Bifröst fork may not be able to produce it. Configuration and an `ALLOW` fixture alone do not implement the missing Gateway adapter.
-- Continue checking `store:false`, preserved input, caller's approved source data classes, and final-attempt replay. These are integrity and data-routing checks, not a second login.
-- Disable Bifröst provider/model fallbacks for this deployment. Do not replace subscription token with a Bifröst OpenAI API-key provider key.
+Set `HERMES_CODEX_BASE_URL` to the Bifröst **passthrough base**, with the trailing prefix:
 
-## Verification before any real subscription E2E claim
+```text
+http://127.0.0.1:<bifrost-port>/chatgpt_passthrough
+```
 
-1. Confirm the exact installed **Hermes** version uses the intended OAuth credential and actually honors the selected Bifröst base URL; no direct `chatgpt.com` bypass. Check separate auxiliary-agent routes, if applicable.
-2. Confirm the actual Bifröst binary **natively forwards** that subscription bearer to ChatGPT Codex, without an API key or protocol conversion; identify the maintained upstream route and exact commit.
-3. Confirm this route executes the **ACE authenticated v2 projection and per-physical-send final-byte guard** at the actual provider transmission boundary; a raw passthrough that skips ACE is a test failure, not an accepted alternative.
-4. Confirm a successful public/synthetic Native Responses request yields both the ACE attempt ALLOW receipt and the **real correlated provider acknowledgement**. 401/403 must not silently retry via an API key.
-5. Run controlled retries, model/destination mismatch and request mutation negatives. Streaming requires its own maintained route and C06 certification.
-6. Retain source SHA, Bifröst binary SHA, Hermes version, redacted wire hashes and actual test results. Report `BLOCKED/NOT_RUN` for unavailable provider egress or absent verified adapter. Never write a mock PASS as C05 or C07 completion.
+The existing Hermes OpenAI Codex adapter appends `/backend-api/codex/responses`. Supply the Bifröst virtual key via the supported separate `x-bf-vk` mechanism if the configured listener requires it; **do not** overwrite the ChatGPT `Authorization` bearer. Keep the existing Hermes OAuth state private.
 
-This resolves the **ACE duplicate-authentication deadlock**. It does **not** claim that the current pinned Bifröst fork automatically gains upstream v2.6.0 ChatGPT passthrough compatibility or that external egress has been executed.
+The Bifröst **ACE plugin process** requires `ACE_BIFROST_TENANCY_MODE=single-workspace`, `ACE_BIFROST_WORKSPACE_ID=<registered-workspace>` and `ACE_GATEWAY_PROJECTION_TOKEN=<private-connector-secret>`. ACE Core uses the same token as `ACE_GATEWAY_HTTP_SHARED_SECRET`. These are process-to-process service credentials, **not a second OAuth sign-in**.
+
+ACE must explicitly permit the source and subscription destination (example with one fixed selected model):
+
+```bash
+ACE_GATEWAY_EXTERNAL_LLM_OPT_IN=true
+ACE_GATEWAY_ALLOWED_LLM_PROVIDERS_JSON='["openai"]'
+ACE_GATEWAY_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON='{"openai":["<actual-Codex-model-id>"]}'
+ACE_GATEWAY_ALLOWED_LLM_DESTINATIONS_JSON='["https://chatgpt.com/backend-api/codex/responses"]'
+ACE_GATEWAY_ALLOWED_LLM_DATA_CLASSES_JSON='["private_source","private_conversation"]'
+```
+
+Exact provider/model/destination allowlists are **ACE data-leak/final-receipt permissions**, not duplicated LLM routing or OAuth. Bifröst remains the runtime router. The optional `ACE_GATEWAY_ALLOWED_LLM_STREAMING_ROUTES_JSON` is required for an approved streaming route according to the TypeSpec v2 policy. The native ChatGPT POST is handled as a stream by Bifröst even if the body omits a `stream` flag; validate the *effective* streaming route separately before claiming C06. Do not infer the provider's context window or token counter from the ACE process.
+
+A missing `session-id` or `x-bf-session-id` is not a login failure. ACE generates an **unattested request-scoped correlation ID** rather than incorrectly treating a header as authoritative durable conversation identity. Explicit authenticated multi-tenant workspace inference is not implemented: isolate one Bifröst listener/workspace.
+
+## Verification (separate levels of proof)
+
+1. **Code contract/Go plugin build:** `npm run verify:pr`, `npm run test:gateway-only-audit`, `npx tsx --test test/bifrost-plugin.contracts.test.ts`, and `go test ./...` inside `integrations/bifrost/ace-connector`. From the ACE repository root, build the exact pinned Bifröst `.so` using `scripts/build-bifrost-ace-plugin.sh` with both source trees clean.
+2. **No-token local integration:** `integrations/bifrost/ace-connector/plugin/main_test.go` uses a synthetic subscriber header, mocked local ACE TypeSpec projection, native Bifröst context-transport guard and localhost HTTPS provider capture. Confirm prepared native body, absence of an invented `?provider=`, per-send allow and reject-on-route-change, and single outbound synthetic TLS request. No real subscription token or real provider is used.
+3. **Real C03–C05:** already permitted by the owner for bounded disposable/public-source trials. On the user's configured host only, verify Hermes's real bearer reaches Bifröst's ChatGPT passthrough, the ACE hook actually executes, the **same protected body** reaches ChatGPT, and a correlated provider acknowledgement is retained. Capture redacted request hashes/IDs, the installed Bifröst commit and plugin SHA, actual model, errors and trace. Do not bypass ACE or switch to a paid API key to obtain a green response.
+4. **Real C06–C08 and benchmarks:** independently verify streaming cancellation, multi-turn tool/reasoning continuity, and paired Hermes baseline versus Hermes+Bifröst+ACE Harbor task quality/latency/provider token usage. A mock fixture is not an E2E acceptance or token-savings result.
+
+**Evidence state:** code integration and deterministic CI can pass without live egress. We have **not** executed or certified the configured user's real Hermes subscription, provider acknowledgement, Harbor quality/economics or release. This runbook does not create a new permission gate or declare live tests impossible.

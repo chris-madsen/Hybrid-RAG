@@ -544,3 +544,187 @@ func TestInitRejectsMissingBifrostBuildProvenance(t *testing.T) {
 		t.Fatalf("missing Bifröst build provenance must fail before any provider dispatch: %v", err)
 	}
 }
+
+
+func TestChatGPTSubscriptionPassthroughUsesExistingNativePluginAndTerminalGuard(t *testing.T) {
+	model := "gpt-5.6-sol"
+	original := []byte(`{"model":"gpt-5.6-sol","store":false,"stream":false,"input":[{"role":"user","content":"find entrypoint"}]}`)
+	projected := []byte(`{"model":"gpt-5.6-sol","store":false,"stream":false,"input":[{"role":"developer","content":"[ACE verified context]\nsource reference\n[/ACE verified context]"},{"role":"user","content":"find entrypoint"}]}`)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer local-connector-secret" {
+			t.Errorf("internal ACE connection lost its connector authentication")
+		}
+		switch r.URL.Path {
+		case "/internal/ace-gateway/v2/project":
+			var request struct {
+				Provider   string `json:"provider"`
+				Model      string `json:"model"`
+				BodyBase64 string `json:"bodyBase64"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode projection: %v", err)
+			}
+			body, err := base64.StdEncoding.DecodeString(request.BodyBase64)
+			if err != nil || request.Provider != "openai" || request.Model != model || !bytes.Equal(body, original) {
+				t.Errorf("Codex body/model changed before projection: provider=%q model=%q body=%s err=%v", request.Provider, request.Model, body, err)
+			}
+			_ = json.NewEncoder(w).Encode(connector.ResponsesV2Decision{
+				Kind: "PREPARED", BaseBodySHA256: sha256Hex(body),
+				ProjectedBodySHA256: sha256Hex(projected),
+				BodyBase64: base64.StdEncoding.EncodeToString(projected),
+				ProjectionReceipt: "synthetic-signed-receipt", ReasonCode: "VERIFIED_CONTEXT_ADDED",
+			})
+		case "/internal/ace-gateway/v2/authorize-attempt":
+			var attempt connector.PhysicalSendV2Request
+			if err := json.NewDecoder(r.Body).Decode(&attempt); err != nil {
+				t.Errorf("decode physical attempt: %v", err)
+			}
+			if attempt.Provider != "openai" || attempt.Model != model ||
+				attempt.Destination != chatGPTProviderOrigin+chatGPTResponsesPath ||
+				attempt.BodySHA256 != sha256Hex(projected) || !bytes.Equal(attempt.Body, projected) {
+				_ = json.NewEncoder(w).Encode(connector.PhysicalSendV2Decision{
+					Kind: "BLOCK", AttemptID: attempt.AttemptID, BodySHA256: attempt.BodySHA256,
+					ReasonCode: "SUBSCRIPTION_BOUNDARY_CHANGED",
+				})
+				return
+			}
+			calls.Add(1)
+			_ = json.NewEncoder(w).Encode(connector.PhysicalSendV2Decision{
+				Kind: "ALLOW", AttemptID: attempt.AttemptID, BodySHA256: attempt.BodySHA256,
+				Provider: attempt.Provider, Model: attempt.Model,
+				Destination: attempt.Destination, ReasonCode: "AUTHORIZED",
+			})
+		default:
+			t.Errorf("unexpected local ACE endpoint: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	oldClient, oldWorkspace := projectionClient, defaultWorkspaceID
+	projectionClient = connector.Client{
+		Endpoint: server.URL + "/internal/ace-gateway/v2/project",
+		AuthToken: "local-connector-secret", MaxBodyBytes: connector.DefaultMaxBodyBytes,
+	}
+	defaultWorkspaceID = "single-workspace"
+	t.Cleanup(func() { projectionClient, defaultWorkspaceID = oldClient, oldWorkspace })
+
+	ctx := schemas.NewBifrostContext(context.Background(), time.Now().Add(30*time.Second))
+	defer ctx.Cancel()
+	request := &schemas.HTTPRequest{
+		Method: http.MethodPost, Path: chatGPTResponsesIngress,
+		Headers: map[string]string{
+			"authorization": "Bearer synthetic-oauth-not-a-real-token",
+			"x-bf-vk": "synthetic-bifrost-vk", "session-id": "hermes-session",
+		}, Query: map[string]string{}, Body: append([]byte(nil), original...),
+	}
+	response, err := HTTPTransportPreHook(ctx, request)
+	if err != nil || response != nil {
+		t.Fatalf("ChatGPT subscription projection failed: response=%+v error=%v", response, err)
+	}
+	if !bytes.Equal(request.Body, projected) || len(request.Query) != 0 {
+		t.Fatalf("ChatGPT passthrough must preserve the bare model, query and exact projected body: body=%s query=%v", request.Body, request.Query)
+	}
+	if request.CaseInsensitiveHeaderLookup("authorization") != "Bearer synthetic-oauth-not-a-real-token" {
+		t.Fatal("ACE must never replace Hermes's ChatGPT subscription bearer")
+	}
+	passthrough := &schemas.BifrostPassthroughRequest{
+		Method: http.MethodPost, Path: chatGPTResponsesPath,
+		UpstreamURL: chatGPTProviderOrigin, Provider: schemas.OpenAI,
+		BaseProvider: schemas.OpenAI, Model: model, Body: request.Body,
+	}
+	forwarded, stop, err := PreLLMHook(ctx, &schemas.BifrostRequest{PassthroughRequest: passthrough})
+	if err != nil || stop != nil || forwarded == nil {
+		t.Fatalf("native Bifröst ChatGPT passthrough should use bound ACE context: stop=%+v err=%v", stop, err)
+	}
+	for _, candidate := range []schemas.BifrostPassthroughRequest{
+		{Method: http.MethodPost, Path: chatGPTResponsesPath, UpstreamURL: "https://api.openai.com", Provider: schemas.OpenAI, BaseProvider: schemas.OpenAI, Model: model},
+		{Method: http.MethodPost, Path: "/v1/responses", UpstreamURL: chatGPTProviderOrigin, Provider: schemas.OpenAI, BaseProvider: schemas.OpenAI, Model: model},
+		{Method: http.MethodPost, Path: chatGPTResponsesPath, UpstreamURL: chatGPTProviderOrigin, Provider: schemas.Anthropic, BaseProvider: schemas.OpenAI, Model: model},
+		{Method: http.MethodPost, Path: chatGPTResponsesPath, UpstreamURL: chatGPTProviderOrigin, Provider: schemas.OpenAI, BaseProvider: schemas.OpenAI, Model: "different-model"},
+	} {
+		_, blocked, err := PreLLMHook(ctx, &schemas.BifrostRequest{PassthroughRequest: &candidate})
+		if err != nil || blocked == nil || blocked.Error == nil ||
+			blocked.Error.AllowFallbacks == nil || *blocked.Error.AllowFallbacks {
+			t.Fatalf("changed Bifröst subscription route/fallback must fail without provider egress: %+v %v", candidate, err)
+		}
+	}
+	unprepared := schemas.NewBifrostContext(context.Background(), time.Now().Add(5*time.Second))
+	defer unprepared.Cancel()
+	if _, blocked, _ := PreLLMHook(unprepared, &schemas.BifrostRequest{PassthroughRequest: passthrough}); blocked == nil {
+		t.Fatal("unprepared ChatGPT passthrough may not skip ACE context")
+	}
+	if !ctx.SetPhysicalSendRoute(schemas.PhysicalSendRoute{Provider: schemas.OpenAI, Model: model}) {
+		t.Fatal("pinned Bifröst terminal route identity was not installed")
+	}
+	mockURL, mockAddress, tlsClient, serialized, errorsFromProvider, dials := startFinalWireMockProvider(t)
+	_ = mockURL // Dial to the local TLS simulator while keeping the *real* Codex request URI.
+	tlsClient.ServerName = "127.0.0.1"
+	client := &fasthttp.Client{
+		TLSConfig: tlsClient,
+		Dial: func(string) (net.Conn, error) {
+			dials.Add(1)
+			return net.Dial("tcp", mockAddress)
+		},
+		ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second,
+		Transport: providerUtils.NewContextTransport(),
+	}
+	defer client.CloseIdleConnections()
+	wireRequest := fasthttp.AcquireRequest()
+	wireResponse := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(wireRequest)
+	defer fasthttp.ReleaseResponse(wireResponse)
+	wireRequest.SetRequestURI(chatGPTProviderOrigin + chatGPTResponsesPath)
+	wireRequest.Header.SetMethod(http.MethodPost)
+	wireRequest.Header.SetContentType("application/json")
+	wireRequest.Header.Set("Authorization", "Bearer synthetic-oauth-not-a-real-token")
+	wireRequest.SetBody(projected)
+	_, sendErr, wait := providerUtils.MakeRequestWithContext(ctx, client, wireRequest, wireResponse)
+	wait()
+	if sendErr != nil || wireResponse.StatusCode() != http.StatusOK || calls.Load() != 1 {
+		t.Fatalf("guarded native Codex passthrough did not receive local correlated acknowledgement: err=%+v status=%d authorizationCalls=%d", sendErr, wireResponse.StatusCode(), calls.Load())
+	}
+	select {
+	case raw := <-serialized:
+		if !bytes.HasPrefix(raw, []byte("POST /backend-api/codex/responses HTTP/1.1\r\n")) ||
+			!bytes.Contains(raw, []byte("Bearer synthetic-oauth-not-a-real-token")) ||
+			!bytes.HasSuffix(raw, projected) {
+			t.Fatalf("native subscription request was rewritten or lost caller's bearer: sha=%s", sha256Hex(raw))
+		}
+	case providerErr := <-errorsFromProvider:
+		t.Fatalf("local mock TLS provider failed: %v", providerErr)
+	case <-time.After(5 * time.Second):
+		t.Fatal("guarded subscription request did not reach the local mock TLS provider")
+	}
+	if dials.Load() != 1 {
+		t.Fatalf("expected one allowed physical send, got %d", dials.Load())
+	}
+}
+
+func TestChatGPTSubscriptionIngressRequiresExactNativeRoute(t *testing.T) {
+	for _, tc := range []struct {
+		method string
+		path   string
+		status int
+	}{
+		{http.MethodGet, chatGPTModelsIngress, 0},
+		{http.MethodPost, chatGPTModelsIngress, 405},
+		{http.MethodGet, chatGPTResponsesIngress, 405},
+		{http.MethodPost, "/chatgpt_passthrough/v1/chat/completions", 404},
+		{http.MethodPost, "/openai_passthrough/backend-api/codex/responses", 404},
+	} {
+		response, err := HTTPTransportPreHook(nil, &schemas.HTTPRequest{Method: tc.method, Path: tc.path})
+		if err != nil || (tc.status == 0 && response != nil) || (tc.status != 0 && (response == nil || response.StatusCode != tc.status)) {
+			t.Fatalf("route %s %s: got response=%+v err=%v, expected %d", tc.method, tc.path, response, err, tc.status)
+		}
+	}
+	request := &schemas.HTTPRequest{Method: http.MethodPost, Path: chatGPTResponsesIngress}
+	body := []byte(`{"model":"gpt-5.6-sol","input":"find code","store":false}`)
+	_, session, provider, model, _, err := requestBoundIdentityForProvider(request, body, "gpt-5.6-sol", schemas.OpenAI)
+	if err != nil || provider != "openai" || model != "gpt-5.6-sol" || !strings.HasPrefix(session, "unattested-ace-") {
+		t.Fatalf("bare Codex model and absent session must be supported without invented stable identity: provider=%q model=%q session=%q err=%v", provider, model, session, err)
+	}
+	if _, _, _, _, _, err := requestBoundIdentityForProvider(request, body, "anthropic/claude", schemas.OpenAI); err == nil {
+		t.Fatal("ChatGPT subscription model may not silently select an alternative provider")
+	}
+}
