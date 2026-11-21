@@ -78,4 +78,4 @@ GOWORK=off GO_BIN=/absolute/path/to/go1.27.4/bin/go \
   ./scripts/build-bifrost-ace-plugin.sh
 ```
 
-The script requires clean pinned Bifröst and ACE checkouts, embeds the ACE source SHA and returns the plugin SHA-256. Passing this build, Go tests and local HTTP mocks is **not** a real OAuth provider trial. Full C03–C05 certification requires actual subscription-compatible Bifröst wire evidence and real provider acknowledgement; C07/C08 additionally need authorized real Hermes/Harbor trials.
+The script requires clean pinned Bifröst and ACE checkouts and embeds **both actual Git commit SHAs** (ACE and the verified external Bifröst checkout) into the plugin; `Init` rejects either missing provenance. The host-build digest derives from these exact injected SHAs, **not** from a separately maintained constant. The script returns the plugin SHA-256. Passing this build, Go tests and local HTTP mocks is **not** a real OAuth provider trial. Full C03–C05 certification requires actual subscription-compatible Bifröst wire evidence and real provider acknowledgement; C07/C08 additionally need authorized real Hermes/Harbor trials.

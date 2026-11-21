@@ -532,3 +532,15 @@ func TestSingleWorkspaceRejectsCallerWorkspaceSelection(t *testing.T) {
 		t.Fatal("missing ingress must not select a workspace")
 	}
 }
+
+func TestInitRejectsMissingBifrostBuildProvenance(t *testing.T) {
+	previousACE, previousBifrost := aceSourceCommit, aceBifrostCommit
+	t.Cleanup(func() {
+		aceSourceCommit, aceBifrostCommit = previousACE, previousBifrost
+	})
+	aceSourceCommit = strings.Repeat("a", 40)
+	aceBifrostCommit = "unknown"
+	if err := Init(nil); err == nil || !strings.Contains(err.Error(), "Bifröst source commit provenance is unavailable") {
+		t.Fatalf("missing Bifröst build provenance must fail before any provider dispatch: %v", err)
+	}
+}
