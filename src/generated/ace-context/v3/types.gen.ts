@@ -24,7 +24,7 @@ export type GatewayCapabilities = {
     schemaVersion: 'ace.context.v3';
     routes: Array<GatewayRouteCapability>;
     maxBodyBytes: number;
-    projectionModes: Array<'gateway'>;
+    projectionModes: Array<'bifrost_hook'>;
     providerWireCertification: 'not_certified';
     [key: string]: unknown;
 };

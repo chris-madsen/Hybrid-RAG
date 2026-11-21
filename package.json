@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node --input-type=module -e \"import {rmSync} from 'node:fs'; rmSync('dist',{recursive:true,force:true}); rmSync('.cache/tsconfig.tsbuildinfo',{force:true})\" && tsc -p tsconfig.json && node scripts/generate-runtime-provenance.mjs",
-    "gateway:http": "npm run build && node dist/bin/ace-gateway-http.js",
+    "context:rpc": "npm run build && node dist/bin/ace-context-rpc.js",
     "check": "tsc -p tsconfig.json --noEmit",
     "check:public-contract-types": "tsc -p tsconfig.public-contracts.json --noEmit",
     "lint": "eslint src test --ext .ts --max-warnings=0",
