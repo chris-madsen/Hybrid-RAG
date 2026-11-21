@@ -143,7 +143,7 @@ class Hermes:
         install_state["upstream_install"] += 1
         install_state["installed"] = True
         # Harbor 0.24.0 has installed the CLI, but its final
-        # `hermes version` probe fails despite a valid `--version`.
+        # invalid Hermes version subcommand fails despite a valid --version.
         raise base.NonZeroAgentExitCodeError("unsupported version subcommand")
 
     async def exec_as_agent(self, environment, command, timeout_sec=None):
