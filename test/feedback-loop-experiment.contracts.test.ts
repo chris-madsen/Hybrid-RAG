@@ -551,6 +551,16 @@ test('feedback Harbor identity rejects retired direct ACE injection and accepts 
   assert.equal(validateMatchingFeedbackHarborJobs(harborJob(), harborJob(true))._tag, 'Err');
 });
 
+test('preflight treats missing provider-native token telemetry as UNKNOWN, not an admission gate', async () => {
+  const source = await readFile('scripts/feedback-loop-preflight.ts', 'utf8');
+  assert.match(source, /providerTokenWindow: \\{[\\s\\S]*?status: 'unknown'/u);
+  const required = /const required = \\[([\\s\\S]*?)\\];/u.exec(source)?.[1];
+  assert.ok(required, 'preflight required-check declaration must exist');
+  assert.doesNotMatch(required!, /'providerTokenWindow'/u);
+  assert.match(required!, /'taskRuntimeProbe'/u,
+    'unknown telemetry must not silently certify the actual task integration');
+});
+
 test('feedback Harbor identity rejects different frozen task sets between Hermes arms', () => {
   assert.equal(validateMatchingFeedbackHarborJobs(
     harborJob(),
