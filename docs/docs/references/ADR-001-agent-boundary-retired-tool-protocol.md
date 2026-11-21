@@ -1,53 +1,53 @@
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
-# ADR-001 — Агентонезависимое ядро и историческое решение об retired optional tool-call protocol tool facade
+# ADR-001 — Agent-neutral core and the historical optional tool-call facade decision
 
-**Статус:** **Accepted**  
-**Вопросы:** 1C, 2B, 3B с возможностью исследования 3C  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** **Accepted**  
+**Decision items:** 1C, 2B, 3B, with option 3C left open for investigation  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and project-owner selections dated 2026-10-17.  
+**Status definitions:** `Accepted` — decision approved; `Proposed` — requires a spike or verification; `Deferred` — deliberately postponed.
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records the decision, alternatives, rationale, and conditions for reconsideration. Concrete classes, database schemas, API contracts, Kubernetes manifests, and deployment topology belong in a subsequent Architecture Design.
 
-## Контекст
+## Context
 
-> **Актуализация 2026-10-24:** retired optional tool-call protocol-first как канал доставки контекста модели **заменён ADR-016/017**. Для configurable-endpoint агентов выбран Bifrost LLM Gateway → ACE Gateway Projection API (пока план, не реализован). Hermes использует существующий native ContextEngine bridge. retired optional tool-call protocol сохраняется только как отдельный интерфейс явных вызовов инструментов; агенту не нужно вызывать retired optional tool-call protocol, чтобы обеспечить request-local projection. Оркестрация LangGraph находится вне ACE. Исходные пункты ниже оставлены как историческая запись решения от 17.10.
+> **Update, 2026-10-24:** The optional tool-call-protocol-first model for delivering context to the LLM was **superseded by ADR-016/017**. For agents that support a configurable endpoint, the selected direction was Bifröst LLM Gateway → ACE Gateway Projection API (a plan at that date, not yet implemented). Hermes then used its existing native ContextEngine bridge. The optional tool-call protocol was retained only for explicit tool calls; agents would not need to invoke it for request-local projection. LangGraph orchestration was outside ACE. The decisions below are preserved as an **October 17 historical record**.
 
-Харнесс первоначально обслуживает Codex, но должен оставаться пригодным для будущего подключения других coding-агентов. Несколько независимых retired optional tool-call protocol-серверов оставляют агенту координацию поиска и могут порождать лишние последовательные model/tool round trips; это гипотеза, не доказанный факт для наших задач.
+The harness initially serves Codex but should remain suitable for other coding agents. If an agent must coordinate multiple independent tool-call servers itself, it may incur unnecessary sequential model/tool round trips. This was a hypothesis, not an established result for our workload.
 
-## Решение
+## Decision
 
-1. **Агентонезависимое ядро**, первый полноценный адаптер — **Codex**.
-2. **Одна логическая точка интеграции Unified retired optional tool-call protocol Harness**. Внутри неё допустимы адаптеры к готовым источникам: code RAG, AST, LSP, docs, memory и метрики.
-3. Анализ исходников и соответствующие индексы остаются локальными. Документный RAG может быть облачным (см. ADR-003, ADR-007).
-4. Исследовать поддерживаемые более глубокие способы интеграции с Codex (CLI/SDK/lifecycle) **без предварительного решения их использовать**.
-5. Не писать собственный coding-агент и не форкать Codex ради первой версии.
+1. Build an **agent-neutral core** with **Codex as the first full adapter**.
+2. Offer **one logical integration surface**, historically called the Unified optional tool-call Harness. Internally it may adapt existing code RAG, AST, LSP, documentation, memory, and metrics providers.
+3. Keep source analysis and its indexes local. Documentation RAG may use cloud services subject to ADR-003 and ADR-007.
+4. Investigate supported deeper Codex integration mechanisms (CLI, SDK, lifecycle) **without committing to adopting them in advance**.
+5. Do not implement a new coding agent or fork Codex merely to build the first version.
 
-## Альтернативы
+## Alternatives
 
-- Только Codex — меньше абстракций, сильная привязка.
-- Несколько retired optional tool-call protocol серверов, которыми управляет сам агент — проще собрать, но не обеспечивает единый Context Builder.
-- Глубокий управляющий wrapper вокруг Codex — потенциально более сильный контроль, но труднее сопровождать.
+- Codex only: fewer abstractions, but strong vendor/agent coupling.
+- Multiple independent optional tool-call servers coordinated by the agent: simpler to assemble, but no unified Context Builder.
+- A deep management wrapper around Codex: potentially stronger control, but a greater maintenance burden.
 
-## Последствия
+## Consequences
 
-**Плюсы:** централизованная проверка свежести, дедупликация, provenance; меньше зависимость от одного агента.  
-**Минусы:** собственная точка отказа и стоимость адаптеров; необходимость сохранять обычные инструменты Codex как безопасный fallback.
+**Benefits:** Centralized freshness checks, deduplication, and provenance; reduced dependence on a specific agent.  
+**Costs:** Another potential failure point, adapter maintenance, and a requirement to retain ordinary Codex tools as a safe fallback.
 
-## Критерии реализации и проверки
+## Implementation and verification criteria (historical)
 
-- Один подключаемый retired optional tool-call protocol endpoint/набор инструментов с подтверждённой работой в установленной версии Codex.
-- Каждому ответу можно приписать источники, ревизию, статус свежести и признак неполноты.
-- При частичном отказе некритичного retrieval Codex может продолжить работу обычными инструментами; auth/policy ошибки см. ADR-007.
-- Сравнить траекторию агента с независимыми retired optional tool-call protocol инструментами против unified route (токены, tool calls, успех, время).
+- One attachable optional tool-call endpoint or tool collection demonstrably supported by the installed Codex version.
+- Each response includes source provenance, revision, freshness, and incomplete-result status.
+- Codex can continue with ordinary tools when noncritical retrieval degrades; authentication and policy failures follow ADR-007.
+- Compare independent tool servers with the unified route on tokens, tool calls, task success, and elapsed time.
 
-## Пересмотр
+## Reconsideration
 
-Если специфика Codex/его retired optional tool-call protocol существенно препятствует требуемому управлению контекстом или другой агент станет основным потребителем.
+Revisit if Codex or its optional tool interface materially prevents the required context control, or another agent becomes the primary consumer.
 
-## Ссылки
+## References
 
 - https://developers.openai.com/learn/docs-retired-tool-protocol
 - ADR-002, ADR-003, ADR-006, ADR-007
