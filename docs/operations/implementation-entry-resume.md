@@ -7,7 +7,7 @@
 | Stage | Owner intent examples | Reuse existing inputs; stage-specific output |
 | --- | --- | --- |
 | **R — Research** | "research this", "research this", "inspect the current implementation" | Source/branch and existing source facts → a focused fact-only research memo; no S/A/P by default |
-| **S — Requirements** | "prepare requirements", "write the spec", "draft an OpenSpec change" | Existing valid R evidence + current source → update **the same** `proposal.md` and `specs/**/spec.md`; do not automatically redesign or slice |
+| **S — Requirements** | "prepare requirements", "write the spec", "propose an OpenSpec change" | Existing valid R evidence + current source → update **the same** `proposal.md` and `specs/**/spec.md`; do not automatically redesign or slice |
 | **A — Architecture** | "design the architecture", "architecture", "refine the design" | Existing S/specs and accepted ADRs → update **the same** `design.md` / decision crosswalk; not Research or ticket generation by default |
 | **P — To-tickets** | "split the work into phases", "split into tasks", "create the dependency DAG" | Existing reviewable design + specs → update canonical `tasks.md`; no unnecessary architecture redesign |
 | **X — Detailed phases / synthesis** | "detail the phases", "write phase briefs", "synthesize the plans" | Existing canonical tasks, design, specs → update only linked `phases/<ID>.md` and required synthesis inputs; do not repeat P/A/R unless inputs actually changed |

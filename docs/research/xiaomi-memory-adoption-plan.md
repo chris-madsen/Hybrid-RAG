@@ -230,7 +230,7 @@ interface SessionCheckpointV1 {
 
 **Режим 1 — deterministic-first (MVP).** Client adapter передаёт явные lifecycle/task events; сервис извлекает известные поля, сохраняет receipts. Пока отсутствуют данные, значение unknown. Без LLM, когда задача сводится к копированию структурированного события.
 
-**Режим 2 — optional bounded LLM writer (после MVP).** Модель читает только разрешённый ограниченный набор эпизодов и готовит *draft* summary с точными evidence IDs. На выходе строгий JSON schema validation, проверка ссылок на raw source, источников и workspace, обязательная обработка disagreement. Вывод модели сам по себе не устанавливает `accepted`, `verified`, `source-current`.
+**Режим 2 — optional bounded LLM writer (после MVP).** Модель читает только разрешённый ограниченный набор эпизодов и готовит provisional summary с точными evidence IDs. На выходе строгий JSON schema validation, проверка ссылок на raw source, источников и workspace, обязательная обработка disagreement. Вывод модели сам по себе не устанавливает `accepted`, `verified`, `source-current`.
 
 ### 5.2. Триггеры
 

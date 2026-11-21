@@ -4,7 +4,7 @@
 | --- | --- |
 | Type | Observed current-task example, not a synthetic user transcript. |
 | Baseline inspected | `origin/main@7f3fc5a0a91e48e9d2573f814dfae96d68415577` |
-| Status | The owner request and review scope were sufficient to draft this bounded change; this artifact does not claim a separate live model invocation. |
+| Status | The owner request and review scope were sufficient to prepare this bounded change; this artifact does not claim a separate live model invocation. |
 
 ## Owner request and decision
 

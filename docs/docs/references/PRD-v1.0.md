@@ -4,7 +4,7 @@
 
 **Рабочее название:** Adaptive Context Engine (ACE) / Agentic Code Intelligence Harness  
 **Тип документа:** Product Requirements Document (PRD), не техническая архитектура  
-**Версия:** 1.0 — draft для согласования  
+**Version:** 1.0 — proposal for review  
 **Дата:** 17 октября 2026  
 **Статус:** требования собраны; архитектурные решения не утверждены  
 **Первичный агент:** OpenAI Codex; в перспективе — другие coding-агенты  
