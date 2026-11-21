@@ -149,7 +149,7 @@ test('5x gate measures total tokens per accepted task, not merely input', () => 
   assert.ok(ratio !== null && ratio > 1, 'more total tokens despite 5x input reduction');
   assert.equal(assessHarborFourArmFiveX({
     qualityNonInferior: true, costTelemetryComplete: true,
-    totalTokensPerAcceptedTaskRatio: ratio, rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    totalTokensPerAcceptedTaskRatio: ratio, rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
   }).allowed, false);
   assert.equal(totalTokensPerAcceptedTaskRatio(
     { ...native, successes: 0 }, candidate,
@@ -162,7 +162,7 @@ test('5x gate measures total tokens per accepted task, not merely input', () => 
   ), 130 / 1100);
   assert.equal(assessHarborFourArmFiveX({
     qualityNonInferior: true, costTelemetryComplete: true,
-    totalTokensPerAcceptedTaskRatio: 130 / 1100, rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    totalTokensPerAcceptedTaskRatio: 130 / 1100, rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
   }).allowed, true);
 });
 
@@ -171,7 +171,7 @@ test('five-X evidence gate rejects self-declared success when raw trials were on
     qualityNonInferior: true,
     costTelemetryComplete: true,
     totalTokensPerAcceptedTaskRatio: 0.1,
-    rawTrialEvidenceVerified: false, attemptUsageVerified: true,
+    rawTrialEvidenceVerified: false, attemptUsageVerified: true, providerEgressVerified: true,
   };
   assert.deepEqual(assessHarborFourArmFiveX(advertisedWin), {
     allowed: false,
@@ -179,17 +179,17 @@ test('five-X evidence gate rejects self-declared success when raw trials were on
   });
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,
-    rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
     totalTokensPerAcceptedTaskRatio: 0.25,
   }).allowed, false);
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,
-    rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
     qualityNonInferior: false,
   }).allowed, false);
   assert.equal(assessHarborFourArmFiveX({
     ...advertisedWin,
-    rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
   }).allowed, true);
 });
 
@@ -198,7 +198,7 @@ test('AR10: five-X cannot be claimed from hashes or self-declared quality when a
   assert.deepEqual(assessHarborFourArmFiveX({
     qualityNonInferior: true, costTelemetryComplete: true,
     totalTokensPerAcceptedTaskRatio: 0.1,
-    rawTrialEvidenceVerified: true, attemptUsageVerified: false,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: false, providerEgressVerified: true,
   }), { allowed: false, reason: 'provider_attempt_usage_not_reconciled' });
   const inputOnly = totalTokensPerAcceptedTaskRatio(
     { rawInputTokens: 1000, rawOutputTokens: 100, successes: 1 },
@@ -208,6 +208,15 @@ test('AR10: five-X cannot be claimed from hashes or self-declared quality when a
   assert.equal(assessHarborFourArmFiveX({
     qualityNonInferior: true, costTelemetryComplete: true,
     totalTokensPerAcceptedTaskRatio: inputOnly,
-    rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true, providerEgressVerified: true,
   }).allowed, false);
+});
+
+
+test('AR10: internally matched usage does not authorize a real-provider five-X savings claim', () => {
+  assert.deepEqual(assessHarborFourArmFiveX({
+    qualityNonInferior: true, costTelemetryComplete: true,
+    rawTrialEvidenceVerified: true, attemptUsageVerified: true,
+    providerEgressVerified: false, totalTokensPerAcceptedTaskRatio: 0.1,
+  }), { allowed: false, reason: 'independent_provider_egress_not_certified' });
 });

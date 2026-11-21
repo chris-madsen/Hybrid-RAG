@@ -145,6 +145,10 @@ const totalTokenRatio = attemptUsageVerified && ledgerEvidence !== undefined
 const rawTrialEvidenceVerified = reconciledEvidence?.releaseEligible === true;
 const releaseGate = assessHarborFourArmFiveX({
   attemptUsageVerified,
+  // This historical four-arm report does not include C07/C08 independently
+  // certified provider-wire evidence. An internally consistent JSONL ledger
+  // is diagnostic, never an authorization to claim end-to-end 5x savings.
+  providerEgressVerified: false,
   qualityNonInferior: checkedReport.value.qualityNonInferior,
   costTelemetryComplete: checkedReport.value.costTelemetryComplete,
   totalTokensPerAcceptedTaskRatio: totalTokenRatio,
@@ -177,6 +181,7 @@ const reportOutput = {
     fiveXAllowed: releaseGate.allowed,
     fiveXBlocker: releaseGate.allowed ? null : releaseGate.reason,
     rawTrialEvidenceVerified,
+    providerEgressVerified: false,
     attemptUsage: ledgerEvidence === undefined
       ? { status: 'not_supplied', unknownFields: ['raw_harbor_trials_missing'] }
       : {

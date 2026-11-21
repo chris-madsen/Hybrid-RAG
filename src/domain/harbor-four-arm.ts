@@ -327,6 +327,8 @@ export const assessHarborFourArmFiveX = (input: {
   readonly totalTokensPerAcceptedTaskRatio: number | null;
   readonly rawTrialEvidenceVerified: boolean;
   readonly attemptUsageVerified: boolean;
+  /** Independently certified physical model egress belongs to C07/C08, not AR10. */
+  readonly providerEgressVerified: boolean;
 }): { readonly allowed: boolean; readonly reason: string } => {
   if (!input.attemptUsageVerified) {
     return { allowed: false, reason: 'provider_attempt_usage_not_reconciled' };
@@ -340,6 +342,9 @@ export const assessHarborFourArmFiveX = (input: {
   if (input.totalTokensPerAcceptedTaskRatio === null || !Number.isFinite(input.totalTokensPerAcceptedTaskRatio)
     || input.totalTokensPerAcceptedTaskRatio < 0 || input.totalTokensPerAcceptedTaskRatio > 0.2) {
     return { allowed: false, reason: 'token_ratio_did_not_meet_five_x' };
+  }
+  if (!input.providerEgressVerified) {
+    return { allowed: false, reason: 'independent_provider_egress_not_certified' };
   }
   return { allowed: true, reason: 'independent_quality_cost_and_trial_evidence_satisfied' };
 };
