@@ -6,14 +6,14 @@
 
 | Stage | Owner intent examples | Reuse existing inputs; stage-specific output |
 | --- | --- | --- |
-| **R — Research** | "исследуй", "research this", "изучи текущую реализацию" | Source/branch and existing source facts → a focused fact-only research memo; no S/A/P by default |
-| **S — Requirements** | "подготовь требования", "write the spec", "сформируй OpenSpec" | Existing valid R evidence + current source → update **the same** `proposal.md` and `specs/**/spec.md`; do not automatically redesign or slice |
-| **A — Architecture** | "спроектируй", "architecture", "доработай design" | Existing S/specs and accepted ADRs → update **the same** `design.md` / decision crosswalk; not Research or ticket generation by default |
-| **P — To-tickets** | "разбей на чанки", "split into tasks", "составь DAG" | Existing reviewable design + specs → update canonical `tasks.md`; no unnecessary architecture redesign |
-| **X — Detailed phases / synthesis** | "детализируй чанки", "write phase briefs", "синтезируй планы" | Existing canonical tasks, design, specs → update only linked `phases/<ID>.md` and required synthesis inputs; do not repeat P/A/R unless inputs actually changed |
-| **I — Implement** | "имплементируй", "реализуй C01", "apply the approved plan" | Existing `tasks.md`, exact phase brief, actual G02/dependency permission → RED/GREEN and one approved phase PR; no planning rerun |
-| **V — Verify/review** | "проверь", "review this PR", "прими результат", "verify" | Existing code/PR, acceptance and retained evidence → scoped build/architecture/security/plan review, provider E2E where applicable; do not implement or replan automatically |
-| **Resume any stage** | "продолжай", "continue", "resume" | Restore the **verified last active R/S/A/P/X/I/V stage**, its branch/PR/input hashes and incomplete work; do not assume "continue" means I |
+| **R — Research** | "research this", "research this", "inspect the current implementation" | Source/branch and existing source facts → a focused fact-only research memo; no S/A/P by default |
+| **S — Requirements** | "prepare requirements", "write the spec", "draft an OpenSpec change" | Existing valid R evidence + current source → update **the same** `proposal.md` and `specs/**/spec.md`; do not automatically redesign or slice |
+| **A — Architecture** | "design the architecture", "architecture", "refine the design" | Existing S/specs and accepted ADRs → update **the same** `design.md` / decision crosswalk; not Research or ticket generation by default |
+| **P — To-tickets** | "split the work into phases", "split into tasks", "create the dependency DAG" | Existing reviewable design + specs → update canonical `tasks.md`; no unnecessary architecture redesign |
+| **X — Detailed phases / synthesis** | "detail the phases", "write phase briefs", "synthesize the plans" | Existing canonical tasks, design, specs → update only linked `phases/<ID>.md` and required synthesis inputs; do not repeat P/A/R unless inputs actually changed |
+| **I — Implement** | "implement", "implement C01", "apply the approved plan" | Existing `tasks.md`, exact phase brief, actual G02/dependency permission → RED/GREEN and one approved phase PR; no planning rerun |
+| **V — Verify/review** | "verify", "review this PR", "accept the result", "verify" | Existing code/PR, acceptance and retained evidence → scoped build/architecture/security/plan review, provider E2E where applicable; do not implement or replan automatically |
+| **Resume any stage** | "continue", "continue", "resume" | Restore the **verified last active R/S/A/P/X/I/V stage**, its branch/PR/input hashes and incomplete work; do not assume "continue" means I |
 | **Start from scratch** | Explicit "redo the whole SDLC" or genuinely new capability with no usable inputs | Start at R, then only proceed across stages authorized by the request and existing G02 gates |
 
 Interpret examples semantically, **not via string matching alone**. An explicit stage/phase request takes precedence over a stale session checkpoint; no automatic change in task scope. A fresh harness session does **not** mean that R is required again.

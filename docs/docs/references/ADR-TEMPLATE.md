@@ -1,24 +1,24 @@
-# ADR-XXX — <короткое название>
+# ADR-XXX — <short descriptive title>
 
-**Статус:** Proposed / Accepted / Superseded / Deferred  
-**Дата:** YYYY-MM-DD  
-**Связанные требования PRD:** …  
-**Связанные ADR:** …  
+**Status:** Proposed / Accepted / Superseded / Deferred  
+**Date:** YYYY-MM-DD  
+**Related PRD requirements:** …  
+**Related ADRs:** …  
 
-## Контекст и проблема
+## Context and problem
 
-## Драйверы решения
+## Decision drivers
 
-## Рассмотренные варианты
+## Options considered
 
-## Решение
+## Decision
 
-## Компромиссы и последствия
+## Trade-offs and consequences
 
-## Безопасность / локальность / лицензии
+## Security, data locality and licensing
 
-## Критерии проверки
+## Verification criteria
 
-## Условия пересмотра
+## Reconsideration conditions
 
-## Источники
+## Sources

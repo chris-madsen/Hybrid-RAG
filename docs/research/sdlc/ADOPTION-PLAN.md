@@ -1,40 +1,40 @@
-# План применения AI-assisted SDLC в ACE
+# Adopting an AI-assisted SDLC in ACE
 
-## A. Подключение инструкций
+## A. Instruction integration
 
-1. Главным источником правил остаётся корневой `AGENTS.md`.
-2. Для выполнения задач используется `docs/operations/ai-assisted-sdlc.md`.
-3. Агент читает существующие OpenSpec и ADR, а не заводит второй набор архитектурных норм.
-4. Подробные команды для отдельных этапов доступны в `source/commands/`; готовые нейтральные промпты — в `PROMPTS-ACE.md`.
-5. Уровень процесса выбирается по риску изменения: T0, T1, T2.
+1. Root `AGENTS.md` remains the primary source of engineering rules.
+2. Follow `docs/operations/ai-assisted-sdlc.md` to carry out tasks.
+3. Read existing OpenSpec changes and ADRs instead of creating a second set of architecture rules.
+4. Detailed stage commands live under `source/commands/`; reusable harness-neutral prompts are in `PROMPTS-ACE.md`.
+5. Select process depth by change risk: T0, T1 or T2.
 
-## B. Сквозная проверка на реальной задаче
+## B. End-to-end trial on a real task
 
-1. Найти незакрытый баг или небольшую фичу, проверив свежую ветку, реализацию и открытые PR.
-2. Выполнить фактологический Research с ссылками `path:line`.
-3. Подготовить краткий Design и получить одобрение принципиальных решений.
-4. Записать фазы в существующем OpenSpec/исполнительном плане.
-5. Для багов воспроизвести RED, затем добиться GREEN после исправления.
-6. Выполнять четыре последовательные проверки: build, architecture, security, plan completeness.
-7. Запустить применимые real-provider проверки, отдельно зафиксировать тесты, которые не запускались.
-8. Запушить изменения в отдельный PR и получить точный SHA, результаты CI и человеческое ревью.
-9. После завершения провести cross-phase проверку всей доработки.
+1. Identify an unresolved bug or small feature, checking the current branch, implementation and open PRs.
+2. Perform source-grounded Research with `path:line` citations.
+3. Prepare a concise Design and obtain approval for material choices.
+4. Record implementation phases in the existing OpenSpec or execution plan.
+5. For bug fixes, reproduce RED and then achieve GREEN.
+6. Perform four sequential reviews: build, architecture, security and plan completeness.
+7. Run applicable real-provider checks and explicitly record tests that were not run.
+8. Publish a separate PR with an exact SHA, observed CI results and human review.
+9. Complete a cross-phase verification after the change is delivered.
 
-## C. Дополнительные quality gates
+## C. Additional quality gates
 
-Исследовать текущие GitHub Actions, secret scanning, зависимости, соблюдение архитектурных границ и ссылки документации. Добавлять только недостающие проверки, которые дают измеримую пользу. Не копировать Go-oriented инструменты в TypeScript проект.
+Investigate current GitHub Actions, secret scanning, dependencies, architecture-boundary enforcement and documentation links. Add only missing checks with measurable value. Do not import Go-specific tools into a TypeScript project without justification.
 
-## Не делать
+## Non-goals
 
-- Не вводить Claude TeamCreate/TaskCreate как зависимость.
-- Не создавать новый orchestrator для SDLC.
-- Не дублировать OpenSpec, ADR или CI.
-- Не выдавать самопроверку одного агента за независимое ревью.
-- Не выдавать mock-only тест за подтверждение реального provider-E2E.
+- Do not depend on Claude TeamCreate/TaskCreate.
+- Do not implement a second SDLC orchestrator.
+- Do not duplicate OpenSpec, ADRs or CI.
+- Do not pass off one agent's self-review as independent review.
+- Do not present mock-only tests as proof of actual provider E2E behavior.
 
-## Критерий завершения
+## Completion criterion
 
-Минимум один реальный PR с прохождением необходимых стадий, воспроизводимыми тестами и наблюдаемыми результатами quality gates; затем можно подкреплять описание этого подхода в CV ссылкой на PR.
+At least one real PR completed through the applicable stages, reproducible tests and observed quality-gate outcomes. The resulting PR may then substantiate a description of the methodology in a CV.
 
 ## Quality Gates extension — execute as small follow-up PRs
 

@@ -2,56 +2,54 @@
 
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
-# ADR-014 — Агентонезависимый многоуровневый Hybrid Context Engine
+# ADR-014 — Agent-neutral multi-layer Hybrid Context Engine
 
-**Статус:** **Accepted**
-**Дата:** 2026-10-21
-**Проект:** Adaptive Context Engine (ACE)
-**Источник решения:** прямое решение владельца от 21.10.2026: брать архитектурные принципы Cursor-подобного многоуровневого code-aware retrieval, но выбирать собственные maintained компоненты и сохранять универсальное retired optional tool-call protocol-подключение.
+**Status:** **Accepted**  
+**Date:** 2026-10-21  
+**Project:** Adaptive Context Engine (ACE)  
+**Decision source:** Explicit owner decision on 2026-10-21: adopt the architectural principles of Cursor-like layered code-aware retrieval, select maintained components independently, and retain a universal optional tool-call integration at that time.
 
-## Контекст
+## Context
 
-> **Уточнение 2026-10-24 / ADR-017:** Для model-bound context delivery выбран планируемый Bifrost Gateway + ACE Projection API; Hermes использует реализованный native ContextEngine. retired optional tool-call protocol остаётся для явных tool calls, не для обязательной инъекции LLM-контекста. LangGraph — внешний оркестратор, не часть ACE. Старое retired optional tool-call protocol-first описание ниже историческое.
+> **Clarification, 2026-10-24 / ADR-017:** The planned Bifröst Gateway + ACE Projection API was selected for model-bound context delivery. Hermes then used an implemented native ContextEngine. The optional tool-call protocol remained for explicit tool calls, not mandatory LLM context injection. LangGraph was an external orchestrator, not part of ACE. The original tool-protocol-first discussion below is historical.
 
-Цель ACE — не просто выполнять vector search по коду. Агент не должен многократно заново читать одни и те же файлы, искать те же символы и повторно получать тот же контекст, если проектное состояние не изменилось.
+ACE aims to do more than vector search over code. An agent should not have to reread unchanged files, rediscover the same symbols, or repeatedly ingest the same context across requests.
 
-При этом экономия токенов не может достигаться ухудшением инженерного качества. Retrieval должен объединять несколько независимых сигналов: семантический смысл, точные лексические совпадения, синтаксическую структуру, semantic relations из LSP, текущее рабочее состояние, документацию и temporal memory.
+Token efficiency must not be achieved by reducing engineering quality. Retrieval should combine independent evidence: semantic similarity, exact lexical matches, syntax, LSP relationships, current working-tree state, documentation, and temporal memory.
 
-Cursor используется как архитектурная аналогия, а не как набор обязательных внутренних технологий.
+Cursor is an architectural analogy, **not** a mandatory choice of its underlying technologies.
 
-## Решение
+## Decision (historical)
 
-1. **ACE остаётся agent-neutral Context Engine.** Ядро не зависит от конкретного агента, IDE, LangGraph или адаптера; retired optional tool-call protocol — для явных вызовов tools, native/gateway adapters — для доставки контекста модели (ADR-016/017).
-2. **Structural code units:** maintained ast-grep/Tree-sitter tooling определяет структурные границы и compact outlines. Собственные parser/node tables запрещены без отдельного доказанного gap.
-3. **Hybrid code retrieval:** Qdrant остаётся выбранным локальным store и должен поддерживать минимум две независимые retrieval ветви:
+1. **ACE remains an agent-neutral Context Engine.** Its core does not depend on a specific agent, IDE, LangGraph or adapter. Explicit tool calls originally used the optional tool-call protocol; native/Gateway adapters handled model-bound context (ADR-016/017).
+2. **Structural code units:** Use maintained ast-grep/Tree-sitter tooling for boundaries and compact outlines. Do not build custom parsers or node tables without a demonstrated gap.
+3. **Hybrid code retrieval:** Qdrant was selected as a local store with at least two independent retrieval paths:
    - dense semantic retrieval;
    - sparse/lexical BM25 retrieval;
-   с native fusion (первый кандидат — RRF).
-4. **Reranking:** fused shortlist MAY проходить через локальный maintained cross-encoder/reranker. Конкретная модель выбирается только по quality/latency/license benchmark.
-5. **Semantic enrichment:** definitions/references/types/diagnostics получают через maintained LSP servers behind generic LSP adapter. LSP не заменяет fuzzy retrieval.
-6. **Working Context:** Git/working-tree state является first-class retrieval prior. IDE/agent MAY передать доверенные focus/open-file/range hints через native/gateway adapter или явный retired optional tool-call protocol tool call; hints не являются source truth.
-7. **Docs and memory stay separate sources:** Vertex — authorized docs; Graphiti/FalkorDB — temporal derived memory; current source bytes — truth for current implementation.
-8. **Progressive disclosure:** initial ContextBundle отдаёт минимально достаточный verified context; exact original доступен losslessly через `ace_expand`.
-9. **Delta delivery:** стабильные evidence/bundle identities должны позволять клиенту указать уже известный контекст и не получать неизменившиеся большие body повторно.
-10. **Content-addressed reuse:** embedding reuse привязан к chunk content + provider identity; publication remains provider-native through immutable Qdrant collections + atomic aliases.
-11. **Quality first:** token reduction публикуется только при сохранённом/улучшенном task quality. 5× остаётся измеряемой гипотезой.
-12. **Buy before build:** Merkle tree, отдельный lexical DB, code graph, custom router или другой subsystem вводятся только после измеренного gap в maintained primitives.
+   combined with provider-native fusion (RRF as the first candidate).
+4. **Reranking:** The fused shortlist **may** use a maintained local cross-encoder/reranker, but select a model only after quality, latency and licensing benchmarks.
+5. **Semantic enrichment:** Obtain definitions, references, types and diagnostics from maintained language servers through a generic LSP adapter. LSP does not replace fuzzy retrieval.
+6. **Working context:** Treat Git/working-tree state as a first-class retrieval prior. Trusted IDE/agent focus, open-file and range hints may arrive through a native/Gateway adapter or explicit optional tool call. Hints are not authoritative source evidence.
+7. **Keep documentation and memory separate:** Vertex serves authorized documentation; Graphiti/FalkorDB stores derived temporal memory; current source bytes remain authoritative for current behavior.
+8. **Progressive disclosure:** The initial ContextBundle contains the minimum sufficient verified evidence, with lossless access to the exact original historically provided through `ace_expand`.
+9. **Delta delivery:** Stable evidence and bundle identities allow clients to acknowledge previously seen material and avoid retransmitting unchanged large bodies.
+10. **Content-addressed reuse:** Embedder reuse is keyed by chunk content and provider identity; publication originally used provider-native immutable Qdrant collections and atomic aliases.
+11. **Quality first:** Report token reductions only with maintained or better task quality. The 5× goal remains a measurable hypothesis.
+12. **Reuse before build:** Add Merkle trees, separate lexical databases, code graphs, custom routers or other subsystems only after demonstrating a gap in maintained primitives.
 
-## Выбор Qdrant против Turbopuffer
+## Qdrant versus Turbopuffer (original selection)
 
-Qdrant остаётся текущим решением ACE.
+Qdrant remained the then-current ACE solution.
 
-Turbopuffer — сильная cloud/object-storage search platform и разумный кандидат для будущего многопользовательского SaaS-масштаба. Но текущая ACE boundary требует local-first private-code retrieval, локальной разработки без cloud dependency и уже имеет работающий Qdrant lifecycle.
+Turbopuffer is a capable cloud/object-storage search platform and a reasonable future candidate for multi-tenant SaaS scale. However, the ACE boundary required local-first private-code retrieval and offline development, and already had a working Qdrant lifecycle. The expected benefit did not justify migration cost and risk.
 
-Поэтому migration на Turbopuffer сейчас не даёт достаточной выгоды относительно стоимости/риска миграции.
+Reconsider if:
+- ACE becomes a cloud multi-tenant service;
+- the corpus reaches a scale where object-storage economics materially improve cost;
+- Qdrant's operating burden or latency becomes a measured bottleneck; or
+- the data policy permits the corresponding deployment.
 
-Пересмотреть решение, если:
-- ACE становится cloud multi-tenant service;
-- корпус достигает масштаба, где object-storage economics materially выигрывает;
-- Qdrant operational burden/latency измеренно становится bottleneck;
-- data policy разрешает соответствующий deployment.
-
-## Maintained component map
+## Maintained component map (historical)
 
 | Capability | Selected/default direction |
 | --- | --- |
@@ -60,27 +58,27 @@ Turbopuffer — сильная cloud/object-storage search platform и разу�
 | Sparse lexical retrieval | Qdrant sparse BM25 |
 | Fusion | Qdrant Query API / RRF |
 | Reranking | FastEmbed cross-encoder candidate, evidence-gated |
-| Semantic relations | real LSP servers through generic adapter |
-| Working state | Git/worktree + optional retired optional tool-call protocol host hints |
+| Semantic relations | Real LSP servers through a generic adapter |
+| Working state | Git/worktree + optional host hints via the retired tool protocol |
 | Documentation | Vertex RAG under policy |
 | Temporal memory | Graphiti + FalkorDB + immutable ACE source archive |
-| Model-bound delivery | Bifrost / ACE Gateway Projection API (planned, ADR-017); Hermes native ContextEngine (implemented, ADR-016) |
-| Explicit tools | retired optional tool-call protocol: `ace_expand`, status, optional `ace_context` search; not required for injection |
-| Exact expansion | ACE artifact handle / ace_expand |
+| Model-bound delivery | Bifröst / ACE Gateway Projection API (planned in ADR-017); Hermes native ContextEngine (implemented in ADR-016) |
+| Explicit tools | Retired optional tool protocol: `ace_expand`, status, optional `ace_context` search; not mandatory for injection |
+| Exact expansion | ACE artifact handle / `ace_expand` |
 
-## Acceptance
+## Acceptance criteria
 
-- Behavior-without-name, exact-symbol and config-key fixtures all reach the fused shortlist.
-- Hybrid retrieval is compared against dense-only and sparse-only.
-- Reranking stays only if it improves quality or compactness sufficiently.
-- Dirty-tree changes are visible before `complete=true`.
-- Optional focused/open files affect ranking but cannot make irrelevant or stale evidence current.
-- Repeated unchanged evidence can be represented as a compact known reference rather than full retransmission.
-- Exact code is re-read/verified before delivery.
-- Natural-use agent benchmark reports quality, total tokens, duplicate context avoided, tool calls and failures.
-- No agent-specific dependency is required inside ACE core.
+- Behavior-without-name, exact-symbol and configuration-key fixtures all reach the fused shortlist.
+- Compare hybrid retrieval against dense-only and sparse-only alternatives.
+- Retain reranking only when it sufficiently improves relevance or compactness.
+- Dirty-tree edits are visible before reporting `complete=true`.
+- Focus/open-file hints may change ranking but may not make irrelevant or stale evidence current.
+- Unchanged evidence can be represented by a compact already-known reference.
+- Reread and verify exact code before delivery.
+- Natural-use agent benchmarks report quality, total tokens, avoided duplication, tool calls and failures.
+- ACE core requires no agent-specific dependency.
 
-## Ссылки
+## References
 
 - ADR-001, ADR-003, ADR-004, ADR-005, ADR-006, ADR-009, ADR-012, ADR-013
 - https://cursor.com/blog/secure-codebase-indexing

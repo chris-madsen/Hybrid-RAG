@@ -1,50 +1,50 @@
-# ADR-005 — Неизменяемый архив сессий и temporal memory на Graphiti
+# ADR-005 — Immutable session archive and Graphiti temporal memory
 
-**Статус:** **Accepted**  
-**Вопросы:** 13D (Graphiti), 14C, 15C  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-17  
-**Источник решения:** обсуждение PRD v1.0 и выборы владельца проекта от 17.10.2026.  
-**Статусы:** `Accepted` — решение принято; `Proposed` — требуется spike/проверка; `Deferred` — сознательно отложено.  
+**Status:** **Accepted**  
+**Decision items:** 13D (Graphiti), 14C, 15C  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-17  
+**Decision source:** PRD v1.0 discussion and project-owner selections dated 2026-10-17.  
+**Status definitions:** `Accepted` — approved; `Proposed` — requires a spike or verification; `Deferred` — deliberately postponed.
 
-> **Граница документа:** ADR фиксирует решение, альтернативы, мотивы и критерии пересмотра. Конкретные классы, схемы БД, API-контракты, Kubernetes manifests и топология будут определяться в последующем Architecture Design.
+> **Document boundary:** This ADR records the decision, alternatives, rationale, and reconsideration criteria. Concrete classes, database schemas, API contracts, Kubernetes manifests, and topology belong in a subsequent Architecture Design.
 
-## Контекст
+## Context
 
-Prompt caching и compaction не гарантируют сохранения причин старых решений, отвергнутых альтернатив и дословных диалогов между сессиями. Нужно восстанавливать инженерные обсуждения через дни и недели; память должна уметь отличать старое решение от нового.
+Prompt caching and compaction cannot guarantee retention of the rationale behind earlier decisions, rejected alternatives, or verbatim conversations across sessions. Engineering discussions may need to be recovered days or weeks later, and memory must distinguish superseded decisions from current ones.
 
-## Решение
+## Decision
 
-1. Сохранять **оригинальные Codex-диалоги как неизменяемый источник истины** с идентификатором сессии, временем, проектом и ссылками на исходный контент. «Immutable» означает неизменяемость сохранённого события, не отказ от безопасного удаления по явному требованию владельца.
-2. Использовать **Graphiti** как выбранный temporal knowledge-graph слой для извлечённых событий, решений, отношений и истории изменений. **Не делать Mem0 обязательным элементом.**
-3. Автоматически архивировать новые сессии; извлекать потенциально полезные знания. **Критически важные ADR/инженерные решения требуют отдельного подтверждения**, а не превращаются в истину только из LLM-summary.
-4. Адаптерная модель импорта позволяет в будущем добавлять ChatGPT, Gemini и другие источники; первый реализуемый источник — **Codex**.
-5. Ответ памяти обязан ссылаться на первоисточник и указывать статус знания (предложено / принято / отменено / противоречие / неизвестно).
-6. Ошибки ingest/extraction не должны повреждать неизменяемый архив. Инкрементальное повторное извлечение допустимо и должно быть идемпотентным.
+1. Preserve **original Codex conversations as immutable authoritative records**, including session ID, timestamp, project, and references to the exact original content. "Immutable" means stored events are not silently changed; it does not prohibit authorized safe deletion at the owner's explicit request.
+2. Use **Graphiti** as the selected temporal knowledge-graph layer for extracted events, decisions, relationships, and change history. **Do not require Mem0.**
+3. Archive new sessions automatically and extract potentially valuable knowledge. **Critical ADRs and engineering decisions require independent approval**; an LLM summary is not sufficient to establish them as fact.
+4. Use an adapter-based import model so ChatGPT, Gemini, and other sources can be added later; **Codex** is the first implementation source.
+5. Memory answers must cite original evidence and label each knowledge item as proposed, accepted, superseded, conflicting, or unknown.
+6. Ingestion/extraction errors must not corrupt the immutable archive. Incremental re-extraction is allowed and must be idempotent.
 
-## Альтернативы
+## Alternatives
 
-- Только compacted summaries — могут терять детали.
-- Только векторный поиск по истории — находит эпизоды, но хуже выражает temporal transitions.
-- Mem0 — готовый продукт памяти, но владелец выбрал архив + Graphiti.
-- Graphiti как единственное хранилище без originals — риск необратимой потери формулировок и provenance.
+- Compacted summaries only: may lose details.
+- Vector search of history only: retrieves episodes but represents temporal transitions less effectively.
+- Mem0: a ready-made memory product, but the owner selected archive + Graphiti.
+- Graphiti as the sole store without originals: risks irreversible loss of exact wording and provenance.
 
-## Последствия и безопасность
+## Consequences and security
 
-Graphiti может требовать графовый backend и модельные вызовы для extraction, поэтому нужно отдельно оценить лицензию, способы развёртывания, стоимость ingest и маршруты передачи приватных диалогов. По умолчанию сырьевые разговоры/секреты остаются локальными; облачные операции требуют разрешения. Будут нужны retention, redaction и механизм удаления.
+Graphiti may require a graph backend and model calls for extraction. Licensing, deployment, ingestion costs, and the destinations of private conversations must be evaluated separately. Raw conversations and secrets stay local by default; cloud operations require authorization. Retention, redaction, and deletion mechanisms will be needed.
 
-## Acceptance
+## Acceptance criteria
 
-- В новой сессии Codex находит обсуждение «две недели назад», правильные альтернативы, аргументы и ссылки на оригинальные сообщения.
-- При смене решения сохраняется исторический факт предыдущего выбора; не происходит беззвучной перезаписи прошлого.
-- Статус `proposed` не маскируется под `accepted`; конфликтные свидетельства представлены явно.
-- Дополнительные токены/стоимость записи, extraction и retrieval входят в итоговую оценку.
+- In a new session, Codex can retrieve a discussion from "two weeks ago," including the correct alternatives, rationale, and links to original messages.
+- Superseding a decision preserves the historical fact of the former choice; history is not silently overwritten.
+- `proposed` is not presented as `accepted`; conflicting evidence is explicit.
+- Extra tokens and costs for storage, extraction, and retrieval are included in the total evaluation.
 
-## Пересмотр
+## Reconsideration
 
-При проблемах с точностью temporal retrieval, ограничениях Graphiti/его backend, избыточных расходах или невозможности выполнить требования локальности.
+Revisit if temporal retrieval is inaccurate, Graphiti or its backend imposes unacceptable limitations, cost becomes excessive, or local-only processing requirements cannot be met.
 
-## Ссылки
+## References
 
 - https://github.com/getzep/graphiti
 - ADR-007, ADR-009

@@ -1,63 +1,61 @@
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
-# ADR-015 — Hermes как primary agent для Harbor feedback loop
+# ADR-015 — Hermes as the primary agent for the Harbor feedback loop
 
-**Статус:** Accepted  
-**Проект:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
-**Дата:** 2026-10-23  
-**Источник решения:** явное решение владельца проекта в ходе PR #157.  
+**Status:** Accepted  
+**Project:** Agentic Code Intelligence Harness / Adaptive Context Engine (ACE)  
+**Date:** 2026-10-23  
+**Decision source:** Explicit project-owner decision during PR #157.
 
-## Контекст
+## Context
 
-> **Superseded delivery detail (owner decisions 2026-10-23/24):** This ADR retains the historical Hermes-as-benchmark-agent and OAuth decision. **Its ACE-via-native-retired optional tool-call protocol injection assumption is obsolete.** ADR-016 documents the implemented request-local Hermes `ContextEngine` / direct JSONL bridge, with retired optional tool-call protocol reserved for explicit tools. ADR-017 selects planned Bifrost → ACE projection for configurable-endpoint agents. Neither a registered retired optional tool-call protocol server nor an retired optional tool-call protocol call proves model-bound context delivery. LangGraph orchestrates agents outside ACE.
+> **Superseded delivery detail (owner decisions 2026-10-23/24):** This ADR retains the historical Hermes-as-benchmark-agent and OAuth decision. **Its ACE-via-native-optional-tool-call injection assumption is obsolete.** ADR-016 documents the implemented request-local Hermes `ContextEngine` / direct JSONL bridge, with the optional tool protocol reserved for explicit tools. ADR-017 selects planned Bifröst → ACE projection for configurable-endpoint agents. Neither a registered optional tool server nor an optional tool call proves model-bound context delivery. LangGraph orchestrates agents outside ACE.
 
-ACE задуман agent-neutral и должен передавать проверенный контекст через retired optional tool-call protocol, а не зависеть от особенностей одной агентной оболочки. Текущий feedback loop был собран вокруг Codex, но практическая цель этого контура — проверить, улучшает ли ACE работу агента при естественном использовании контекста. Для этой цели владелец выбрал Hermes: у него есть native retired optional tool-call protocol integration и более подходящая для эксперимента модель подмешивания контекста.
+ACE was designed to be agent-neutral, with verified context delivered through a then-planned optional tool-call integration rather than coupling to a particular coding harness. The existing feedback loop centered on Codex, but its actual purpose was to test whether ACE improves an agent's natural use of context. The owner selected Hermes for that evaluation because it offered native optional tool-call support and, at the time, a more suitable context-injection model.
 
-При этом менять underlying GPT-модель или уходить на отдельный API billing не требуется. Hermes поддерживает provider `openai-codex`, который использует ChatGPT/Codex OAuth state. Harbor 0.24.0 умеет запускать Hermes и передавать retired optional tool-call protocol servers, но его встроенный Hermes adapter не поддерживает этот OAuth provider, поэтому для benchmark runtime нужен узкий адаптер.
+There was no need to replace the underlying GPT model or move to separately billed API usage. Hermes supported the `openai-codex` provider using ChatGPT/Codex OAuth state. Harbor 0.24.0 could run Hermes and forward optional tool servers, but its built-in Hermes adapter did not support that OAuth provider; a thin benchmark adapter was therefore needed.
 
-## Решение
+## Decision (historical)
 
-1. **Hermes — primary agent для текущего Harbor feedback loop.** Native и ACE-optional arms используют один и тот же Hermes version, модель, reasoning effort, task image, source revision, timeout и один attempt.
-2. **GPT подключается через Hermes `openai-codex`.** Источник аутентификации — отдельный Hermes-owned store `~/.hermes/auth.json`, созданный `hermes auth add openai-codex`. Benchmark не заимствует `~/.codex/auth.json`: Hermes upstream разделяет эти refresh-token chains, чтобы Codex CLI/VS Code и Hermes не инвалидировали OAuth друг друга. Store копируется только в `HERMES_HOME=/tmp/hermes` ephemeral task container; после serial trial обновлённый OAuth state атомарно синхронизируется обратно в host Hermes store. Credential bytes не попадают в manifest/log artifacts.
-3. **ACE подключается как native Hermes retired optional tool-call protocol server.** Baseline arm не получает ACE; ACE-optional arm получает ровно один server `ace` через stdio с entrypoint `/ace/scripts/harbor-ace-retired-tool-protocol.sh`.
-4. **Harbor 0.24.0 сохраняется.** До появления upstream-поддержки `openai-codex` используется минимальный custom Harbor adapter `scripts.harbor_hermes_codex_oauth:HermesCodexOAuth`, основанный на штатном Harbor Hermes runtime.
-5. **Hermes version должен быть pinned в experiment/job evidence.** На момент принятия решения feedback loop закрепляет `v0.22.3`; обновление требует нового provenance/evidence, а не молчаливого `latest`.
-6. **Исторический Codex evidence не переписывается.** Он остаётся валидным только для того runtime, на котором был получен. После смены агента требуется новый one-task Hermes smoke перед main/repeats/holdout.
-7. **Codex остаётся comparison/compatibility client.** Это решение не делает ACE Hermes-specific и не запрещает matched head-to-head Codex runs.
+1. **Hermes is the primary agent for the current Harbor feedback loop.** The native and ACE-optional arms use the same Hermes version, model, reasoning effort, task image, source revision, timeout and single attempt.
+2. **GPT is accessed through Hermes `openai-codex`.** Authentication comes from Hermes's own `~/.hermes/auth.json` store, created by `hermes auth add openai-codex`. Benchmarks must not reuse `~/.codex/auth.json`; Hermes upstream separates refresh-token chains so Hermes and Codex CLI/VS Code do not invalidate one another. The store is copied only to `HERMES_HOME=/tmp/hermes` in the ephemeral task container, then refreshed OAuth state is synchronized atomically back to the host Hermes store after the serial trial. Credential bytes never enter manifests or logs.
+3. **ACE was connected as a native Hermes optional tool-call server.** The baseline arm received no ACE; the ACE-optional arm received exactly one stdio server named `ace`, using `/ace/scripts/harbor-ace-retired-tool-protocol.sh`.
+4. **Harbor 0.24.0 remained selected.** Until upstream supported `openai-codex`, the minimal custom adapter `scripts.harbor_hermes_codex_oauth:HermesCodexOAuth` reused the standard Harbor Hermes runtime.
+5. **Pin the Hermes version** in each experiment/job evidence record. The feedback-loop version selected at the time was `v0.22.3`. Any update requires new provenance and evidence, not a silent switch to `latest`.
+6. **Do not rewrite historical Codex evidence.** It remains valid only for the runtime that produced it. After changing the primary agent, run a new one-task Hermes smoke before main repetitions or holdout.
+7. **Codex remains a comparison and compatibility client.** This does not make ACE Hermes-specific or prohibit matched Codex head-to-head trials.
 
-## Инварианты сравнения
+## Comparison invariants
 
-- В paired Hermes run единственная намеренная разница между arms — наличие ACE retired optional tool-call protocol.
-- Provider/model/reasoning identity совпадает между arms.
-- Zero ACE calls => `ACE_NOT_USED`, а не ACE-caused savings.
-- Missing Hermes/provider usage остаётся `UNKNOWN`, а не нулём.
-- Hermes session/retired optional tool-call protocol evidence сохраняется и коррелируется с ACE provider trace/request IDs.
-- Raw source, credentials и private session payloads не публикуются.
+- In a paired Hermes run, the sole intentional difference between arms was ACE optional-tool availability.
+- Provider, model and reasoning identities match across arms.
+- Zero ACE calls means `ACE_NOT_USED`, not ACE-caused savings.
+- Missing Hermes/provider usage means `UNKNOWN`, not zero.
+- Preserve and correlate Hermes sessions, optional-tool evidence, ACE provider traces and request IDs.
+- Do not publish raw source, credentials or private session payloads.
 
-## Последствия
+## Consequences
 
-Плюсы:
+**Benefits:**
+- ACE had a natural native optional-tool integration instead of Codex-specific configuration injection.
+- The coding harness could change independently of the underlying GPT subscription/model.
+- The experimental contract aligned more closely with ACE's agent-neutral intent.
 
-- ACE получает естественный native retired optional tool-call protocol путь вместо Codex-specific config injection.
-- Harness можно менять отдельно от underlying GPT subscription/model.
-- Контракт эксперимента становится ближе к agent-neutral архитектуре ACE.
+**Costs:**
+- Before upstream Harbor support, a small adapter was required to stage/sync Hermes-owned OAuth state without touching Codex CLI credentials.
+- Earlier Codex smoke/preflight results were not Hermes E2E proof.
+- Token/cache fields depend on actual Hermes/Harbor/provider exports; missing fields remain unknown.
 
-Цена:
+## Reconsideration
 
-- До upstream-поддержки Harbor нужен небольшой adapter boundary, который stage/sync-ит Hermes-owned OAuth store и не касается Codex CLI credentials.
-- Предыдущий Codex smoke/preflight не является Hermes E2E proof.
-- Token/cache fields зависят от того, что реально экспортируют Hermes/Harbor/provider; недоступные поля должны оставаться unknown.
+Revisit if upstream Harbor supports Hermes `openai-codex` OAuth with equivalent provenance/security guarantees, if Hermes loses required optional-tool/session evidence, or if matched benchmarks demonstrate that another agent harness better suits the primary feedback loop.
 
-## Критерий пересмотра
+## Related documents
 
-Решение пересматривается, если Harbor upstream нативно поддержит Hermes `openai-codex` OAuth с теми же provenance/security свойствами, Hermes потеряет необходимый retired optional tool-call protocol/session evidence contract, либо matched benchmark покажет, что другой agent harness лучше подходит для основной feedback loop.
-
-## Связанные документы
-
-- ADR-001 — agent-neutral retired optional tool-call protocol boundary
-- ADR-006 — structured Context Bundle / progressive disclosure
+- ADR-001 — agent-neutral retired optional tool-call boundary
+- ADR-006 — structured Context Bundle and progressive disclosure
 - ADR-009 — Harbor benchmarking (agent-specific Codex clauses superseded here)
 - ADR-014 — Hybrid Context Engine
-- ADR-016 — implemented Hermes native request-time projection (supersedes retired optional tool-call protocol injection here)
-- ADR-017 — planned Bifrost model-bound gateway for configurable-endpoint agents
+- ADR-016 — implemented native Hermes request-time projection (superseded optional-tool injection)
+- ADR-017 — planned Bifröst model-bound gateway for configurable-endpoint agents
 - OpenSpec change `002-harbor-evaluation`
