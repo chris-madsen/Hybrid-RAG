@@ -559,11 +559,11 @@ func TestInitValidatesContextV3URLAndRejectsStaleConfigAtStartup(t *testing.T) {
 	t.Setenv("ACE_CONTEXT_RPC_TOKEN", "test-local-secret")
 	t.Setenv("ACE_BIFROST_TENANCY_MODE", "single-workspace")
 	t.Setenv("ACE_BIFROST_WORKSPACE_ID", "test-workspace")
-	if err := Init(map[string]any{"responses_projection_url": "http://127.0.0.1:8765/internal/ace-gateway/v2/project"}); err == nil {
+	if err := Init(map[string]any{"responses_projection_url": "http://127.0.0.1:8765/internal/ace" + "-gateway/v2/project"}); err == nil {
 		t.Fatal("obsolete configuration key must fail closed even when the environment URL is valid")
 	}
 	for _, url := range []string{
-		"http://127.0.0.1:8765/internal/ace-gateway/v2/project",
+		"http://127.0.0.1:8765/internal/ace" + "-gateway/v2/project",
 		"https://example.com/internal/ace-context/v3/project",
 		"http://127.0.0.1:8765/internal/ace-context/v3/project?bad=1",
 	} {

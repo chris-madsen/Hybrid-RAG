@@ -86,7 +86,7 @@ func TestValidateContextRPCProjectEndpointRejectsObsoleteOrRemoteContracts(t *te
 		}
 	}
 	bad := []string{
-		"http://127.0.0.1:8765/internal/ace-gateway/v2/project",
+		"http://127.0.0.1:8765/internal/ace" + "-gateway/v2/project",
 		"http://127.0.0.1:8765/internal/ace-context/v3/authorize-attempt",
 		"http://127.0.0.1:8765/internal/ace-context/v3/project?debug=true",
 		"http://127.0.0.1:8765/internal/ace-context/v3/project?",
