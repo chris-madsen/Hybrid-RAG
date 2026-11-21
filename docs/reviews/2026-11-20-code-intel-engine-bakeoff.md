@@ -8,7 +8,7 @@ three-file alias fixture. It was useful for identifying uncertainty, but is
 quality on existing code. It was superseded by the selected native CBM
 integration in [PR #316](https://github.com/chris-madsen/Hybrid-RAG/pull/316).
 
-The draft's ad-hoc runner and auto-triggered matrix have been retired rather
+The proposal's ad-hoc runner and auto-triggered matrix have been retired rather
 than merged into the long-lived SDLC. Historical measurements can still be
 inspected in their original GitHub Actions runs; no new measurement was
 performed by this archival change.

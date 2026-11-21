@@ -115,7 +115,7 @@
 
 **Interfaces:**
 - Consumes: archived `SessionEpisode` references and deterministic client events.
-- Produces: a checkpoint draft; no LLM inference.
+- Produces: a provisional checkpoint record; no LLM inference.
 
 - [ ] RED-test no-op with no new events.
 - [ ] RED-test newer direct user intent supersedes stored next action.
