@@ -21,7 +21,7 @@ export type DeliveryNotCertified = {
 };
 
 export type GatewayCapabilities = {
-    schemaVersion: 'ace.gateway.v2';
+    schemaVersion: 'ace.context.v3';
     routes: Array<GatewayRouteCapability>;
     maxBodyBytes: number;
     projectionModes: Array<'gateway'>;
@@ -39,7 +39,7 @@ export type GatewayError = {
 };
 
 export type GatewayHealth = {
-    schemaVersion: 'ace.gateway.v2';
+    schemaVersion: 'ace.context.v3';
     liveness: 'ready';
     readiness: 'adapter_implemented';
     providerWire: 'not_certified';
@@ -95,7 +95,7 @@ export type PhysicalSendAttemptDecision = ({
 } & PhysicalSendAttemptBlocked);
 
 export type PhysicalSendAttemptRequest = {
-    schemaVersion: 'ace.gateway.v2';
+    schemaVersion: 'ace.context.v3';
     requestId: string;
     attemptGroupId: string;
     agentSessionId: string;
@@ -131,7 +131,7 @@ export type ProjectionDecision = ({
 } & BlockedProjection);
 
 export type ProjectionRequest = {
-    schemaVersion: 'ace.gateway.v2';
+    schemaVersion: 'ace.context.v3';
     protocol: 'openai.responses';
     requestId: string;
     attemptGroupId: string;
@@ -143,7 +143,7 @@ export type ProjectionRequest = {
     bodyBase64: string;
     bodySha256: string;
     query: string;
-    projectionMode: 'gateway';
+    projectionMode: 'bifrost_hook';
     deadlineEpochMs: number;
     attestation: HostCompactionAttestation;
     [key: string]: unknown;
@@ -153,7 +153,7 @@ export type AuthorizePhysicalSendData = {
     body: PhysicalSendAttemptRequest;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v2/authorize-attempt';
+    url: '/internal/ace-context/v3/authorize-attempt';
 };
 
 export type AuthorizePhysicalSendErrors = {
@@ -206,7 +206,7 @@ export type CapabilitiesData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v2/capabilities';
+    url: '/internal/ace-context/v3/capabilities';
 };
 
 export type CapabilitiesResponses = {
@@ -222,7 +222,7 @@ export type HealthData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v2/health';
+    url: '/internal/ace-context/v3/health';
 };
 
 export type HealthResponses = {
@@ -238,7 +238,7 @@ export type ProjectData = {
     body: ProjectionRequest;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v2/project';
+    url: '/internal/ace-context/v3/project';
 };
 
 export type ProjectErrors = {
@@ -291,7 +291,7 @@ export type RecordDeliveryData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/internal/ace-gateway/v2/record-delivery';
+    url: '/internal/ace-context/v3/record-delivery';
 };
 
 export type RecordDeliveryErrors = {

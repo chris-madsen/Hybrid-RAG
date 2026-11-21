@@ -1,4 +1,4 @@
-// Canonical TypeSpec source for the active native Responses v2 Gateway wire.
+// Canonical internal ACE context RPC. Bifröst is the sole agent-facing LLM Gateway.
 // No previous projection contract or generated compatibility surface is retained.
 import "@typespec/http";
 import "@typespec/json-schema";
@@ -6,8 +6,8 @@ import "@typespec/openapi";
 using Http;
 using JsonSchema;
 
-@service(#{ title: "ACE Native Responses Projection" })
-@TypeSpec.OpenAPI.info(#{ version: "2.0.0" })
+@service(#{ title: "ACE Context Extension for Bifröst" })
+@TypeSpec.OpenAPI.info(#{ version: "3.0.0" })
 namespace ACE.ResponsesV2 {
   model HostCompactionAttestation {
     @pattern("^[a-f0-9]{64}$") hostBuildDigest: string;
@@ -26,7 +26,7 @@ namespace ACE.ResponsesV2 {
 
   @jsonSchema
   model ProjectionRequest {
-    schemaVersion: "ace.gateway.v2";
+    schemaVersion: "ace.context.v3";
     protocol: "openai.responses";
     @minLength(1) requestId: string;
     @minLength(1) attemptGroupId: string;
@@ -40,7 +40,7 @@ namespace ACE.ResponsesV2 {
     bodyBase64: string;
     @pattern("^[a-f0-9]{64}$") bodySha256: string;
     @minLength(1) query: string;
-    projectionMode: "gateway";
+    projectionMode: "bifrost_hook";
     @minValue(1) deadlineEpochMs: int64;
     attestation: HostCompactionAttestation;
   }
@@ -73,7 +73,7 @@ namespace ACE.ResponsesV2 {
 
   @jsonSchema
   model GatewayHealth {
-    schemaVersion: "ace.gateway.v2";
+    schemaVersion: "ace.context.v3";
     liveness: "ready";
     readiness: "adapter_implemented";
     providerWire: "not_certified";
@@ -87,10 +87,10 @@ namespace ACE.ResponsesV2 {
 
   @jsonSchema
   model GatewayCapabilities {
-    schemaVersion: "ace.gateway.v2";
+    schemaVersion: "ace.context.v3";
     routes: GatewayRouteCapability[];
     @minValue(0) maxBodyBytes: int64;
-    projectionModes: "gateway"[];
+    projectionModes: "bifrost_hook"[];
     providerWireCertification: "not_certified";
   }
 
@@ -104,7 +104,7 @@ namespace ACE.ResponsesV2 {
 
   @jsonSchema
   model PhysicalSendAttemptRequest {
-    schemaVersion: "ace.gateway.v2";
+    schemaVersion: "ace.context.v3";
     @minLength(1) requestId: string;
     @minLength(1) attemptGroupId: string;
     @minLength(1) agentSessionId: string;
@@ -158,23 +158,23 @@ namespace ACE.ResponsesV2 {
   }
 
   @get
-  @route("/internal/ace-gateway/v2/health")
+  @route("/internal/ace-context/v3/health")
   op health(): GatewayHealth;
 
   @get
-  @route("/internal/ace-gateway/v2/capabilities")
+  @route("/internal/ace-context/v3/capabilities")
   op capabilities(): GatewayCapabilities;
 
   @TypeSpec.OpenAPI.extension("x-ace-final-provider-wire", "not_certified")
   @post
-  @route("/internal/ace-gateway/v2/record-delivery")
+  @route("/internal/ace-context/v3/record-delivery")
   op recordDelivery(): DeliveryNotCertified;
 
   @post
-  @route("/internal/ace-gateway/v2/project")
+  @route("/internal/ace-context/v3/project")
   op project(@body request: ProjectionRequest): ProjectionDecision | GatewayError;
 
   @post
-  @route("/internal/ace-gateway/v2/authorize-attempt")
+  @route("/internal/ace-context/v3/authorize-attempt")
   op authorizePhysicalSend(@body request: PhysicalSendAttemptRequest): PhysicalSendAttemptDecision | GatewayError;
 }
