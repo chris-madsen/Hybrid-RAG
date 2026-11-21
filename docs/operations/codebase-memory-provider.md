@@ -1,6 +1,6 @@
 # Codebase Memory: native code intelligence for ACE
 
-**Implementation:** PR #316, CBM v0.12.1. Native structural integration is
+**Implementation:** native engine selected in PR #316; CBM v0.12.1. The runtime now uses a single application-owned persistent stdio JSON-RPC session instead of a native CLI process for every operation. Native structural integration is
 tested in CI; a real Hermes/Bifröst task and token savings still require
 independent, provider-measured acceptance.
 
@@ -8,7 +8,7 @@ See [current runtime ownership and readiness](current-architecture.md). **CBM-on
 
 ## Architecture
 
-- CBM is the ONLY **currently wired native** code-structure/graph engine, not a certified production provider. The current adapter invokes `index_repository` with `persistence: false`: do not claim a durable persistent CBM graph across ACE restarts without observed evidence.
+- CBM is the ONLY **currently wired native** code-structure/graph engine, not a certified production provider. The adapter invokes `index_repository` with `persistence: false`. Upstream defines this flag as disabling the optional repo-local `.codebase-memory/graph.db.zst` export, **not** the normal local SQLite index. ACE never infers current-source freshness solely from that cache.
   Native operations: index_repository, get_file_outline, search_graph,
   trace_path, query_graph and detect_changes.
 - Qdrant **currently** owns a second code-retrieval index (dense/sparse vectors and publication semantics). CBM **also** provides native semantic/BM25 search; independent matched CBM-only vs CBM+Qdrant testing is required before either declaring Qdrant necessary or removing it.
@@ -25,20 +25,19 @@ is no longer an ACTIVE runtime constraint, not proof of CBM correctness.
 
 ## Native data path
 
-1. Before every initial or incremental source-build, ACE waits for CBM to
-   index the local root (the current adapter passes `persistence: false`). Index failure blocks publication; no secondary
-   parser fallback exists. CBM's process/index persistence cost is a pending benchmark question.
-2. CBM get_file_outline provides declaration names and inclusive line spans.
+1. ACE owns one long-lived native Codebase Memory stdio process, started lazily and retired during Gateway shutdown. The existing `vscode-jsonrpc` library handles Content-Length framing, request correlation and transport errors. ACE sends an upstream-compatible initialize handshake and only six explicitly allowed provider operations. The model never sees a tool list or controls their invocation. The native process may itself coordinate with upstream's local daemon; ACE does not reverse-engineer daemon IPC.
+2. Before every initial or incremental source-build, ACE waits for CBM to index the local root (with `persistence: false`, meaning no optional portable artifact export). Index failure blocks publication; no secondary parser fallback exists. Transport loss invalidates the published graph identity; ACE must reindex explicitly before serving graph hints.
+3. CBM get_file_outline provides declaration names and inclusive line spans.
    ACE extracts exact UTF-8 line bytes ONLY from an independently verified
    workspace read; out-of-range native spans fail closed. Declaration-free
    files remain retrievable as bounded raw chunks, not fabricated symbols.
-3. Qdrant embeds digest-bound source chunks, persists the published epoch,
+4. Qdrant embeds digest-bound source chunks, persists the published epoch,
    and performs its established hybrid search.
-4. CBM semantic/BM25 search can find files outside Qdrant top-K. Native
+5. CBM semantic/BM25 search can find files outside Qdrant top-K. Native
    trace_path traverses callers/callees, query_graph resolves graph nodes
    to source paths, and detect_changes examines git-based impact. All graph
    results stay candidate hints, not proof of actual source bytes.
-5. ACE reopens each selected source, checks independent SHA-256 and the exact
+6. ACE reopens each selected source, checks independent SHA-256 and the exact
    candidate byte slice, and enforces current worktree+publication fences.
 
 CBM outlines are line-bound (not exact identifier-column AST spans). This
@@ -59,7 +58,7 @@ npm run gateway:http
 
 The native binary is an explicitly allowed third-party package under
 ACE's gateway-only audit. This **does not** restore any retired agent tool
-transport; CBM is invoked as a local CLI by the ACE runtime. The CI
+transport; Codebase Memory is an **internal application-controlled Model Context Protocol provider only**. No optional tools are registered with Hermes, and Bifröst remains the sole model-bound context delivery mechanism. The CI
 installation is pinned to upstream v0.12.1 with the release archive
 verified by the upstream installer.
 
@@ -75,14 +74,14 @@ npm ci
 npm run check
 npm run lint
 npm run verify:pr
+npx tsx --test test/codebase-memory-stdio.contracts.test.ts
 ACE_TEST_REAL_CBM=true npx tsx --test \
   test/codebase-memory-graph.contracts.test.ts \
   test/codebase-memory-structural.contracts.test.ts \
   test/cbm-graph-delivery.contracts.test.ts
 ~~~
 
-The dedicated workflow uses the REAL native CBM binary against the actual
-ACE repository. It checks reindex, symbol outline, trace/Cypher/impact,
+The dedicated workflow runs the actual native binary and exercises deterministic stdio session-reuse/crash/timeout contracts first. It checks reindex, symbol outline, trace/Cypher/impact,
 local-code-index candidate production, and independently verified source
 delivery outside Qdrant top-K.
 
