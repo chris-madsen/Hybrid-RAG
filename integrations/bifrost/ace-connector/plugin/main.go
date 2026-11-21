@@ -25,6 +25,12 @@ const (
 	physicalRequestIDKey       schemas.BifrostContextKey = "ace.projection.physical_request_id"
 	sessionCorrelationKey      schemas.BifrostContextKey = "ace.projection.session_correlation"
 	physicalSendMaxHeaderBytes                           = 64 * 1024
+	// Bifröst already owns this native subscription route and its OAuth bearer.
+	// ACE extends the same provider pipeline; this is NOT a second LLM Gateway.
+	chatGPTResponsesIngress = "/chatgpt_passthrough/backend-api/codex/responses"
+	chatGPTModelsIngress    = "/chatgpt_passthrough/backend-api/codex/models"
+	chatGPTResponsesPath    = "/backend-api/codex/responses"
+	chatGPTProviderOrigin   = "https://chatgpt.com"
 )
 
 var projectionClient connector.Client
@@ -45,6 +51,7 @@ type projectionBinding struct {
 	projectionReceipt          string
 	noContextNeeded            bool
 	deadlineEpochMs            int64
+	ingressPath                string
 }
 
 // Injected by scripts/build-bifrost-ace-plugin.sh after verifying BOTH source trees.
@@ -140,19 +147,32 @@ func singleWorkspaceAllowed(req *schemas.HTTPRequest) bool {
 }
 
 func requestBoundIdentity(req *schemas.HTTPRequest, body []byte, rawModel string) (string, string, string, string, json.RawMessage, error) {
+	return requestBoundIdentityForProvider(req, body, rawModel, "")
+}
+
+// The ChatGPT passthrough has an upstream-defined OpenAI provider and a *bare*
+// Codex model name. It must not require a provider/model prefix or translate
+// the subscription call to a different provider API.
+func requestBoundIdentityForProvider(req *schemas.HTTPRequest, body []byte, rawModel string, expectedProvider schemas.ModelProvider) (string, string, string, string, json.RawMessage, error) {
 	requestID, err := newPhysicalRequestID()
 	if err != nil {
 		return "", "", "", "", nil, err
 	}
 	sessionID, okSession := sessionCorrelationFromRequest(req)
 	if !okSession {
-		return "", "", "", "", nil, errors.New("coding-harness session correlation is unavailable")
+		// Session headers are optional correlation, never identity/authentication.
+		// Do not block a real Codex subscriber that does not emit a session header.
+		// Mark it request-scoped so no durable conversation identity is invented.
+		sessionID = "unattested-" + requestID
 	}
 	if rawModel != strings.TrimSpace(rawModel) {
 		return "", "", "", "", nil, errors.New("native Responses model must not contain surrounding whitespace")
 	}
-	provider, normalizedModel := schemas.ParseModelString(rawModel, "")
-	if provider == "" || normalizedModel == "" {
+	if expectedProvider == schemas.OpenAI && strings.Contains(rawModel, "/") {
+		return "", "", "", "", nil, errors.New("ChatGPT subscription passthrough requires the original bare Codex model")
+	}
+	provider, normalizedModel := schemas.ParseModelString(rawModel, expectedProvider)
+	if provider == "" || normalizedModel == "" || (expectedProvider != "" && provider != expectedProvider) {
 		return "", "", "", "", nil, errors.New("ACE Gateway requires an explicit Bifrost provider/model route")
 	}
 	if queryProvider := strings.TrimSpace(req.CaseInsensitiveQueryLookup("provider")); queryProvider != "" && !strings.EqualFold(queryProvider, string(provider)) {
@@ -211,9 +231,15 @@ func HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest)
 	}
 	path := req.Path
 	switch path {
-	case "/v1/models", "/health", "/healthz", "/readyz":
-		return nil, nil // administrative endpoints, never provider generation
-	case "/v1/responses":
+	case "/v1/models", "/health", "/healthz", "/readyz", chatGPTModelsIngress:
+		if req.Method != http.MethodGet && req.Method != http.MethodHead {
+			return errorResponse(405, "ACE non-generation endpoint requires GET or HEAD"), nil
+		}
+		return nil, nil // model catalog/health: no LLM generation
+	case "/v1/responses", chatGPTResponsesIngress:
+		if req.Method != http.MethodPost {
+			return errorResponse(405, "native Responses generation requires POST"), nil
+		}
 		return prepareNativeResponses(ctx, req)
 	default:
 		return errorResponse(404, "ACE Gateway endpoint is unsupported"), nil
@@ -246,7 +272,11 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	if !singleWorkspaceAllowed(req) {
 		return errorResponse(403, "ACE workspace binding differs from the isolated connector workspace"), nil
 	}
-	requestID, session, provider, normalizedModel, attestation, err := requestBoundIdentity(req, req.Body, rawModel)
+	var expectedProvider schemas.ModelProvider
+	if req.Path == chatGPTResponsesIngress {
+		expectedProvider = schemas.OpenAI
+	}
+	requestID, session, provider, normalizedModel, attestation, err := requestBoundIdentityForProvider(req, req.Body, rawModel, expectedProvider)
 	if err != nil {
 		return errorResponse(409, "native Responses request identity is unavailable"), nil
 	}
@@ -291,7 +321,7 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 		model: normalizedModel, preparedBodySHA256: decision.ProjectedBodySHA256,
 		preparedBodySemanticSHA256: semanticDigest, projectionReceipt: decision.ProjectionReceipt,
 		noContextNeeded: decision.ReasonCode == "VERIFIED_NO_CONTEXT_NEEDED",
-		deadlineEpochMs: deadline,
+		deadlineEpochMs: deadline, ingressPath: req.Path,
 	}
 	guard := schemas.PhysicalSendGuard{
 		MaxSerializedRequestBytes: int(connector.DefaultMaxBodyBytes) + physicalSendMaxHeaderBytes,
@@ -329,15 +359,20 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 		return errorResponse(409, "native Responses physical-send guard could not be installed"), nil
 	}
 	ctx.SetTrustedValue(projectionBindingKey{}, binding)
-	if req.Query == nil {
-		req.Query = make(map[string]string)
-	}
-	for key := range req.Query {
-		if strings.EqualFold(key, "provider") {
-			delete(req.Query, key)
+	if req.Path == "/v1/responses" {
+		// Native Bifröst OpenAI-compatible route uses the provider query selector.
+		// The ChatGPT subscription passthrough does NOT: adding ?provider=openai
+		// would leak an invented query parameter into the upstream Codex call.
+		if req.Query == nil {
+			req.Query = make(map[string]string)
 		}
+		for key := range req.Query {
+			if strings.EqualFold(key, "provider") {
+				delete(req.Query, key)
+			}
+		}
+		req.Query["provider"] = provider
 	}
-	req.Query["provider"] = provider
 	req.Body = projected
 	return nil, nil
 }
@@ -409,12 +444,29 @@ func blockProviderAttempt(req *schemas.BifrostRequest, reason string) (*schemas.
 // PreLLMHook admits only the request carrying the request-scoped physical-send
 // guard. The terminal transport invokes that guard for every serialized attempt.
 func PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
-	if ctx == nil || req == nil || req.ResponsesRequest == nil {
+	if ctx == nil || req == nil {
 		return blockProviderAttempt(req, "ACE native Responses binding is unavailable")
 	}
-	_, ok := ctx.TrustedValue(projectionBindingKey{}).(projectionBinding)
+	binding, ok := ctx.TrustedValue(projectionBindingKey{}).(projectionBinding)
 	if !ok {
 		return blockProviderAttempt(req, "ACE native Responses projection receipt is unavailable")
+	}
+	switch binding.ingressPath {
+	case "/v1/responses":
+		if req.ResponsesRequest == nil || req.PassthroughRequest != nil {
+			return blockProviderAttempt(req, "ACE native Responses route changed after projection")
+		}
+	case chatGPTResponsesIngress:
+		p := req.PassthroughRequest
+		if req.ResponsesRequest != nil || p == nil ||
+			p.Method != http.MethodPost || p.Path != chatGPTResponsesPath ||
+			p.UpstreamURL != chatGPTProviderOrigin ||
+			p.Provider != schemas.OpenAI || p.BaseProvider != schemas.OpenAI ||
+			p.Model != binding.model {
+			return blockProviderAttempt(req, "ACE ChatGPT subscription route changed after projection")
+		}
+	default:
+		return blockProviderAttempt(req, "ACE native Responses ingress route is unsupported")
 	}
 	guard, ok := ctx.PhysicalSendGuard()
 	if !ok || guard.Authorize == nil {
