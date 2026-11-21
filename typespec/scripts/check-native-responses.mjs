@@ -15,7 +15,6 @@ assert.deepEqual(routes, [
   '/internal/ace-context/v3/capabilities',
   '/internal/ace-context/v3/health',
   '/internal/ace-context/v3/project',
-  '/internal/ace-context/v3/record-delivery',
 ]);
 
 const schemas = openapi.components?.schemas ?? {};
@@ -28,8 +27,6 @@ assert.deepEqual(schemas.ProjectionDecision?.discriminator?.mapping, {
   PREPARED: '#/components/schemas/PreparedProjection',
   BLOCK: '#/components/schemas/BlockedProjection',
 });
-assert.deepEqual(openapi.paths['/internal/ace-context/v3/record-delivery']?.post?.responses
-  && Object.keys(openapi.paths['/internal/ace-context/v3/record-delivery'].post.responses), ['501']);
 
 const jsonSchema = loadJson('generated/schema/ProjectionRequest.json');
 assert.deepEqual(jsonSchema.unevaluatedProperties, { not: {} }, 'generated JSON Schema must reject unknown fields');

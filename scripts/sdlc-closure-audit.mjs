@@ -268,7 +268,7 @@ const publicContractAuthorityGuard = async () => {
   try {
     const source = await readFile(resolve(root, 'typespec/context-v3.tsp'), 'utf8');
     for (const needle of [
-      'namespace ACE.ResponsesV2',
+      'namespace ACE.ContextV3',
       'model ProjectionRequest',
       'union ProjectionDecision',
       'protocol: "openai.responses"',

@@ -40,7 +40,7 @@ test('gateway HTTP rejects non-loopback options and environment hosts before lis
   }
 });
 
-test('gateway HTTP exposes native Responses v2 health and capability contracts', async () => {
+test('ACE context RPC exposes v3 internal health and capabilities', async () => {
   const health = await handleContextRpcHttp(service, 'GET', '/internal/ace-context/v3/health', '');
   assert.equal(health.statusCode, 200);
   assert.equal(health.body.schemaVersion, 'ace.context.v3');
@@ -88,12 +88,12 @@ test('native Responses projection returns a typed denial until dispatch is certi
   assert.equal(unsupportedMethod.statusCode, 405);
 });
 
-test('gateway HTTP does not accept unverified final-delivery claims', async () => {
+test('ACE context RPC rejects provider-delivery recording because Bifröst owns it', async () => {
   const result = await handleContextRpcHttp(service, 'POST', '/internal/ace-context/v3/record-delivery', '{}');
-  assert.equal(result.statusCode, 501);
+  assert.equal(result.statusCode, 404);
 });
 
-test('attempt authorization is a distinct authenticated Gateway decision route', async () => {
+test('attempt authorization is an authenticated ACE source-policy route', async () => {
   const body = {
     schemaVersion: 'ace.context.v3', attemptId: 'bf-attempt-' + 'a'.repeat(32),
     bodySha256: 'b'.repeat(64), requestId: 'ace-' + 'c'.repeat(32),
@@ -250,6 +250,10 @@ test('only the internal ACE context v3 routes are recognized; obsolete RPC paths
   for (const old of ['/project', '/authorize-attempt'].map((suffix) => '/internal/ace' + '-gateway/v2' + suffix)) {
     const blocked = await handleContextRpcHttp(service, 'POST', old, '{}');
     assert.equal(blocked.statusCode, 404);
+  }
+  for (const modelRoute of ['/v1/responses', '/chatgpt_passthrough/backend-api/codex/responses', '/internal/ace-context/v3/generate']) {
+    const result = await handleContextRpcHttp(service, 'POST', modelRoute, '{}');
+    assert.equal(result.statusCode, 404, modelRoute);
   }
   const response = await handleContextRpcHttp(service, 'POST', '/internal/ace-context/v3/unsupported', '{}');
   assert.equal(response.statusCode, 404);

@@ -5,7 +5,7 @@ import test from 'node:test';
 const loadJson = async (path: string): Promise<Record<string, unknown>> =>
   JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
 
-test('generated ACE context RPC contract is native Responses v2 only', async () => {
+test('generated ACE context RPC v3 is not a separate model gateway', async () => {
   const openapi = await loadJson('typespec/generated/openapi.json');
   assert.equal((openapi.info as { version?: string }).version, '3.0.0');
   const paths = Object.keys(openapi.paths as Record<string, unknown>)
@@ -16,7 +16,6 @@ test('generated ACE context RPC contract is native Responses v2 only', async () 
     '/internal/ace-context/v3/capabilities',
     '/internal/ace-context/v3/health',
     '/internal/ace-context/v3/project',
-    '/internal/ace-context/v3/record-delivery',
   ]);
   const request = await loadJson('typespec/generated/schema/ProjectionRequest.json');
   const properties = request.properties as Record<string, { const?: string }>;
