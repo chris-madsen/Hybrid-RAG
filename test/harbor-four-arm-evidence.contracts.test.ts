@@ -229,7 +229,7 @@ test('AR10 rejects wrong task, arm, model, provider, runtime, duplicate attempt 
     allObservations(), [...events, events[0] as HarborFourArmAttemptLedgerEvent], ar10Identity,
   )._tag, 'Err');
   assert.equal(reconcileHarborFourArmAttemptLedger(
-    allObservations(), [...events.filter((event) => !(event.kind === 'attempt' && event.trialId === trial.trialId)),], ar10Identity,
+    allObservations(), [...events.filter((event) => !(event.kind === 'attempt' && event.trialId === trial.trialId))], ar10Identity,
   )._tag, 'Err');
 });
 
