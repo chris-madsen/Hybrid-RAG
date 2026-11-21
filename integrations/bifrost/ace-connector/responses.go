@@ -306,7 +306,7 @@ func (c Client) ProjectNativeResponsesAndApply(ctx context.Context, req Response
 		return invalid, nil, err
 	}
 	target, err := url.Parse(c.Endpoint)
-	if err != nil || target.Path != "/internal/ace-gateway/v2/project" || target.RawQuery != "" || target.Fragment != "" {
+	if err != nil || target.Path != "/internal/ace-context/v3/project" || target.RawQuery != "" || target.Fragment != "" {
 		return invalid, nil, errors.New("native Responses projection requires the exact local v2 path")
 	}
 	maxBody := c.MaxBodyBytes
@@ -333,13 +333,13 @@ func (c Client) ProjectNativeResponsesAndApply(ctx context.Context, req Response
 	}
 	sum := sha256.Sum256(req.Body)
 	envelope := map[string]any{
-		"schemaVersion": "ace.gateway.v2", "protocol": "openai.responses",
+		"schemaVersion": "ace.context.v3", "protocol": "openai.responses",
 		"requestId": req.RequestID, "attemptGroupId": req.AttemptGroupID,
 		"agentSessionId": req.AgentSessionID, "workspaceId": req.WorkspaceID,
 		"dataClass": req.DataClass, "provider": req.Provider, "model": req.Model,
 		"bodyBase64": base64.StdEncoding.EncodeToString(req.Body),
 		"bodySha256": hex.EncodeToString(sum[:]), "query": req.Query,
-		"projectionMode": "gateway", "deadlineEpochMs": req.DeadlineEpochMs,
+		"projectionMode": "bifrost_hook", "deadlineEpochMs": req.DeadlineEpochMs,
 		"attestation": req.Attestation,
 	}
 	wire, err := json.Marshal(envelope)
@@ -415,16 +415,16 @@ func (c Client) AuthorizeNativeResponsesAttempt(ctx context.Context, req Physica
 		return invalid, err
 	}
 	target, err := url.Parse(c.Endpoint)
-	if err != nil || target.Path != "/internal/ace-gateway/v2/project" || target.RawQuery != "" || target.Fragment != "" {
+	if err != nil || target.Path != "/internal/ace-context/v3/project" || target.RawQuery != "" || target.Fragment != "" {
 		return invalid, errors.New("physical-send authorization requires the exact local v2 base path")
 	}
-	target.Path = "/internal/ace-gateway/v2/authorize-attempt"
+	target.Path = "/internal/ace-context/v3/authorize-attempt"
 	target.RawPath = ""
 	maxBody := c.MaxBodyBytes
 	if maxBody <= 0 {
 		maxBody = DefaultMaxBodyBytes
 	}
-	if req.SchemaVersion != "ace.gateway.v2" || req.RequestID == "" || req.AttemptGroupID != req.RequestID ||
+	if req.SchemaVersion != "ace.context.v3" || req.RequestID == "" || req.AttemptGroupID != req.RequestID ||
 		req.AgentSessionID == "" || req.WorkspaceID == "" || req.Provider == "" || req.Model == "" ||
 		req.Method != http.MethodPost || req.AttemptID == "" || req.ProjectionReceipt == "" ||
 		len(req.PreparedBodySHA256) != 64 || len(req.PreparedBodySemanticSHA256) != 64 ||
