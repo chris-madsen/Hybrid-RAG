@@ -13,7 +13,7 @@ topics: [lexical-retrieval, native-sdk, source-freshness, benchmarking]
 
 ## 1. Question and scope
 
-> «Вторая — оценить fff как готовую библиотеку для быстрого лексического поиска. Не писать собственный аналог, не выбрасывать Qdrant/LSP и не тащить agent-invoked protocol-сервер туда, где ACE может использовать нативный SDK.»
+> “The second task is to evaluate fff as an existing library for fast lexical search. Do not build a replacement, remove Qdrant/LSP prematurely, or introduce an agent-invoked protocol server where ACE can use the native SDK directly.”
 
 **Selected ACE SDLC stage:** **R / Research**, as requested by the owner: evaluate current external implementation and current ACE seams, not implement a new production search provider. Source inspection only; no new TypeSpec, Qdrant/LSP removal, Go/Bifröst gateway change, or LLM tools. An independent experiment on the actual Node SDK is still required before a production decision.
 
