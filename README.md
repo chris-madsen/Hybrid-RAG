@@ -13,7 +13,7 @@ Hermes (native Responses) -> Bifröst /v1/responses (sole agent-facing gateway)
                                            + CURRENT Qdrant dense/sparse retrieval
                                            + external LSP confirmation
                                      docs: authorized Vertex AI RAG
-                                     memory: archive + Graphiti/FalkorDB
+                                     memory: immutable archive (Gateway-native Graphiti NOT_READY)
                                   -> current-source SHA-256/byte verification
                                -> Bifröst final-send gate -> model provider
 ```
@@ -60,8 +60,7 @@ The TypeScript + Effect modular monolith now implements substantial slices acros
 - an experimental local Gateway projection path using native Codebase Memory v0.12.1 for AST, graph and semantic/BM25 discovery; Qdrant still performs dense/sparse retrieval and native RRF, with optional reranking and external LSP verification (TypeScript Language Server default); exact source rechecks and receipt/delta delivery are implemented;
   see `docs/reviews/2026-10-19-real-provider-e2e.md` for earlier exploratory
   evidence, not an approval of the latest code;
-- immutable content-addressed session archive with idempotent replay, tombstones,
-  temporal memory search and confirmation-gated decision FSM;
+- immutable content-addressed archive, replay/tombstones and memory lifecycle mechanisms remain in the codebase; **Gateway-native Graphiti is NOT configured**: `ACE_ENABLE_GRAPHITI=true` fails startup intentionally in `src/bin/ace-runtime.ts`. Do not claim full memory retrieval/readiness;
 - deterministic multi-source routing with an explicit, opt-in Jev boundary and
   required-source quality comparison;
 - **Gateway-only automatic context injection** through the versioned HTTP projection endpoint; retrieval and exact expansion happen inside ACE, not via a model-invoked tool interface;

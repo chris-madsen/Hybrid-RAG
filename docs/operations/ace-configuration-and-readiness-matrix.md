@@ -12,7 +12,7 @@
 | Qdrant / embedding unavailable | Search, worker or publication failed | Required code retrieval not_ready; no undocumented CBM-only production fallback |
 | LSP unavailable or not supported for language | No trustworthy native symbol/definition evidence | Do not claim LSP verification; exact source bytes may still be independently checked |
 | Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Vertex AI RAG for authorized `project_document`, not a Qdrant documentation corpus |
-| Temporal memory | `ACE_ENABLE_GRAPHITI=true`, immutable archive and local Graphiti/FalkorDB | Derived temporal memory; archive/source truth and recovery gates remain independent |
+| Temporal memory | `ACE_ENABLE_GRAPHITI=true` | **UNSUPPORTED / startup error**: `ace-runtime.ts` refuses the retired tool-server adapter; Gateway-native Graphiti is not configured. Archive CLI/reconciliation code exists separately, but full unified temporal retrieval is NOT_READY |
 | Host worktree helper | Registered workspace + mTLS where required | Read-only scoped source evidence, separately gated k3s containment |
 | Release | Exact source SHA + real provider, agent, privacy, quality and owner evidence | No unconditional READY from configuration flags |
 
@@ -87,7 +87,9 @@ Enabling Vertex therefore does not authorize source-code or private-dialogue upl
 
 ## Temporal memory / Graphiti
 
-Graphiti is local-first and independently enabled:
+**Current runtime blocker:** `src/bin/ace-runtime.ts` throws at startup if `ACE_ENABLE_GRAPHITI=true`: the legacy tool-server adapter was retired and no Gateway-native memory provider is configured. The following settings document the **historical or future provider contract**, NOT a supported way to enable Graphiti in the present Gateway runtime. Use archive/reconciliation/backup commands only within their own supported CLI boundaries; do not claim a functioning full-unified release.
+
+Graphiti is the selected local-first temporal-memory architecture, not an active Gateway provider:
 
 ```bash
 ACE_ENABLE_GRAPHITI=true
@@ -123,7 +125,7 @@ The host owns `workspace_id -> canonical root`; callers never supply an absolute
 
 The Harbor Hermes adapter uses Hermes's native `openai-codex` Responses provider. For an ACE trial, it must receive an explicit `HERMES_CODEX_BASE_URL` pointing at the selected Bifröst endpoint and a `bifrost_endpoint_sha256` that matches the frozen experiment's `bifrostEndpointSha256`. The digest covers the trimmed endpoint after trailing slashes are removed. The URL is passed through Hermes's supported Codex endpoint override. Default permitted hosts are local `localhost`, `127.0.0.1`, `::1`, `host.docker.internal`, `bifrost`, and `bifrost-gateway`; remote deployments need an explicit comma-separated `ACE_HERMES_ALLOWED_BIFROST_HOSTS` operator allowlist in the preflight and adapter environments. Direct `*.openai.com` and `*.chatgpt.com` hosts remain prohibited even if allowlisted. The digest pins configuration identity only: it does not prove the endpoint is Bifröst or authorize provider egress.
 
-Both paired Harbor jobs must pin the same Bifröst endpoint digest, model, Hermes version and reasoning effort. `npm run preflight:feedback-loop` checks those bindings, but its full readiness procedure also queries the configured task-verifier endpoint, Harbor registry and Qdrant. Do not run that full procedure as an offline C07 check without separate external-probe authorization. It remains blocked until independent provider-native token-counter/context-window evidence, final-send authorization and the applicable C05/C06 gates are present; no token window is inferred from agent-reported usage.
+Both paired Harbor jobs must pin the same Bifröst endpoint digest, model, Hermes version and reasoning effort. `npm run preflight:feedback-loop` checks those bindings, but its full readiness procedure also queries the configured task-verifier endpoint, Harbor registry and Qdrant. Do not run that full procedure as an offline C07 check without separate external-probe authorization. Real provider/agent execution remains blocked by actual C03–C06 final-send, policy and route gates and their specific authorization. **Do not create an ACE-invented token counter/window gate or block source delivery solely because exact model token accounting is unavailable**; preserve unknown token metrics and do not claim measured savings (see `ace-token-savings.md`).
 
 The Harbor trial's original `agent/hermes-session.jsonl` and `agent/hermes.txt` are private transcript artifacts and must remain outside the repository. The collector refuses a session export located inside the repository, hashes the original bytes, and excludes the raw session export, Hermes text log, projection body, context receipts and final-wire envelope from copied output. `agent-loop-evidence.json` retains only the digest, redacted event counts, tool-call/result ID hashes, Gateway request IDs and signature-checked receipt summaries. Caller session IDs are correlation only; when a same-session correlation is not observed, agent-loop evidence remains `NOT_RUN`. Hermes export alone cannot attest durable host history or compaction, and retrieval provider traces are not final LLM egress receipts.
 
