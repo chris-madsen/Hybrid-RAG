@@ -97,7 +97,8 @@ test('Harbor Hermes adapter requires a pinned Bifrost endpoint instead of direct
   assert.match(preflight, /bifrostEndpoint/u);
   assert.match(preflight, /providerTokenWindow/u);
   assert.match(readiness, /agent-loop-evidence\.json/u);
-  assert.match(readiness, /real Hermes\/provider\/Harbor trials remain unauthorized/u);
+  assert.match(readiness, /full real C07 Hermes\\/Harbor trials and C08 release acceptance remain NOT_RUN/u);
+  assert.match(readiness, /Real C03–C05 public synthetic subscriber probes are owner-authorized/u);
 });
 
 test('Harbor adapter endpoint guard executes locally without contacting a provider', () => {
