@@ -27,12 +27,12 @@ const sdk = (client: QdrantClient, baseUrl = 'http://127.0.0.1:6333') =>
 const makeCandidatePort = (client: QdrantClient, collection: string) =>
   makeQdrantCodeCandidatePort({ collection, sdk: sdk(client) });
 const workspaceId = mustOk(makeWorkspaceId('qdrant-sdk-contract'));
-const text = 'export function save(value: string) { return value; }';
+const text = 'export function save(value: string) { return value; }\n';
 const candidate = mustOk(makeCodeCandidate({
   candidateId: mustOk(makeCandidateId('qdrant-sdk-save')),
   workspaceId,
   repoPath: 'src/save.ts' as never,
-  range: { startLine: 1, endLine: 1, startColumn: 1, endColumn: text.length + 1 },
+  range: { startLine: 1, endLine: 2, startColumn: 1, endColumn: 1 },
   symbolName: 'save',
   structuralKind: 'function',
   structuralLanguage: 'typescript',
@@ -55,10 +55,10 @@ test('Qdrant SDK query accepts the facade direct points response', async () => {
             candidate_id: candidate.candidateId,
             workspace_id: workspaceId,
             repo_path: candidate.repoPath,
-            start_line: 1,
-            end_line: 1,
-            start_column: 1,
-            end_column: text.length + 1,
+            start_line: candidate.range.startLine,
+            end_line: candidate.range.endLine,
+            start_column: candidate.range.startColumn,
+            end_column: candidate.range.endColumn,
             symbol_name: 'save',
             structural_kind: 'function',
             structural_language: 'typescript',
@@ -84,7 +84,10 @@ test('Qdrant SDK query accepts the facade direct points response', async () => {
     limit: 2,
   }));
   assert.equal(searched._tag, 'Ok');
-  if (searched._tag === 'Ok') assert.equal(searched.value[0]?.candidate.symbolName, 'save');
+  if (searched._tag === 'Ok') {
+    assert.equal(searched.value[0]?.candidate.symbolName, 'save');
+    assert.equal(searched.value[0]?.candidate.text, text, 'source payload whitespace is byte-significant');
+  }
   assert.equal((queryRequest as { using?: unknown }).using, 'dense');
 
   assert.equal((await Effect.runPromise(port.upsert([{

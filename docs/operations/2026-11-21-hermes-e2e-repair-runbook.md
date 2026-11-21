@@ -9,10 +9,10 @@ CBM CLI bottleneck was superseded by merged PR #321.
 
 | Failure | Source-level remediation | What still requires a real operator run |
 | --- | --- | --- |
-| 25 CBM CLI subprocesses in 196.6 seconds | Persistent, application-owned CBM stdio transport (merged PR #321). CBM tools remain inaccessible to Hermes. | Re-run the exact Git-backed projection fixture; measure wall time and process count. |
-| `durationMs` equals epoch timestamp on non-executed stages | Zero non-executed durations and reject invalid trace payloads. | Check a fresh runtime trace, not the previously corrupted evidence. |
-| Generic `BLOCK/TRANSFORM_NOT_READY` | Distinguish incomplete required code coverage vs context truncation vs inconsistent evidence without exposing paths. | The exact old fixture's inner cause remains unknown until a new source-bound trace is collected. |
-| Bifröst plugin compiled but HTTP server did not | Checksum-repaired pin `chris-madsen/bifrost@72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0` plus actual UI and temporary Go workspace build. | Start the built server with the approved plugin and verify Bifröst's subscriber route on the operator host. |
+| 25 CBM CLI subprocesses in 196.6 seconds | Persistent, application-owned CBM stdio transport (merged PR #321). CBM tools remain inaccessible to Hermes. | Git-backed fixture: one CBM process start, `PREPARED` in 16.56s; see follow-up. |
+| `durationMs` equals epoch timestamp on non-executed stages | Zero non-executed durations and reject invalid trace payloads. | Fresh local traces use elapsed durations; see follow-up. |
+| Generic `BLOCK/TRANSFORM_NOT_READY` | The first trace lacked an inner cause; the follow-up below identifies the Qdrant text-normalization mismatch and its fix. | Local synthetic projection now returns `PREPARED`; real subscriber/provider-wire acceptance remains an operator gate. |
+| Bifröst plugin compiled but HTTP server did not | Checksum-repaired pin `chris-madsen/bifrost@72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0` plus actual UI and temporary Go workspace build. | Pinned server/UI build passed in run `44903885637`; launch, post-auth hook, and subscription-route acceptance remain not run. |
 | Harbor 0.24 built-in Hermes adapter | Require `import_path=scripts.harbor_hermes_codex_oauth:HermesCodexOAuth`; explicitly reject `name: hermes` overriding it; use upstream install with proper `hermes --version` validation. | Test the actual Harbor 0.24 task container, Hermes binary and private OAuth state. |
 | Wrong URL silently treated as Bifröst | Both the Python agent and TypeScript preflight now reject /v1, direct-provider hosts and mismatched URL digests. | Verify the route from INSIDE the Harbor task container, including its Docker DNS/network. |
 
@@ -88,3 +88,52 @@ CBM CLI bottleneck was superseded by merged PR #321.
 **No claim of completed live Hermes → Bifröst → ACE → ChatGPT delivery is
 established by this change.** The same host, model, exact request, source tree,
 receipt and approved policy are required to close that acceptance gap.
+
+## Follow-up: source-bound local projection rerun — 21 November 2026
+
+The root-cause trace was diagnostic-only: temporary instrumented source commit
+`57cca47363910e477bb4aee8f486c5ec36d4d417` reported matching source digest and
+an existing byte span, but a mismatching retrieved text value. This was not used
+as success evidence. It isolated the defect: `candidateFromPayload` passed Qdrant's
+source `text` through the metadata helper `stringField`, which called
+`.trim()`. The candidate digest and range were correct, but trimming its final
+newline made the retrieved text differ from the exact current source span. Fix
+commit `89ab9695f71745a7191ebd2f64e259e74f556aff` adds a content validator that
+checks nonblank text without normalizing it; the same rule is used for Vertex
+document content. Qdrant and Vertex regressions cover both boundaries.
+
+Verified on the clean local task tree at `0b49e3c8dce4f9b13ab4d679ab629cedf26b4b9e`
+(`sourceCleanAtBuild=true`, source-manifest SHA-256
+`8485e89a73b6d661caf48188809dc8c5c3beaac9dd39b5bddbb0c8c23e6277e4`, runtime
+executable SHA-256 `5ed569dbe569e4a96bd1ed75ffa719628c8e1e752985b28b3d959609a13234fb`):
+
+- The focused post-merge contract command
+  `./node_modules/.bin/tsx --test test/qdrant-client.contracts.test.ts test/retrieval-memory-routing.contracts.test.ts test/process-embedding.contracts.test.ts test/fastembed-shell-launchers.contracts.test.ts`
+  passed **54/54** tests.
+
+- The stock `scripts/real-projection-e2e.mjs` 2,000-line synthetic TypeScript
+  fixture returned `projection-pass` / `PREPARED` in 26.794 seconds. Fixture
+  SHA-256: `0b8a31e69224ffc8acb067ae7d1dd4c22a8b5cc0fa5e95417c06b2f0a932245c`.
+- The exact 17-line Git-backed fixture returned `PREPARED` /
+  `VERIFIED_CONTEXT_ADDED`; the base-body digest matched, verified context was
+  inserted, and it mentioned the target symbol. Fixture SHA-256:
+  `79729e306950546b5cbbe93a5df04601d0d7d65347988eee4ff5fffe0ee8492b`.
+  A counting wrapper showed one Codebase Memory process start for the request;
+  wall time was 16.56 seconds.
+- The deliberate source-race variant returned `projection-pass` with the
+  updated source context in 294.471 seconds. No timeout was increased.
+- The local Qdrant outage variant returned the expected honest `BLOCK / NOT_READY`
+  in 0.971 seconds; it did not return `PREPARED`.
+
+All four probes used the pinned local FastEmbed model/artifact, Codebase Memory
+0.12.1, Qdrant 1.19.2 on loopback port 16333 backed by disposable tmpfs, and a
+`mock`-only model policy. `providerWireCertified=false`: no Bifröst server was
+started, no subscriber request or physical provider send was made, and no
+model, Harbor, OAuth, or paid-provider call occurred.
+
+Separately, workflow run `44903885637` at main `c77b45fda4574ea79a60a088f77e336ed43bd6a7`
+successfully built the UI and pinned Bifröst HTTP server at
+`72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0`; binary SHA-256 was
+`6b946378c2df4d7b7216a9cc3146cf11e741d856e135466713363e1732104fd5`. This is
+build evidence only, not subscriber/provider-wire acceptance. C03–C05 physical
+send, C06–C08, Harbor task quality, and token/cost economics remain not run.
