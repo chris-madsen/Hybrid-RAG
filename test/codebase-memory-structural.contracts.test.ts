@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { repoBenchSourceManifestSha256 } from '../src/domain/repobench-r.js';
 import { test } from 'node:test';
 import { Effect } from 'effect';
 import { cbmOutlineToAnalysis, makeCodebaseMemoryStructuralPort } from '../src/adapters/codebase-memory-structural.js';
@@ -56,5 +61,64 @@ test('declaration-free files still become exact, bounded source chunks', () => {
   if (analysis._tag === 'Ok') {
     assert.equal(analysis.value.symbols[0]?.providerKind, 'FileChunk');
     assert.equal(analysis.value.symbols[0]?.endByteOffset, source.length);
+  }
+});
+
+test('native CBM maps frozen RepoBench source and refuses a dirty checkout', {
+  skip: process.env.ACE_TEST_REAL_CBM !== 'true',
+  timeout: 240_000,
+}, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'ace-repobench-cbm-'));
+  const root = join(directory, 'repo');
+  const path = 'src/helpers.py';
+  const source = 'def helper(value):\n    return value + 1\n';
+  const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
+  try {
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, path), source);
+    const git = (...args: string[]): string => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
+    git('init', '--quiet');
+    git('add', '.');
+    git('-c', 'user.name=ACE Test', '-c', 'user.email=ace@example.invalid', 'commit', '--quiet', '-m', 'frozen fixture');
+    const revision = git('rev-parse', 'HEAD');
+    const records = JSON.stringify([{
+      repo_name: 'fixture', file_path: 'src/current.py',
+      context: [{ path, snippet: 'return value + 1' }],
+      gold_snippet_index: 0, code: 'helper(value)',
+    }]);
+    const manifest = {
+      schemaVersion: 1,
+      dataset: {
+        datasetId: 'tianyang/repobench-r', config: 'python_cff', split: 'test_easy',
+        revision, recordsSha256: digest(records),
+      },
+      repositories: [{
+        id: 'fixture', revision,
+        sourceManifestSha256: repoBenchSourceManifestSha256('fixture', revision, [{
+          path, sizeBytes: Buffer.byteLength(source), sha256: digest(source),
+        }]),
+      }],
+    };
+    const recordsPath = join(directory, 'records.json');
+    const manifestPath = join(directory, 'manifest.json');
+    const output = join(directory, 'output');
+    await writeFile(recordsPath, records);
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    const run = (): string => execFileSync(process.execPath, [
+      '--import', 'tsx', resolve('scripts/repobench-r-adapter.ts'),
+      '--records', recordsPath, '--manifest', manifestPath, '--output', output,
+      'fixture=' + root,
+    ], { encoding: 'utf8', timeout: 180_000 });
+    run();
+    const report = JSON.parse(await readFile(join(output, 'mapping-report.json'), 'utf8')) as {
+      readonly status: string; readonly mappedRows: readonly unknown[]; readonly invalidRows: readonly unknown[];
+    };
+    assert.equal(report.status, 'READY');
+    assert.equal(report.mappedRows.length, 1);
+    assert.equal(report.invalidRows.length, 0);
+    await writeFile(join(root, path), source + '# dirty\n');
+    assert.throws(run, /frozen RepoBench checkout must remain clean/u);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, lstat, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { Effect } from 'effect';
@@ -194,7 +194,13 @@ const readSource = async (
   }
   const bytes = gitSourceBytes(root, revision, repoPath);
   const checkoutPath = resolve(root, repoPath);
-  if (!(await readFile(checkoutPath)).equals(bytes)) {
+  const canonicalRoot = await realpath(root);
+  const canonicalPath = await realpath(checkoutPath);
+  if (!(await lstat(checkoutPath)).isFile() || relative(canonicalRoot, canonicalPath).startsWith('..')
+    || isAbsolute(relative(canonicalRoot, canonicalPath))) {
+    throw new Error(`BLOCKED: source is not a regular contained checkout file ${repositoryId}/${repoPath}`);
+  }
+  if (!(await readFile(canonicalPath)).equals(bytes)) {
     throw new Error(`BLOCKED: checkout bytes differ from frozen source ${repositoryId}/${repoPath}`);
   }
   const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -202,7 +208,7 @@ const readSource = async (
   if (outlined._tag === 'Err') {
     throw new Error(`BLOCKED: Codebase Memory could not map RepoBench gold source ${repositoryId}/${repoPath}: ${outlined.error.code}`);
   }
-  if (!(await readFile(checkoutPath)).equals(bytes) || outlined.value.sourceDigest !== sha256(bytes)) {
+  if (!(await readFile(canonicalPath)).equals(bytes) || outlined.value.sourceDigest !== sha256(bytes)) {
     throw new Error(`BLOCKED: source changed during outline ${repositoryId}/${repoPath}`);
   }
   const structuralCandidates = outlined.value.symbols.flatMap((symbol) =>
