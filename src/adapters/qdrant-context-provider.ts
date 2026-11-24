@@ -126,17 +126,17 @@ export interface QdrantContextConfig {
 /** Migration boundary: native CBM supplies the entire code shortlist. The
  * existing exact-source, source-plan and delivery pipeline is reused without
  * an embedding service, vector-store client or ACE-side reranker. */
-export type NativeCbmContextConfig = Omit<QdrantContextConfig,
+export interface NativeCbmContextConfig extends Omit<QdrantContextConfig,
   'mode' | 'qdrant' | 'embeddings' | 'sparseEmbeddings' | 'retrievalStrategy'
   | 'reranker' | 'rerankerMode' | 'rerankerCandidateLimit' | 'qdrantStableCollection'
-  | 'codeGraph' | 'reconcile'> & {
+  | 'codeGraph' | 'reconcile'> {
   readonly mode: 'cbm';
   readonly codeGraph: CodeGraphCandidatePort;
   readonly reconcile?: (
     currentManifest: WorkspaceManifest,
     delta: WorkspaceManifestDelta,
   ) => Effect.Effect<Result<NativeCbmContextConfig, DomainError>>;
-};
+}
 
 type ContextConfig = QdrantContextConfig | NativeCbmContextConfig;
 

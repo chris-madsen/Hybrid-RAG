@@ -9,6 +9,9 @@ import type { CodeCandidate } from '../src/domain/retrieval.js';
 import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
 import { makeCodebaseMemoryStructuralPort } from '../src/adapters/codebase-memory-structural.js';
+import { makeNativeCbmContextProvider } from '../src/adapters/qdrant-context-provider.js';
+import { makeRoutedLspSession } from '../src/application/lsp/routed-semantic.js';
+import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 
 test('native semantic result table retains source path and rejects escapes', () => {
   const root = resolve(process.cwd());
@@ -156,6 +159,34 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     const observed = await Effect.runPromise(files.snapshot(root, Date.now()));
     assert.equal(observed._tag, 'Ok', JSON.stringify(observed._tag === 'Err' ? observed.error : 'ok'));
     if (observed._tag === 'Err') return;
+    // The native path uses the same actual CBM session, with no Qdrant or
+    // embedding port at all. It still reopens the exact source via ACE.
+    const native = makeNativeCbmContextProvider({
+      mode: 'cbm',
+      workspaceId: candidate.workspaceId,
+      rootPath: root,
+      files,
+      semantics: makeRoutedLspSession([]),
+      codeGraph: provider,
+      newRequestId: () => 'native-cbm-real-source',
+      candidateLimit: 6,
+    });
+    const plan = resolveExplicitSourceRequirements({ required: ['code'] });
+    assert.equal(plan._tag, 'Ok');
+    if (plan._tag === 'Err') return;
+    const nativeResult = await Effect.runPromise(native.search({
+      workspaceId: candidate.workspaceId,
+      query: 'makeQdrantContextProvider',
+      includeCode: true, includeDocs: false, includeMemory: false,
+      sourceRequirements: plan.value,
+    }));
+    assert.equal(nativeResult._tag, 'Ok', JSON.stringify(nativeResult));
+    if (nativeResult._tag === 'Ok') {
+      assert.equal(nativeResult.value.complete, true);
+      assert.ok(nativeResult.value.evidence.some((item) =>
+        item.source === 'code' && item.proofClass === 'direct'
+        && item.citation.startsWith(path + ':')));
+    }
     // CBM indexed the FULL REAL ACE repository above. The candidate-extraction
     // smoke reads a bounded, pinned subset of real source files, avoiding
     // hundreds of per-file native CLI invocations in a short PR CI job.
