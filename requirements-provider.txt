@@ -1,4 +1,4 @@
-graphiti-core[falkordb]==0.31.1
+graphiti-core[falkordb]==0.31.2
 httpx==0.28.1
 # Keep the vulnerable transitive HTTP dependencies on reviewed versions.
 certifi==2026.11.20
