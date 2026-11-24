@@ -1,0 +1,28 @@
+name: Architecture path migration preview
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/architecture-path-migration-preview.mjs'
+      - '.github/workflows/ace-architecture-path-migration-preview.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [nested, operations, plans, other-docs, openspec, repo]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - name: Produce read-only path migration preview
+        run: node scripts/architecture-path-migration-preview.mjs "${{ matrix.group }}"
