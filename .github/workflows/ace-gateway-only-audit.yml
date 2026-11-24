@@ -2,23 +2,6 @@ name: Bifröst single-LLM-gateway architecture audit
 
 on:
   pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'test/**'
-      - 'docs/**'
-      - 'openspec/**'
-      - 'architecture/**'
-      - 'infra/**'
-      - 'integrations/**'
-      - 'benchmarks/**'
-      - 'typespec/**'
-      - 'package*.json'
-      - 'AGENTS.md'
-      - 'README.md'
-      - 'Dockerfile.ace'
-      - 'Makefile'
-      - '.github/**'
   workflow_dispatch:
 
 permissions:

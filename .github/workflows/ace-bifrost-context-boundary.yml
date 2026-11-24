@@ -2,18 +2,6 @@ name: Bifröst sole-Gateway / ACE context RPC architecture gate
 
 on:
   pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'test/**'
-      - 'typespec/**'
-      - 'integrations/**'
-      - 'docs/operations/**'
-      - 'openspec/changes/013-gateway-g11-production-acceptance/**'
-      - 'package.json'
-      - 'README.md'
-      - 'AGENTS.md'
-      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
