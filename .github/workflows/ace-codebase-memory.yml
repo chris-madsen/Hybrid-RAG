@@ -3,6 +3,8 @@ name: ACE Codebase Memory native integration
 on:
   pull_request:
     paths:
+      - 'package.json'
+      - 'package-lock.json'
       - 'src/adapters/codebase-memory-graph.ts'
       - 'src/adapters/codebase-memory-stdio.ts'
       - 'test/codebase-memory-stdio.contracts.test.ts'

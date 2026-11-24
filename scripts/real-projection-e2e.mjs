@@ -60,6 +60,8 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_ENABLE_GRAPHITI: 'false',
     ACE_RETRIEVAL_STRATEGY: process.env.ACE_RETRIEVAL_STRATEGY?.trim() || 'dense',
     ACE_QDRANT_URL: outage ? 'http://127.0.0.1:6339' : qdrantUrl,
+    ACE_QDRANT_WRITER_TOPOLOGY: 'single_host',
+    ACE_QDRANT_PUBLICATION_DIR: join(directory, 'qdrant-publication'),
     ACE_EMBEDDING_WORKER: process.env.ACE_EMBEDDING_WORKER ?? runtime.embeddingWorker,
     ACE_AST_GREP_COMMAND: process.env.ACE_AST_GREP_COMMAND ?? runtime.astGrepCommand,
     ACE_CONTEXT_RPC_HOST: '127.0.0.1',
@@ -67,6 +69,8 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_CONTEXT_RPC_SHARED_SECRET: 'real-provider-fixture-secret',
     ACE_CONTEXT_EXTERNAL_LLM_OPT_IN: 'true',
     ACE_CONTEXT_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
+    ACE_CONTEXT_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: '{"mock":["test-model"]}',
+    ACE_CONTEXT_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source"]',
     ...(race ? { ACE_ENABLE_TEST_FAILPOINTS: 'true', ACE_EMBEDDING_DELAY_MS: '1000' } : {}),
   },
   stdio: ['ignore', 'ignore', 'pipe'],
@@ -133,7 +137,7 @@ try {
   const decision = await response.json();
   assert.equal(response.status, 200, JSON.stringify(decision));
   if (decision.kind === 'BLOCK') {
-    assert.ok(outage || race, 'normal ready real-provider fixture must not report BLOCK');
+    assert.ok(outage || race, `normal ready real-provider fixture must not report BLOCK: ${decision.reasonCode}; ${startupLog.slice(-3000)}`);
     assert.equal(typeof decision.reasonCode, 'string');
     assert.ok(decision.reasonCode.length > 0, 'typed denial must specify a reason');
     assert.equal(decision.baseBodySha256, payload.bodySha256);
