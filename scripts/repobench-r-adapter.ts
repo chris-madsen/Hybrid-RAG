@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, lstat, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { Effect } from 'effect';
-import { makeAstGrepStructuralPort } from '../src/adapters/ast-grep-structural.js';
+import { makeCodebaseMemoryGraph } from '../src/adapters/codebase-memory-graph.js';
+import { makeCodebaseMemoryStructuralPort } from '../src/adapters/codebase-memory-structural.js';
 import { retrievalSourceManifestExcludedPath } from '../src/domain/retrieval-source-manifest.js';
 import {
   mapRepoBenchRecords,
@@ -20,7 +21,7 @@ type JsonObject = Record<string, unknown>;
 
 const usage = (): never => {
   throw new Error(
-    'Usage: tsx scripts/repobench-r-adapter.ts --records <records.json|records.jsonl> --manifest <manifest.json> --output <directory> [--ast-grep-command <path>] <repository-id>=<checkout-root> [...mappings]',
+    'Usage: tsx scripts/repobench-r-adapter.ts --records <records.json|records.jsonl> --manifest <manifest.json> --output <directory> [--cbm-command <path>] <repository-id>=<checkout-root> [...mappings]',
   );
 };
 
@@ -114,22 +115,22 @@ const parseArguments = (): {
   readonly recordsPath: string;
   readonly manifestPath: string;
   readonly outputDirectory: string;
-  readonly astGrepCommand: string;
+  readonly cbmCommand: string;
   readonly mappings: readonly string[];
 } => {
   const args = process.argv.slice(2);
   let recordsPath: string | undefined;
   let manifestPath: string | undefined;
   let outputDirectory = process.env.REPOBENCH_OUTPUT?.trim() || 'artifacts/feedback/repobench-r';
-  let astGrepCommand = process.env.ACE_AST_GREP_COMMAND?.trim()
-    || resolve(process.platform === 'win32' ? 'node_modules/.bin/ast-grep.cmd' : 'node_modules/.bin/ast-grep');
+  let cbmCommand = process.env.ACE_CBM_COMMAND?.trim()
+    || 'codebase-memory-mcp';
   const mappings: string[] = [];
   while (args.length > 0) {
     const current = args.shift();
     if (current === '--records') recordsPath = args.shift();
     else if (current === '--manifest') manifestPath = args.shift();
     else if (current === '--output') outputDirectory = args.shift() ?? usage();
-    else if (current === '--ast-grep-command') astGrepCommand = args.shift() ?? usage();
+    else if (current === '--cbm-command') cbmCommand = args.shift() ?? usage();
     else if (current !== undefined) mappings.push(current);
   }
   if (recordsPath === undefined || manifestPath === undefined || mappings.length === 0) return usage();
@@ -137,9 +138,9 @@ const parseArguments = (): {
     recordsPath: resolve(recordsPath),
     manifestPath: resolve(manifestPath),
     outputDirectory: resolve(outputDirectory),
-    astGrepCommand: astGrepCommand.includes('/') || astGrepCommand.includes('\\')
-      ? resolve(astGrepCommand)
-      : astGrepCommand,
+    cbmCommand: cbmCommand.includes('/') || cbmCommand.includes('\\')
+      ? resolve(cbmCommand)
+      : cbmCommand,
     mappings,
   };
 };
@@ -186,16 +187,29 @@ const readSource = async (
   repositoryId: string,
   revision: string,
   repoPath: string,
-  structural: ReturnType<typeof makeAstGrepStructuralPort>,
+  structural: ReturnType<typeof makeCodebaseMemoryStructuralPort>,
 ): Promise<RepoBenchSourceFile> => {
   if (isAbsolute(repoPath) || relative(root, resolve(root, repoPath)).startsWith('..')) {
     throw new Error(`source path escapes checkout: ${repositoryId}/${repoPath}`);
   }
   const bytes = gitSourceBytes(root, revision, repoPath);
+  const checkoutPath = resolve(root, repoPath);
+  const canonicalRoot = await realpath(root);
+  const canonicalPath = await realpath(checkoutPath);
+  if (!(await lstat(checkoutPath)).isFile() || relative(canonicalRoot, canonicalPath).startsWith('..')
+    || isAbsolute(relative(canonicalRoot, canonicalPath))) {
+    throw new Error(`BLOCKED: source is not a regular contained checkout file ${repositoryId}/${repoPath}`);
+  }
+  if (!(await readFile(canonicalPath)).equals(bytes)) {
+    throw new Error(`BLOCKED: checkout bytes differ from frozen source ${repositoryId}/${repoPath}`);
+  }
   const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   const outlined = await Effect.runPromise(structural.extract({ repoPath, source: bytes }));
   if (outlined._tag === 'Err') {
-    throw new Error(`BLOCKED: ast-grep could not map RepoBench gold source ${repositoryId}/${repoPath}: ${outlined.error.code}`);
+    throw new Error(`BLOCKED: Codebase Memory could not map RepoBench gold source ${repositoryId}/${repoPath}: ${outlined.error.code}`);
+  }
+  if (!(await readFile(canonicalPath)).equals(bytes) || outlined.value.sourceDigest !== sha256(bytes)) {
+    throw new Error(`BLOCKED: source changed during outline ${repositoryId}/${repoPath}`);
   }
   const structuralCandidates = outlined.value.symbols.flatMap((symbol) =>
     symbol.startByteOffset === undefined || symbol.endByteOffset === undefined
@@ -248,19 +262,35 @@ const main = async (): Promise<void> => {
     }
     verifiedRepositories.push({ id: repository.id, revision: actualRevision, sourceManifestSha256: sourceManifest });
   }
-  const structural = makeAstGrepStructuralPort({ command: args.astGrepCommand });
   const sourceFiles = new Map<string, RepoBenchSourceFile>();
-  for (const record of records) {
-    const root = mappings.get(record.repoName);
-    if (root === undefined) continue;
-    const goldContext = record.context[record.goldSnippetIndex];
-    if (goldContext === undefined) continue;
-    if (goldContext.path === undefined) continue;
-    const key = repoBenchSourceKey(record.repoName, goldContext.path);
-    if (sourceFiles.has(key)) continue;
-    const repository = manifest.repositories.find((item) => item.id === record.repoName);
-    if (repository === undefined) continue;
-    sourceFiles.set(key, await readSource(root, record.repoName, repository.revision, goldContext.path, structural));
+  const requireClean = (root: string, revision: string): void => {
+    if (gitRevision(root) !== revision
+      || execFileSync('git', ['-C', root, 'status', '--porcelain=v1', '--untracked-files=all'], { encoding: 'utf8' }).trim() !== '') {
+      throw new Error('BLOCKED: frozen RepoBench checkout must remain clean and at its pinned revision');
+    }
+  };
+  for (const repository of manifest.repositories) {
+    const root = mappings.get(repository.id);
+    if (root === undefined) throw new Error('BLOCKED: missing frozen checkout');
+    requireClean(root, repository.revision);
+    const graph = makeCodebaseMemoryGraph({ rootPath: root, command: args.cbmCommand, candidates: () => [] });
+    try {
+      const indexed = await Effect.runPromise(graph.reindex());
+      if (indexed._tag === 'Err') throw new Error(`BLOCKED: native indexing failed: ${indexed.error.code}`);
+      requireClean(root, repository.revision);
+      const structural = makeCodebaseMemoryStructuralPort(graph);
+      for (const record of records) {
+        if (record.repoName !== repository.id) continue;
+        const goldContext = record.context[record.goldSnippetIndex];
+        if (goldContext?.path === undefined) continue;
+        const key = repoBenchSourceKey(record.repoName, goldContext.path);
+        if (sourceFiles.has(key)) continue;
+        sourceFiles.set(key, await readSource(root, record.repoName, repository.revision, goldContext.path, structural));
+      }
+      requireClean(root, repository.revision);
+    } finally {
+      await graph.close();
+    }
   }
   const mapped = mapRepoBenchRecords(manifest, records, sourceFiles);
   if (mapped._tag === 'Err') {
@@ -291,7 +321,8 @@ const main = async (): Promise<void> => {
       command: process.argv.join(' '),
       dataset: manifest.dataset,
       repositories: verifiedRepositories,
-      astGrepCommand: args.astGrepCommand,
+      structuralProvider: 'codebase-memory',
+      cbmCommand: args.cbmCommand,
       recordsSha256: recordsDigest,
       holdoutSha256: sha256(new TextEncoder().encode(`${JSON.stringify(mapped.value.holdout, null, 2)}\n`)),
     }, null, 2)}\n`, 'utf8'),

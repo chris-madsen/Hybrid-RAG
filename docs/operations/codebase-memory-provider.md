@@ -103,3 +103,5 @@ timeouts in native-vs-ACE arms. Record:
 A passing CBM tool smoke is NOT a Hermes agent E2E test. Without actual
 Hermes OAuth/runtime and provider-bound usage there is no measured token
 saving: mark the acceptance BLOCKED, not PASS.
+
+The Python structural and LSP-server-framework dependencies left over from the retired provider path are removed from the direct provider manifest. The ast-grep CLI is development-only; the current RepoBench-R mapping adapter uses CBM outlines and compares the working bytes to the frozen Git source before and after extraction. Do not treat old AST-based benchmark identities as interchangeable with newly mapped CBM candidates. Comparative work: [#363](https://github.com/chris-madsen/Hybrid-RAG/issues/363) (Qdrant/embedding redundancy) and [#364](https://github.com/chris-madsen/Hybrid-RAG/issues/364) (external LSP).
