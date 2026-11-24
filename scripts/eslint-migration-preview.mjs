@@ -10,6 +10,7 @@ const old=JSON.parse(capture('node_modules/.bin/eslint',['--print-config','src/d
 const oldTest=JSON.parse(capture('node_modules/.bin/eslint',['--print-config','test/bertrand-contracts.test.ts']));
 assert.deepEqual(old.rules,oldTest.rules,'source and test rules differ; review separately');
 console.log('BASELINE_RULES '+JSON.stringify(old.rules));
+run('npm',['uninstall','--ignore-scripts','eslint-config-airbnb-typescript','eslint-plugin-import','@typescript-eslint/parser','@typescript-eslint/eslint-plugin','eslint','eslint-import-resolver-typescript']);
 const pkg=read('package.json');
 for(const name of ['eslint-config-airbnb-typescript','eslint-plugin-import','@typescript-eslint/parser','@typescript-eslint/eslint-plugin','eslint','eslint-import-resolver-typescript'])delete pkg.devDependencies[name];
 pkg.scripts.lint='eslint "src/**/*.ts" "test/**/*.ts" --max-warnings=0';
