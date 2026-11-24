@@ -1,8 +1,22 @@
 # Adaptive Context Engine (ACE)
 
-**Agent-neutral hybrid context/RAG engine for coding agents.** ACE retrieves and verifies relevant code, documentation and retained knowledge, then supplies compact evidence to a native model request. Its goal is to improve task quality and reduce the total tokens spent per successfully completed task, without sacrificing exact source access, privacy or agent autonomy.
+**Open-source context engineering infrastructure for AI coding agents.**
 
-**Development status:** experimental integration, not a production release. The current work focuses on the single-Bifröst integration, real Hermes subscription acceptance, retrieval reliability and independently measured agent economics. A 5× reduction in accepted-task tokens is a hypothesis, not an achieved result.
+ACE combines hybrid retrieval, code intelligence and source verification to supply relevant, compact evidence directly to native LLM requests. It is designed to improve coding-agent task quality and token efficiency while preserving agent autonomy, exact source access and data privacy.
+
+Unlike a standalone vector search or an agent-specific retrieval plugin, ACE integrates at the LLM gateway boundary. Coding agents retain their own reasoning and tool workflows while the context engine handles evidence retrieval, verification and delivery.
+
+**TypeScript · Effect · Go · Python · Qdrant · Codebase Memory · LSP · TypeSpec · Docker/k3s**
+
+## Key capabilities
+
+- **Hybrid code intelligence:** structural AST and dependency-graph discovery, semantic and BM25 search, dense/sparse vector retrieval, reciprocal rank fusion (RRF), optional reranking and independent language-server verification.
+- **Source-grounded context:** exact current-file verification, SHA-256 digests, UTF-8 source spans, workspace reconciliation and lossless access to authorized originals.
+- **Agent-neutral integration:** additive context projection into native Responses requests through a Bifröst plugin, with signed receipts and per-attempt source/data-policy authorization.
+- **Privacy-aware data architecture:** local code indexing and immutable archival storage, explicit authorization for external document retrieval and model egress.
+- **Evidence-driven engineering:** typed contracts, functional domain modeling, automated architecture/security checks, reproducible builds and independent retrieval/agent benchmark methodology.
+
+[Architecture](#architecture) · [Retrieval and memory](#retrieval-and-memory) · [Development roadmap](#development-roadmap) · [Local development](#local-development) · [Verification](#verification-and-release)
 
 ## Architecture
 
@@ -46,29 +60,33 @@ See [ADR-021: single Bifröst Gateway](docs/docs/references/ADR-021-bifrost-sing
 | Component | Role | Current boundary |
 | --- | --- | --- |
 | Codebase Memory (CBM) v0.12.1 | Native AST, code graph, semantic and SQLite FTS5/BM25 discovery | Active structural/graph engine; persistent application-owned stdio RPC, not agent-facing MCP |
-| Qdrant | Dense/sparse code retrieval and native RRF | Currently required by the experimental code runtime; necessity versus CBM-only is unproven |
-| External LSP | Independent symbol/definition verification | Maintained language servers; production selection and non-overlapping value require evidence |
+| Qdrant | Dense/sparse code retrieval and native RRF | Current hybrid code-retrieval runtime; comparative evaluation against CBM-only is planned |
+| External LSP | Independent symbol/definition verification | Exact-symbol verification using maintained language servers, with TypeScript Language Server as the default |
 | Vertex AI RAG | Authorized project documentation | Explicit cloud opt-in and corpus/IAM configuration; not a private-code destination |
 | Local immutable archive | Content-addressed originals, replay, tombstones and lifecycle/reconciliation | Implemented separately; archive availability is not live temporal recall |
 | Graphiti / FalkorDB | Target for temporal/project memory | NOT_READY: no active context RPC memory provider; enabling the retired adapter fails startup |
 
-The experimental retrieval path includes pinned embedding workers and optional reranking. CBM and Qdrant overlap in code discovery; the decision to retain or remove Qdrant must follow matched independent benchmarks, not architectural preference. Qdrant is not the selected documentation or memory store. The independent LSP verification is not vector search. The ast-grep CLI is used for architecture linting, not runtime parsing.
+The hybrid retrieval pipeline combines pinned embedding workers, optional reranking, exact source rechecks and signed context receipts. CBM and Qdrant provide complementary and overlapping discovery capabilities; independent comparative benchmarks will quantify the contribution of each component. Qdrant serves code retrieval, Vertex serves authorized documentation, and external LSP verifies symbol identity. The ast-grep CLI enforces architecture rules rather than acting as a runtime parser.
 
 ACE validates workspace identity and path containment, reconciles tracked, untracked and removed files, rereads original source bytes and verifies SHA-256 and UTF-8 ranges. Current verified source outranks stale index payloads, documentation and derived memory. Required-source coverage, freshness and uncertainty determine completeness. Large originals remain losslessly accessible under authorization; partial results, failed providers and unknown usage are reported explicitly. Private source and conversations remain local by default; each external provider and data class requires separate authorization.
 
 See [CBM provider](docs/operations/codebase-memory-provider.md), [configuration/readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md) and [ADR-014: hybrid context engine](docs/docs/references/ADR-014-hybrid-context-engine.md).
 
-## What is being worked on
+## Development roadmap
 
-The following is a dated evidence summary, not an alternative task ledger. Recheck the canonical trackers and exact source/configuration before relying on it.
+ACE has implemented the core context engine, native Responses projection, local hybrid retrieval and source-policy contracts. Development is focused on end-to-end acceptance, comparative retrieval evaluation, temporal memory integration and independently measured agent economics. Production release remains evidence-gated.
+
+The target is a 5× reduction in total tokens per accepted task, measured against a matched agent baseline with independent correctness checks. This is an evaluation target, not a measured achievement.
+
+The following snapshot summarizes active work; OpenSpec remains the canonical acceptance tracker.
 
 | Workstream | Status as of 2026-11-24 |
 | --- | --- |
-| Single Bifröst context integration | RPC v3 migration in [PR #328](https://github.com/chris-madsen/Hybrid-RAG/pull/328); ACE has no agent-facing model endpoint or delivery-accounting stub. Upgrade the engine and plugin together. |
-| C01–C02 native contracts and lossless projection | Accepted at their documented local scope; C02's pre-code G02 deviation is recorded. This does not certify provider traffic. |
-| C03–C07 physical-send guard, route, streaming, Hermes loop | Implementation candidates exist; actual subscriber final-wire acknowledgement, streaming/cancellation and long agent-loop acceptance remain open. |
+| Single Bifröst context integration | TypeSpec context RPC v3, native Bifröst hooks and exact-request policy; see [integration change #328](https://github.com/chris-madsen/Hybrid-RAG/pull/328). |
+| C01–C02 native contracts and lossless projection | Implemented and accepted at their documented local contract scope. |
+| C03–C07 physical-send guard, route, streaming, Hermes loop | Implementation in place; live subscriber final-wire, streaming/cancellation and long agent-loop acceptance are the next milestones. |
 | C08 Harbor task quality and economics | Independent paired trials and release decision remain open; no certified 5× improvement. |
-| AR01–AR10 reliability | Implementation work spans source coverage, publication authority, archive durability, ranking/trace integrity, worker timeouts and Harbor usage binding. Some fixes are merged; unchecked phases are not proof of missing implementation, and merged code is not accepted evidence. |
+| AR01–AR10 reliability | Source coverage, publication authority, archive durability, ranking/trace integrity, worker lifecycle and Harbor usage binding. Acceptance tracked per phase. |
 | Retrieval architecture evaluation | Compare CBM-only versus CBM + Qdrant and independent LSP value using matched inputs and upstream evaluators; no production CBM-only fallback exists today. |
 | Full unified memory | Blocked by the missing active Graphiti context provider; do not infer temporal recall from archive tests. |
 
@@ -101,9 +119,9 @@ make qdrant-up
 
 Install pinned CBM and the required embedding/LSP dependencies according to the [configuration matrix](docs/operations/ace-configuration-and-readiness-matrix.md). `make install-python-providers` provides optional provider tooling; consult the matrix for the actual embedding worker environment. Do not treat a successful install as provider acceptance.
 
-### Experimental local context RPC
+### Local context RPC and hybrid retrieval
 
-The following is a development entry point, not an unrestricted generation configuration:
+Start the local context engine with the configured retrieval providers:
 
 ```bash
 export ACE_WORKSPACE_ROOT=/absolute/path/to/repo
@@ -118,7 +136,7 @@ export ACE_RETRIEVAL_STRATEGY=hybrid_rrf
 npm run context:rpc
 ```
 
-By default the internal RPC listens on loopback port 8765. Configure the colocated Bifröst plugin with `ACE_CONTEXT_RPC_URL=http://127.0.0.1:8765/internal/ace-context/v3/project`, matching `ACE_CONTEXT_RPC_TOKEN` and the registered workspace/single-workspace tenancy configuration. A missing secret leaves projection unavailable; incorrect bearer credentials are rejected. Hermes must target Bifröst's `/chatgpt_passthrough` base prefix, never the ACE RPC or a direct provider endpoint.
+The Qdrant enablement flag retains its existing configuration name; it is required for the current hybrid code composition. By default the internal RPC listens on loopback port 8765. Configure the colocated Bifröst plugin with `ACE_CONTEXT_RPC_URL=http://127.0.0.1:8765/internal/ace-context/v3/project`, matching `ACE_CONTEXT_RPC_TOKEN` and the registered workspace/single-workspace tenancy configuration. A missing secret leaves projection unavailable; incorrect bearer credentials are rejected. Hermes must target Bifröst's `/chatgpt_passthrough` base prefix, never the ACE RPC or a direct provider endpoint.
 
 Use the [subscription OAuth runbook](docs/operations/gateway-subscription-oauth.md) for exact pinned build, route, workspace and data-policy configuration. The v3 endpoint, generated types and plugin must be deployed atomically; there is no compatibility alias or silent provider fallback. Without real required retrieval providers, the service reports not-ready rather than simulating production search.
 
@@ -146,7 +164,7 @@ Build from a clean Git checkout. The Make target compiles ACE before building th
 | Real subscription / Hermes / Harbor | [Acceptance runbook](docs/operations/2026-11-21-hermes-e2e-repair-runbook.md) | Separate exact-route, physical provider wire, SSE, multi-turn tools and independently scored tasks |
 | Release | `npm run release:preflight -- ...` | Evidence-gated release evaluation, not an override for missing proofs |
 
-Evaluate retrieval independently with upstream Agent Retrieval Bench, ContextBench and CodeGraph Bench; evaluate end-to-end agent behavior and economics with Harbor using matched frozen tasks, model/effort, tools and source budgets. Count retries, failed attempts and total usage; unknown telemetry is not zero. Require independent task correctness before drawing accepted-task token conclusions. Use the [testing strategy](docs/operations/testing-strategy.md) and [token economics](docs/operations/ace-token-savings.md).
+Evaluate retrieval independently with upstream Agent Retrieval Bench, ContextBench and CodeGraph Bench; evaluate end-to-end agent behavior and economics with Harbor using matched frozen tasks, model/effort, tools and source budgets. Count retries, failed attempts and total usage; unknown telemetry is not zero. Require independent task correctness before drawing accepted-task token conclusions. Use the [testing strategy](docs/operations/testing-strategy.md) and [current Harbor acceptance specification](openspec/changes/013-gateway-g11-production-acceptance/phases/C08.md).
 
 Previously retired transport-specific E2E runners do not count as current acceptance; equivalent real context-path restart, multi-writer, interrupted-publish, scale and holdout evidence must be re-established where required. A green build, mock wire test, local `PREPARED`, or historical benchmark cannot certify live model delivery. No environment flag grants production readiness.
 
@@ -163,4 +181,6 @@ npm run sdlc:preflight -- --tier T0 --stage research --json
 
 For implementation, supply the explicit task ID, existing plan and applicable G02 evidence. Follow the [operational SDLC](docs/operations/ai-assisted-sdlc.md) and [stage entry/resume](docs/operations/implementation-entry-resume.md). Publish reviewable PRs targeting main and report actual check/evidence states; merge remains the owner's decision. Do not turn deterministic checks into production certification.
 
-The parent Consilium repository is outside ACE's implementation scope. See [LICENSE](LICENSE).
+## License
+
+ACE is available under the [Apache License 2.0](LICENSE).
