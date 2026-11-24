@@ -94,7 +94,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     candidateId: 'real-codebase-memory-contract' as CodeCandidate['candidateId'],
     workspaceId: 'ace-integration-smoke' as CodeCandidate['workspaceId'],
     repoPath: path as CodeCandidate['repoPath'],
-    range: { startLine: line + 1, endLine: line + 1 },
+    range: { startLine: line + 1, startColumn: 1, endLine: line + 1, endColumn: Buffer.byteLength(lines[line]!) + 1 },
     symbolName: 'makeQdrantContextProvider',
     structuralKind: 'function',
     text: lines[line]!,
@@ -169,7 +169,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
       semantics: makeRoutedLspSession([]),
       codeGraph: provider,
       newRequestId: () => 'native-cbm-real-source',
-      candidateLimit: 6,
+      candidateLimit: 100,
     });
     const plan = resolveExplicitSourceRequirements({ required: ['code'] });
     assert.equal(plan._tag, 'Ok');

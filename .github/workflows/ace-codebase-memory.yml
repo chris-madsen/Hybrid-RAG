@@ -12,6 +12,7 @@ on:
       - 'src/adapters/qdrant-context-provider.ts'
       - 'src/application/ports.ts'
       - 'src/bin/ace-runtime.ts'
+      - 'scripts/real-projection-e2e.mjs'
       - 'test/codebase-memory-graph.contracts.test.ts'
       - '.github/workflows/ace-codebase-memory.yml'
   workflow_dispatch:
@@ -49,6 +50,11 @@ jobs:
         env:
           ACE_TEST_REAL_CBM: 'true'
         run: npx tsx --test test/codebase-memory-stdio.contracts.test.ts test/codebase-memory-graph.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
+
+      - name: Native CBM-only compiled Context RPC projection
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+        run: npm run test:real-projection
 
   full-regression:
     name: Full ACE regression after native CBM migration

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Real ACE projection -> Core -> Qdrant/embedding/LSP E2E.
+// Real ACE projection -> Core -> native CBM or historical vector retrieval E2E.
 // This deliberately does NOT traverse Bifröst or an LLM provider wire. It proves
 // real retrieval/projection behavior only; G11 provider-wire acceptance is separate.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
@@ -37,9 +38,16 @@ const code = [
   "  throw new Error('retry failed');",
   '}',
 ].join('\n') + '\n';
-const filler = Array.from({ length: 1991 }, (_, i) => 'export const filler_' + i + ' = ' + i + ';').join('\n');
+const native = process.env.ACE_REAL_PROJECTION_NATIVE_CBM === 'true';
+const filler = Array.from({ length: native ? 8 : 1991 }, (_, i) => 'export const filler_' + i + ' = ' + i + ';').join('\n');
 const codePath = join(workspace, 'service.ts');
 await writeFile(codePath, code + filler + '\n');
+if (native) {
+  const git = (...args) => execFileSync('git', ['-C', workspace, ...args], { stdio: 'ignore' });
+  git('init', '--quiet');
+  git('add', '.');
+  git('-c', 'user.name=ACE Test', '-c', 'user.email=ace@example.invalid', 'commit', '--quiet', '-m', 'native fixture');
+}
 const qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
 const outage = process.env.ACE_REAL_PROJECTION_OUTAGE === 'true' || process.env.ACE_REAL_PROJECTION_HARD_OUTAGE === 'true';
 const race = process.env.ACE_REAL_PROJECTION_RACE === 'true';
@@ -56,13 +64,15 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_STATE_DIR: join(directory, 'state'),
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
     ACE_WORKSPACE_ID: workspaceId,
-    ACE_ENABLE_EXPERIMENTAL_QDRANT: 'true',
+    ACE_CODE_RETRIEVAL_MODE: native ? 'cbm' : '',
+    ACE_ENABLE_EXPERIMENTAL_QDRANT: native ? 'false' : 'true',
+    ...(native ? { ACE_RERANKER_MODE: 'disabled' } : {}),
     ACE_ENABLE_GRAPHITI: 'false',
     ACE_RETRIEVAL_STRATEGY: process.env.ACE_RETRIEVAL_STRATEGY?.trim() || 'dense',
-    ACE_QDRANT_URL: outage ? 'http://127.0.0.1:6339' : qdrantUrl,
+    ACE_QDRANT_URL: native || outage ? 'http://127.0.0.1:6339' : qdrantUrl,
     ACE_QDRANT_WRITER_TOPOLOGY: 'single_host',
     ACE_QDRANT_PUBLICATION_DIR: join(directory, 'qdrant-publication'),
-    ACE_EMBEDDING_WORKER: process.env.ACE_EMBEDDING_WORKER ?? runtime.embeddingWorker,
+    ACE_EMBEDDING_WORKER: native ? join(directory, 'must-not-start-embedding') : process.env.ACE_EMBEDDING_WORKER ?? runtime.embeddingWorker,
     ACE_CONTEXT_RPC_HOST: '127.0.0.1',
     ACE_CONTEXT_RPC_PORT: String(gatewayPort),
     ACE_CONTEXT_RPC_SHARED_SECRET: 'real-provider-fixture-secret',
@@ -94,6 +104,7 @@ try {
     child.once('exit', (code) => settle(new Error('Gateway exited before listening: ' + code + ': ' + startupLog.slice(-3000))));
     child.once('error', settle);
   });
+  if (native) assert.match(startupLog, /native CBM code retrieval initialized/u);
   const health = await fetch(endpoint + '/health', {
     headers: { authorization: 'Bearer real-provider-fixture-secret' }, signal: timeout(10000),
   });
@@ -154,8 +165,9 @@ try {
     if (race) assert.match(contextMessage.content, /-changed/u, 'stale source must not masquerade as current');
     else assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
     console.log(JSON.stringify({
-      status: 'projection-pass', transport: 'ace-internal-projection-http', qdrant: qdrantUrl,
-      source: '2000-line TypeScript fixture', race,
+      status: 'projection-pass', transport: 'ace-internal-projection-http',
+      retrieval: native ? 'native_cbm' : 'historical_vector', ...(native ? {} : { qdrant: qdrantUrl }),
+      source: native ? 'Git-backed native CBM fixture' : '2000-line TypeScript fixture', race,
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
