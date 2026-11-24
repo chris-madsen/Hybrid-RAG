@@ -15,12 +15,12 @@
     "check:context-v3": "tsp compile ./context-v3.tsp --no-emit"
   },
   "devDependencies": {
-    "@typespec/compiler": "1.17.0",
-    "@typespec/http": "1.17.0",
-    "@typespec/json-schema": "1.17.0",
-    "@typespec/openapi3": "1.17.0",
+    "@typespec/compiler": "1.18.0",
+    "@typespec/http": "1.18.0",
+    "@typespec/json-schema": "1.18.0",
+    "@typespec/openapi3": "1.18.0",
     "@hey-api/openapi-ts": "0.99.0",
-    "@typespec/openapi": "1.17.0",
+    "@typespec/openapi": "1.18.0",
     "typescript": "5.9.3",
     "ajv": "8.20.0"
   }
