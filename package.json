@@ -108,7 +108,7 @@
     "test:ace-plan-refinement": "node --test test/ace-plan-refinement.test.mjs"
   },
   "dependencies": {
-    "@ast-grep/cli": "0.51.0",
+    "@ast-grep/cli": "0.51.3",
     "@qdrant/js-client-rest": "1.20.0",
     "effect": "3.22.3",
     "typescript": "5.9.3",
