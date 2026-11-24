@@ -985,6 +985,7 @@ const makeVerifiedContextProvider = (config: ContextConfig) => {
         const result = yield* activeConfig.codeGraph.search({
           query: input.query,
           limit,
+          requestId: requestId.value,
           changedPaths: [
             ...(requestWorkingContext?.stagedPaths ?? []),
             ...(requestWorkingContext?.unstagedPaths ?? []),
@@ -1169,6 +1170,7 @@ const makeVerifiedContextProvider = (config: ContextConfig) => {
               const graphResult = yield* activeConfig.codeGraph.search({
                 query: input.query,
                 limit: retrievalLimit,
+                requestId: requestId.value,
                 changedPaths: [
                   ...(requestWorkingContext?.stagedPaths ?? []),
                   ...(requestWorkingContext?.unstagedPaths ?? []),

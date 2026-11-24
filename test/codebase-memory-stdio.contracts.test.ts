@@ -8,6 +8,7 @@ import {
   makeCodebaseMemoryStdio, parseCodebaseMemoryToolResult,
 } from '../src/adapters/codebase-memory-stdio.js';
 import { makeCodebaseMemoryGraph } from '../src/adapters/codebase-memory-graph.js';
+import type { ProviderTraceEvent } from '../src/domain/provider-trace.js';
 
 const fixture = resolve('test/fixtures/cbm-stdio-fixture.mjs');
 const root = resolve(process.cwd());
@@ -21,9 +22,11 @@ const readLog = (path: string): { pid: number; method: string; tool?: string }[]
 test('native stdio session reuses one process across indexing, outlines and graph requests', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-stdio-'));
   const log = join(dir, 'calls.jsonl');
+  const traces: ProviderTraceEvent[] = [];
   process.env.ACE_CBM_TEST_LOG = log;
   const graph = makeCodebaseMemoryGraph({
     rootPath: root, command: process.execPath, args: [fixture], timeoutMs: 5_000,
+    trace: { record: (event) => traces.push(event) },
     candidates: () => [],
   });
   try {
@@ -38,9 +41,20 @@ test('native stdio session reuses one process across indexing, outlines and grap
     assert.equal(queried._tag, 'Ok', JSON.stringify(queried));
     const changed = await Effect.runPromise(graph.detectChanges());
     assert.equal(changed._tag, 'Ok', JSON.stringify(changed));
+    const searched = await Effect.runPromise(graph.search({ query: 'private test needle', limit: 2, requestId: 'request-cbm-test' }));
+    assert.equal(searched._tag, 'Ok', JSON.stringify(searched));
+    assert.ok(traces.some((event) => event.provider === 'codebase_memory'
+      && event.providerVersion === 'codebase-memory-mcp/0.12.1'
+      && event.operation === 'search_graph' && event.status === 'success'
+      && event.requestId === 'request-cbm-test'));
+    assert.ok(traces.some((event) => event.provider === 'codebase_memory'
+      && event.operation === 'index_repository' && event.status === 'success'));
+    assert.ok(traces.every((event) => !('query' in event) && !('arguments' in event) && !('result' in event)));
+    assert.doesNotMatch(JSON.stringify(traces), /private test needle/u,
+      'safe native provider trace must not retain query text');
     const logEntries = readLog(log);
     assert.deepEqual(logEntries.map((item) => item.method), [
-      'initialize', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call',
+      'initialize', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call',
     ]);
     assert.equal(new Set(logEntries.map((item) => item.pid)).size, 1);
     assert.ok(logEntries.every((item) => item.method !== 'tools/list'));

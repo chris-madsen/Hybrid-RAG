@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdtemp, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
 
@@ -22,6 +22,45 @@ const port = async () => new Promise((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve(address.port));
   });
 });
+const processDescendants = (rootPid) => {
+  assert.equal(process.platform, 'linux', 'native provider process-tree acceptance requires Linux');
+  const childrenByParent = new Map();
+  for (const line of execFileSync('ps', ['-eo', 'pid=,ppid=,args='], { encoding: 'utf8' }).split('\n')) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(.+)$/u.exec(line);
+    if (!match) continue;
+    const entry = { pid: Number(match[1]), parentPid: Number(match[2]), command: match[3] };
+    const children = childrenByParent.get(entry.parentPid) ?? [];
+    children.push(entry);
+    childrenByParent.set(entry.parentPid, children);
+  }
+  const descendants = [];
+  const pending = [rootPid];
+  const seen = new Set(pending);
+  while (pending.length > 0) {
+    for (const child of childrenByParent.get(pending.shift()) ?? []) {
+      if (seen.has(child.pid)) continue;
+      seen.add(child.pid);
+      descendants.push(child);
+      pending.push(child.pid);
+    }
+  }
+  return descendants;
+};
+const assertNoExternalRetrievalProcesses = (rootPid) => {
+  const descendants = processDescendants(rootPid);
+  const forbidden = descendants.filter((entry) =>
+    /qdrant|fastembed|onnxruntime|sentence-transformers|typescript-language-server|reranker-worker|embedding-worker/iu.test(entry.command));
+  assert.deepEqual(forbidden, [], 'native CBM mode must not start legacy vector, embedding, reranker or external LSP processes');
+  return [...new Set(descendants.map((entry) => basename(entry.command.trim().split(/\s+/u)[0] ?? 'unknown')))].sort();
+};
+const readProviderTrace = async (path) => {
+  try {
+    const content = (await readFile(path, 'utf8')).trim();
+    return content.length === 0 ? [] : content.split('\n').map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
+};
 const runtime = await resolveRealProviderRuntime(import.meta.dirname);
 const directory = await mkdtemp(join(tmpdir(), 'ace-gateway-real-projection-'));
 const workspace = join(directory, 'workspace');
@@ -57,6 +96,7 @@ assert.ok(!(native && race), 'historical embedding delay is not a native CBM rac
 const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
 assert.ok(Number.isSafeInteger(maxWait) && maxWait >= 10000 && maxWait <= 600000);
 const gatewayPort = await port();
+const providerTracePath = join(directory, 'provider-trace.jsonl');
 const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
   cwd: runtime.runtimeRoot,
   env: {
@@ -66,6 +106,7 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_ALLOWED_ROOTS: directory,
     ACE_STATE_DIR: join(directory, 'state'),
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
+    ...(native ? { ACE_PROVIDER_TRACE_FILE: providerTracePath } : {}),
     ACE_WORKSPACE_ID: workspaceId,
     ACE_CODE_RETRIEVAL_MODE: native ? 'cbm' : '',
     ACE_ENABLE_EXPERIMENTAL_QDRANT: native ? 'false' : 'true',
@@ -112,6 +153,14 @@ try {
   });
   if (native && !outage) assert.match(startupLog, /native CBM code retrieval initialized/u);
   if (native && outage) assert.match(startupLog, /native CBM index failed/u);
+  let nativeProcessNames = [];
+  if (native) {
+    assert.match(startupLog, /provider identities codebase_memory=codebase-memory-mcp\/0\.12\.1/u);
+    assert.match(startupLog, /qdrant=disabled.*embedding=disabled.*sparse_embedding=disabled.*lsp=not_configured/u);
+    assert.doesNotMatch(startupLog, /embedding=fastembed\/onnx|qdrant=qdrant\/|lsp=typescript-language-server/u,
+      'runtime provenance must list only providers active in native mode');
+    nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
+  }
   const health = await fetch(endpoint + '/health', {
     headers: { authorization: 'Bearer real-provider-fixture-secret' }, signal: timeout(10000),
   });
@@ -152,6 +201,17 @@ try {
   }
   const response = await responsePromise;
   const decision = await response.json();
+  if (native) {
+    nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
+    const traceEvents = await readProviderTrace(providerTracePath);
+    const forbiddenProviders = traceEvents.filter((event) =>
+      ['qdrant', 'embedding', 'sparse_embedding', 'reranker', 'lsp'].includes(event.provider));
+    assert.deepEqual(forbiddenProviders, [], 'native retrieval trace must contain no legacy provider operations');
+    const nativeEvents = traceEvents.filter((event) => event.provider === 'codebase_memory');
+    assert.ok(nativeEvents.some((event) => event.operation === (outage ? 'index_repository' : 'search_graph')
+      && event.status === (outage ? 'failure' : 'success')),
+    'provider trace must prove the native CBM operation that determined the projection result');
+  }
   assert.equal(response.status, 200, JSON.stringify(decision));
   if (decision.kind === 'BLOCK') {
     assert.ok(outage || race, `normal ready real-provider fixture must not report BLOCK: ${decision.reasonCode}; ${startupLog.slice(-3000)}`);
@@ -179,6 +239,7 @@ try {
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http',
       retrieval: native ? 'native_cbm' : 'historical_vector', ...(native ? {} : { qdrant: qdrantUrl }),
+      ...(native ? { nativeProcessNames } : {}),
       source: native ? 'Git-backed native CBM fixture' : '2000-line TypeScript fixture', race,
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
@@ -221,6 +282,7 @@ try {
       assert.equal(removed.kind, 'BLOCK', 'deleted sole source must not yield stale or falsely certified empty context');
       assert.equal(removed.reasonCode, 'NOT_READY');
       assert.equal(removed.projectionReceipt, undefined);
+      nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
       console.log(JSON.stringify({ status: 'native-mutations-pass', edits: ['modify', 'rename', 'delete'], providerWireCertified: false }));
     }
   }
