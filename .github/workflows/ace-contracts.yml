@@ -63,9 +63,14 @@ jobs:
               requirements-embedding-fast.txt) node=true; fast_deps=true ;;
               requirements-embedding-st.txt) node=true; st_deps=true ;;
               integrations/bifrost/ace-connector/*) go=true ;;
-              .github/workflows/ace-contracts.yml|scripts/dependency-provider-smoke.py)
-                node=true; go=true; root_deps=true; provider_deps=true; fast_deps=true; st_deps=true ;;
-              scripts/build-bifrost-ace-plugin.sh) node=true; go=true ;;
+              scripts/build-bifrost-ace-plugin.sh|.github/workflows/ace-contracts.yml)
+                node=true; go=true
+                if [[ "${path}" == ".github/workflows/ace-contracts.yml" ]]; then
+                  root_deps=true; provider_deps=true; fast_deps=true; st_deps=true
+                fi
+                ;;
+              scripts/dependency-provider-smoke.py)
+                node=true; root_deps=true; provider_deps=true; fast_deps=true; st_deps=true ;;
               .github/fixtures/contracts/*) node=true; go=true ;;
               src/*|test/*|scripts/*|architecture/*|contracts/*|tsconfig.json|tsconfig.eslint.json|eslint.config.mjs|benchmarks/fixtures/*)
                 node=true ;;
@@ -416,7 +421,7 @@ jobs:
       - name: Node 22
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version: "22.23.4" # Runtime provenance accepts this exact version
           cache: npm
       - name: Python 3.13 for pinned FastEmbed
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
