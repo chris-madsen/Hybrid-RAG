@@ -73,24 +73,24 @@ const qdrantSdkHttpStatus = (cause: unknown): number | undefined => {
 const qdrantSdkCall = <Value>(
   action: () => Promise<Value>,
 ): Effect.Effect<Result<Value, DomainError>> => Effect.catchAll(
-    Effect.tryPromise<Result<Value, DomainError>, DomainError>({
-      try: async () => {
-        try {
-          return ok(await action());
-        } catch (cause) {
-          const httpStatus = qdrantSdkHttpStatus(cause);
-          return err(domainError(
-            'EXTERNAL_UNAVAILABLE',
-            'qdrant',
-            cause instanceof Error ? cause.message : 'Qdrant SDK call failed',
-            httpStatus === undefined ? undefined : { httpStatus },
-          ));
-        }
-      },
-      catch: () => domainError('EXTERNAL_UNAVAILABLE', 'qdrant', 'Qdrant SDK call failed'),
-    }),
-    (failure) => Effect.succeed(err(failure)),
-  );
+  Effect.tryPromise<Result<Value, DomainError>, DomainError>({
+    try: async () => {
+      try {
+        return ok(await action());
+      } catch (cause) {
+        const httpStatus = qdrantSdkHttpStatus(cause);
+        return err(domainError(
+          'EXTERNAL_UNAVAILABLE',
+          'qdrant',
+          cause instanceof Error ? cause.message : 'Qdrant SDK call failed',
+          httpStatus === undefined ? undefined : { httpStatus },
+        ));
+      }
+    },
+    catch: () => domainError('EXTERNAL_UNAVAILABLE', 'qdrant', 'Qdrant SDK call failed'),
+  }),
+  (failure) => Effect.succeed(err(failure)),
+);
 
 export const validateLocalQdrantBaseUrl = (
   baseUrl: string,

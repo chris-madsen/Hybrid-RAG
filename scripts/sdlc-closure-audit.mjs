@@ -44,7 +44,7 @@ const requirements = [
   {
     id: 'QG6_SECURITY_DEPTH',
     file: '.github/workflows/ace-code-health.yml',
-    contains: ['github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066', 'config-file: ./.github/codeql/codeql-config.yml', 'check-codeql-sarif.mjs', 'test:mutation:critical', 'Scheduled remote Markdown links (signal only)'],
+    contains: ['github/codeql-action/init@', 'github/codeql-action/analyze@', 'config-file: ./.github/codeql/codeql-config.yml', 'check-codeql-sarif.mjs', 'test:mutation:critical', 'Scheduled remote Markdown links (signal only)'],
   },
   {
     id: 'QG6_CODEQL_RESULT_GATE',
@@ -240,6 +240,16 @@ if (!openspecOnly && !architectureOnly && !contractsOnly) for (const requirement
   }
   const missing = requirement.contains.filter((needle) => !text.includes(needle));
   const forbidden = (requirement.excludes ?? []).filter((needle) => text.includes(needle));
+  if (requirement.id === 'QG6_SECURITY_DEPTH') {
+    const pins = [...text.matchAll(/^\s*uses:\s*github\/codeql-action\/(init|analyze)@([^\s#]+)[ \t]*(?:#.*)?$/gm)];
+    const init = pins.filter((pin) => pin[1] === 'init');
+    const analyze = pins.filter((pin) => pin[1] === 'analyze');
+    if (init.length !== 1 || analyze.length !== 1
+      || !/^[a-f0-9]{40}$/u.test(init[0]?.[2] ?? '')
+      || init[0]?.[2] !== analyze[0]?.[2]) {
+      missing.push('exact matching immutable CodeQL init/analyze commit pins');
+    }
+  }
   results.push({
     id: requirement.id,
     status: missing.length === 0 && forbidden.length === 0 ? 'PASS' : 'FAIL',

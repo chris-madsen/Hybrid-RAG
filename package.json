@@ -9,7 +9,7 @@
     "context:rpc": "npm run build && node dist/bin/ace-context-rpc.js",
     "check": "tsc -p tsconfig.json --noEmit",
     "check:public-contract-types": "tsc -p tsconfig.public-contracts.json --noEmit",
-    "lint": "eslint src test --ext .ts --max-warnings=0",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings=0",
     "analyze:dependencies": "knip --no-progress --reporter compact --no-exit-code",
     "probe:providers": "node scripts/provider-capability-probe.mjs",
     "report:harbor-smoke": "tsx scripts/render-harbor-smoke-report.ts",
@@ -117,14 +117,14 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "6.0.1",
     "@types/node": "24.10.0",
-    "@typescript-eslint/eslint-plugin": "7.18.0",
-    "@typescript-eslint/parser": "7.18.0",
-    "eslint": "8.57.1",
-    "eslint-config-airbnb-typescript": "18.0.0",
-    "eslint-import-resolver-typescript": "3.7.0",
-    "eslint-plugin-import": "2.31.0",
-    "knip": "6.45.1",
+    "@typescript-eslint/eslint-plugin": "8.74.0",
+    "@typescript-eslint/parser": "8.74.0",
+    "eslint": "10.15.0",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-import-x": "4.18.1",
+    "knip": "6.47.0",
     "tsx": "4.23.15"
   },
   "overrides": {

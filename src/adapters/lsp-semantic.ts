@@ -621,50 +621,50 @@ export const makeLspSemanticAnalysisPort = (options: LspSemanticOptions): LspSem
     operationName: string,
     operation: (active: LspRuntime, fileUri: string, position: LspPosition) => Promise<Result<Value, DomainError>>,
   ): Effect.Effect<Result<Value, DomainError>> => recoverResult(Effect.tryPromise({
-      try: () => enqueue(async () => {
-        const startedAtMs = Date.now();
-        const active = await runtime();
-        let result: Result<Value, DomainError>;
-        if (active._tag === 'Err') result = active;
-        else if (activeSnapshotIdentity !== undefined && queryInput.snapshotIdentity !== activeSnapshotIdentity) {
-          result = failure('snapshot_identity', 'semantic query is bound to a different source/configuration generation', 'NOT_READY');
-        } else {
-          const source = active.value.files.get(queryInput.repoPath);
-          const languageId = languageIdForPath(queryInput.repoPath, options.languageIds);
-          if (source === undefined || languageId === undefined) {
-            result = failure('repo_path', 'source file has no configured LSP document', 'UNSUPPORTED_PROVIDER');
-          } else if (!Number.isSafeInteger(queryInput.line) || queryInput.line < 1
+    try: () => enqueue(async () => {
+      const startedAtMs = Date.now();
+      const active = await runtime();
+      let result: Result<Value, DomainError>;
+      if (active._tag === 'Err') result = active;
+      else if (activeSnapshotIdentity !== undefined && queryInput.snapshotIdentity !== activeSnapshotIdentity) {
+        result = failure('snapshot_identity', 'semantic query is bound to a different source/configuration generation', 'NOT_READY');
+      } else {
+        const source = active.value.files.get(queryInput.repoPath);
+        const languageId = languageIdForPath(queryInput.repoPath, options.languageIds);
+        if (source === undefined || languageId === undefined) {
+          result = failure('repo_path', 'source file has no configured LSP document', 'UNSUPPORTED_PROVIDER');
+        } else if (!Number.isSafeInteger(queryInput.line) || queryInput.line < 1
             || !Number.isSafeInteger(queryInput.column) || queryInput.column < 1) {
-            result = failure('position', 'line and column must be positive integers', 'INVALID_INPUT');
-          } else {
-            active.value.refProcess();
-            try {
-              result = await operation(active.value, uriFor(options.rootPath, queryInput.repoPath), {
-                line: queryInput.line - 1,
-                character: queryInput.column - 1,
-              });
-            } finally {
-              if (options.keepProcessAlive === false) active.value.unrefProcess();
-            }
+          result = failure('position', 'line and column must be positive integers', 'INVALID_INPUT');
+        } else {
+          active.value.refProcess();
+          try {
+            result = await operation(active.value, uriFor(options.rootPath, queryInput.repoPath), {
+              line: queryInput.line - 1,
+              character: queryInput.column - 1,
+            });
+          } finally {
+            if (options.keepProcessAlive === false) active.value.unrefProcess();
           }
         }
-        providerTraceEvent(options.trace ?? noopProviderTrace, {
-          provider: 'lsp',
-          providerVersion: options.providerVersion ?? `${options.serverName ?? 'typescript-language-server'}/unknown`,
-          operation: operationName,
-          status: result._tag === 'Ok' ? 'success' : 'failure',
-          durationMs: Math.max(0, Date.now() - startedAtMs),
-          ...(queryInput.requestId === undefined ? {} : { requestId: queryInput.requestId }),
-          ...(result._tag === 'Err' ? { errorCode: result.error.code } : {}),
-        });
-        return result;
-      }),
-      catch: (cause) => domainError(
-        'EXTERNAL_UNAVAILABLE',
-        'lsp',
-        cause instanceof Error ? cause.message : 'LSP provider request failed',
-      ),
-    }));
+      }
+      providerTraceEvent(options.trace ?? noopProviderTrace, {
+        provider: 'lsp',
+        providerVersion: options.providerVersion ?? `${options.serverName ?? 'typescript-language-server'}/unknown`,
+        operation: operationName,
+        status: result._tag === 'Ok' ? 'success' : 'failure',
+        durationMs: Math.max(0, Date.now() - startedAtMs),
+        ...(queryInput.requestId === undefined ? {} : { requestId: queryInput.requestId }),
+        ...(result._tag === 'Err' ? { errorCode: result.error.code } : {}),
+      });
+      return result;
+    }),
+    catch: (cause) => domainError(
+      'EXTERNAL_UNAVAILABLE',
+      'lsp',
+      cause instanceof Error ? cause.message : 'LSP provider request failed',
+    ),
+  }));
 
   return {
     documentSymbols: (input) => query({

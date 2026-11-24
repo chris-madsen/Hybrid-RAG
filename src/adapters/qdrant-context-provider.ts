@@ -838,7 +838,7 @@ export const reuseOrPopulateQdrantSnapshot = (
 
 export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
   let activeConfig = config;
-  /* eslint-disable @typescript-eslint/indent -- the generator body retains the existing Effect indentation. */
+  /* eslint-disable @stylistic/indent -- the generator body retains the existing Effect indentation. */
   const search = (
     input: {
       readonly workspaceId: WorkspaceId;
@@ -1706,6 +1706,6 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       }
       return ok(covered);
     }) as Effect.Effect<Result<ContextBundle, DomainError>>;
-  /* eslint-enable @typescript-eslint/indent */
+  /* eslint-enable @stylistic/indent */
   return { search };
 };

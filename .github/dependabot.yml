@@ -27,12 +27,20 @@ updates:
         patterns:
           - "eslint*"
           - "@typescript-eslint/*"
+          - "@stylistic/*"
       typescript-toolchain:
         patterns:
           - "typescript"
           - "typescript-language-server"
-          - "@types/node"
           - "tsx"
+    ignore:
+      # Architecture migrations require explicit compatibility work.
+      - dependency-name: "effect"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        versions: [">=23.0.0"]
     # Keep other runtime dependencies in individually reviewable PRs.
 
   - package-ecosystem: "npm"
@@ -45,6 +53,9 @@ updates:
       typespec-family:
         patterns:
           - "@typespec/*"
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     # Codegen changes must regenerate committed artifacts before merging.
 
   - package-ecosystem: "pip"
@@ -53,6 +64,12 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "sentence-transformers"
+        update-types: ["version-update:semver-major"]
+    groups:
+      provider-http:
+        patterns: ["httpcore2", "httpx2"]
     # Review separate Python environments, marker constraints and CPU wheels.
 
   - package-ecosystem: "gomod"

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { downloadPinnedRepoBenchRecords, writeRepoBenchArtifact } from './repobench-r-acquire-boundary.js';
 import {
   repoBenchSourceManifestExclusions,
   repoBenchSourceManifestSha256,
@@ -18,12 +19,13 @@ const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes)
 
 const usage = (): never => {
   throw new Error(
-    'Usage: tsx scripts/repobench-r-acquire.ts --records-url <official-url> --revision <40+hex> --config <config> --split <split> --output <external-dir> --source-revision <repository-id>=<40+hex> <repository-id>=<checkout-root> [...mappings]',
+    'Usage: tsx scripts/repobench-r-acquire.ts --records-url <official-url> --expected-sha256 <64hex> --revision <40+hex> --config <config> --split <split> --output <external-dir> --source-revision <repository-id>=<40+hex> <repository-id>=<checkout-root> [...mappings]',
   );
 };
 
 const parseArgs = (): {
   readonly recordsUrl: string;
+  readonly expectedSha256: string;
   readonly revision: string;
   readonly config: Config;
   readonly split: Split;
@@ -33,6 +35,7 @@ const parseArgs = (): {
 } => {
   const args = process.argv.slice(2);
   let recordsUrl: string | undefined;
+  let expectedSha256: string | undefined;
   let revision: string | undefined;
   let config: Config | undefined;
   let split: Split | undefined;
@@ -45,6 +48,9 @@ const parseArgs = (): {
     if (current === '--records-url') {
       args.shift();
       recordsUrl = value;
+    } else if (current === '--expected-sha256') {
+      args.shift();
+      expectedSha256 = value;
     } else if (current === '--revision') {
       args.shift();
       revision = value;
@@ -65,11 +71,11 @@ const parseArgs = (): {
       sourceRevisions.set(value.slice(0, separator), value.slice(separator + 1));
     } else if (current !== undefined) mappings.push(current);
   }
-  if (recordsUrl === undefined || revision === undefined || config === undefined || split === undefined) return usage();
-  if (!/^https:\/\//u.test(recordsUrl) || !revisionPattern.test(revision)
+  if (recordsUrl === undefined || expectedSha256 === undefined || revision === undefined || config === undefined || split === undefined) return usage();
+  if (!/^https:\/\//u.test(recordsUrl) || !/^[a-f0-9]{64}$/u.test(expectedSha256) || !revisionPattern.test(revision)
     || !['python_cff', 'python_cfr', 'java_cff', 'java_cfr'].includes(config)
     || !['test_easy', 'test_hard', 'train_easy', 'train_hard'].includes(split)) return usage();
-  return { recordsUrl, revision, config, split, outputDirectory: resolve(outputDirectory), mappings, sourceRevisions };
+  return { recordsUrl, expectedSha256, revision, config, split, outputDirectory: resolve(outputDirectory), mappings, sourceRevisions };
 };
 
 const git = (root: string, args: readonly string[], encoding: BufferEncoding = 'utf8'): Buffer =>
@@ -115,7 +121,6 @@ const parseMapping = (value: string): { readonly id: string; readonly root: stri
 };
 
 const blocked = async (outputDirectory: string, reason: string): Promise<never> => {
-  await mkdir(outputDirectory, { recursive: true });
   const manifest = {
     schemaVersion: 1,
     status: 'BLOCKED',
@@ -123,7 +128,7 @@ const blocked = async (outputDirectory: string, reason: string): Promise<never> 
     reason,
     syntheticRepositories: false,
   };
-  await writeFile(resolve(outputDirectory, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  await writeRepoBenchArtifact(outputDirectory, 'manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
   process.stderr.write(`${reason}\n`);
   process.exitCode = 2;
   throw new Error(reason);
@@ -131,17 +136,19 @@ const blocked = async (outputDirectory: string, reason: string): Promise<never> 
 
 const main = async (): Promise<void> => {
   const args = parseArgs();
+  // Reserve a fresh operator-selected directory. Never overwrite a previous acquisition.
+  await mkdir(dirname(args.outputDirectory), { recursive: true });
+  await mkdir(args.outputDirectory, { mode: 0o700 });
   try {
     if (args.mappings.length === 0) throw new Error('BLOCKED: at least one exact source checkout mapping is required; RepoBench records do not carry source snapshots');
     if (args.sourceRevisions.size !== args.mappings.length) throw new Error('BLOCKED: every source checkout requires an explicit pinned source revision; current dataset metadata does not provide one');
-    const response = await fetch(args.recordsUrl, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) throw new Error(`BLOCKED: records URL returned HTTP ${response.status}`);
-    const recordsBytes = new Uint8Array(await response.arrayBuffer());
-    if (recordsBytes.byteLength === 0) throw new Error('BLOCKED: records response was empty');
+    // Remote response bodies and errors never become trusted manifest content.
+    const recordsBytes = await downloadPinnedRepoBenchRecords(args.recordsUrl, args.expectedSha256)
+      .catch(() => { throw new Error('BLOCKED: records acquisition failed transport, size or independently pinned digest verification'); });
     const repositoryInputs = args.mappings.map(parseMapping);
     const repositoryIds = new Set<string>();
     const repositories: Array<{ readonly id: string; readonly revision: string; readonly sourceManifestSha256: string }> = [];
-    const checkoutRoots: Record<string, string> = {};
+    const checkoutRoots: Record<string, string> = Object.create(null) as Record<string, string>;
     for (const input of repositoryInputs) {
       if (repositoryIds.has(input.id)) throw new Error(`BLOCKED: duplicate repository id ${input.id}`);
       repositoryIds.add(input.id);
@@ -163,27 +170,28 @@ const main = async (): Promise<void> => {
       repositories,
     };
     await mkdir(resolve(args.outputDirectory, 'source-snapshots'), { recursive: true });
-    await writeFile(resolve(args.outputDirectory, 'records.raw'), recordsBytes);
+    await writeRepoBenchArtifact(args.outputDirectory, 'records.raw', recordsBytes);
     const acquisitionManifest = {
       ...manifest,
       dataset: { ...manifest.dataset, rawRecordsSha256: manifest.dataset.recordsSha256 },
     };
-    await writeFile(resolve(args.outputDirectory, 'manifest.json'), `${JSON.stringify(acquisitionManifest, null, 2)}\n`, 'utf8');
-    await writeFile(resolve(args.outputDirectory, 'source-snapshots.json'), `${JSON.stringify({
+    await writeRepoBenchArtifact(args.outputDirectory, 'manifest.json', `${JSON.stringify(acquisitionManifest, null, 2)}\n`);
+    await writeRepoBenchArtifact(args.outputDirectory, 'source-snapshots.json', `${JSON.stringify({
       schemaVersion: 1,
       repositories: checkoutRoots,
       exclusions: repoBenchSourceManifestExclusions,
-    }, null, 2)}\n`, 'utf8');
-    await writeFile(resolve(args.outputDirectory, 'acquisition.json'), `${JSON.stringify({
+    }, null, 2)}\n`);
+    await writeRepoBenchArtifact(args.outputDirectory, 'acquisition.json', `${JSON.stringify({
       schemaVersion: 1,
       status: 'READY',
       recordsUrl: args.recordsUrl,
       recordsSha256: manifest.dataset.recordsSha256,
       sourceManifestSha256: Object.fromEntries(repositories.map((repository) => [repository.id, repository.sourceManifestSha256])),
-    }, null, 2)}\n`, 'utf8');
+    }, null, 2)}\n`);
     process.stdout.write(`${JSON.stringify({ status: 'READY', output: args.outputDirectory, recordsSha256: manifest.dataset.recordsSha256 })}\n`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'RepoBench acquisition failed';
+    process.exitCode = 2;
     await blocked(args.outputDirectory, reason).catch(() => undefined);
   }
 };
