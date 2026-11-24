@@ -54,3 +54,15 @@ Fixture self-tests run when the security workflow, installer or fixture director
 ## Evidence boundaries
 
 A green PR security workflow proves only the configured local/static checks for that source revision. It does not prove that historical secrets are absent, that online-only zizmor audits passed, or that external credentials were validated.
+
+## Dependency update operations
+
+[Dependabot configuration](../../.github/dependabot.yml) schedules weekly version checks for GitHub Actions, the root npm application, the isolated TypeSpec npm project, Python requirements, the Go connector, Rust and the root Docker directory. It becomes active when merged to the default branch. GitHub-hosted security alerts and security updates are separate settings; verify them under repository Settings → Security and quality / Advanced Security. Do not infer their activation from the file alone.
+
+Review [Dependabot update jobs](https://github.com/chris-madsen/Hybrid-RAG/network/updates) after the first scheduled run. Inspect failed resolver jobs and open PRs weekly. Review alerts promptly, and do not assume the absence of PRs proves that dependencies are current. Retain nightly OSV and Knip reporting; neither replaces version update jobs or scoped PR security checks.
+
+- Require ordinary PR review, exact-head scoped CI and the existing protected-main policy. No automatic merge, privileged token or bypass is introduced.
+- Keep Actions pinned to upstream release commit SHAs; verify release identity and compatibility before merging. The action runtime can be Node 24 while the ACE build/test runtime remains Node 22.
+- Treat TypeSpec compiler updates as a coordinated family; regenerate and review checked-in artifacts and rerun contract checks before merge. Treat lint peer dependencies as a coordinated migration, not forced installation of incompatible versions.
+- Python environments, CPU wheel indexes and version markers require separate compatibility review. The pinned external Bifröst checkout, native provider binaries, shell-script tool pins, runtime base-image digests and frozen benchmark fixtures are not guaranteed to be covered by these package-manager jobs. Keep those under the existing explicit pin/release evidence policy.
+- CodeQL runs on PRs in its existing scope and on pushes to main; scheduled mutation and remote-link checks retain their prior scopes. A green scan does not establish production security certification.

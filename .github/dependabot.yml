@@ -1,0 +1,78 @@
+# Version updates only become active on the default branch.
+# All changes remain ordinary reviewable PRs under protected main.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      first-party-actions:
+        patterns:
+          - "actions/*"
+      codeql:
+        patterns:
+          - "github/codeql-action*"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      lint-toolchain:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+      typescript-toolchain:
+        patterns:
+          - "typescript"
+          - "typescript-language-server"
+          - "@types/node"
+          - "tsx"
+    # Keep other runtime dependencies in individually reviewable PRs.
+
+  - package-ecosystem: "npm"
+    directory: "/typespec"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      typespec-family:
+        patterns:
+          - "@typespec/*"
+    # Codegen changes must regenerate committed artifacts before merging.
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    # Review separate Python environments, marker constraints and CPU wheels.
+
+  - package-ecosystem: "gomod"
+    directory: "/integrations/bifrost/ace-connector"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "cargo"
+    directory: "/rust"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    # Release base images are also governed by immutable-digest evidence.
