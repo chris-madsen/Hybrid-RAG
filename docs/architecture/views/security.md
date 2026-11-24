@@ -2,6 +2,8 @@
 
 **Governing viewpoint:** VP-05 · **Model kinds:** MK-06, MK-09 · **Concerns:** C-02, C-04, C-05, C-10.
 
+**Identity/version:** V-05 v1.1; ACE-AD-001 v1.1; 2026-11-24. **Perspectives:** SP-03, SP-04. **Aspects:** AS-05, AS-03. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
+
 ## Trust boundaries and control model
 
 | Asset / boundary | Risk | Control / intended invariant | Failure behavior |
@@ -22,3 +24,16 @@ Local service credentials are not provider OAuth credentials. Provider readiness
 - [Security gates](../../operations/security-gates.md) and [supply-chain evidence](../../operations/supply-chain-release-evidence.md) distinguish actual checks from release requirements.
 
 The listed controls are not a formal threat-model completion or a certification of live provider data handling, regulatory compliance or supply-chain signing. External acceptance and attack/failure observations must retain their own evidence. Correspondences CR-03, CR-05, CR-08 and CR-09 apply.
+
+## Identified view components
+
+| Component / version | Contents in this view | Governing model kind |
+| --- | --- | --- |
+| VC-05A v1.1 | Trust and control matrix | MK-06 |
+| VC-05B v1.1 | Control/decision/evidence relationships | MK-09 |
+
+The [versioned catalog](../viewpoints.md) supplies the conventions, construction/analysis methods and interpretation legends. Linked historical source documents are supporting material, not automatically current components. Correspondence methods: CR-03, CR-05, CR-08, CR-09.
+
+## Known issues
+
+Shared local authentication does not establish per-principal tenancy; external security acceptance remains open. See the [correspondence results and inconsistency register](../correspondences.md). No additional deviation from the governing notation conventions is identified in this documentation review.

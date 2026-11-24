@@ -2,6 +2,8 @@
 
 **Governing viewpoint:** VP-08 · **Model kinds:** MK-09, MK-08 · **Concerns:** C-03, C-08, C-09, C-11.
 
+**Identity/version:** V-08 v1.1; ACE-AD-001 v1.1; 2026-11-24. **Perspectives:** SP-02, SP-04. **Aspects:** AS-08, AS-02. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
+
 ## Decision and evolution model
 
 | Authority or artifact | Function |
@@ -26,6 +28,19 @@ The accepted approach uses one modular monolith, functional DDD and maintained p
 
 The protected-main policy and scoped checks are governed by the repository engineering rules and actual GitHub settings; this view does not assert or change hosted configuration.
 
-## View components
+## Supporting sources and evaluation references
 
 [Owner and engineering rules](../../../AGENTS.md), [operational SDLC](../../operations/ai-assisted-sdlc.md), [intent-first entry/resume](../../operations/implementation-entry-resume.md), [architecture design skill](../../../.agents/skills/ace-architecture-design/SKILL.md), [ADR register](../../references/ADR-000-decision-register.md), [detailed traceability](../06-traceability-and-review.md), [conformance assessment](../conformance.md). CR-01, CR-02, CR-07 and CR-09 apply.
+
+## Identified view components
+
+| Component / version | Contents in this view | Governing model kind |
+| --- | --- | --- |
+| VC-08A v1.1 | Decision and evolution model | MK-09 |
+| VC-08B v1.1 | Change/review and evidence rules | MK-08 |
+
+The [versioned catalog](../viewpoints.md) supplies the conventions, construction/analysis methods and interpretation legends. Linked historical source documents are supporting material, not automatically current components. Correspondence methods: CR-01, CR-02, CR-07, CR-09.
+
+## Known issues
+
+Provider selection and superseded records require ongoing reconciliation. See the [correspondence results and inconsistency register](../correspondences.md). No additional deviation from the governing notation conventions is identified in this documentation review.
