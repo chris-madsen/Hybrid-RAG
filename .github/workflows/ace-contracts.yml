@@ -17,6 +17,10 @@ jobs:
     outputs:
       node: ${{ steps.paths.outputs.node }}
       go: ${{ steps.paths.outputs.go }}
+      root_deps: ${{ steps.paths.outputs.root_deps }}
+      provider_deps: ${{ steps.paths.outputs.provider_deps }}
+      fast_deps: ${{ steps.paths.outputs.fast_deps }}
+      st_deps: ${{ steps.paths.outputs.st_deps }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,11 +49,19 @@ jobs:
           git diff --name-only --diff-filter=ACDMRT -z "${PR_BASE_SHA}" "${PR_HEAD_SHA}" > "${changed}"
           node=false
           go=false
+          root_deps=false
+          provider_deps=false
+          fast_deps=false
+          st_deps=false
           count=0
           while IFS= read -r -d '' path; do
             count=$((count + 1))
             echo "[scope] changed path: ${path}"
             case "${path}" in
+              package.json|package-lock.json|knip.jsonc|knip.json|knip.config.*) node=true; root_deps=true ;;
+              requirements-provider.txt) node=true; provider_deps=true ;;
+              requirements-embedding-fast.txt) node=true; fast_deps=true ;;
+              requirements-embedding-st.txt) node=true; st_deps=true ;;
               integrations/bifrost/ace-connector/*) go=true ;;
               scripts/build-bifrost-ace-plugin.sh|.github/workflows/ace-contracts.yml)
                 node=true; go=true ;;
@@ -68,7 +80,7 @@ jobs:
             echo "[scope] BLOCKED: no changed files between PR base and head" >&2
             exit 1
           fi
-          printf 'node=%s\ngo=%s\n' "${node}" "${go}" >> "${GITHUB_OUTPUT}"
+          printf 'node=%s\ngo=%s\nroot_deps=%s\nprovider_deps=%s\nfast_deps=%s\nst_deps=%s\n' "${node}" "${go}" "${root_deps}" "${provider_deps}" "${fast_deps}" "${st_deps}" >> "${GITHUB_OUTPUT}"
           echo "[scope] PR node=${node} go=${go} (full runs nightly)"
 
   contracts:
@@ -76,7 +88,7 @@ jobs:
     needs: scope
     if: github.event_name != 'pull_request' || needs.scope.outputs.node == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 45
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -120,12 +132,54 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           python3 -m venv .venv-system
-          .venv-system/bin/python -m pip install --disable-pip-version-check tree-sitter==0.26.0 tree-sitter-typescript==0.23.2
+          grep -E '^tree-sitter(-typescript)?==' requirements-provider.txt > "$RUNNER_TEMP/ace-structural-requirements.txt"
+          .venv-system/bin/python -m pip install --disable-pip-version-check -r "$RUNNER_TEMP/ace-structural-requirements.txt"
       - name: Focused PR typecheck, affected tests, lint and architecture
         if: github.event_name == 'pull_request'
         env:
           ACE_TEST_BASE: ${{ github.event.pull_request.base.sha }}
         run: npm run verify:pr
+      - name: Run dependency usage analysis on npm manifest changes
+        if: github.event_name == 'pull_request' && needs.scope.outputs.root_deps == 'true'
+        run: npm run analyze:dependencies
+      - name: Verify native CBM and TypeScript LSP after npm dependency changes
+        if: github.event_name == 'pull_request' && needs.scope.outputs.root_deps == 'true'
+        env:
+          ACE_TEST_REAL_CBM: 'true'
+        run: |
+          npx --no-install tsx --test test/codebase-memory-stdio.contracts.test.ts test/codebase-memory-graph.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
+          npm run test:real-same-name
+      - name: Set up Python for changed dependency environments
+        if: github.event_name == 'pull_request' && (needs.scope.outputs.provider_deps == 'true' || needs.scope.outputs.fast_deps == 'true' || needs.scope.outputs.st_deps == 'true')
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Verify changed provider dependencies
+        if: github.event_name == 'pull_request' && needs.scope.outputs.provider_deps == 'true'
+        run: |
+          python -m venv "$RUNNER_TEMP/ace-provider"
+          py="$RUNNER_TEMP/ace-provider/bin/python"
+          "$py" -m pip install --disable-pip-version-check -r requirements-provider.txt
+          "$py" -m pip check
+          "$py" scripts/dependency-provider-smoke.py provider
+      - name: Verify changed FastEmbed dependencies
+        if: github.event_name == 'pull_request' && needs.scope.outputs.fast_deps == 'true'
+        run: |
+          python -m venv "$RUNNER_TEMP/ace-fast"
+          py="$RUNNER_TEMP/ace-fast/bin/python"
+          "$py" -m pip install --disable-pip-version-check -r requirements-embedding-fast.txt
+          "$py" -m pip check
+          "$py" scripts/dependency-provider-smoke.py fast
+      - name: Verify changed Sentence Transformers CPU dependencies
+        if: github.event_name == 'pull_request' && needs.scope.outputs.st_deps == 'true'
+        run: |
+          python -m venv "$RUNNER_TEMP/ace-st"
+          py="$RUNNER_TEMP/ace-st/bin/python"
+          torch_pin="$(grep '^torch==' requirements-embedding-st.txt)"
+          "$py" -m pip install --disable-pip-version-check --no-deps --index-url https://download.pytorch.org/whl/cpu "$torch_pin"
+          "$py" -m pip install --disable-pip-version-check -r requirements-embedding-st.txt
+          "$py" -m pip check
+          HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 "$py" scripts/dependency-provider-smoke.py st
       - name: Full nightly deterministic TypeScript, architecture, build and property suite
         if: github.event_name != 'pull_request'
         env:
@@ -333,10 +387,11 @@ jobs:
           test -s "$OUTPUT"
 
   real-qdrant:
+    needs: scope
     # Real Qdrant service + real FastEmbed model. This is projection/retrieval
     # evidence only; it deliberately does not certify Bifröst or an LLM wire.
     # Keep a single shared cache for the composed projection acceptance.
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || needs.scope.outputs.fast_deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 65
     services:

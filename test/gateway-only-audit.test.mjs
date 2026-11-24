@@ -66,3 +66,40 @@ test('Gateway-only audit rejects old protocol in content and filenames', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('only canonical SRI bytes in maintained lockfiles are exempt from the retired-token scan', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-gateway-sri-'));
+  try {
+    assert.equal(exec('git', ['init', '--quiet'], root).status, 0);
+    mkdirSync(join(root, 'typespec'));
+    mkdirSync(join(root, 'src'));
+    // 64 bytes with the retired token in canonical base64, not a package name.
+    const encoded = retiredToken + 'A'.repeat(83) + '==';
+    assert.equal(Buffer.from(encoded, 'base64').length, 64);
+    const lock = (integrity, name = 'safe-package') => JSON.stringify({
+      name, packages: { 'node_modules/safe-package': { integrity } },
+    }, null, 2);
+    const sri = 'sha512-' + encoded;
+    for (const path of ['package-lock.json', 'typespec/package-lock.json']) {
+      writeFileSync(join(root, path), lock(sri));
+    }
+    assert.equal(exec('git', ['add', '.'], root).status, 0);
+    assert.equal(exec(process.execPath, [script], root).status, 0);
+    for (const [path, body] of [
+      ['typespec/package-lock.json', lock(sri, retiredToken)],
+      ['typespec/package-lock.json', lock('sha512-' + retiredToken)],
+      ['src/other.json', lock(sri)],
+    ]) {
+      writeFileSync(join(root, path), body);
+      assert.equal(exec('git', ['add', '.'], root).status, 0);
+      const result = exec(process.execPath, [script], root);
+      assert.equal(result.status, 1, result.stdout);
+      assert.equal(JSON.parse(result.stdout).matches.some((entry) => entry.path === path), true);
+      if (path.startsWith('src/')) rmSync(join(root, path));
+      else writeFileSync(join(root, path), lock(sri));
+      assert.equal(exec('git', ['add', '-A'], root).status, 0);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
