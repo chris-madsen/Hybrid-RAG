@@ -431,6 +431,10 @@ jobs:
         run: |
           npm ci --ignore-scripts
           python -m pip install --disable-pip-version-check -r requirements-embedding-fast.txt
+      - name: Install pinned native structural provider
+        run: | # zizmor: ignore[adhoc-packages] exact upstream v0.12.1 verifies its binary archive
+          npm install --global codebase-memory-mcp@0.12.1
+          codebase-memory-mcp --version
       - name: Verify live Qdrant server
         shell: bash
         run: |
