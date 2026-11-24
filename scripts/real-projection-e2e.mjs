@@ -63,7 +63,6 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_QDRANT_WRITER_TOPOLOGY: 'single_host',
     ACE_QDRANT_PUBLICATION_DIR: join(directory, 'qdrant-publication'),
     ACE_EMBEDDING_WORKER: process.env.ACE_EMBEDDING_WORKER ?? runtime.embeddingWorker,
-    ACE_AST_GREP_COMMAND: process.env.ACE_AST_GREP_COMMAND ?? runtime.astGrepCommand,
     ACE_CONTEXT_RPC_HOST: '127.0.0.1',
     ACE_CONTEXT_RPC_PORT: String(gatewayPort),
     ACE_CONTEXT_RPC_SHARED_SECRET: 'real-provider-fixture-secret',

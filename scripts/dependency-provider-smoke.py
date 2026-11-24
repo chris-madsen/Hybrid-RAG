@@ -13,16 +13,9 @@ def provider():
     import httpx2
     import ssl
     from graphiti_core.driver.falkordb_driver import FalkorDriver
-    from tree_sitter import Language, Parser
-    import tree_sitter_typescript
-    import ast_grep_py
-    import pygls
     assert ssl.create_default_context(cafile=certifi.where()).get_ca_certs()
-    language = Language(tree_sitter_typescript.language_typescript())
-    tree = Parser(language).parse(b"const x: number = 1;")
-    assert not tree.root_node.has_error
     assert callable(FalkorDriver)
-    assert httpcore2 and httpx2 and ast_grep_py and pygls
+    assert httpcore2 and httpx2
 
 
 def fast():

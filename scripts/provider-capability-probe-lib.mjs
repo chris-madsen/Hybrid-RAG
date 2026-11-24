@@ -197,7 +197,7 @@ export const buildProviderReport = async ({
     ? kubectlCommand
     : commandProbe(resolvedKubectl, ['version', '--client=true', '--output=json'], commandOptions);
   const commands = [
-    commandProbe('ast-grep', ['--version'], commandOptions),
+    commandProbe('codebase-memory-mcp', ['--version'], commandOptions),
     commandProbe('typescript-language-server', ['--version'], commandOptions),
     providerCommand('harbor', ['--version'], { ...commandOptions, wsl }),
     {
@@ -218,7 +218,6 @@ export const buildProviderReport = async ({
     pythonProbe('harbor', platform),
     pythonProbe('terminal_bench', platform),
     pythonProbe('graphiti_core', platform),
-    pythonProbe('pygls', platform),
   ];
   const kubeconfig = '/etc/rancher/k3s/k3s.yaml';
   const kubeconfigAvailable = existsSync(kubeconfig);

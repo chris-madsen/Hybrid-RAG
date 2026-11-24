@@ -51,6 +51,5 @@ export const resolveRealProviderRuntime = async (scriptDirectory) => {
     sourceCommit,
     executable: resolve(runtimeRoot, 'dist/bin/ace-context-rpc.js'),
     embeddingWorker: resolve(runtimeRoot, 'scripts/fastembed-worker.sh'),
-    astGrepCommand: resolve(runtimeRoot, 'node_modules/.bin/ast-grep'),
   };
 };

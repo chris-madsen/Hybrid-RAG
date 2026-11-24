@@ -33,7 +33,6 @@ RUN npm prune --omit=dev --ignore-scripts \
 ENV ACE_STATE_DIR=/var/lib/ace/state \
     ACE_ARTIFACT_DIR=/var/lib/ace/artifacts \
     FASTEMBED_CACHE_PATH=/var/lib/ace/model-cache \
-    ACE_AST_GREP_COMMAND=/opt/ace/node_modules/.bin/ast-grep \
     ACE_EMBEDDING_WORKER=/opt/ace/scripts/fastembed-worker.sh \
     ACE_EMBEDDING_PYTHON=/opt/ace/.venv-embedding-fast/bin/python \
     TMPDIR=/tmp
