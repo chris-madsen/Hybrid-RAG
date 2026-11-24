@@ -43,6 +43,12 @@ IDs are stable within this AD; they do not replace OpenSpec requirement IDs.
 | C-10 | Reproducible supply-chain, configuration and operational evidence | SH-04, SH-05, SH-07 | High | V-05, V-06, V-07 |
 | C-11 | Reviewable changes, decision traceability and honest readiness claims | SH-01, SH-03, SH-05, SH-07 | High | V-07, V-08 |
 
+## Treatment of previous evaluations and limitations
+
+The [October architecture failure review](../reviews/2026-10-18-architecture-failure-review.md) exposed the gap between typed ports and actual composition; C-06/C-09, V-02/V-07 and CR-06 address it. The [November independent audit](../reviews/2026-11-19-astra-independent-audit.md) prioritized one complete Hermes task, source freshness, publication/archive integrity and correct usage evidence; C-02/C-05/C-06/C-07 and CR-03 through CR-08 retain these concerns. The [remediation analysis](../reviews/2026-11-20-ace-remediation-engineering-decisions.md) informs side-effect ownership and reuse; the [engine comparison](../reviews/2026-11-20-code-intel-engine-bakeoff.md) is historical, not a current selection oracle. OpenSpec 013/014 own the corresponding acceptance criteria. Earlier defects are not asserted to remain in the current source without revalidation.
+
+Stakeholder interests are represented by roles because ACE is a maintainer-led open-source project, not a separate operational or regulatory organization. Provider maintainers, source/data owners and affected users are represented through the integration, data handling and assurance boundaries in SH-02/SH-04/SH-05; no direct external consultation or approval is claimed. Limited resources and absence of authorized live trial execution in this change prevent a new external-wire, production deployment, independent task economics or regulatory/security assessment. These constraints leave operational and stakeholder validation open, as recorded in the views, correspondence register and [assessment](conformance.md). No concern is removed to manufacture a positive assessment.
+
 ## Architecture aspects
 
 An aspect identifies a property of the architecture addressed by one or more views.

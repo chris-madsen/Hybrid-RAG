@@ -2,7 +2,7 @@
 
 Correspondences relate architecture-description elements and support consistency across views. This register records both the relationships and the rules used to evaluate them. It does not replace the behavioral requirement or evidence ledgers.
 
-## Correspondence rules
+## Correspondence methods
 
 | ID | Related elements | Consistency rule | Evaluation method |
 | --- | --- | --- | --- |
@@ -15,6 +15,24 @@ Correspondences relate architecture-description elements and support consistency
 | CR-07 | V-03, V-07, V-08 | Provider choice and economics are evaluated on matched inputs; no unproven removal or 5× claim | Review frozen benchmark and accepted-task evidence; separate retrieval and agent outcomes |
 | CR-08 | V-05, V-06, V-07 | Operational and supply-chain assurance must bind exact release source, artifacts and applicable real evidence | Inspect provenance, SBOM, signature/verification records, recovery and readiness evidence |
 | CR-09 | V-05, V-07, V-08 | Decision and acceptance status are not promoted by docs, a local build or a controlled exception | Compare owner/ADR/OpenSpec status, recorded source and actual verification conclusions |
+
+## Recorded correspondences and evaluation
+
+The participating architecture description for each CO relation is ACE-AD-001 v1.1. CO identifies the actual relationship between AD elements; CR identifies its governing method. These are documentary/source evaluations, not a fresh live execution. An unproved method is recorded as not satisfied, with its missing evidence.
+
+| Correspondence | Participating AD elements | Method | Evaluated result and known gap |
+| --- | --- | --- | --- |
+| CO-01 | VC-01A, VC-04A, VC-08A, ADR-021 | CR-01 | HOLDS for documented/source ownership: Bifröst owns model dispatch and v3 is internal; external wire is evaluated in CO-05 |
+| CO-02 | VC-02A, VC-04B, VC-07A, VC-08A, ADR-019 | CR-02 | NOT SATISFIED as complete implementation proof: view rules agree, but exact-final-head dependency and generated-contract checks must be observed |
+| CO-03 | VC-01A, VC-03A, VC-04B, VC-05A, C-02, C-04 | CR-03 | NOT SATISFIED for end-to-end proof: source authority and policy agree; complete source coverage and real outbound data evidence remain open |
+| CO-04 | VC-03A, VC-06A, VC-07A | CR-04 | NOT SATISFIED operationally: temporal recall and deployment status agree; provider restart, publication and archive recovery acceptance remains incomplete |
+| CO-05 | VC-01A, VC-04A, VC-05A, VC-06A, VC-07A | CR-05 | NOT SATISFIED: documented route and placement agree; real physical wire, native stream and tenant/attempt evidence remain open |
+| CO-06 | VC-02A, VC-07A | CR-06 | NOT SATISFIED for full composition: scoped CBM/Qdrant/LSP source and tests exist; real provider/agent acceptance remains incomplete |
+| CO-07 | VC-03A, VC-07A, VC-08A | CR-07 | NOT SATISFIED: matched retrieval alternatives and accepted-task economics remain unproven; no claimed fivefold saving |
+| CO-08 | VC-05A, VC-06B, VC-07A | CR-08 | NOT SATISFIED: exact release signature, deployment and recovery evidence remain incomplete |
+| CO-09 | VC-05B, VC-07B, VC-08A, C-11 | CR-09 | HOLDS for the AD: current/target/acceptance states remain separate; migration does not approve a release or promote tracker status |
+
+Methods with unsatisfied outcomes are recorded rather than silently treated as passed. Such open architecture/evidence findings are distinct from a missing mandatory AD element. Before changing a result, review the method's stated evidence and exact configuration. These methods apply to the AD and the linked viewpoint/model-kind specifications.
 
 ## Concern-to-decision-to-evidence register
 
@@ -45,6 +63,8 @@ The detailed historical PRD-to-OpenSpec mapping is retained in [06-traceability-
 | INC-03 | Selected Graphiti architecture versus absent active runtime provider | Explicit target/not-ready distinction in V-03/V-06/V-07 |
 | INC-04 | Overlapping CBM/Qdrant discovery and independent LSP verification | No final choice without the matched evaluation in CR-07 |
 | INC-05 | Offline contracts and local projection evidence versus open real-agent acceptance | Explicit evidence progression in V-07; 013/014 remain canonical |
-| INC-06 | Original documentation layout is embedded in historical checksum records and existing non-documentation references | Historical checksums remain unchanged. Documentation is relocated; existing script/configuration consumers are not rewritten by this documentation-only change. Track those path dependencies separately. |
+| INC-06 | Previous layout and stale design fingerprints | Resolved by relocating documentation and fixing all identified script, test fixture, workflow and configuration consumers; rebind path-only design fingerprints; retain the obsolete checksum snapshot in Git history. Final CI is independently verified. |
+| INC-07 | Shared loopback identity is not per-principal host/workspace authentication | Keep the supported single-workspace deployment scope and the exact authorization boundary. Do not claim untrusted multi-tenant isolation. |
+| INC-08 | Local build and archive evidence are not complete deployed-release assurance | Exact release, recovery and real deployment acceptance remain open. |
 
 Any architecture change must review the affected rules, identify unresolved discrepancies and record the evidence or decision required for closure.

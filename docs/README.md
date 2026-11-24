@@ -1,6 +1,6 @@
 # ACE documentation
 
-Start with the [Architecture Description](architecture/README.md) for the system's scope, stakeholders, concerns, architecture views and traceability. It uses the ISO/IEC/IEEE 42010:2022 architecture-description concepts as an organizing structure, without claiming formal standards conformance.
+Start with the [Architecture Description](architecture/README.md) for the system's scope, stakeholders, concerns, architecture views and traceability. It uses the ISO/IEC/IEEE 42010:2022 architecture-description concepts as an organizing structure, with a clause-by-clause internal conformance assessment.
 
 ## Documentation map
 
@@ -28,4 +28,4 @@ Current explicit owner decisions, accepted ADRs, applicable OpenSpec and the eng
 
 The November 2026 documentation relocation removes the duplicated documentation root. The existing detailed DDD records, ADRs, PRD and spikes retain their identities and historical statuses. The obsolete checksum manifest is retained in [the original Git revision](https://github.com/chris-madsen/Hybrid-RAG/blob/c5983d008c9353e37182883966ab64eb6601705e/docs/SHA256SUMS.txt), not presented as a current-tree integrity manifest. Inspect Git history for earlier paths and byte identities rather than recalculating historical evidence.
 
-The [docs-scoped writing instructions](AGENTS.md) govern documentation maintenance. For standards alignment and the outstanding normative review, see [conformance assessment](architecture/conformance.md).
+The [docs-scoped writing instructions](AGENTS.md) govern documentation maintenance. For the standards assessment and remaining verification limitations, see [conformance assessment](architecture/conformance.md).

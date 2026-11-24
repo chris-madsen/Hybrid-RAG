@@ -20,7 +20,7 @@ Unlike a standalone vector search or an agent-specific retrieval plugin, ACE int
 
 ## Architecture
 
-The [Architecture Description](docs/architecture/README.md) organizes ACE's stakeholder concerns, architecture views, decisions and traceability around ISO/IEC/IEEE 42010:2022. It separates the implemented system from target capabilities and acceptance evidence.
+The [Architecture Description](docs/architecture/README.md) organizes ACE's stakeholder concerns, architecture views, decisions and traceability around ISO/IEC/IEEE 42010:2022. It separates the implemented system from target capabilities and acceptance evidence; the [clause-by-clause assessment](docs/architecture/conformance.md) records the review scope and limitations.
 
 
 ```text

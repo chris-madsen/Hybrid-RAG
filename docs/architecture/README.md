@@ -1,8 +1,8 @@
 # ACE Architecture Description
 
-**AD identifier:** ACE-AD-001 · **Edition:** 1.0 · **Baseline:** 24 November 2026, main at c5983d008c9353e37182883966ab64eb6601705e.
+**AD identifier:** ACE-AD-001 · **Edition:** 1.1 · **Baseline:** 24 November 2026, main at c5983d008c9353e37182883966ab64eb6601705e.
 
-This architecture description is organized using the concepts of [ISO/IEC/IEEE 42010:2022](https://www.iso.org/standard/74393.html), Software, systems and enterprise — Architecture description. It describes the software system and its environment, rather than prescribing a different development methodology. It is a documentation alignment, not an independent certification or a claim of full normative conformance.
+This architecture description is organized using the concepts of [ISO/IEC/IEEE 42010:2022](https://www.iso.org/standard/74393.html), Software, systems and enterprise — Architecture description. It describes the software system and its environment, rather than prescribing a different development methodology. The [clause-by-clause assessment](conformance.md) records the internal evaluation, including unresolved architecture evidence. It is not third-party certification.
 
 ## Read the architecture
 
@@ -20,11 +20,12 @@ This architecture description is organized using the concepts of [ISO/IEC/IEEE 4
 | [Quality and assurance](views/quality.md) | Fitness functions, verification scopes and benchmark acceptance |
 | [Evolution and governance](views/governance.md) | Decisions, change control and architecture maintenance |
 | [Correspondences](correspondences.md) | Cross-view relationships, invariants, source/contract and evidence references |
+| [Essential decisions and rationale](decisions.md) | Decisions, affected concerns, consequences and original ADR authority |
 | [Conformance assessment](conformance.md) | Standards alignment, known inconsistencies, evaluation and outstanding work |
 
 ## Detailed model components and original records
 
-The existing detailed design records are retained as linked view components, not rewritten as a competing architecture. Where their historical assumptions differ from current accepted decisions or source, use the current view and the identified supersession.
+The existing detailed design records are retained as supporting source models, not rewritten as a competing architecture. Current view components have their own IDs, versions and governing model kinds. Where their historical assumptions differ from current accepted decisions or source, use the current view and the identified supersession.
 
 - [Strategic DDD](01-strategic-ddd.md), [Event Storming](02-event-storming.md), [Tactical DDD](03-tactical-ddd.md), [FSM workflows](04-fsm-workflows.md).
 - [Contracts and deployment](05-contracts-and-deployment.md), [traceability and review](06-traceability-and-review.md), [architecture fitness contracts](07-architecture-fitness-contracts.md).

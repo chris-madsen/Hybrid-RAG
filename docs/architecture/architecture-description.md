@@ -8,7 +8,11 @@
 | Audience | See [stakeholders and concerns](concerns.md) |
 | Custodian | Repository maintainer; architecture decisions follow the explicit owner/ADR policy |
 | Baseline | main at c5983d008c9353e37182883966ab64eb6601705e, inspected 24 November 2026 |
-| Status | Architecture documentation alignment; implementation and acceptance statuses are separate |
+| Status | Version 1.1, internally assessed architecture description; implementation and acceptance statuses are separate |
+| Issuing project | Adaptive Context Engine open-source repository, chris-madsen/Hybrid-RAG |
+| Issued / revised | 2026-11-24; v1.0 initial migration; v1.1 normative review and path reconciliation |
+| Author / review | AI-assisted repository contribution; author-side review; maintainer approval remains the PR decision |
+| Configuration | Git-versioned Markdown; view, component and convention versions recorded in the architecture catalog |
 | Standard reference | [ISO/IEC/IEEE 42010:2022](https://www.iso.org/standard/74393.html) |
 
 ## Context and mission
@@ -47,4 +51,6 @@ The current architecture comprises Bifröst native subscription passthrough, int
 
 The [ADR register](../references/ADR-000-decision-register.md) retains rationale and historical decisions; notably [ADR-019](../references/ADR-019-functional-ddd-typespec-contracts.md), [ADR-020](../references/ADR-020-native-responses-only.md) and [ADR-021](../references/ADR-021-bifrost-single-gateway-ace-context-service.md). ADR-021 governs the single-gateway implementation and internal RPC; older designs remain historical where superseded.
 
-Architecture views are governed by [viewpoints](viewpoints.md) and linked by [correspondence rules](correspondences.md). Changes must respect [AGENTS](../../AGENTS.md), applicable ADR/OpenSpec and the operational SDLC. Formal standards alignment status and outstanding evaluation are recorded in [conformance](conformance.md).
+The [essential decision index](decisions.md) records affected concerns, decisions and rationale with original authority. No separate conforming architecture description framework or language is claimed; the viewpoints are project-specific conventions.
+
+Architecture views are governed by [viewpoints](viewpoints.md) and linked by [correspondence rules](correspondences.md). Changes must respect [AGENTS](../../AGENTS.md), applicable ADR/OpenSpec and the operational SDLC. Standards assessment and outstanding evaluation are recorded in [conformance](conformance.md).
