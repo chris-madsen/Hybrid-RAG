@@ -13,6 +13,8 @@ on:
       - ".github/codeql/codeql-config.yml"
       - "docs/research/sdlc/**"
       - "docs/plans/**"
+  push:
+    branches: [main]
   schedule:
     - cron: "17 4 * * *"
   workflow_dispatch:
@@ -68,6 +70,7 @@ jobs:
         run: node scripts/check-codeql-sarif.mjs --dir "$CODEQL_SARIF_DIR"
 
   targeted-mutation:
+    if: github.event_name != 'push'
     name: Targeted critical mutation
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -91,7 +94,7 @@ jobs:
 
   remote-links:
     name: Scheduled remote Markdown links (signal only)
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     continue-on-error: true
