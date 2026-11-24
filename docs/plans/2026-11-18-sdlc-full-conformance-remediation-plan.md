@@ -439,7 +439,7 @@ Expected artifacts:
 - P: automatically sized tasks;
 - X: executable phase briefs.
 
-Use stacked **ordinary Ready-for-review PRs (`draft: false`)** as mandated by current owner policy. Never treat pending G02, unmerged stages or incomplete CI as a reason to create or retain a Draft PR. G02 remains review-required unless the owner actually approves it.
+Use stacked **ordinary Ready-for-review PRs** as mandated by current owner policy. Never postpone review availability due to pending G02, unmerged stages or incomplete CI. G02 remains review-required unless the owner actually approves it.
 
 ## Trial 2 — direct implementation entry
 

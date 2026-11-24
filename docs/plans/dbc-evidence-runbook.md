@@ -15,11 +15,11 @@ A test result and a production claim are different things. Every DBC record is o
 
 The generator reads the current Git commit itself. Do not copy an older SHA into an evidence report.
 
-Evidence metadata is also scanned for credential-like values. Describe authorization scope (for example, `local-only` or `Vertex read-only corpus scope`) but never paste bearer tokens, API keys, passwords, private keys, or authorization headers into a draft.
+Evidence metadata is also scanned for credential-like values. Describe authorization scope (for example, `local-only` or `Vertex read-only corpus scope`) but never paste bearer tokens, API keys, passwords, private keys, or authorization headers into an evidence input file.
 
-## Draft format
+## Evidence input format
 
-Create a temporary draft such as:
+Create a temporary evidence input such as:
 
 ```json
 {
@@ -76,7 +76,7 @@ The example paths above are illustrative. Do not mark a record `PASS` until thos
 ## Generate
 
 ```bash
-npm run evidence:dbc -- /path/to/draft.json artifacts/dbc-evidence.json
+npm run evidence:dbc -- /path/to/evidence-input.json artifacts/dbc-evidence.json
 ```
 
 The generator:
@@ -90,7 +90,7 @@ The generator:
 To make an acceptance job fail unless all fourteen records are real PASS results:
 
 ```bash
-ACE_REQUIRE_ALL_DBC_PASS=true npm run evidence:dbc -- draft.json artifacts/dbc-evidence.json
+ACE_REQUIRE_ALL_DBC_PASS=true npm run evidence:dbc -- evidence-input.json artifacts/dbc-evidence.json
 ```
 
 A partial evidence manifest is useful during development, but it is not production acceptance.

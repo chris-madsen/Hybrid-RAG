@@ -45,7 +45,7 @@ type Result<A, E> =
 
 type DomainState = Readonly<{
   version: number;
-  status: "draft" | "published";
+  status: "proposed" | "published";
 }>;
 
 type DomainCommand = Readonly<{

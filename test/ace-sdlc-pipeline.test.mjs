@@ -57,7 +57,7 @@ test('one-agent ACE skills are discoverable, routed and keep G02 separate', () =
   assert.match(handoff, /STALE/u);
   assert.match(handoff, /stacked/u);
   assert.match(handoff, /no automatic merge|never.*auto.merge/iu);
-  assert.match(file('.agents/skills/ace-stage-handoff/SKILL.md'), /ordinary Ready-for-review \(`draft: false`\)/u);
+  assert.match(file('.agents/skills/ace-stage-handoff/SKILL.md'), /ordinary Ready-for-review GitHub PR/u);
   assert.doesNotMatch(file('docs/operations/staged-sdlc-pipeline.md'), /create a stacked Draft PR|open \*\*Draft PR\*\*/iu);
 });
 
@@ -67,8 +67,8 @@ test('owner PR policy forbids automatic Draft PR publication across executable A
   const stageSkill = file('.agents/skills/ace-stage-handoff/SKILL.md');
   const stageMetadata = file('.agents/skills/ace-stage-handoff/agents/openai.yaml');
   assert.match(root, /PR publication \(explicit owner decision/u);
-  assert.match(root, /ordinary Ready-for-review PRs \(`draft: false`\)/u);
-  assert.match(stageSkill, /NEVER set \(`draft: true`\)|NEVER set `draft: true`/u);
+  assert.match(root, /open GitHub PRs immediately in the ordinary Ready-for-review state/u);
+  assert.match(stageSkill, /Never turn an open reviewable PR into a preliminary status/u);
   assert.match(stageMetadata, /ordinary Ready-for-review PRs/u);
 
   // A document describing a provisional *plan* is fine; an instruction to

@@ -1,195 +1,186 @@
-# Adaptive Context Engine (ACE) Harness
+# Adaptive Context Engine (ACE)
 
-ACE is an **agent-neutral hybrid context/RAG engine**, not an agent scheduler or a second LLM proxy. **Bifröst is the single agent-facing LLM Gateway** (ADR-017, ADR-021 and explicit owner decisions). Hermes already owns subscription OAuth; pinned Bifröst already provides ChatGPT/Codex native passthrough. The Go ACE plugin uses that existing route to call the **local context projection service** in ACE Core and apply verified context to the same outgoing native Responses request. ACE does not log into ChatGPT, select billing keys, perform provider generation or open a separate model proxy. Deterministic tests and the pinned Go plugin build are not proof of a real Hermes/provider E2E.
+**Open-source context engineering infrastructure for AI coding agents.**
 
+ACE combines hybrid retrieval, code intelligence and source verification to supply relevant, compact evidence directly to native LLM requests. It is designed to improve coding-agent task quality and token efficiency while preserving agent autonomy, exact source access and data privacy.
 
-## Architecture at a glance
+Unlike a standalone vector search or an agent-specific retrieval plugin, ACE integrates at the LLM gateway boundary. Coding agents retain their own reasoning and tool workflows while the context engine handles evidence retrieval, verification and delivery.
+
+**TypeScript · Effect · Go · Python · Qdrant · Codebase Memory · LSP · TypeSpec · Docker/k3s**
+
+## Key capabilities
+
+- **Hybrid code intelligence:** structural AST and dependency-graph discovery, semantic and BM25 search, dense/sparse vector retrieval, reciprocal rank fusion (RRF), optional reranking and independent language-server verification.
+- **Source-grounded context:** exact current-file verification, SHA-256 digests, UTF-8 source spans, workspace reconciliation and lossless access to authorized originals.
+- **Agent-neutral integration:** additive context projection into native Responses requests through a Bifröst plugin, with signed receipts and per-attempt source/data-policy authorization.
+- **Privacy-aware data architecture:** local code indexing and immutable archival storage, explicit authorization for external document retrieval and model egress.
+- **Evidence-driven engineering:** typed contracts, functional domain modeling, automated architecture/security checks, reproducible builds and independent retrieval/agent benchmark methodology.
+
+[Architecture](#architecture) · [Retrieval and memory](#retrieval-and-memory) · [Development roadmap](#development-roadmap) · [Local development](#local-development) · [Verification](#verification-and-release)
+
+## Architecture
 
 ```text
-Hermes (own ChatGPT/Codex subscription OAuth, native Responses input)
-       |
-       v
-Bifröst (single LLM Gateway; existing ChatGPT/Codex passthrough)
-       |  post-auth HTTP plugin intercepts the same POST
-       +-- ACE Go connector -- local authenticated projection/attempt API
-       |                        |
-       |                     ACE Core (TypeScript + Effect)
-       |                        |-- code: CBM + Qdrant dense/sparse + external LSP
-       |                        |-- documents: authorized Vertex RAG
-       |                        +-- durable archive / temporal provider readiness
-       |                        |
-       |                    additive context + signed receipt
-       |
-       +-- native request, guarded exact final bytes --> chatgpt.com
-           Bifröst handles OAuth bearer forwarding, retries, streaming and response
+Hermes (own ChatGPT/Codex subscription OAuth)
+  | native Responses
+  v
+Bifröst — sole agent-facing LLM Gateway
+  | POST /chatgpt_passthrough/backend-api/codex/responses
+  | post-auth Go ACE plugin
+  +---- authenticated loopback context RPC ----> ACE Core (TypeScript + Effect)
+  |                                              | code: CBM + Qdrant + LSP
+  |                                              | docs: authorized Vertex AI RAG
+  |                                              | memory: archive; Graphiti target
+  |                                              v
+  |<--- verified additive context + signed receipt
+  |
+  | per-physical-send source/data-policy authorization
+  v
+ChatGPT/Codex native Responses provider
+  (Bifröst owns bearer forwarding, retries, streaming and response accounting)
 ```
 
-**Status:** native Responses contracts and offline implementation exist. Final physical-provider wire, real Hermes agent loop, independent Harbor quality and release acceptance remain evidence-gated. Qdrant's necessity versus CBM-only has **not** been established; the existing runtime still requires Qdrant to compose code retrieval. See [source-verified architecture/status](docs/operations/current-architecture.md).
+ACE is neither an agent scheduler nor a second model proxy. Hermes owns its subscription OAuth; Bifröst forwards the bearer on its existing native subscription route. ACE never authenticates to ChatGPT on the agent's behalf, chooses billing credentials, generates model responses, or exposes retrieval tools for discretionary model invocation. No API-key or legacy Chat/Completions fallback is permitted for the subscription path.
 
-**Memory readiness:** Gateway-native Graphiti remains NOT_READY; the current runtime refuses its retired adapter even when the immutable archive is available.
+The ACE internal interface is TypeSpec-defined `ace.context.v3` HTTP/JSON RPC, with generated TypeScript, OpenAPI, JSON Schema and SDK artifacts. Its four operations are:
 
-Private source and conversations remain local by default; Vertex is a
-**separately authorized documentation source**, never an implicit destination
-for private code. Current verified source bytes outrank stale index data,
-derived memory and documentation when determining actual program behavior.
-The 5× accepted-task token reduction is a benchmark hypothesis, not a reported
-achievement. See [ADR-017](docs/docs/references/ADR-017-bifrost-unified-llm-gateway.md), [ADR-014](docs/docs/references/ADR-014-hybrid-context-engine.md),
-[OpenSpec 007](openspec/changes/007-hybrid-context-engine/),
-and the [2026-10-21 targeted code review](docs/reviews/2026-10-21-hybrid-context-static-code-review.md).
+| Method | Internal path (prefix: `/internal/ace-context/v3`) |
+| --- | --- |
+| GET | `/health` |
+| GET | `/capabilities` |
+| POST | `/project` |
+| POST | `/authorize-attempt` |
 
-## Source-verified Docker image
+The Go plugin applies context to the **same** native Responses request. Projection preserves the original input items and opaque fields, and adds verified evidence rather than replacing the agent's history. `PREPARED` is not permission to send: each physical attempt requires a fresh, single-use authorization bound to the protected final request, route, model and source/data policy. Unknown or denied attempts fail closed.
 
-Build ACE in a clean Git checkout, then package and verify those exact compiled bytes. The Docker context excludes `.git`; the image never fabricates a commit identity.
+See [ADR-021: single Bifröst Gateway](docs/docs/references/ADR-021-bifrost-single-gateway-ace-context-service.md), [ADR-020: native Responses](docs/docs/references/ADR-020-native-responses-only.md), [current architecture](docs/operations/current-architecture.md) and the [Go connector](integrations/bifrost/ace-connector/README.md).
+
+## Retrieval and memory
+
+| Component | Role | Current boundary |
+| --- | --- | --- |
+| Codebase Memory (CBM) v0.12.1 | Native AST, code graph, semantic and SQLite FTS5/BM25 discovery | Active structural/graph engine; persistent application-owned stdio RPC, not agent-facing MCP |
+| Qdrant | Dense/sparse code retrieval and native RRF | Current hybrid code-retrieval runtime; comparative evaluation against CBM-only is planned |
+| External LSP | Independent symbol/definition verification | Exact-symbol verification using maintained language servers, with TypeScript Language Server as the default |
+| Vertex AI RAG | Authorized project documentation | Explicit cloud opt-in and corpus/IAM configuration; not a private-code destination |
+| Local immutable archive | Content-addressed originals, replay, tombstones and lifecycle/reconciliation | Implemented separately; archive availability is not live temporal recall |
+| Graphiti / FalkorDB | Target for temporal/project memory | NOT_READY: no active context RPC memory provider; enabling the retired adapter fails startup |
+
+The hybrid retrieval pipeline combines pinned embedding workers, optional reranking, exact source rechecks and signed context receipts. CBM and Qdrant provide complementary and overlapping discovery capabilities; independent comparative benchmarks will quantify the contribution of each component. Qdrant serves code retrieval, Vertex serves authorized documentation, and external LSP verifies symbol identity. The ast-grep CLI enforces architecture rules rather than acting as a runtime parser.
+
+ACE validates workspace identity and path containment, reconciles tracked, untracked and removed files, rereads original source bytes and verifies SHA-256 and UTF-8 ranges. Current verified source outranks stale index payloads, documentation and derived memory. Required-source coverage, freshness and uncertainty determine completeness. Large originals remain losslessly accessible under authorization; partial results, failed providers and unknown usage are reported explicitly. Private source and conversations remain local by default; each external provider and data class requires separate authorization.
+
+See [CBM provider](docs/operations/codebase-memory-provider.md), [configuration/readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md) and [ADR-014: hybrid context engine](docs/docs/references/ADR-014-hybrid-context-engine.md).
+
+## Development roadmap
+
+ACE has implemented the core context engine, native Responses projection, local hybrid retrieval and source-policy contracts. Development is focused on end-to-end acceptance, comparative retrieval evaluation, temporal memory integration and independently measured agent economics. Production release remains evidence-gated.
+
+The target is a 5× reduction in total tokens per accepted task, measured against a matched agent baseline with independent correctness checks. This is an evaluation target, not a measured achievement.
+
+The following snapshot summarizes active work; OpenSpec remains the canonical acceptance tracker.
+
+| Workstream | Status as of 2026-11-24 |
+| --- | --- |
+| Single Bifröst context integration | TypeSpec context RPC v3, native Bifröst hooks and exact-request policy; see [integration change #328](https://github.com/chris-madsen/Hybrid-RAG/pull/328). |
+| C01–C02 native contracts and lossless projection | Implemented and accepted at their documented local contract scope. |
+| C03–C07 physical-send guard, route, streaming, Hermes loop | Implementation in place; live subscriber final-wire, streaming/cancellation and long agent-loop acceptance are the next milestones. |
+| C08 Harbor task quality and economics | Independent paired trials and release decision remain open; no certified 5× improvement. |
+| AR01–AR10 reliability | Source coverage, publication authority, archive durability, ranking/trace integrity, worker lifecycle and Harbor usage binding. Acceptance tracked per phase. |
+| Retrieval architecture evaluation | Compare CBM-only versus CBM + Qdrant and independent LSP value using matched inputs and upstream evaluators; no production CBM-only fallback exists today. |
+| Full unified memory | Blocked by the missing active Graphiti context provider; do not infer temporal recall from archive tests. |
+
+**Recent evidence and remediation (21 November 2026):**
+
+- [PR #321](https://github.com/chris-madsen/Hybrid-RAG/pull/321) replaced repeated CBM CLI startup with a persistent local process.
+- [PR #322](https://github.com/chris-madsen/Hybrid-RAG/pull/322) repaired typed readiness diagnostics, pinned Bifröst server/UI build and Harbor Hermes OAuth routing. The pinned server build passed on its recorded source SHA; actual deployment and subscriber traffic were not tested by that build.
+- [PR #325](https://github.com/chris-madsen/Hybrid-RAG/pull/325) addressed timed-out embedding workers and late-result isolation. [PR #326](https://github.com/chris-madsen/Hybrid-RAG/pull/326) tightened Harbor task/provider/attempt usage correlation and failure accounting.
+- [PR #327](https://github.com/chris-madsen/Hybrid-RAG/pull/327) fixed source-span mismatches caused by trimming provider content. The documented local rerun returned `PREPARED` on synthetic and Git-backed fixtures; the latter took 16.56 s with one CBM process start. The deliberate Qdrant outage returned `BLOCK / NOT_READY`. These mock-policy local runs did not start Bifröst or contact a model.
+
+The [Hermes E2E recovery runbook](docs/operations/2026-11-21-hermes-e2e-repair-runbook.md) records commands, exact evidence identities, limitations and the ordered live acceptance procedure. The canonical active acceptance trackers are [OpenSpec 013 (C01–C08)](openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014 (AR01–AR10)](openspec/changes/014-ace-audit-reliability-remediation/tasks.md). Historical plans and benchmarks are not an alternate implementation queue.
+
+## Local development
+
+Node.js/TypeScript and Effect implement the core modular monolith using functional DDD; Go is the Bifröst integration boundary. Python workers are used for embedding/reranking and selected evaluation tooling. Docker/k3s provide local deployment infrastructure.
+
+```bash
+npm ci
+npm run check
+npm run lint
+npm run test:affected
+npm run verify:pr
+# Full deterministic verification (scheduled/manual scope)
+npm run verify:full
+# Read-only provider/environment probe
+npm run probe:providers
+# Local Qdrant (localhost-only)
+make qdrant-up
+```
+
+Install pinned CBM and the required embedding/LSP dependencies according to the [configuration matrix](docs/operations/ace-configuration-and-readiness-matrix.md). `make install-python-providers` provides optional provider tooling; consult the matrix for the actual embedding worker environment. Do not treat a successful install as provider acceptance.
+
+### Local context RPC and hybrid retrieval
+
+Start the local context engine with the configured retrieval providers:
+
+```bash
+export ACE_WORKSPACE_ROOT=/absolute/path/to/repo
+export ACE_ENABLE_EXPERIMENTAL_QDRANT=true
+export ACE_QDRANT_URL=http://127.0.0.1:6333
+export ACE_EMBEDDING_WORKER="$PWD/scripts/fastembed-worker.sh"
+export ACE_SPARSE_EMBEDDING_WORKER="$PWD/scripts/fastembed-sparse-worker.sh"
+# Install CBM v0.12.1; optionally set ACE_CBM_COMMAND to its executable.
+export ACE_LSP_COMMAND="$PWD/node_modules/.bin/typescript-language-server"
+export ACE_RETRIEVAL_STRATEGY=hybrid_rrf
+# Supply ACE_CONTEXT_RPC_SHARED_SECRET securely, outside version control.
+npm run context:rpc
+```
+
+The Qdrant enablement flag retains its existing configuration name; it is required for the current hybrid code composition. By default the internal RPC listens on loopback port 8765. Configure the colocated Bifröst plugin with `ACE_CONTEXT_RPC_URL=http://127.0.0.1:8765/internal/ace-context/v3/project`, matching `ACE_CONTEXT_RPC_TOKEN` and the registered workspace/single-workspace tenancy configuration. A missing secret leaves projection unavailable; incorrect bearer credentials are rejected. Hermes must target Bifröst's `/chatgpt_passthrough` base prefix, never the ACE RPC or a direct provider endpoint.
+
+Use the [subscription OAuth runbook](docs/operations/gateway-subscription-oauth.md) for exact pinned build, route, workspace and data-policy configuration. The v3 endpoint, generated types and plugin must be deployed atomically; there is no compatibility alias or silent provider fallback. Without real required retrieval providers, the service reports not-ready rather than simulating production search.
+
+Vertex requires both `ACE_ENABLE_VERTEX=true` and `ACE_CLOUD_DOCS_OPT_IN=true`, with `ACE_VERTEX_PROJECT`, `ACE_VERTEX_CORPUS_ID` and the applicable location (default `europe-west4`). Permission covers authorized `project_document` only. `ACE_ENABLE_GRAPHITI=true` intentionally fails startup until an active context RPC memory provider exists.
+
+### Source-verified Docker image
 
 ```bash
 make ace-image ACE_NODE_IMAGE='node:22-bookworm-slim@sha256:<verified-64-hex>' ACE_IMAGE_TAG=ace:local
 ```
 
-The Make target runs `npm run build` before `docker build`. The image copies `dist/` and verifies `dist/runtime-provenance.json` against the copied source and `dist/bin/ace-runtime.js`. Packaging fails when provenance is missing or stale. This proves source/build identity only; it does not certify Bifröst final-provider delivery or agent E2E behavior.
+Build from a clean Git checkout. The Make target compiles ACE before building the image; `dist/runtime-provenance.json` binds the source manifest and runtime executable. The Docker context excludes `.git`; stale or missing provenance fails packaging. This establishes build identity, not live provider delivery.
 
-## Current implementation
+## Verification and release
 
-The TypeScript + Effect modular monolith now implements substantial slices across foundation, retrieval, temporal memory, routing and acceptance. Full unified production readiness is still evidence-gated:
+| Scope | Entry point | What it establishes |
+| --- | --- | --- |
+| Deterministic PR | `npm run verify:pr` | Typecheck, affected tests, lint, architecture and SDLC checks |
+| Full local | `npm run verify:full` | Full deterministic suite, build and property tests; not live E2E |
+| Bifröst boundary | `npm run check:bifrost-context` | Single model gateway and internal context RPC architecture |
+| Native CBM | [Pinned real-CBM CI](.github/workflows/ace-codebase-memory.yml) | Real structural/graph provider integration |
+| Local code retrieval | `npm run test:real-projection` and `-race`, `-outage`, `-hard-outage` variants of that script name | Real local retrieval and source/failure behavior, not model egress |
+| Archive and LSP | `npm run test:memory-process`, `npm run test:real-same-name`, `npm run test:real-non-ts-lsp` | Archive/process and symbol verification within their respective scopes |
+| Container | `npm run test:ace-container-runtime -- --image <pinned>@sha256:<digest> --bundle <dir>` | Compiled context service liveness |
+| Real subscription / Hermes / Harbor | [Acceptance runbook](docs/operations/2026-11-21-hermes-e2e-repair-runbook.md) | Separate exact-route, physical provider wire, SSE, multi-turn tools and independently scored tasks |
+| Release | `npm run release:preflight -- ...` | Evidence-gated release evaluation, not an override for missing proofs |
 
-- validated workspace identity and working-tree observations;
-- canonical path and symlink containment checks;
-- tracked/untracked/removed path awareness for Git worktrees;
-- revision-checked exact reads with digest and race detection;
-- versioned local data policy and secret-safe audit records;
-- exact artifact storage with lossless pagination;
-- provider-independent evaluation core with frozen suites, BenchmarkRun FSM,
-  cumulative/delta usage normalization and quality-gated reports;
-- The former Hermes-native `ContextEngine` bridge is **retired** by the 2026-11-14 Gateway-only decision. Agent-side configuration must point at Bifröst, never a direct ACE context plugin.
-- Codex/Hermes historical usage artifacts can still support read-only baseline comparisons; they do not certify Gateway delivery or activate an alternative integration.
-- explicit unknown usage and unsupported external-provider cost records until
-  Harbor/third-party contracts are verified;
-- local lexical candidate retrieval retained for controlled experiments, not
-  a substitute for production hybrid context;
-- an experimental local Gateway projection path using native Codebase Memory v0.12.1 for AST, graph and semantic/BM25 discovery; Qdrant still performs dense/sparse retrieval and native RRF, with optional reranking and external LSP verification (TypeScript Language Server default); exact source rechecks and receipt/delta delivery are implemented;
-  see `docs/reviews/2026-10-19-real-provider-e2e.md` for earlier exploratory
-  evidence, not an approval of the latest code;
-- immutable content-addressed archive, replay/tombstones and memory lifecycle mechanisms remain in the codebase; **Gateway-native Graphiti is NOT configured**: `ACE_ENABLE_GRAPHITI=true` fails startup intentionally in `src/bin/ace-runtime.ts`. Do not claim full memory retrieval/readiness;
-- deterministic multi-source routing with an explicit, opt-in Jev boundary and
-  required-source quality comparison;
-- **Gateway-only automatic context injection** through the versioned HTTP projection endpoint; retrieval and exact expansion happen inside ACE, not via a model-invoked tool interface;
-- typed local context/memory provider wiring; `not_ready` is returned only when
-  no provider is injected, while unverified external providers remain blocked.
-- deterministic comparison report artifacts in Markdown, JSONL and CSV with
-  evidence hashes and explicit unknown measurements.
-- typed Qdrant/Vertex/Graphiti/Jev HTTP boundaries and a Harbor CLI runner with
-  policy-gated requests, response validation and retained failed-run evidence.
-- TypeSpec-generated `ace.gateway.v2` native Responses projection/ownership contracts, deterministic
-  request-local projection tests, a host-compaction ownership guard, an
-  isolated Go connector and a pinned Bifrost mock-provider wire proof; real
-  external-provider, agent-E2E and production gates remain separate.
+Evaluate retrieval independently with upstream Agent Retrieval Bench, ContextBench and CodeGraph Bench; evaluate end-to-end agent behavior and economics with Harbor using matched frozen tasks, model/effort, tools and source budgets. Count retries, failed attempts and total usage; unknown telemetry is not zero. Require independent task correctness before drawing accepted-task token conclusions. Use the [testing strategy](docs/operations/testing-strategy.md) and [current Harbor acceptance specification](openspec/changes/013-gateway-g11-production-acceptance/phases/C08.md).
 
-Before enabling Gateway projection, configure a shared high-entropy secret in the ACE process (`ACE_GATEWAY_HTTP_SHARED_SECRET`) and the Bifröst plugin (`ACE_GATEWAY_PROJECTION_TOKEN`). Without it the projection POST endpoint returns `NOT_READY` (503); callers without the correct Bearer token receive 401. Model egress remains separately blocked until final-send authorization is certified. The local projector requires explicit provider policy before preparing private source context; that policy is not a send permit. Bifröst-visible request binding does not imply coding-host transcript/compaction attestation.
+Previously retired transport-specific E2E runners do not count as current acceptance; equivalent real context-path restart, multi-writer, interrupted-publish, scale and holdout evidence must be re-established where required. A green build, mock wire test, local `PREPARED`, or historical benchmark cannot certify live model delivery. No environment flag grants production readiness.
 
-For the internal ACE context service, run `ACE_WORKSPACE_ROOT=/path/to/repo npm run gateway:http` and configure Hermes to use **Bifröst's existing** `/chatgpt_passthrough` base route; Bifröst calls the authenticated ACE local `ace.gateway.v2` context service. This local service is **not** another model Gateway. See [ChatGPT subscription runbook](docs/operations/gateway-subscription-oauth.md).
-Without the real retrieval provider it exposes an honest `not_ready` status,
-not a simulated production search. For the **experimental** local retrieval
-path, forward the local k3s Qdrant port and configure:
+## AI-assisted SDLC and contribution
 
-```bash
-ACE_WORKSPACE_ROOT=/absolute/path/to/repo
-ACE_ENABLE_EXPERIMENTAL_QDRANT=true
-ACE_QDRANT_URL=http://127.0.0.1:6333
-ACE_EMBEDDING_WORKER=$PWD/scripts/fastembed-worker.sh
-ACE_SPARSE_EMBEDDING_WORKER=$PWD/scripts/fastembed-sparse-worker.sh
-# Codebase Memory v0.12.1 must be installed; optional native executable override:
-# ACE_CBM_COMMAND=/absolute/path/to/codebase-memory-mcp
-# Optional LSP override; defaults to typescript-language-server --stdio.
-ACE_LSP_COMMAND=$PWD/node_modules/.bin/typescript-language-server
-ACE_RETRIEVAL_STRATEGY=hybrid_rrf
-```
+Read [AGENTS.md](AGENTS.md) before editing. The repository uses risk-based T0/T1/T2 routing, OpenSpec behavioral contracts, functional DDD/Event Storming, TypeSpec code generation, Meyer Design by Contract and explicit evidence gates. The harness-neutral R/S/A/P/X/I/V process starts at the requested stage and reuses verified prior artifacts, rather than restarting research on every session. New unresolved material T2 architecture choices require owner G02 review; code/CI evidence cannot substitute for that decision.
 
-These are runtime entry points, not a complete installation recipe or model
-approval. The bootstrap is read-only and indexes only allowlisted source types
-outside dependency/build directories. See the
-[configuration/readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md)
-for exact modes, worker dependencies, pinned identity and diagnostics.
-
-Vertex documentation requires `ACE_ENABLE_VERTEX=true` **and**
-`ACE_CLOUD_DOCS_OPT_IN=true`, plus `ACE_VERTEX_PROJECT`,
-`ACE_VERTEX_CORPUS_ID`, with default `ACE_VERTEX_LOCATION=europe-west4`.
-Permission covers the `project_document` class only; secret-like queries are
-denied before HTTP.
-
-With local Qdrant, pinned CBM and embedding workers installed, `npm run test:real-projection` runs the real **Gateway HTTP projection** against a local workspace. `npm run test:real-projection-race`, `npm run test:real-projection-outage` and `npm run test:real-projection-hard-outage` exercise changed-source and provider failure paths. These are local integration tests, not Bifröst final-provider egress or Hermes task acceptance.
-
-`npm run test:memory-process` tests immutable archive identity and
-cross-process safety. `npm run test:real-same-name` checks structural
-spans and TypeScript language-service definitions/references.
-`npm run test:ace-container-runtime -- --image <pinned>@sha256:<digest>
---bundle <dir>` probes compiled Gateway HTTP liveness inside a container;
-the separate Bifröst provider-wire and real-agent trials are **not certified**.
-
-Previously separate restart, two-writer, interrupted-publish, index-scale,
-semantic holdout and tool-based container runners were retired with their
-transport. Their equivalent **Gateway-native** E2E acceptance remains
-explicitly **NOT-RUN**, not silently passed or replaced by static checks.
-
-No production-approved embedding model/LSP, Graphiti extraction, Harbor quality
-gate or 5× improvement is claimed until the documented provider spikes and owner
-review are complete. The real-provider exploratory E2E is evidence, not a release
-claim.
-
-## Configuration and readiness
-
-See [`docs/operations/ace-configuration-and-readiness-matrix.md`](docs/operations/ace-configuration-and-readiness-matrix.md) before enabling providers. In particular, `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` selects the real local Qdrant composition but does **not** constitute production approval. The Gateway-only bootstrap does not silently replace unavailable Qdrant with a lexical provider; lexical fallback is a separate test/degraded capability, not a production readiness signal.
-
-Full code + documentation + memory release readiness is evaluated by `npm run release:preflight -- ...`; there is no environment flag that turns an unverified provider set into a production-approved system.
-
-## Local single-agent SDLC trial
-
-For Codex and other repository-aware coding agents, use the thin ACE SDLC skill
-at `.agents/skills/ace-sdlc/SKILL.md` (Codex alias:
-`.codex/skills/ace-sdlc/SKILL.md`). It always loads the authoritative
-`AGENTS.md`, existing ADR/OpenSpec, and the **complete** SDLC stage prompts.
-Start with a read-only local preflight and its offline negative tests:
+Use the [ACE SDLC skill](.agents/skills/ace-sdlc/SKILL.md) and the [local agent trial](docs/operations/local-agent-sdlc-trial.md):
 
 ```bash
 npm run test:sdlc-preflight
 npm run sdlc:preflight -- --tier T0 --stage research --json
 ```
 
-Before implementation on a task branch, provide explicit `--task-id` and an
-existing `--plan`; for T2 also provide the existing `--g02` evidence path.
-The tool blocks missing T2 evidence but cannot replace **human** G02 approval.
-It never performs network access, commits, CI, provider E2E or automatic merge.
-Follow [local agent SDLC trial](docs/operations/local-agent-sdlc-trial.md)
-for an isolated worktree exercise, negative G02 scenario and evidence checklist.
+For implementation, supply the explicit task ID, existing plan and applicable G02 evidence. Follow the [operational SDLC](docs/operations/ai-assisted-sdlc.md) and [stage entry/resume](docs/operations/implementation-entry-resume.md). Publish reviewable PRs targeting main and report actual check/evidence states; merge remains the owner's decision. Do not turn deterministic checks into production certification.
 
-## Development
+## License
 
-```bash
-npm ci
-make check
-make lint
-make test
-make build
-# or run the complete local quality gate
-make verify
-# read-only provider/environment capability probe
-npm run probe:providers
-# local Qdrant (localhost-only, persistent volume outside the repo)
-make qdrant-up
-# Optional Python provider/tooling dependencies (not ACE's structural parser)
-make install-python-providers
-```
-
-Use `npm run check`, `npm run lint` and `npm run verify:pr` for the current TypeScript/architecture/SDLC code gates; inspect `Makefile` for additional local targets. CBM native indexing and real Hermes/Harbor evaluation are separate opt-in verification boundaries.
-
-`npm audit --omit=dev --audit-level=high` is clean. Full dev-only audit currently
-reports the legacy Airbnb/ESLint 8 dependency chain; npm's remediation requires a
-breaking `@typescript-eslint` major migration, so it is not applied silently.
-
-The test suite includes Bertrand Meyer-style contract tests in
-`test/bertrand-contracts.test.ts`. They make preconditions, postconditions,
-invariants, fail-closed behavior, losslessness, and layer boundaries executable.
-
-Current active acceptance is tracked by [OpenSpec 013 (C01–C08)](openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014 (AR01–AR10)](openspec/changes/014-ace-audit-reliability-remediation/tasks.md). Historical 001–007 and H1–H6 plans remain historical sources, not an alternative implementation queue. See [the current runtime status](docs/operations/current-architecture.md), the [CBM provider](docs/operations/codebase-memory-provider.md), and the [testing strategy](docs/operations/testing-strategy.md).
-
-
-The parent `Consilium` repository is outside this project boundary and is not
-modified by ACE implementation work.
+ACE is available under the [Apache License 2.0](LICENSE).
