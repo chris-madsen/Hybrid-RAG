@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
@@ -51,6 +51,9 @@ if (native) {
 const qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
 const outage = process.env.ACE_REAL_PROJECTION_OUTAGE === 'true' || process.env.ACE_REAL_PROJECTION_HARD_OUTAGE === 'true';
 const race = process.env.ACE_REAL_PROJECTION_RACE === 'true';
+const mutations = process.env.ACE_REAL_PROJECTION_NATIVE_MUTATIONS === 'true';
+assert.ok(!mutations || (native && !outage && !race), 'native mutation test requires a healthy native-only fixture');
+assert.ok(!(native && race), 'historical embedding delay is not a native CBM race oracle');
 const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
 assert.ok(Number.isSafeInteger(maxWait) && maxWait >= 10000 && maxWait <= 600000);
 const gatewayPort = await port();
@@ -155,6 +158,11 @@ try {
     assert.equal(typeof decision.reasonCode, 'string');
     assert.ok(decision.reasonCode.length > 0, 'typed denial must specify a reason');
     assert.equal(decision.baseBodySha256, payload.bodySha256);
+    if (native && outage) {
+      assert.equal(decision.reasonCode, 'NOT_READY', 'missing native provider must cause the block, not a policy or malformed request');
+      assert.equal(decision.projectionReceipt, undefined);
+      assert.equal(decision.bodyBase64, undefined);
+    }
     console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.reasonCode }));
   } else {
     assert.equal(decision.kind, 'PREPARED', JSON.stringify(decision));
@@ -175,6 +183,46 @@ try {
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
+    if (mutations) {
+      // Use sequential source changes, not timing guesses or the retired
+      // embedding delay. Every healthy edit/rename must project new bytes.
+      const projectAgain = async () => {
+        const next = {
+          ...payload, requestId: 'responses-projection-' + randomUUID(),
+          attemptGroupId: randomUUID(), deadlineEpochMs: Date.now() + maxWait,
+        };
+        const result = await fetch(endpoint + '/project', {
+          method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
+          body: JSON.stringify(next), signal: timeout(maxWait),
+        });
+        const outcome = await result.json();
+        assert.equal(result.status, 200, JSON.stringify(outcome));
+        assert.equal(outcome.baseBodySha256, next.bodySha256);
+        return outcome;
+      };
+      const assertCurrent = (outcome, citation) => {
+        assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+        const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+        const context = projected.input.find((item) => item.role === 'developer'
+          && String(item.content).includes('[ACE verified context]'));
+        assert.ok(context);
+        assert.match(context.content, /return value \+ '-changed'/u);
+        assert.ok(context.content.includes(citation), 'current source citation required');
+        return context.content;
+      };
+      await writeFile(codePath, code.replace('return value;', "return value + '-changed';") + filler + '\n');
+      assertCurrent(await projectAgain(), 'service.ts:');
+      const renamed = join(workspace, 'renamed.ts');
+      await rename(codePath, renamed);
+      const renamedContext = assertCurrent(await projectAgain(), 'renamed.ts:');
+      assert.ok(!renamedContext.includes('service.ts:'), 'deleted path must not survive rename');
+      await rm(renamed);
+      const removed = await projectAgain();
+      assert.equal(removed.kind, 'BLOCK', 'deleted sole source must not yield stale or falsely certified empty context');
+      assert.equal(removed.reasonCode, 'NOT_READY');
+      assert.equal(removed.projectionReceipt, undefined);
+      console.log(JSON.stringify({ status: 'native-mutations-pass', edits: ['modify', 'rename', 'delete'], providerWireCertified: false }));
+    }
   }
 } finally {
   await stopRealProviderProcess(child);
