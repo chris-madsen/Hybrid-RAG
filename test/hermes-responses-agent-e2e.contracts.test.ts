@@ -16,7 +16,7 @@ const routeContract = feedbackPreflight as unknown as {
   }) => { readonly status: string; readonly reason: string; readonly identity?: string };
 };
 
-// eslint-disable-next-line import/extensions -- NodeNext pairs the .mjs runtime with .d.mts types.
+// eslint-disable-next-line import-x/extensions -- NodeNext pairs the .mjs runtime with .d.mts types.
 const evidenceModule = await import('../scripts/real-provider-evidence.mjs') as unknown as {
   readonly summarizeHermesSessionExport?: (bytes: Uint8Array) => Readonly<Record<string, unknown>>;
   readonly evaluateHermesAgentLoopEvidence?: (input: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>;

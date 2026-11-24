@@ -21,8 +21,8 @@ type Expect<Value extends true> = Value;
 type RequestVersionMatches = Expect<Equal<GeneratedProjectionRequest['schemaVersion'], ResponsesProjectionRequest['schemaVersion']>>;
 type RequestProtocolMatches = Expect<Equal<GeneratedProjectionRequest['protocol'], ResponsesProjectionRequest['protocol']>>;
 type RequestFieldsMatch = Expect<Equal<
-GeneratedProjectionRequest['bodySha256' | 'bodyBase64' | 'query' | 'deadlineEpochMs'],
-ResponsesProjectionRequest['bodySha256' | 'bodyBase64' | 'query' | 'deadlineEpochMs']
+  GeneratedProjectionRequest['bodySha256' | 'bodyBase64' | 'query' | 'deadlineEpochMs'],
+  ResponsesProjectionRequest['bodySha256' | 'bodyBase64' | 'query' | 'deadlineEpochMs']
 >>;
 type AttestationSessionMatches = Expect<Equal<GeneratedHostAttestation['sessionId'], HostCompactionAttestation['sessionId']>>;
 type AttestationHistoryMatches = Expect<Equal<GeneratedHostAttestation['providerManagedHistoryCapability'], HostCompactionAttestation['providerManagedHistoryCapability']>>;

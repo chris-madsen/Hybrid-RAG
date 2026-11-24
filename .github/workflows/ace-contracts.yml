@@ -54,7 +54,7 @@ jobs:
               scripts/build-bifrost-ace-plugin.sh|.github/workflows/ace-contracts.yml)
                 node=true; go=true ;;
               .github/fixtures/contracts/*) node=true; go=true ;;
-              src/*|test/*|scripts/*|architecture/*|contracts/*|package.json|package-lock.json|tsconfig.json|tsconfig.eslint.json|.eslintrc.cjs|knip.json|knip.config.*|benchmarks/fixtures/*)
+              src/*|test/*|scripts/*|architecture/*|contracts/*|package.json|package-lock.json|tsconfig.json|tsconfig.eslint.json|eslint.config.mjs|knip.json|knip.config.*|benchmarks/fixtures/*)
                 node=true ;;
               docs/*|benchmarks/reports/*|AGENTS.md|README.md|LICENSE|.agents/*|.codex/*|.github/workflows/*|.github/fixtures/markdown-links/*)
                 ;;
