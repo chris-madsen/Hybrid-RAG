@@ -127,3 +127,24 @@ test('public contract authority guard rejects a handwritten live schema outside 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('CodeQL audit permits a coordinated immutable pin update but rejects floating or mixed pins', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-codeql-pin-'));
+  try {
+    const file = '.github/workflows/ace-code-health.yml';
+    mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+    const current = readFileSync(resolve(file), 'utf8');
+    const replacement = 'a'.repeat(40);
+    const coordinated = current.replace(/(github\/codeql-action\/(?:init|analyze)@)[a-f0-9]{40}/g, '$1' + replacement);
+    const evaluate = (body) => {
+      writeFileSync(join(root, file), body);
+      const run = spawnSync(process.execPath, [audit, '--root', root], { encoding: 'utf8' });
+      return JSON.parse(run.stdout).results.find((entry) => entry.id === 'QG6_SECURITY_DEPTH');
+    };
+    assert.equal(evaluate(coordinated).status, 'PASS');
+    assert.equal(evaluate(coordinated.replace('init@' + replacement, 'init@v4')).status, 'FAIL');
+    assert.equal(evaluate(coordinated.replace('analyze@' + replacement, 'analyze@' + 'b'.repeat(40))).status, 'FAIL');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
