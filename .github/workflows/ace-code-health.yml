@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
 
       - name: Initialize pinned CodeQL
-        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4 tag, 2026-11-04
+        uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4 tag, 2026-11-04
         with:
           languages: javascript-typescript
           queries: security-extended
@@ -59,7 +59,7 @@ jobs:
 
       - name: Analyze source
         id: analyze
-        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4 tag, 2026-11-04
+        uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4 tag, 2026-11-04
         with:
           category: "/language:javascript-typescript"
           output: ${{ runner.temp }}/codeql-results
