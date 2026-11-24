@@ -5,6 +5,8 @@ import {
   classifyFeedbackVerifierHttpStatus,
   hermesCodexAuthenticationRoute,
   inspectFeedbackVerifierConfiguration,
+  verifierDeclarationMatches,
+  isApprovedVerifierTransport,
   inspectFeedbackVerifierModelsResponse,
   inspectHermesAuthJson,
 } from '../src/domain/feedback-preflight.js';
@@ -101,6 +103,28 @@ test('verifier readiness rejects model-list success without the requested model'
   assert.equal(inspectFeedbackVerifierConfiguration({
     apiKey: 'x', baseUrl: userInfoUrl.toString(), model: 'm',
   }).status, 'invalid_configuration');
+});
+
+test('task declarations cannot choose a different verifier endpoint or environment secret', () => {
+  const approved = 'https://verifier.example/v1';
+  const environment = { EVAL_BASE_URL: approved, EVAL_API_KEY: 'approved-value', OTHER_SECRET: 'other-value' };
+  assert.equal(verifierDeclarationMatches(undefined, approved, ['EVAL_BASE_URL'], environment), true);
+  assert.equal(verifierDeclarationMatches(approved, approved, ['EVAL_BASE_URL'], environment), true);
+  assert.equal(verifierDeclarationMatches('${EVAL_BASE_URL}', approved, ['EVAL_BASE_URL'], environment), true);
+  assert.equal(verifierDeclarationMatches('https://other.example/v1', approved, ['EVAL_BASE_URL'], environment), false);
+  assert.equal(verifierDeclarationMatches('${OTHER_SECRET}', 'other-value', ['EVAL_API_KEY'], environment), false);
+  assert.equal(verifierDeclarationMatches('${EVAL_API_KEY:-other-value}', 'other-value', ['EVAL_API_KEY'], environment), false);
+  assert.equal(verifierDeclarationMatches('literal-from-task', undefined, ['EVAL_API_KEY'], environment), false);
+  assert.equal(verifierDeclarationMatches('${EVAL_API_KEY}', 'approved-value', ['EVAL_API_KEY'], environment), true);
+});
+
+test('authenticated verifier transport allows TLS and numeric loopback only', () => {
+  for (const url of ['https://verifier.example/v1', 'http://127.0.0.1:8080/v1', 'http://[::1]:8080/v1']) {
+    assert.equal(isApprovedVerifierTransport(url), true);
+  }
+  for (const url of ['http://verifier.example/v1', 'https://user:pass@verifier.example/v1', 'https://verifier.example/v1?secret=x', 'https://verifier.example/v1#fragment', 'file:///tmp/x']) {
+    assert.equal(isApprovedVerifierTransport(url), false);
+  }
 });
 
 test('task verifier HTTP probe rejects authentication without treating it as a successful result', () => {
