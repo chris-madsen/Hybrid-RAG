@@ -8,7 +8,7 @@ import { readFileSync, existsSync } from 'node:fs';
 const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const active = (path) => [
   'src/', 'test/', 'scripts/', 'typespec/', 'integrations/', 'infra/',
-  '.github/workflows/', 'docs/operations/', 'docs/docs/architecture/',
+  '.github/workflows/', 'docs/operations/', 'docs/architecture/',
   'openspec/changes/013-gateway-g11-production-acceptance/',
 ].some((root) => path.startsWith(root)) || ['README.md','AGENTS.md','package.json','Dockerfile.ace','Makefile'].includes(path);
 const banned = [

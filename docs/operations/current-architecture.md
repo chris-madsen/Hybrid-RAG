@@ -45,7 +45,7 @@ Hermes native Responses client
 - [CBM provider](codebase-memory-provider.md) — current native integration and tests.
 - [Runtime flags/readiness](ace-configuration-and-readiness-matrix.md) — current Qdrant-dependent composition.
 - [Testing strategy](testing-strategy.md) — deterministic vs provider vs independently scored agent tests.
-- [ADR-020](../docs/references/ADR-020-native-responses-only.md) — accepted Responses-only boundary.
+- [ADR-020](../references/ADR-020-native-responses-only.md) — accepted Responses-only boundary.
 - [Historical retrieval plans](../plans/README.md) — source decisions, not an alternative active queue.
 
 ## Documentation reconciliation policy

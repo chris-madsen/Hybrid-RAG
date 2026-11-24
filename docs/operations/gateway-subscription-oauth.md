@@ -1,6 +1,6 @@
 # Hermes + Bifröst + ACE — native ChatGPT subscription route
 
-**Authority:** [ADR-021](../docs/references/ADR-021-bifrost-single-gateway-ace-context-service.md), [OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/). Updated 2026-11-21 for the current pinned Bifröst fork and ACE code. **There is exactly one agent-facing LLM Gateway: Bifröst.** The local TypeSpec v3 HTTP service is a Go↔TypeScript context/RPC seam, not a reverse proxy or a second LLM call.
+**Authority:** [ADR-021](../references/ADR-021-bifrost-single-gateway-ace-context-service.md), [OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/). Updated 2026-11-21 for the current pinned Bifröst fork and ACE code. **There is exactly one agent-facing LLM Gateway: Bifröst.** The local TypeSpec v3 HTTP service is a Go↔TypeScript context/RPC seam, not a reverse proxy or a second LLM call.
 
 ## Source-verified existing features
 

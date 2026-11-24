@@ -5,11 +5,13 @@ description: Design or revise ACE features by integrating with existing bounded 
 
 # ACE Architecture Design — integrate, do not reinvent
 
+Maintain the repository's ISO/IEC/IEEE 42010:2022-aligned [Architecture Description](../../../docs/architecture/README.md). Map design changes to the affected concerns, viewpoints, view components, decisions and correspondences. Keep current and target architecture distinct; update the existing views rather than creating a parallel architecture authority.
+
 **Stage:** Architecture (T1 focused, T2 mandatory). This is a one-agent planning skill. It makes architecture **before** implementation task decomposition and does **not** edit product code, approve G02, call providers, merge PRs or replace ACE's accepted architecture.
 
 ## Read first
 
-1. Read root/scoped `AGENTS.md`, accepted ADRs, relevant current OpenSpec `proposal.md` + `specs/**/spec.md`, `docs/research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md`, `docs/docs/architecture/07-architecture-fitness-contracts.md`, `docs/research/sdlc/source/commands/design_feature.md` and `docs/operations/ai-assisted-sdlc.md`. Inspect the actual current SHA, runtime composition, owner tests and upstream/provider native capabilities. Read existing `design.md` as a *candidate*, not proof of current code.
+1. Read root/scoped `AGENTS.md`, accepted ADRs, relevant current OpenSpec `proposal.md` + `specs/**/spec.md`, `docs/research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md`, `docs/architecture/07-architecture-fitness-contracts.md`, `docs/research/sdlc/source/commands/design_feature.md` and `docs/operations/ai-assisted-sdlc.md`. Inspect the actual current SHA, runtime composition, owner tests and upstream/provider native capabilities. Read existing `design.md` as a *candidate*, not proof of current code.
 2. Read the complete vendored `.agents/skills/domain-modeling/SKILL.md` and pinned `.agents/skills/codebase-design/SKILL.md` with `DEEPENING.md` and the ACE compatibility overlay. Use their **domain vocabulary/deep-module seam techniques**, not their default glossary/ADR locations or parallel-subagent patterns. Use one agent to compare competing designs sequentially. If any skill is unavailable, report it; do not claim invocation.
 3. Identify **what already exists and is reused** (exact bounded context/module, interface, pure function, adapter, layer, provider and accepted contract). Give a justified *minimal architecture delta*. Prefer preserving current modules and tightening an existing seam to inventing a new module/port. Check maintained upstream actual APIs before custom code. Mark historical/retired delivery paths non-targets.
 

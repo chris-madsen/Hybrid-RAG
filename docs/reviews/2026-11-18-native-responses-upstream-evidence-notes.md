@@ -16,4 +16,4 @@
 
 These notes are old source observations, not evidence that any real provider request was sent, that a session was completed, or that the physical-send boundary has been certified. For C03, retain the exact **current** Bifröst commit, hook and provider paths, plugin order, current Hermes version, observed final wire digests, request/attempt identity, cancellation and authoritative owner approval. If a supported final-send interception point is unavailable, **report the missing implementation seam**; do not claim certification or hide it by changing a status file.
 
-See `openspec/changes/013-gateway-g11-production-acceptance/` for the canonical owner-reviewed implementation DAG and acceptance criteria; `docs/docs/references/ADR-020-native-responses-only.md` for current architecture authority.
+See `openspec/changes/013-gateway-g11-production-acceptance/` for the canonical owner-reviewed implementation DAG and acceptance criteria; `docs/references/ADR-020-native-responses-only.md` for current architecture authority.

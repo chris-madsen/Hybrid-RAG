@@ -56,7 +56,7 @@
 
 - Preserve DDD boundaries, strict types, useful tests, security invariants and Harbor evidence.
 - Do not introduce eight microservices or build a new parser, embedding engine or optional tool-call framework.
-- Specify each mandatory Meyer contract in `docs/docs/architecture/07-architecture-fitness-contracts.md`; correct OpenSpec 001/002/003/004; accept `006-production-retrieval-vertical-slice` **only with a real end-to-end composition** backed by provider and agent evidence.
+- Specify each mandatory Meyer contract in `docs/architecture/07-architecture-fitness-contracts.md`; correct OpenSpec 001/002/003/004; accept `006-production-retrieval-vertical-slice` **only with a real end-to-end composition** backed by provider and agent evidence.
 - Block `Production Ready` until owner review, real provider/E2E tests, quality-gated Harbor results and acceptance of pending ADRs.
 - First correct AST spans, approved embeddings, LSP references, shared-memory content deletion and `complete` semantics.
 

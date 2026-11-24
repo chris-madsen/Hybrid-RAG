@@ -4,7 +4,7 @@
 
 **Date:** 2026-10-25  
 **Status:** PROPOSED implementation and verification plan; NOT implemented, wire-certified, real-agent-tested or production-approved.  
-**Role:** This is a focused historical execution gate for the host-compaction ownership invariant. Current Gateway implementation and acceptance authority is [OpenSpec change 013](../../openspec/changes/013-gateway-g11-production-acceptance/) plus [ADR-020](../docs/references/ADR-020-native-responses-only.md); this document does not authorize provider egress.
+**Role:** This is a focused historical execution gate for the host-compaction ownership invariant. Current Gateway implementation and acceptance authority is [OpenSpec change 013](../../openspec/changes/013-gateway-g11-production-acceptance/) plus [ADR-020](../references/ADR-020-native-responses-only.md); this document does not authorize provider egress.
 **Sources examined:** ACE main; Hermes v0.22.3 (pinned tag); candidate Bifrost source as linked by ADR-017. Re-pin exact SHAs, image digests and configuration before any runtime trial.
 
 ## 1. Why this matters

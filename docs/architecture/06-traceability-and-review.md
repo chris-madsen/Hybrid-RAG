@@ -1,5 +1,7 @@
 # ACE — Traceability Matrix, Design Review и Definition of Ready
 
+> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+
 **Статус:** Current traceability/review baseline, updated 2026-11-14. Older `Planned` cells are historical blueprint state unless superseded by an explicit current-status section; capability-specific provider/agent proof remains separate.
 
 ## 1. PRD → домены → OpenSpec

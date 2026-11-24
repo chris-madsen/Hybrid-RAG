@@ -12,7 +12,7 @@
 
 **S (repository):** [getsphericon/sphericon](https://github.com/getsphericon/sphericon) at the commit above; directly inspected its \`AGENTS.md\`, \`.mise.toml\`, \`mise/tasks.toml\`, \`.github/workflows/{ci,nightly,codeql,scorecard}.yml\`, \`hk.pkl\`, \`sgconfig.yml\`, \`ast-grep/rules/*\`, \`ast-grep/tests/*\`, \`easement.yml\`, \`knip.ts\`, \`vacuum.yaml\`, \`schemathesis.toml\`, \`schemalens.yml\`, \`docs/standards/review-rules.md\`, \`CODING_STANDARDS.md\`, \`docs/agents/codegen.md\`, \`docs/adr/0047-*.md\` and relevant configs. These files establish what Sphericon **declares and wires**; no Sphericon CI was executed here.
 
-**A (ACE):** [ACE](https://github.com/chris-madsen/Mult-agent-AI-Orchestration) \`AGENTS.md\`, \`docs/AGENTS.md\`, \`.github/workflows/ace-contracts.yml\`, \`package.json\`, \`.eslintrc.cjs\`, \`docs/operations/{testing-strategy,supply-chain-release-evidence}.md\`, \`docs/docs/architecture/07-architecture-fitness-contracts.md\`. Existing ACE tests and provider gates are real project features; this comparison **does not infer** they passed for a given commit.
+**A (ACE):** [ACE](https://github.com/chris-madsen/Mult-agent-AI-Orchestration) \`AGENTS.md\`, \`docs/AGENTS.md\`, \`.github/workflows/ace-contracts.yml\`, \`package.json\`, \`.eslintrc.cjs\`, \`docs/operations/{testing-strategy,supply-chain-release-evidence}.md\`, \`docs/architecture/07-architecture-fitness-contracts.md\`. Existing ACE tests and provider gates are real project features; this comparison **does not infer** they passed for a given commit.
 
 ## Executive findings
 

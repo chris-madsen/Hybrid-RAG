@@ -39,7 +39,7 @@ ACE's original local v2 projection API and the Bifröst Go plugin were described
 - Negative tests must demonstrate that unsupported routes, model/provider switches, missing ACE binding, altered provider bytes and failed audits **cannot** reach the provider. Positive tests must prove the existing ChatGPT route can run the ACE projector and terminal guard using synthetic local provider bytes.
 - Deploy and compare real Hermes without ACE vs Hermes+Bifröst+ACE on the same subscribed model and coding tasks, recording quality, latency and token use separately. Do not claim success from mocks.
 
-See [subscription implementation runbook](../../operations/gateway-subscription-oauth.md) and [G11 OpenSpec 013](../../../openspec/changes/013-gateway-g11-production-acceptance/).
+See [subscription implementation runbook](../operations/gateway-subscription-oauth.md) and [G11 OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/).
 
 ## Owner amendment — same-day internal RPC rename
 

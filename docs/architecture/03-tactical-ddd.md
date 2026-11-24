@@ -1,8 +1,10 @@
 # ACE — Tactical DDD: Entities, Value Objects, Aggregates, invariants
 
+> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+
 **Статус:** Proposed; модель выведена из PRD/ADR, именование и поля — новые проектные предложения. Следование этому документу не означает необходимость DDD framework, ORM или отдельной БД для каждого контекста.
 
-**Owner modeling preference (2026-11-05):** this document names **logical identities, aggregate consistency boundaries and domain invariants**. It does **not** prescribe rich mutable Entity/Aggregate classes. ACE implementation defaults to **readonly ADTs and pure domain transition functions**; application orchestration and side effects live in Effect. The explicit choice and TypeSpec wire-contract policy are in [Functional DDD + TypeSpec architecture](../../research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md). Keep all existing source-truth and provider safety invariants; update their code representation incrementally, not with a big-bang refactor.
+**Owner modeling preference (2026-11-05):** this document names **logical identities, aggregate consistency boundaries and domain invariants**. It does **not** prescribe rich mutable Entity/Aggregate classes. ACE implementation defaults to **readonly ADTs and pure domain transition functions**; application orchestration and side effects live in Effect. The explicit choice and TypeSpec wire-contract policy are in [Functional DDD + TypeSpec architecture](../research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md). Keep all existing source-truth and provider safety invariants; update their code representation incrementally, not with a big-bang refactor.
 
 ## 1. Соглашения
 

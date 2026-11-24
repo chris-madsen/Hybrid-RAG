@@ -1,5 +1,7 @@
 # ACE — Strategic DDD: поддомены, Bounded Contexts и Context Map
 
+> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+
 **Статус:** Current DDD architecture baseline · **Обновлено:** 2026-11-14 · **Основание:** PRD, Accepted ADRs, Gateway-only owner decision и active OpenSpec.
 
 > В этом документе `Accepted` относится **только к решениям из исходных ADR**. Границы Bounded Context, порты, имена событий, технические интерфейсы и модули ниже — **предложенный дизайн**, требующий design review. **Один Bounded Context не означает отдельный pod или микросервис.**

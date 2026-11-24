@@ -1,6 +1,8 @@
 # Bifröst single-Gateway contracts and ACE context RPC deployment
 
-**Статус:** Native Responses/Gateway baseline from 2026-11-18; native code-intelligence wiring was migrated in PR #316. See [source-inspected current architecture](../../operations/current-architecture.md). Older ast-grep/RepoMap and Qdrant-only target sections remain dated design history, not current source. Domain contracts remain provider-neutral; native Responses Gateway v2 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
+> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+
+**Статус:** Native Responses/Gateway baseline from 2026-11-18; native code-intelligence wiring was migrated in PR #316. See [source-inspected current architecture](../operations/current-architecture.md). Older ast-grep/RepoMap and Qdrant-only target sections remain dated design history, not current source. Domain contracts remain provider-neutral; native Responses Gateway v2 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
 
 ## 1. Инварианты границ
 
@@ -186,7 +188,7 @@ ADR-014 supersedes the earlier “dense candidate store + optional extra tools�
 
 ### Code retrieval
 
-The following was the **2026-10-21 historical target**, superseded as a runtime implementation by PR #316. See [current runtime](../../operations/current-architecture.md). Historical target code path:
+The following was the **2026-10-21 historical target**, superseded as a runtime implementation by PR #316. See [current runtime](../operations/current-architecture.md). Historical target code path:
 
 ```text
 ast-grep structural chunks
