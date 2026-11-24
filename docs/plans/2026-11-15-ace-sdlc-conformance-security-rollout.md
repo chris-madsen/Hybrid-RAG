@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-15
 - **Status:** Active execution plan; no scanner rollout or source-conformance completion is claimed here.
-- **Current implementation basis:** native Responses-only owner decision in [`ADR-020`](../docs/references/ADR-020-native-responses-only.md) and chunked G11 acceptance contract in [`OpenSpec 013`](../../openspec/changes/013-gateway-g11-production-acceptance/).
+- **Current implementation basis:** native Responses-only owner decision in [`ADR-020`](../references/ADR-020-native-responses-only.md) and chunked G11 acceptance contract in [`OpenSpec 013`](../../openspec/changes/013-gateway-g11-production-acceptance/).
 - **Plan owner:** ACE repository owner.
 - **Governing process:** [`docs/operations/ai-assisted-sdlc.md`](../operations/ai-assisted-sdlc.md) and the complete applicable command in [`docs/research/sdlc/PROMPTS-ACE.md`](../research/sdlc/PROMPTS-ACE.md).
 

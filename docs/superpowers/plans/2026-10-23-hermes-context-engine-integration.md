@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript + Effect ACE runtime, Node JSONL bridge, Python Hermes plugin implementing `ContextEngine`, Harbor 0.24.0, Hermes pinned runtime, Qdrant/FastEmbed/ast-grep/LSP providers, JSONL evidence receipts, TypeScript contract tests, Python plugin tests.
 
-**Spec:** `docs/docs/reports/agents-compartion.html` sections 122-140, 204-320; Accepted ADR-015; proposed follow-up ADR-016; new OpenSpec change `008-hermes-context-integration`.
+**Spec:** `docs/reports/agents-compartion.html` sections 122-140, 204-320; Accepted ADR-015; proposed follow-up ADR-016; new OpenSpec change `008-hermes-context-integration`.
 
 ## Global Constraints
 
@@ -43,12 +43,12 @@
 ## Task 0: Freeze the Hermes request-transformation contract
 
 **Files:**
-- Create: `docs/docs/references/ADR-016-hermes-context-engine-integration.md`
+- Create: `docs/references/ADR-016-hermes-context-engine-integration.md`
 - Create: `openspec/changes/008-hermes-context-integration/proposal.md`
 - Create: `openspec/changes/008-hermes-context-integration/design.md`
 - Create: `openspec/changes/008-hermes-context-integration/specs/hermes-context-integration/spec.md`
 - Create: `openspec/changes/008-hermes-context-integration/tasks.md`
-- Modify: `docs/docs/references/ADR-015-hermes-primary-feedback-agent.md` only if the owner approves an amendment to the retired optional tool-call protocol-only wording
+- Modify: `docs/references/ADR-015-hermes-primary-feedback-agent.md` only if the owner approves an amendment to the retired optional tool-call protocol-only wording
 
 **Interfaces:**
 - `AceTransformRequest` and `AceTransformResult` names defined in the OpenSpec/design documents become the cross-language contract used by Tasks 1-4.
@@ -87,7 +87,7 @@ Run the repository's pinned OpenSpec validation for the new change and keep the 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add docs/docs/references/ADR-016-hermes-context-engine-integration.md \
+git add docs/references/ADR-016-hermes-context-engine-integration.md \
   openspec/changes/008-hermes-context-integration
 git commit -m "docs: define Hermes request-time ACE context integration"
 ```
@@ -507,7 +507,7 @@ git add scripts/feedback-loop-preflight.ts scripts/fastembed-sparse-worker.sh \
 ## Task 7: Retire the retired optional tool-call protocol-only path from the primary feedback loop
 
 **Files:**
-- Modify: `docs/docs/references/ADR-015-hermes-primary-feedback-agent.md`
+- Modify: `docs/references/ADR-015-hermes-primary-feedback-agent.md`
 - Modify: `docs/plans/ace-real-feedback-loop.md`
 - Modify: `README.md`
 - Modify: `docs/README.md`
@@ -537,7 +537,7 @@ Fail if the current primary Hermes job generator adds ACE only as `retired-tool-
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/docs/references/ADR-015-hermes-primary-feedback-agent.md \
+git add docs/references/ADR-015-hermes-primary-feedback-agent.md \
   docs/plans/ace-real-feedback-loop.md README.md docs/README.md openspec/config.yaml \
   scripts/harbor-retrieval-gate.ts scripts/render-harbor-paired-report.ts \
   test/architecture-regressions.test.ts

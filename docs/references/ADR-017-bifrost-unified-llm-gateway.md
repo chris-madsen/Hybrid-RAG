@@ -1,4 +1,4 @@
-> **Current implementation note, 2026-11-21:** This 2026-10-24 ADR selected Bifröst; its phrase “gateway contract not implemented” reflects that date. Native Responses v2 TypeSpec/Go/TS implementation candidates exist (OpenSpec 013, C01–C07); **physical provider-wire, actual Hermes agent loop and Harbor production acceptance remain unverified**. [ADR-020](ADR-020-native-responses-only.md) is the later protocol authority; [current runtime](../../operations/current-architecture.md) records the actual source-inspected composition.
+> **Current implementation note, 2026-11-21:** This 2026-10-24 ADR selected Bifröst; its phrase “gateway contract not implemented” reflects that date. Native Responses v2 TypeSpec/Go/TS implementation candidates exist (OpenSpec 013, C01–C07); **physical provider-wire, actual Hermes agent loop and Harbor production acceptance remain unverified**. [ADR-020](ADR-020-native-responses-only.md) is the later protocol authority; [current runtime](../operations/current-architecture.md) records the actual source-inspected composition.
 
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
@@ -69,7 +69,7 @@ These are **static source observations**, not a passed on-the-wire compatibility
 
 ## Required follow-up
 
-- Current implementation and acceptance plan: [OpenSpec 013 — G11 production acceptance](../../../openspec/changes/013-gateway-g11-production-acceptance/); the native Responses-only contract is recorded in [ADR-020](ADR-020-native-responses-only.md).
+- Current implementation and acceptance plan: [OpenSpec 013 — G11 production acceptance](../../openspec/changes/013-gateway-g11-production-acceptance/); the native Responses-only contract is recorded in [ADR-020](ADR-020-native-responses-only.md).
 - Add normative OpenSpec capabilities before changing runtime code: contracts for `gateway admission`, `request-local projection`, `protected message groups`, `provider wire equivalence`, `authorization`, `fallback/retry` and `receipts`.
 - Stage compatibility as `contract-designed → adapter-implemented → provider-wire-tested → agent-E2E-tested → benchmark-evaluated → owner-approved`, one explicit state per protocol/route. No production approval is conferred by this ADR.
 

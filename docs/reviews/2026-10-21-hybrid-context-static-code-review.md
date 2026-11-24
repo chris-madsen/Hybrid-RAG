@@ -11,7 +11,7 @@
 
 ACE is an **agent-neutral, Cursor-inspired, multi-layer hybrid context/RAG engine exposed over retired optional tool-call protocol** for agentic software development; **not** a multi-agent task scheduler. Its local code pipeline combines structural units (ast-grep), dense embeddings, sparse/BM25 retrieval and Qdrant RRF, optional evidence-gated reranking, real LSP enrichment, verified current worktree reads, progressive delivery, and exact expansion. **Vertex AI RAG is a separately authorized cloud source for project documentation**; Graphiti/FalkorDB and an immutable archive serve temporal memory. Source classes must not be silently interchanged. Codex is the first retired optional tool-call protocol client, not a core dependency.
 
-This is the target established by [ADR-014](../docs/references/ADR-014-hybrid-context-engine.md) and implemented in part by the current runtime. The target of 5× fewer agent tokens **per accepted task** remains an unproven hypothesis until quality-gated paired evaluation.
+This is the target established by [ADR-014](../references/ADR-014-hybrid-context-engine.md) and implemented in part by the current runtime. The target of 5× fewer agent tokens **per accepted task** remains an unproven hypothesis until quality-gated paired evaluation.
 
 ## Findings (ordered)
 

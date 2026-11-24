@@ -15,4 +15,4 @@ egress. Gateway final-send, retries, streaming and real agent E2E require
 separate tests and owner acceptance.
 
 See [ADR-017](ADR-017-bifrost-unified-llm-gateway.md) and
-[Gateway-only G02](../../plans/2026-11-14-gateway-only-retirement-g02.md).
+[Gateway-only G02](../plans/2026-11-14-gateway-only-retirement-g02.md).

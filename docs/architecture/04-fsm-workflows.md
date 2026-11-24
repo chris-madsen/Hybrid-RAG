@@ -1,5 +1,7 @@
 # ACE — FSM и сквозные workflows
 
+> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+
 **Статус:** Proposed. FSM применяется только там, где порядок переходов защищает инварианты. Роутинг источников по необходимости — decision policy/strategy, **не** state machine. Технология FSM библиотека (например XState) не выбирается автоматически.
 
 ## 1. FSM-01: ContextRequest

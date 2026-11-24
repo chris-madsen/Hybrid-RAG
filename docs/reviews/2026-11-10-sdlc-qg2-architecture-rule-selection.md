@@ -40,7 +40,7 @@ Decision:
 Accepted authority:
 - ADR-014: retired optional tool-call protocol is the explicit tool-call plane; model-bound delivery uses native/gateway paths.
 - ADR-017 `ace-bifrost-gateway-protocol`: Bifrost/Gateway Projection is a separate delivery mechanism alongside retired optional tool-call protocol explicit tools.
-- `docs/docs/architecture/07-architecture-fitness-contracts.md` repeats that retired optional tool-call protocol conformance proves explicit tools, not automatic model-bound context injection.
+- `docs/architecture/07-architecture-fitness-contracts.md` repeats that retired optional tool-call protocol conformance proves explicit tools, not automatic model-bound context injection.
 
 Current code:
 - `src/transport/retired-tool-protocol-sdk-stdio.ts` imports the retired optional tool-call protocol server SDK and `../gateway/retired-tool-protocol-gateway.js`; it does not import Gateway Projection domain/service/transport modules.

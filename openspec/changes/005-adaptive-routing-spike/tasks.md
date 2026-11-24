@@ -3,7 +3,7 @@
 **State: PARTIALLY IMPLEMENTED.** The deterministic reference router, privacy gate,
 comparison evidence and negative quality path are implemented. Jev remains an
 explicit experimental provider and is not enabled by default; see
-`docs/docs/spikes/SPIKE-ADAPTIVE-ROUTING.md`.
+`docs/spikes/SPIKE-ADAPTIVE-ROUTING.md`.
 
 ## Experiment definition
 - [x] Freeze the deterministic route contract and source requirements for exact, memory and multi-source requests.

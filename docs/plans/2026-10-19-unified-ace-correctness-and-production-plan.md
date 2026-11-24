@@ -9,7 +9,7 @@
 
 > **Текущий implementation/evidence status:** см. [ACE implementation / evidence ledger — 2026-10-20](../reviews/2026-10-20-implementation-evidence-ledger.md). Ledger отделяет уже слитую реализацию от ещё не выполненных real-provider/Harbor/owner gates; открытые чекбоксы ниже не означают, что код отсутствует.
 
-> **Место в иерархии документов.** Этот файл — сводный координационный backlog с очередностью, зависимостями и Definition of Done. Он **не меняет** Accepted ADR, PRD и OpenSpec и не «закрывает» их чекбоксы. Авторитетный текущий подробный план исполнения: [OpenSpec 006 CODEX-EXECUTION-PLAN](../../openspec/changes/006-production-retrieval-vertical-slice/CODEX-EXECUTION-PLAN.md). Normative acceptance: [DBC-01…14](../docs/architecture/07-architecture-fitness-contracts.md), [OpenSpec 006 tasks](../../openspec/changes/006-production-retrieval-vertical-slice/tasks.md), [AGENTS.md](../../AGENTS.md). При конфликте актуальные прямые решения владельца и Accepted ADR имеют приоритет.
+> **Место в иерархии документов.** Этот файл — сводный координационный backlog с очередностью, зависимостями и Definition of Done. Он **не меняет** Accepted ADR, PRD и OpenSpec и не «закрывает» их чекбоксы. Авторитетный текущий подробный план исполнения: [OpenSpec 006 CODEX-EXECUTION-PLAN](../../openspec/changes/006-production-retrieval-vertical-slice/CODEX-EXECUTION-PLAN.md). Normative acceptance: [DBC-01…14](../architecture/07-architecture-fitness-contracts.md), [OpenSpec 006 tasks](../../openspec/changes/006-production-retrieval-vertical-slice/tasks.md), [AGENTS.md](../../AGENTS.md). При конфликте актуальные прямые решения владельца и Accepted ADR имеют приоритет.
 
 ## 1. Что уже есть — **не переделывать ради галочки**
 
@@ -425,24 +425,24 @@
 ## 7. Первичные ссылки для Codex / ревьюера
 
 - [Permanent engineering rules](../../AGENTS.md)
-- [Accepted ADR-003 — Qdrant for code / Vertex for docs](../docs/references/ADR-003-dual-rag.md)
-- [Accepted ADR-004 — AST/LSP/freshness](../docs/references/ADR-004-ast-lsp-freshness.md)
-- [Accepted ADR-005 — archive + Graphiti](../docs/references/ADR-005-persistent-memory.md)
-- [Accepted ADR-007 — safety policy](../docs/references/ADR-007-security-failure-policy.md)
-- [Accepted ADR-008 — local Kubernetes](../docs/references/ADR-008-local-kubernetes.md)
-- [Accepted ADR-009 — Harbor](../docs/references/ADR-009-harbor-benchmark.md)
-- [ADR-010 — deferred observability](../docs/references/ADR-010-observability-deferred.md)
-- [Accepted ADR-012 — production gates](../docs/references/ADR-012-production-capability-and-provider-gates.md)
-- [Accepted ADR-013 — embedding evaluation, not model selection](../docs/references/ADR-013-embedding-evaluation-without-ollama.md)
+- [Accepted ADR-003 — Qdrant for code / Vertex for docs](../references/ADR-003-dual-rag.md)
+- [Accepted ADR-004 — AST/LSP/freshness](../references/ADR-004-ast-lsp-freshness.md)
+- [Accepted ADR-005 — archive + Graphiti](../references/ADR-005-persistent-memory.md)
+- [Accepted ADR-007 — safety policy](../references/ADR-007-security-failure-policy.md)
+- [Accepted ADR-008 — local Kubernetes](../references/ADR-008-local-kubernetes.md)
+- [Accepted ADR-009 — Harbor](../references/ADR-009-harbor-benchmark.md)
+- [ADR-010 — deferred observability](../references/ADR-010-observability-deferred.md)
+- [Accepted ADR-012 — production gates](../references/ADR-012-production-capability-and-provider-gates.md)
+- [Accepted ADR-013 — embedding evaluation, not model selection](../references/ADR-013-embedding-evaluation-without-ollama.md)
 - [OpenSpec 003](../../openspec/changes/003-unified-retrieval/tasks.md) · [004](../../openspec/changes/004-temporal-memory/tasks.md) · [005](../../openspec/changes/005-adaptive-routing-spike/tasks.md) · [006](../../openspec/changes/006-production-retrieval-vertical-slice/tasks.md)
-- [Normative DBC-01…DBC-14](../docs/architecture/07-architecture-fitness-contracts.md)
+- [Normative DBC-01…DBC-14](../architecture/07-architecture-fitness-contracts.md)
 - [Current Codex execution plan](../../openspec/changes/006-production-retrieval-vertical-slice/CODEX-EXECUTION-PLAN.md)
 - [Real provider E2E](../reviews/2026-10-19-real-provider-e2e.md)
 - [Efficiency/Harbor methodology audit](../reviews/2026-10-19-ace-efficiency-benchmark-audit.md)
 - [Local Graphiti status](../reviews/graphiti-archive-recovery.md)
 - [Vertex corpus status](../reviews/2026-10-19-vertex-gcloud-corpus-validation.md)
 - [Serena vs TS LS evidence](../reviews/serena-vs-ts-language-service.md)
-- [K8s host helper design](../docs/spikes/SPIKE-K8S-WORKTREE.md)
+- [K8s host helper design](../spikes/SPIKE-K8S-WORKTREE.md)
 
 ## 8. Происхождение и способ согласования двух планов
 

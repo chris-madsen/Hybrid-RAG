@@ -4,7 +4,7 @@
 
 **State: PARTIALLY IMPLEMENTED.** The provider-independent evaluation core and
 usage ledger are implemented; Harbor installation and external adapter verification
-remain open and are documented in `docs/docs/spikes/SPIKE-HARBOR.md`.
+remain open and are documented in `docs/spikes/SPIKE-HARBOR.md`.
 
 ## Tooling spike
 - [x] Pin observed Harbor `0.24.0` and Codex `0.148.0-alpha.9`; environment provider and evaluation suite versions remain smoke-run dependent.

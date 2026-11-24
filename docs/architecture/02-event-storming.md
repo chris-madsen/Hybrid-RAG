@@ -1,8 +1,10 @@
 # ACE — Event Storming: события, команды, политики и hot spots
 
+> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+
 **Статус:** архитектурная гипотеза; события и термины не следует считать существующими реализациями. Это текстовый Big Picture → Process Level → Design Level Event Storming, требующий последующей совместной сессии с владельцем. События домена ниже не равны событиям Codex SDK/Harbor.
 
-**Implementation preference:** Event Storming is mandatory domain discovery for material T2 changes, but **Event Storming ≠ Event Sourcing** and an event sticky note ≠ mandatory event bus. Translate commands/policies/hot spots into readonly ADTs, pure bounded-context transition functions and explicit Effect ports. A logical aggregate is an invariant/consistency boundary, not a mutable class. Public message shapes are governed by TypeSpec after staged adoption. See [Functional DDD + TypeSpec architecture](../../research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md).
+**Implementation preference:** Event Storming is mandatory domain discovery for material T2 changes, but **Event Storming ≠ Event Sourcing** and an event sticky note ≠ mandatory event bus. Translate commands/policies/hot spots into readonly ADTs, pure bounded-context transition functions and explicit Effect ports. A logical aggregate is an invariant/consistency boundary, not a mutable class. Public message shapes are governed by TypeSpec after staged adoption. See [Functional DDD + TypeSpec architecture](../research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md).
 
 ## 1. Event Storming легенда
 

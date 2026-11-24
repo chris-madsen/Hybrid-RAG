@@ -20,6 +20,9 @@ Unlike a standalone vector search or an agent-specific retrieval plugin, ACE int
 
 ## Architecture
 
+The [Architecture Description](docs/architecture/README.md) organizes ACE's stakeholder concerns, architecture views, decisions and traceability around ISO/IEC/IEEE 42010:2022. It separates the implemented system from target capabilities and acceptance evidence.
+
+
 ```text
 Hermes (own ChatGPT/Codex subscription OAuth)
   | native Responses
@@ -53,7 +56,7 @@ The ACE internal interface is TypeSpec-defined `ace.context.v3` HTTP/JSON RPC, w
 
 The Go plugin applies context to the **same** native Responses request. Projection preserves the original input items and opaque fields, and adds verified evidence rather than replacing the agent's history. `PREPARED` is not permission to send: each physical attempt requires a fresh, single-use authorization bound to the protected final request, route, model and source/data policy. Unknown or denied attempts fail closed.
 
-See [ADR-021: single Bifröst Gateway](docs/docs/references/ADR-021-bifrost-single-gateway-ace-context-service.md), [ADR-020: native Responses](docs/docs/references/ADR-020-native-responses-only.md), [current architecture](docs/operations/current-architecture.md) and the [Go connector](integrations/bifrost/ace-connector/README.md).
+See [ADR-021: single Bifröst Gateway](docs/references/ADR-021-bifrost-single-gateway-ace-context-service.md), [ADR-020: native Responses](docs/references/ADR-020-native-responses-only.md), [current architecture](docs/operations/current-architecture.md) and the [Go connector](integrations/bifrost/ace-connector/README.md).
 
 ## Retrieval and memory
 
@@ -70,7 +73,7 @@ The hybrid retrieval pipeline combines pinned embedding workers, optional rerank
 
 ACE validates workspace identity and path containment, reconciles tracked, untracked and removed files, rereads original source bytes and verifies SHA-256 and UTF-8 ranges. Current verified source outranks stale index payloads, documentation and derived memory. Required-source coverage, freshness and uncertainty determine completeness. Large originals remain losslessly accessible under authorization; partial results, failed providers and unknown usage are reported explicitly. Private source and conversations remain local by default; each external provider and data class requires separate authorization.
 
-See [CBM provider](docs/operations/codebase-memory-provider.md), [configuration/readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md) and [ADR-014: hybrid context engine](docs/docs/references/ADR-014-hybrid-context-engine.md).
+See [CBM provider](docs/operations/codebase-memory-provider.md), [configuration/readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md) and [ADR-014: hybrid context engine](docs/references/ADR-014-hybrid-context-engine.md).
 
 ## Development roadmap
 

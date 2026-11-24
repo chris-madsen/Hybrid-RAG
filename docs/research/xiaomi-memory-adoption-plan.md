@@ -96,9 +96,9 @@
 
 **Обязательные архитектурные ограничения:**
 
-- [ADR-005](../docs/references/ADR-005-persistent-memory.md): byte-exact, immutable original Codex history; Graphiti local-first *derived* temporal memory; owner confirmation for major decisions; source-linked deletion/tombstone.
-- [ADR-006](../docs/references/ADR-006-context-integrity.md): начальная выдача компактна, но любые оригиналы и изменённые файлы должны быть recoverable losslessly; no silent truncation; retired optional tool-call protocol не контролирует internal compaction клиента.
-- [ADR-014](../docs/references/ADR-014-hybrid-context-engine.md): agent-neutral retired optional tool-call protocol, source freshness, Graphiti/Vertex/Qdrant distinct roles, receipts/delta, quality-first, buy-before-build.
+- [ADR-005](../references/ADR-005-persistent-memory.md): byte-exact, immutable original Codex history; Graphiti local-first *derived* temporal memory; owner confirmation for major decisions; source-linked deletion/tombstone.
+- [ADR-006](../references/ADR-006-context-integrity.md): начальная выдача компактна, но любые оригиналы и изменённые файлы должны быть recoverable losslessly; no silent truncation; retired optional tool-call protocol не контролирует internal compaction клиента.
+- [ADR-014](../references/ADR-014-hybrid-context-engine.md): agent-neutral retired optional tool-call protocol, source freshness, Graphiti/Vertex/Qdrant distinct roles, receipts/delta, quality-first, buy-before-build.
 - [root AGENTS.md](../../AGENTS.md): TS + Effect modular monolith, no unnecessary service/database, no cloud transfer of dialogues without authorization, retain real-provider evidence, PR workflow and owner gates.
 - Правила нормального *production* поведения — **только в последующем OpenSpec + при необходимости Proposed ADR**, не в данном исследовательском плане.
 

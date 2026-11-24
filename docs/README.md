@@ -1,53 +1,31 @@
-# Adaptive Context Engine (ACE) — architecture and OpenSpec documentation
+# ACE documentation
 
-**Current runtime reading path (source-inspected 2026-11-21):** [Current implementation/status](operations/current-architecture.md) → [configuration/readiness](operations/ace-configuration-and-readiness-matrix.md) → [Codebase Memory integration](operations/codebase-memory-provider.md) → [testing](operations/testing-strategy.md). Full provider-wire/Hermes/Harbor acceptance remains open.
+Start with the [Architecture Description](architecture/README.md) for the system's scope, stakeholders, concerns, architecture views and traceability. It uses the ISO/IEC/IEEE 42010:2022 architecture-description concepts as an organizing structure, without claiming formal standards conformance.
 
-**Current code composition:** Hermes uses Bifröst native Responses and the versioned ACE Gateway projection API. Codebase Memory v0.12.1 is the sole structural AST/graph engine and also provides semantic/BM25 discovery; Qdrant remains used for code-only dense/sparse retrieval until independent A/B evidence permits its removal. External LSP checks exact symbol definitions. Vertex AI RAG is for authorized project documentation; Graphiti/FalkorDB are the selected temporal-memory architecture and the immutable archive has supporting code, **but Gateway-native Graphiti is not configured**: the inspected runtime intentionally rejects `ACE_ENABLE_GRAPHITI=true`. Full unified production is therefore not available. The former Hermes-native ContextEngine bridge and model-invoked ACE tools are retired.
+## Documentation map
 
-**Authoritative acceptance:** [OpenSpec 013](../openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014](../openspec/changes/014-ace-audit-reliability-remediation/tasks.md). [ADR-020](docs/references/ADR-020-native-responses-only.md) supersedes earlier Gateway protocol assumptions. [ADR-014](docs/references/ADR-014-hybrid-context-engine.md) remains a dated accepted *historical* decision; read its current-implementation note before treating older ast-grep/ContextEngine instructions as live.
+| Area | Purpose | Entry point |
+| --- | --- | --- |
+| Architecture description | Current and target architecture, stakeholder concerns, views, decisions and cross-view consistency | [Architecture](architecture/README.md) |
+| Product requirements | Original product intent and requirements, interpreted through later accepted decisions | [PRD v1.0](references/PRD-v1.0.md) |
+| Architecture decisions | Accepted and historical ADRs, rationale and supersession | [Decision register](references/ADR-000-decision-register.md) |
+| Behavioral specifications | OpenSpec capability contracts, acceptance criteria and canonical change ledgers | [OpenSpec](../openspec/README.md) |
+| Current runtime | Implemented composition, provider readiness and verification boundary | [Current architecture](operations/current-architecture.md) |
+| Operations and assurance | Configuration, deployment, runbooks, security and release evidence | [Readiness](operations/ace-configuration-and-readiness-matrix.md), [security gates](operations/security-gates.md), [testing strategy](operations/testing-strategy.md) |
+| Development governance | Risk-based AI-assisted SDLC and intent-first stage entry | [SDLC](operations/ai-assisted-sdlc.md), [AGENTS](../AGENTS.md) |
+| Research and spikes | Historical research, provider alternatives and evidence | [Research](research/), [spikes](spikes/) |
+| Plans and reviews | Dated implementation plans and source-specific reviews; not a substitute for current acceptance | [Plans](plans/README.md), [reviews](reviews/) |
 
-**Historical plans:** the [plans index](plans/README.md) is retained for provenance; old retrieval queues are not the current runtime specification. The [release-preflight runbook](plans/unified-production-release-preflight.md) remains the evidence-based promotion procedure.
+## Current system and acceptance
 
-## Deliverables
+ACE is an agent-neutral context engine, integrated behind Bifröst as the sole model-facing gateway. The current code composition uses native Responses with the internal TypeSpec context RPC v3; Codebase Memory supplies structural and native semantic/BM25 discovery, Qdrant adds dense/sparse retrieval, and LSP independently validates symbols. Vertex AI RAG handles authorized project documents. The immutable archive exists; the selected Graphiti/FalkorDB live temporal provider remains unavailable in the current runtime.
 
-**Architecture (Markdown)**
+See [current runtime](operations/current-architecture.md), the [CBM integration](operations/codebase-memory-provider.md), [OpenSpec 013](../openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014](../openspec/changes/014-ace-audit-reliability-remediation/tasks.md) for the source and acceptance boundary. Local tests, implemented adapters and build evidence are not live provider/agent acceptance.
 
-1. [`01-strategic-ddd.md`](docs/architecture/01-strategic-ddd.md) — bounded contexts, ubiquitous language, strategic subdomains, context map and relationships.
-2. [`02-event-storming.md`](docs/architecture/02-event-storming.md) — domain commands/events/policies/read models, hot spots and end-to-end flows.
-3. [`03-tactical-ddd.md`](docs/architecture/03-tactical-ddd.md) — entities, value objects, aggregates, domain services, invariant boundaries.
-4. [`04-fsm-workflows.md`](docs/architecture/04-fsm-workflows.md) — FSM and example workflows with success/error/race paths.
-5. [`05-contracts-and-deployment.md`](docs/architecture/05-contracts-and-deployment.md) — proposed tool contracts, domain ports, external adapter boundaries and local Kubernetes topology.
-6. [`06-traceability-and-review.md`](docs/architecture/06-traceability-and-review.md) — mapping PRD/ADR → OpenSpec → acceptance, unresolved design decisions.
+## Document authority and provenance
 
-**Agent SDD implementation packet**
+Current explicit owner decisions, accepted ADRs, applicable OpenSpec and the engineering rules retain their prescribed precedence. Source and retained evidence establish actual implementation and validation. Architecture views summarize and connect those authorities; dated plans and research do not override them.
 
-- [`../openspec/README.md`](../openspec/README.md) — execution order and OpenSpec CLI guidance.
-- [`../openspec/config.yaml`](../openspec/config.yaml) — project context for coding agent.
-- [`../openspec/changes/`](../openspec/changes) — active spec-driven changes, including `007-hybrid-context-engine`, with `proposal.md`, `specs/*/spec.md`, `design.md`, `tasks.md`.
-- [`AGENTS.md`](AGENTS.md) — agent safety, scope and implementation policy.
-- [`docs/references/`](docs/references) — source PRD and ADR decision record, including Accepted ADR-014 for the hybrid context target.
+The November 2026 documentation relocation removes the duplicated documentation root. The existing detailed DDD records, ADRs, PRD and spikes retain their identities and historical statuses. The older SHA256SUMS.txt is retained as a historical snapshot of a previous layout; it is not a current-tree integrity manifest. Inspect Git history for earlier paths and byte identities rather than recalculating historical evidence.
 
-## DDD modular monolith, not microservices
-
-DDD boundaries reflect different meanings/invariants; they do not automatically determine Deployments/StatefulSets. Primary code is one modular monolith in already installed local Kubernetes; Qdrant/Graphiti backends may be stateful dependencies, Vertex is managed external docs RAG, Harbor is an external benchmark runner.
-
-## FSM usage
-
-FSM is deliberately used for `ContextRequest`, `IndexGeneration`, `SessionArchive`, `DecisionRecord`, `BenchmarkRun`. Routing/scoring are policies, not FSM. No requirement to adopt a particular FSM library.
-
-## Decision hierarchy
-
-1. Explicit later user decisions / newly accepted ADR.
-2. Existing accepted ADRs, including ADR-006 (no arbitrary truncation) and ADR-014 (hybrid context target).
-3. PRD v1.0 for product intent, interpreted through later ADR clarifications.
-4. Proposed DDD architecture and OpenSpec implementation blueprints (revisable).
-
-The package does not claim to have achieved a 5× reduction. Several real integration paths now exist, but full production promotion remains conditional on retained provider/deployment/benchmark evidence and explicit owner approval for the exact release commit.
-
-## Authoritative sources for SDD / components
-
-- OpenSpec official: https://github.com/Fission-AI/OpenSpec
-- OpenSpec format: https://github.com/Fission-AI/OpenSpec/blob/main/docs/getting-started.md
-- OpenSpec spec-driven schema: https://github.com/Fission-AI/OpenSpec/blob/main/schemas/spec-driven/schema.yaml
-- Harbor: https://github.com/harbor-framework/harbor
-- Source PRD and ADRs are in `docs/references/`.
+The [docs-scoped writing instructions](AGENTS.md) govern documentation maintenance. For standards alignment and the outstanding normative review, see [conformance assessment](architecture/conformance.md).
