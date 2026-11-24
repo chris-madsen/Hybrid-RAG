@@ -1,6 +1,6 @@
 # ACE architecture fitness — installed SDLC rules
 
-**Active tool role:** the pinned `@ast-grep/cli` is used for syntax-based **architecture lint**, not runtime code AST/graph/retrieval. Codebase Memory v0.12.1 is the production candidate's native structural/graph/search engine. See [current architecture](current-architecture.md).
+**Active tool role:** the pinned npm development dependency `@ast-grep/cli` is used for syntax-based **architecture lint**, not runtime code AST/graph/retrieval. Codebase Memory v0.12.1 is the production candidate's native structural/graph/search engine. See [current architecture](current-architecture.md).
 
 ## Installed commands
 

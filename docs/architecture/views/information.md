@@ -49,3 +49,5 @@ The [versioned catalog](../viewpoints.md) supplies the conventions, construction
 ## Known issues
 
 Temporal recall is inactive; comparative retrieval and reliability acceptance remain open. See the [correspondence results and inconsistency register](../correspondences.md). No additional deviation from the governing notation conventions is identified in this documentation review.
+
+Comparative decisions remain open: [CBM-only versus Qdrant (#363)](https://github.com/chris-madsen/Hybrid-RAG/issues/363) and [CBM Hybrid LSP versus external LSP (#364)](https://github.com/chris-madsen/Hybrid-RAG/issues/364). The benchmark adapter uses the current CBM source outline boundary, not the removed structural parser.

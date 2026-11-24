@@ -70,3 +70,5 @@ The detailed historical PRD-to-OpenSpec mapping is retained in [06-traceability-
 Any architecture change must review the affected rules, identify unresolved discrepancies and record the evidence or decision required for closure.
 
 Benchmark boundary hardening (2026-11-24) adds source and negative-test evidence for C-04/C-10 under CR-03 and CR-08. The task-file verifier configuration is checked against operator authorization; benchmark data requires an independent digest before exclusive persistence. This does not close the existing end-to-end or release evidence gaps in CO-03/CO-08. See [security view](views/security.md) and [security gates](../operations/security-gates.md).
+
+The remaining retrieval overlap under INC-04 / CO-07 is tracked by [#363](https://github.com/chris-madsen/Hybrid-RAG/issues/363) and [#364](https://github.com/chris-madsen/Hybrid-RAG/issues/364). Standalone retired parser requirements and ast-grep runtime configuration are removed from active setup; architecture lint remains development-only. No change to the current Qdrant/LSP composition or the correspondence evaluation result.
