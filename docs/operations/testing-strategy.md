@@ -108,6 +108,33 @@ There are **two automatic execution scopes**, with optional manual full verifica
 3. Go/Bifröst tests and vet; Knip and OSV via the separate scheduled dependency workflow.
 4. Failures stay failures. Do not rerun or weaken expensive oracles merely to get a green status; report sources, provider identity, source/tested SHA and any environment-induced uncertainty.
 
-**Repository policy:** the owner explicitly **does not want branch protection, GitHub rulesets, required checks or mandatory PR approvals**. Do not request/configure them. Independent G02 architectural decisions, source correctness and relevant provider/release evidence are still required by their accepted contracts.
+**Repository policy (owner decision 2026-11-24):** protect `main` with mandatory pull requests and required scoped CI. This supersedes the previous no-protection policy. Independent G02 architectural decisions, source correctness and relevant provider/release evidence are still required by their accepted contracts.
+
+## Main branch protection
+
+Configure the following baseline in GitHub Settings → Branches (classic rule for `main`), or an equivalent active ruleset. These are intended hosted settings, not a claim that a rule is already active. Verify the actual configuration after saving it.
+
+- Require a pull request before merging; keep required reviewer approvals at zero for the solo maintainer.
+- Require the following named GitHub Actions job checks to pass, with the branch up to date before merging. Select the GitHub Actions source where available.
+- Apply the rule to administrators; prohibit force pushes and deletion. Do not configure an actor bypass for ordinary merges.
+
+| Required check (exact job name) | Scope |
+| --- | --- |
+| `no-optional-agent-tools` | Repository-wide retired-protocol regression audit |
+| `bifrost-only` | Single-gateway/context RPC boundary |
+| `reviewable-pr` | Reviewable PR and maintained documentation policy |
+| `pr-secret-scan` | Changed commit-range secret detection |
+| `workflow-security` | Scoped workflow security checks |
+| `Select affected PR language checks` | Explicit changed-path classification |
+| `Focused TypeScript and contracts` | Required Node verification when applicable |
+| `docs-links` | Changed Markdown links |
+| `bifrost-connector` | Go connector tests and vet when applicable |
+| `Build pinned Bifröst ACE plugin` | Pinned Go plugin build when applicable |
+
+The architecture audits run on every PR. The other listed jobs belong to workflows that run on every ordinary PR; language-specific jobs use job-level conditions and may legitimately be skipped when the successful scope classifier determines they are irrelevant. A skipped job is not evidence that its tests ran. A failed scope classifier must block merging.
+
+Do not add a workflow-level path-filtered check as an unconditional required check: a missing status can prevent unrelated PRs from merging. The dedicated native CBM regression, provider E2E, scheduled/manual full and advisory workflows retain their existing scopes. Their applicable failures must be resolved or explicitly reported; they are not part of this initial hosted required-check list. Do not weaken these workflows to obtain a passing merge status.
+
+Record the actual branch protection status and required checks separately from the repository policy. No setting grants production approval or replaces real acceptance evidence.
 
 To run the full scope locally when it is useful, call `npm run verify:full` explicitly. Do not make agent prompts or workflow defaults run it for every PR.

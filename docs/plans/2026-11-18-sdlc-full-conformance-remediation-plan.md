@@ -8,6 +8,8 @@
 
 ---
 
+> **Owner policy update (2026-11-24):** the owner has superseded the 2026-11-12 no-protection decision and requested protected `main` with required scoped CI. Historical merge-policy statements below (including P2-C) describe the original plan, not current authority. Follow [AGENTS.md](../../AGENTS.md) and the [current branch protection configuration](../operations/testing-strategy.md#main-branch-protection). The rest of this historical execution plan is preserved.
+
 > **Execution authority / statuses:** This is a proposal, not the canonical task ledger. OpenSpec 013 `tasks.md` owns phase status/acceptance; the final checklist is a read-only criteria index. After PR #282 merges, re-diff current code before repeating codegen, native verification, or v1 removal. No implementation, test, or acceptance result may be imported from an unmerged PR as if it were on main.
 
 ## 1. Goal
