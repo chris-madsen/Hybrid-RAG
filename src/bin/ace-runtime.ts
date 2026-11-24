@@ -264,7 +264,7 @@ const main = async (): Promise<void> => {
     if (process.env.ACE_CODE_RETRIEVAL_MODE === 'cbm') {
       process.stderr.write('ace-runtime provider identities codebase_memory=codebase-memory-mcp/0.12.1 qdrant=disabled embedding=disabled sparse_embedding=disabled lsp=not_configured reranker=disabled\n');
     } else {
-    process.stderr.write(`ace-runtime provider identities embedding=${process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx'}|model=${process.env.ACE_EMBEDDING_MODEL?.trim() || defaultEmbeddingModel} sparse=${process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25'} qdrant=${process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2'} lsp=${process.env.ACE_LSP_SERVER?.trim() || 'typescript-language-server'} reranker=${process.env.ACE_RERANKER_MODEL?.trim() || 'disabled'}\n`);
+      process.stderr.write(`ace-runtime provider identities embedding=${process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx'}|model=${process.env.ACE_EMBEDDING_MODEL?.trim() || defaultEmbeddingModel} sparse=${process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25'} qdrant=${process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2'} lsp=${process.env.ACE_LSP_SERVER?.trim() || 'typescript-language-server'} reranker=${process.env.ACE_RERANKER_MODEL?.trim() || 'disabled'}\n`);
     }
   }
   const runtimeTestFailpoint = configuredRuntimeTestFailpoint();
