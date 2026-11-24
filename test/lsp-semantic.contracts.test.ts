@@ -272,7 +272,12 @@ test('LSP identity and unsupported language status are explicit', async () => {
     assert.equal(identity.value.server, 'typescript-language-server');
     assert.deepEqual(identity.value.args, ['--stdio']);
     assert.equal(identity.value.protocol, 'lsp');
-    assert.match(identity.value.version, /^6\.0\.2$/u);
+    const manifest = JSON.parse(await readFile('package.json', 'utf8')) as {
+      readonly dependencies: Readonly<Record<string, string>>;
+    };
+    const expectedVersion = manifest.dependencies['typescript-language-server'];
+    assert.match(expectedVersion ?? '', /^\d+\.\d+\.\d+$/u);
+    assert.equal(identity.value.version, expectedVersion);
     assert.match(identity.value.fingerprint, /^[a-f0-9]{64}$/u);
   }
 
