@@ -165,7 +165,6 @@ test('typed context, errors, and Hermes status variants match the approved snaps
     'HOST_COMPACTION_ACTIVE', 'PROVIDER_MANAGED_STATE_UNKNOWN', 'DUAL_PROJECTION_OWNER', 'DEADLINE_EXCEEDED',
   ] as const satisfies readonly DomainErrorCode[];
 
-  const providerHistory = ['visible', 'hidden', 'unknown'] as const satisfies readonly ProviderManagedHistoryCapability[];
   const transformStatuses = ['ready', 'partial', 'not_ready', 'blocked'] as const satisfies readonly AceTransformResult['status'][];
   const evidenceStatuses = ['ready', 'partial', 'not_ready', 'blocked', 'not_beneficial'] as const satisfies readonly HermesContextTransformStatus[];
   const deliveryModes = ['augmentation', 'replacement', 'no_op'] as const satisfies readonly NonNullable<HermesContextEvidence['deliveryMode']>[];
@@ -180,7 +179,7 @@ test('typed context, errors, and Hermes status variants match the approved snaps
     Expect<Equal<ContextSource, typeof sourceKinds[number]>>,
     Expect<Equal<DomainErrorCode, typeof domainErrorCodes[number]>>,
 
-    Expect<Equal<ProviderManagedHistoryCapability, typeof providerHistory[number]>>,
+    Expect<Equal<ProviderManagedHistoryCapability, 'visible' | 'hidden' | 'unknown'>>,
     Expect<Equal<AceTransformResult['status'], typeof transformStatuses[number]>>,
     Expect<Equal<HermesContextTransformStatus, typeof evidenceStatuses[number]>>,
     Expect<Equal<NonNullable<HermesContextEvidence['deliveryMode']>, typeof deliveryModes[number]>>,

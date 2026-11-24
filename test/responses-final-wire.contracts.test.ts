@@ -9,7 +9,7 @@ import {
   bindNativeResponsesFinalWireReceiptToContext,
   evaluateNativeResponsesFinalWireEvidence,
 } from '../src/domain/provider-trace-receipt.js';
-// eslint-disable-next-line import/extensions -- NodeNext pairs the .mjs runtime with .d.mts types.
+// eslint-disable-next-line import-x/extensions -- NodeNext pairs the .mjs runtime with .d.mts types.
 import { verifyFinalWireEvidenceEnvelope } from '../scripts/real-provider-evidence.mjs';
 
 const digest = (character: string): string => character.repeat(64);

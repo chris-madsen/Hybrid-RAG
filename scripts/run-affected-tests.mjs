@@ -15,7 +15,7 @@ const BROAD_CONFIG_TRIGGERS = new Set([
   'package-lock.json',
   'tsconfig.json',
   'tsconfig.eslint.json',
-  '.eslintrc.cjs',
+  'eslint.config.mjs',
   'scripts/run-affected-tests.mjs',
 ]);
 const SMOKE_TESTS = new Set([

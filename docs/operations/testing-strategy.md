@@ -138,3 +138,7 @@ Do not add a workflow-level path-filtered check as an unconditional required che
 Record the actual branch protection status and required checks separately from the repository policy. No setting grants production approval or replaces real acceptance evidence.
 
 To run the full scope locally when it is useful, call `npm run verify:full` explicitly. Do not make agent prompts or workflow defaults run it for every PR.
+
+## ESLint toolchain maintenance
+
+The flat `eslint.config.mjs` replaces the archived Airbnb TypeScript preset with the explicitly migrated effective policy. The migration compares 32 active rules in both source and test configurations; the TypeScript-aware rules, their severity/options, typed project, source/test scope and generated exclusions are retained, with removed formatting rules mapped to ESLint Stylistic, import rules to import-x, no-throw-literal to only-throw-error, and no-loss-of-precision to the core rule. Existing disabled rules remain disabled rather than introducing new exemptions. The maintained ESLint 10 line requires Node 22.13 or newer on the Node 22 branch. New rule implementations can identify additional errors; the migration adjusts only reported formatting and one redundant type-only test value, without changing the checked union. Dependency resolution uses npm with normal peer checks, committed lockfile and zero-warning lint. See [issue #333](https://github.com/chris-madsen/Hybrid-RAG/issues/333) for evidence. Future lint upgrades must compare the effective policy, not only dependency versions.
