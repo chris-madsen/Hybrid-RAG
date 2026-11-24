@@ -59,7 +59,7 @@ See [ADR-021: single Bifröst Gateway](docs/docs/references/ADR-021-bifrost-sing
 
 | Component | Role | Current boundary |
 | --- | --- | --- |
-| Codebase Memory (CBM) v0.12.1 | Native AST, code graph, semantic and SQLite FTS5/BM25 discovery | Active structural/graph engine; persistent application-owned stdio RPC, not agent-facing MCP |
+| Codebase Memory (CBM) v0.12.1 | Native AST, code graph, semantic and SQLite FTS5/BM25 discovery | Active structural/graph engine; persistent application-owned stdio RPC; retrieval tools remain internal and are never exposed to the agent |
 | Qdrant | Dense/sparse code retrieval and native RRF | Current hybrid code-retrieval runtime; comparative evaluation against CBM-only is planned |
 | External LSP | Independent symbol/definition verification | Exact-symbol verification using maintained language servers, with TypeScript Language Server as the default |
 | Vertex AI RAG | Authorized project documentation | Explicit cloud opt-in and corpus/IAM configuration; not a private-code destination |
