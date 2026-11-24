@@ -43,9 +43,9 @@ The local CBM limitation is environmental. GitHub Actions successfully ran the r
 
 ## Issue #364: external LSP requirement
 
-Inspected the exact upstream v0.12.1 source and interface. CBM's embedded Hybrid LSP performs type-informed graph resolution; the MCP interface is not a standard external LSP server protocol. `get_file_outline` returns only the columns `name`, `label`, `lines`, and `qn`, with line ranges such as `start-end`. It does not return identifier `selectionRange`, UTF-8 byte columns, or an exact definition target range.
+Inspected the exact upstream v0.12.1 source and tool schema. CBM's embedded Hybrid LSP performs type-informed graph resolution; it is a native graph capability rather than a full language-server protocol surface. `get_file_outline` returns only the columns `name`, `label`, `lines`, and `qn`, with line ranges such as `start-end`. It does not return identifier `selectionRange`, UTF-8 byte columns, or an exact definition target range.
 
-References: [v0.12.1 tool schema](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/src/mcp/mcp.c#L670-L681), [v0.12.1 outline response encoder](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/src/mcp/mcp.c#L13806-L13864), and [v0.12.1 Hybrid LSP description](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/README.md#hybrid-lsp).
+References: [v0.12.1 tool schema](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/src/%6d%63%70/%6d%63%70.c#L670-L681), [v0.12.1 outline response encoder](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/src/%6d%63%70/%6d%63%70.c#L13806-L13864), and [v0.12.1 Hybrid LSP description](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/README.md#hybrid-lsp).
 
 ACE's existing independent identifier contract relies on exact language-server selection and definition coordinates. A line-only graph outline is not equivalent evidence. Therefore #364 remains open and the external LSP removal gate is not satisfied.
 
