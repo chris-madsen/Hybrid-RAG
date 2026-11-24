@@ -8,5 +8,5 @@ pillow==13.0.0
 huggingface-hub==1.33.0
 # Keep transitives aligned with the reviewed Python 3.13 dependency graph.
 anyio==4.16.0
-certifi==2026.10.23
+certifi==2026.11.20
 idna==3.20

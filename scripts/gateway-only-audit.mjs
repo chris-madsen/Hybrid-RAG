@@ -11,6 +11,17 @@ const matcher = new RegExp(removed, 'gi');
 // model-invoked tool transport. Allow exactly its branded executable/package
 // name while rejecting every other occurrence of the retired protocol token.
 const approvedNativeCLI = new RegExp(`(?<![\\w-])codebase-memory-${removed}(?![\\w-])`, 'gi');
+// Only the two maintained npm lockfiles and canonical, correctly sized SRI
+// fields are exempt. Package names, URLs, other fields and malformed digests
+// are still scanned.
+const lockfiles = new Set(['package-lock.json', 'typespec/package-lock.json']);
+const opaqueIntegrity = (line) => {
+  const match = /^[ \t]*"integrity":[ \t]*"sha(256|512)-([A-Za-z0-9+/]+={0,2})"[ \t]*,?[ \t]*$/u.exec(line);
+  if (!match) return false;
+  const bytes = Buffer.from(match[2], 'base64');
+  return bytes.length === (match[1] === '256' ? 32 : 64)
+    && bytes.toString('base64') === match[2];
+};
 for (const path of paths) {
   if (!existsSync(path)) continue;
   const pathMatch = matcher.test(path);
@@ -24,7 +35,7 @@ for (const path of paths) {
     // Pin integrity hashes are opaque bytes, not protocol references. Never
     // mutate a checked-in SRI digest solely because its base64 contains a
     // three-letter substring. The exception is restricted to this exact field.
-    if (path === 'package-lock.json' && /^[ \t]*"integrity":[ \t]*"sha(?:256|512)-[A-Za-z0-9+/=]+"[ \t]*,?[ \t]*$/u.test(lines[i])) continue;
+    if (lockfiles.has(path) && opaqueIntegrity(lines[i])) continue;
     if (matcher.test(lines[i].replace(approvedNativeCLI, 'codebase-memory-native-cli'))) hits.push(i + 1);
   }
   if (pathMatch || hits.length) results.push({

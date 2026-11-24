@@ -15,6 +15,8 @@ import {
   inspectFeedbackVerifierModelsResponse,
   hermesCodexAuthenticationRoute,
   inspectFeedbackVerifierConfiguration,
+  verifierDeclarationMatches,
+  isApprovedVerifierTransport,
   inspectHermesBifrostEndpoint,
   inspectHermesAuthJson,
   validateFeedbackImageOverride,
@@ -143,15 +145,6 @@ const verifierTomlValue = (section: string, name: string): string | undefined =>
   return new RegExp(`^\\s*${escaped}\\s*=\\s*"([^"]*)"\\s*$`, 'mu').exec(section)?.[1];
 };
 
-const resolveVerifierTemplate = (value: string | undefined, fallback: string | undefined): string | undefined => {
-  if (value === undefined) return fallback;
-  const exact = /^\$\{([A-Z0-9_]+)\}$/u.exec(value);
-  if (exact?.[1] !== undefined) return process.env[exact[1]] ?? '';
-  const withDefault = /^\$\{([A-Z0-9_]+):-([^}]*)\}$/u.exec(value);
-  if (withDefault?.[1] !== undefined) return process.env[withDefault[1]] ?? withDefault[2] ?? '';
-  return value;
-};
-
 const taskPathsFromJob = async (jobPath: string | undefined): Promise<readonly string[]> => {
   if (jobPath === undefined) return [];
   const value = JSON.parse(await readFile(jobPath, 'utf8')) as { readonly tasks?: readonly { readonly path?: unknown }[] };
@@ -178,21 +171,31 @@ const taskVerifier = async (nativeJobPath: string | undefined): Promise<Prefligh
       identities.push('local-task-verifier');
       continue;
     }
-    const apiKey = resolveVerifierTemplate(verifierTomlValue(section, 'EVAL_API_KEY'), process.env.EVAL_API_KEY ?? process.env.OPENAI_API_KEY);
-    const baseUrl = resolveVerifierTemplate(verifierTomlValue(section, 'EVAL_BASE_URL'), process.env.EVAL_BASE_URL ?? process.env.OPENAI_API_BASE);
-    const model = resolveVerifierTemplate(verifierTomlValue(section, 'EVAL_MODEL'), process.env.EVAL_MODEL);
+    // The operator must approve the verifier endpoint and credential together.
+    // Task-supplied literals/templates cannot choose a different secret or URL.
+    const apiKey = process.env.EVAL_API_KEY ?? process.env.OPENAI_API_KEY;
+    const baseUrl = process.env.EVAL_BASE_URL ?? process.env.OPENAI_API_BASE;
+    const model = process.env.EVAL_MODEL;
+    if (apiKey === undefined || baseUrl === undefined || model === undefined
+      || !isApprovedVerifierTransport(baseUrl)
+      || !verifierDeclarationMatches(verifierTomlValue(section, 'EVAL_API_KEY'), apiKey, ['EVAL_API_KEY', 'OPENAI_API_KEY'], process.env)
+      || !verifierDeclarationMatches(verifierTomlValue(section, 'EVAL_BASE_URL'), baseUrl, ['EVAL_BASE_URL', 'OPENAI_API_BASE'], process.env)
+      || !verifierDeclarationMatches(verifierTomlValue(section, 'EVAL_MODEL'), model, ['EVAL_MODEL'], process.env)) {
+      return { status: 'not_ready', reason: 'task verifier declaration does not match operator-approved endpoint, credential and model' };
+    }
     const configuration = inspectFeedbackVerifierConfiguration({ apiKey, baseUrl, model });
     if (configuration.status !== 'ready' || configuration.identity === undefined) {
       return { status: 'not_ready', reason: configuration.reason };
     }
     try {
-      const response = await fetch(`${baseUrl!.replace(/\/$/u, '')}/models`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
+      const response = await fetch(`${baseUrl.trim().replace(/\/+$/u, '')}/models`, {
+        headers: { Authorization: `Bearer ${apiKey.trim()}` },
+        redirect: 'error',
         signal: AbortSignal.timeout(5_000),
       });
       const readiness = classifyFeedbackVerifierHttpStatus(response.status, configuration.identity);
       if (readiness.status !== 'ready') return { status: 'not_ready', reason: readiness.reason, identity: readiness.identity };
-      const models = inspectFeedbackVerifierModelsResponse(await response.json() as unknown, model!, configuration.identity);
+      const models = inspectFeedbackVerifierModelsResponse(await response.json() as unknown, model.trim(), configuration.identity);
       if (models.status !== 'ready') return { status: 'not_ready', reason: models.reason, identity: models.identity };
       identities.push(configuration.identity);
     } catch {
