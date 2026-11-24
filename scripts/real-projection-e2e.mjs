@@ -66,7 +66,10 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_WORKSPACE_ID: workspaceId,
     ACE_CODE_RETRIEVAL_MODE: native ? 'cbm' : '',
     ACE_ENABLE_EXPERIMENTAL_QDRANT: native ? 'false' : 'true',
-    ...(native ? { ACE_RERANKER_MODE: 'disabled' } : {}),
+    ...(native ? {
+      ACE_RERANKER_MODE: 'disabled',
+      ...(outage ? { ACE_CBM_COMMAND: join(directory, 'must-not-start-cbm') } : {}),
+    } : {}),
     ACE_ENABLE_GRAPHITI: 'false',
     ACE_RETRIEVAL_STRATEGY: process.env.ACE_RETRIEVAL_STRATEGY?.trim() || 'dense',
     ACE_QDRANT_URL: native || outage ? 'http://127.0.0.1:6339' : qdrantUrl,
@@ -104,7 +107,8 @@ try {
     child.once('exit', (code) => settle(new Error('Gateway exited before listening: ' + code + ': ' + startupLog.slice(-3000))));
     child.once('error', settle);
   });
-  if (native) assert.match(startupLog, /native CBM code retrieval initialized/u);
+  if (native && !outage) assert.match(startupLog, /native CBM code retrieval initialized/u);
+  if (native && outage) assert.match(startupLog, /native CBM index failed/u);
   const health = await fetch(endpoint + '/health', {
     headers: { authorization: 'Bearer real-provider-fixture-secret' }, signal: timeout(10000),
   });
