@@ -5,8 +5,7 @@ on:
     paths:
       - "src/**"
       - "test/**"
-      - "scripts/nightly-targeted-mutation.mjs"
-      - "scripts/check-codeql-sarif.mjs"
+      - "scripts/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/ace-code-health.yml"

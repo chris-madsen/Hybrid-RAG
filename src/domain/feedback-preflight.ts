@@ -53,6 +53,38 @@ export const inspectFeedbackVerifierConfiguration = (input: {
   };
 };
 
+/**
+ * Task files describe requirements, not authority to select credentials or
+ * network destinations. Only explicitly approved operator environment values
+ * may be used by the authenticated probe.
+ */
+export const verifierDeclarationMatches = (
+  declaration: string | undefined,
+  approvedValue: string | undefined,
+  allowedNames: readonly string[],
+  environment: Readonly<Record<string, string | undefined>>,
+): boolean => {
+  if (approvedValue === undefined || approvedValue.trim().length === 0) return false;
+  if (declaration === undefined) return true;
+  const template = /^\$\{([A-Z0-9_]+)(?::-([^}]*))?\}$/u.exec(declaration);
+  if (template === null) return declaration.trim() === approvedValue.trim();
+  const name = template[1];
+  if (name === undefined || !allowedNames.includes(name)) return false;
+  const actual = environment[name];
+  return (actual === undefined || actual.length === 0 ? template[2] : actual)?.trim() === approvedValue.trim();
+};
+
+export const isApprovedVerifierTransport = (baseUrl: string): boolean => {
+  try {
+    const url = new URL(baseUrl);
+    if (url.username || url.password || url.search || url.hash) return false;
+    return url.protocol === 'https:' || (url.protocol === 'http:'
+      && ['127.0.0.1', '[::1]'].includes(url.hostname));
+  } catch {
+    return false;
+  }
+};
+
 export const classifyFeedbackVerifierHttpStatus = (
   status: number,
   identity: string,

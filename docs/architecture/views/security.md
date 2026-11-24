@@ -37,3 +37,7 @@ The [versioned catalog](../viewpoints.md) supplies the conventions, construction
 ## Known issues
 
 Shared local authentication does not establish per-principal tenancy; external security acceptance remains open. See the [correspondence results and inconsistency register](../correspondences.md). No additional deviation from the governing notation conventions is identified in this documentation review.
+
+## Benchmark tool boundaries (2026-11-24)
+
+Task verifier declarations do not authorize credentials or destinations. The authenticated preflight uses only operator-approved environment configuration, rejects mismatched task declarations, unencrypted non-loopback destinations and redirects. Public benchmark downloads require an independent expected digest and bounded HTTPS response before exclusive file creation. The operator owns the acquisition directory; this is not an arbitrary untrusted multi-tenant filesystem service. See [security gates](../../operations/security-gates.md) for the procedure and CodeQL findings. C-04/C-10 and CR-03/CR-08 remain applicable; no external provider or release acceptance is inferred.
