@@ -26,6 +26,6 @@ See [current runtime](operations/current-architecture.md), the [CBM integration]
 
 Current explicit owner decisions, accepted ADRs, applicable OpenSpec and the engineering rules retain their prescribed precedence. Source and retained evidence establish actual implementation and validation. Architecture views summarize and connect those authorities; dated plans and research do not override them.
 
-The November 2026 documentation relocation removes the duplicated documentation root. The existing detailed DDD records, ADRs, PRD and spikes retain their identities and historical statuses. The older SHA256SUMS.txt is retained as a historical snapshot of a previous layout; it is not a current-tree integrity manifest. Inspect Git history for earlier paths and byte identities rather than recalculating historical evidence.
+The November 2026 documentation relocation removes the duplicated documentation root. The existing detailed DDD records, ADRs, PRD and spikes retain their identities and historical statuses. The obsolete checksum manifest is retained in [the original Git revision](https://github.com/chris-madsen/Hybrid-RAG/blob/c5983d008c9353e37182883966ab64eb6601705e/docs/SHA256SUMS.txt), not presented as a current-tree integrity manifest. Inspect Git history for earlier paths and byte identities rather than recalculating historical evidence.
 
 The [docs-scoped writing instructions](AGENTS.md) govern documentation maintenance. For standards alignment and the outstanding normative review, see [conformance assessment](architecture/conformance.md).

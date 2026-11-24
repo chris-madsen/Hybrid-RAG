@@ -291,13 +291,13 @@ const publicContractAuthorityGuard = async () => {
 
 const architectureAuthorityGuard = async () => {
   const files = [
-    'docs/docs/architecture/01-strategic-ddd.md',
-    'docs/docs/architecture/02-event-storming.md',
-    'docs/docs/architecture/03-tactical-ddd.md',
-    'docs/docs/architecture/04-fsm-workflows.md',
-    'docs/docs/architecture/05-contracts-and-deployment.md',
-    'docs/docs/architecture/06-traceability-and-review.md',
-    'docs/docs/architecture/07-architecture-fitness-contracts.md',
+    'docs/architecture/01-strategic-ddd.md',
+    'docs/architecture/02-event-storming.md',
+    'docs/architecture/03-tactical-ddd.md',
+    'docs/architecture/04-fsm-workflows.md',
+    'docs/architecture/05-contracts-and-deployment.md',
+    'docs/architecture/06-traceability-and-review.md',
+    'docs/architecture/07-architecture-fitness-contracts.md',
   ];
   const forbiddenText = [
     'retired optional tool-call protocol',
@@ -319,9 +319,9 @@ const architectureAuthorityGuard = async () => {
     }
   }
   const required = [
-    ['docs/docs/architecture/01-strategic-ddd.md', 'Bifröst Gateway projection adapter'],
-    ['docs/docs/architecture/05-contracts-and-deployment.md', 'Gateway Projection Surface — sole agent-facing delivery'],
-    ['docs/docs/architecture/07-architecture-fitness-contracts.md', 'DBC-09 Gateway/connector conformance'],
+    ['docs/architecture/01-strategic-ddd.md', 'Bifröst Gateway projection adapter'],
+    ['docs/architecture/05-contracts-and-deployment.md', 'Gateway Projection Surface — sole agent-facing delivery'],
+    ['docs/architecture/07-architecture-fitness-contracts.md', 'DBC-09 Gateway/connector conformance'],
   ];
   const missingAuthority = [];
   for (const [file, needle] of required) {

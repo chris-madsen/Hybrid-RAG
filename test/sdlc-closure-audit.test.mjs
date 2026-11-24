@@ -75,7 +75,7 @@ test('active OpenSpec guard rejects superseded integration changes and retired d
 test('architecture authority guard rejects a revived Hermes/tool delivery path', () => {
   const root = mkdtempSync(join(tmpdir(), 'ace-architecture-closure-negative-'));
   try {
-    const arch = join(root, 'docs', 'docs', 'architecture');
+    const arch = join(root, 'docs', 'architecture');
     mkdirSync(arch, { recursive: true });
     for (const name of [
       '01-strategic-ddd.md',

@@ -8,7 +8,7 @@ on:
       - 'src/transport/context-rpc-http.ts'
       - 'test/typespec-context-*.ts'
       - '.github/workflows/ace-typespec-codegen.yml'
-      - 'docs/docs/references/ADR-020-native-responses-only.md'
+      - 'docs/references/ADR-020-native-responses-only.md'
       - 'openspec/changes/013-gateway-g11-production-acceptance/**'
   workflow_dispatch:
 

@@ -6,6 +6,6 @@ rust/target/
 .ace/
 coverage/
 artifacts/
-docs/docs/conversations/
+docs/conversations/
 .cache/
 .superpowers/
