@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import type { CodeCandidate, RankedCandidate } from '../domain/retrieval.js';
-import type { CodeGraphCandidatePort } from '../application/ports.js';
+import type { CodeGraphCandidatePort, ProviderTraceSink } from '../application/ports.js';
 import type { RepoPath } from '../domain/workspace.js';
 import { makeCodebaseMemoryStdio } from './codebase-memory-stdio.js';
 
@@ -12,7 +12,7 @@ import { makeCodebaseMemoryStdio } from './codebase-memory-stdio.js';
  *
  * CBM, not ACE, owns parsing, indexing, semantic retrieval and graph edges.
  * ACE consumes only file/symbol names returned by CBM. The evidence bytes and
- * digests still come from ACE's independently verified Qdrant source snapshot.
+ * digests still come from ACE's independently verified workspace snapshot.
  * In particular, these hints are NEVER accepted as direct source evidence.
  *
  * Upstream: DeusData / Codebase Memory, pinned native v0.12.1.
@@ -23,6 +23,7 @@ export interface CodebaseMemoryOptions {
   /** Optional native-server arguments (for contract fixtures). */
   readonly args?: readonly string[];
   readonly timeoutMs?: number;
+  readonly trace?: ProviderTraceSink;
   /** Immutable, digest-verified ACE candidates from the last published index. */
   readonly candidates: () => readonly CodeCandidate[];
 }
@@ -30,6 +31,11 @@ export interface CodebaseMemoryOptions {
 export interface CodebaseMemoryGraph extends CodeGraphCandidatePort {
   /** Must complete after source changes and before this graph can be exposed. */
   readonly reindex: () => Effect.Effect<Result<void, DomainError>>;
+  /** False after transport loss, during index mutation or after shutdown. */
+  readonly isIndexed: () => boolean;
+  /** Cancel native I/O; the caller owns the surrounding transaction fence. */
+  readonly suspend: () => Promise<void>;
+  readonly resume: () => void;
   /** Upstream file declaration inventory; parser stays entirely in native CBM. */
   readonly outline: (filePath: RepoPath) => Effect.Effect<Result<readonly NativeOutlineRow[], DomainError>>;
   readonly trace: (qualifiedName: string) => Effect.Effect<Result<unknown, DomainError>>;
@@ -236,12 +242,14 @@ const matchesName = (qualifiedName: string, name: string): boolean =>
 export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): CodebaseMemoryGraph => {
   const root = resolve(options.rootPath);
   let project: string | undefined;
+  let closed = false;
   let reindexing: Promise<Result<void, DomainError>> | undefined;
   const transport = makeCodebaseMemoryStdio({
     rootPath: root,
     ...(options.command === undefined ? {} : { command: options.command }),
     ...(options.args === undefined ? {} : { args: options.args }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.trace === undefined ? {} : { trace: options.trace }),
     // A restarted transport must never serve graph hints from the prior
     // provider generation. Explicit reindex is required after reconnection.
     onLost: () => { project = undefined; },
@@ -249,6 +257,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
   const invoke = transport.invoke;
 
   const reindex = (): Effect.Effect<Result<void, DomainError>> => Effect.promise(async () => {
+    if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native graph is closed'));
     if (reindexing !== undefined) return reindexing;
     // Do not expose the previous project's graph while an updated ACE snapshot
     // is being published. CBM indexes locally and handles incremental changes.
@@ -265,6 +274,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       if (typeof name !== 'string' || name.length === 0 || record?.status !== 'indexed') {
         return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory did not confirm a completed index'));
       }
+      if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native graph closed during indexing'));
       project = name;
       return ok(undefined);
     })();
@@ -318,18 +328,18 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       : invoke('detect_changes', { project, ...(since ? { since } : {}), scope: 'impact',
         direction: 'both', depth: 2, format: 'json' }));
 
-  const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
+  const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>, requestId?: string): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
     }
-    const response = await invoke('search_graph', {
+    const response = await transport.invoke('search_graph', {
       project,
       semantic_query: [query],
       semantic_limit: Math.min(100, limit),
       limit: 1,
       format: 'json',
       max_output_tokens: 8192,
-    });
+    }, requestId);
     if (response._tag === 'Err') return response;
     const hits = semanticRows(root, response.value);
     if (hits === undefined) {
@@ -339,13 +349,13 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     // candidate inventory, use CBM's OWN SQLite FTS5/BM25 query. This is
     // upstream-supported discovery, not an ACE lexical search implementation.
     if (hits.some((hit) => candidatePaths.has(hit.file))) return ok(hits);
-    const lexical = await invoke('search_graph', {
+    const lexical = await transport.invoke('search_graph', {
       project,
       query,
       limit: Math.min(100, limit),
       format: 'json',
       max_output_tokens: 8192,
-    });
+    }, requestId);
     if (lexical._tag === 'Err') return lexical;
     const fallback = lexicalRows(root, lexical.value);
     return fallback === undefined
@@ -401,7 +411,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       list.push(candidate);
       candidatesByFile.set(candidate.repoPath, list);
     }
-    const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()));
+    const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()), input.requestId);
     if (native._tag === 'Err') return native;
     const outlineCache = new Map<RepoPath, readonly NativeOutlineRow[] | undefined>();
     const sourceCandidateFor = async (target: NativeGraphTarget): Promise<CodeCandidate | undefined> => {
@@ -526,5 +536,18 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
   });
 
-  return { reindex, search, outline, trace, queryGraph, detectChanges, close: transport.close };
+  return {
+    reindex, search, outline, trace, queryGraph, detectChanges,
+    isIndexed: () => !closed && project !== undefined && reindexing === undefined,
+    suspend: async () => {
+      project = undefined;
+      await transport.suspend();
+    },
+    resume: transport.resume,
+    close: async () => {
+      closed = true;
+      project = undefined;
+      await transport.close();
+    },
+  };
 };

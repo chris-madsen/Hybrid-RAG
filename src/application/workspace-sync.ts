@@ -10,7 +10,7 @@ import {
   type WorkspaceManifest,
   type WorkspaceManifestDelta,
 } from '../domain/workspace-manifest.js';
-import type { FileState, RepoPath, WorkingContext, WorkspaceId } from '../domain/workspace.js';
+import type { FileState, RepoPath, WorkingContext, WorkspaceId, WorkspaceSnapshot } from '../domain/workspace.js';
 
 export interface WorkspaceSyncState {
   readonly workspaceId: WorkspaceId;
@@ -33,10 +33,13 @@ export interface WorkspaceSyncRebuildInput {
   readonly previous: WorkspaceSyncState;
   readonly nextManifest: WorkspaceManifest;
   readonly delta: WorkspaceSyncDelta;
+  readonly sourceSnapshot?: WorkspaceSnapshot;
 }
 
 export interface WorkspaceSyncOptions {
   readonly initial: WorkspaceSyncState;
+  /** Provider loss invalidates a publication even when source bytes did not change. */
+  readonly isPublished?: () => boolean;
   readonly observeChanges: (
     current: WorkspaceSyncState,
     forceExactPaths?: ReadonlySet<RepoPath>,
@@ -49,6 +52,7 @@ export interface WorkspaceSyncOptions {
 export interface WorkspaceSyncProbe {
   readonly changed: boolean;
   readonly manifest?: WorkspaceManifest;
+  readonly sourceSnapshot?: WorkspaceSnapshot;
   readonly delta?: WorkspaceSyncDelta;
   readonly workingContext?: WorkingContext;
 }
@@ -195,15 +199,16 @@ export const makeWorkspaceSync = (options: WorkspaceSyncOptions): WorkspaceSync 
         ...(provided.delta === undefined ? {} : { delta: provided.delta }),
       });
     if (probe._tag === 'Err') return probe;
-    if (!probe.value.changed) {
+    const publicationCurrent = options.isPublished?.() !== false;
+    if (!probe.value.changed && probe.value.manifest !== undefined
+      && !workspaceManifestEqual(active.workspaceManifest, probe.value.manifest)) {
+      return err(domainError(
+        'WORKTREE_RACED', 'workspace_manifest',
+        'workspace observer reported no change with a different source identity',
+      ));
+    }
+    if (!probe.value.changed && publicationCurrent) {
       if (probe.value.manifest !== undefined) {
-        if (!workspaceManifestEqual(active.workspaceManifest, probe.value.manifest)) {
-          return err(domainError(
-            'WORKTREE_RACED',
-            'workspace_manifest',
-            'workspace observer reported no change with a different source identity',
-          ));
-        }
         // Advance cheap mtime/size/state observation metadata without rebuilding.
         active = { ...active, workspaceManifest: probe.value.manifest };
       }
@@ -219,7 +224,7 @@ export const makeWorkspaceSync = (options: WorkspaceSyncOptions): WorkspaceSync 
     }
     const manifest = probe.value.manifest;
     const delta = probe.value.delta ?? diffWorkspaceManifests(active.workspaceManifest, manifest);
-    if (workspaceManifestEqual(active.workspaceManifest, manifest)) {
+    if (workspaceManifestEqual(active.workspaceManifest, manifest) && publicationCurrent) {
       // Source identity is unchanged. Always advance cheap observation metadata
       // (HEAD, mtime/size and tracked/untracked state) so the next refresh does
       // not rediscover the same metadata-only transition.
@@ -235,6 +240,7 @@ export const makeWorkspaceSync = (options: WorkspaceSyncOptions): WorkspaceSync 
       previous: active,
       nextManifest: manifest,
       delta,
+      ...(probe.value.sourceSnapshot === undefined ? {} : { sourceSnapshot: probe.value.sourceSnapshot }),
     }));
     if (rebuilt._tag === 'Err') return rebuilt;
     if (!workspaceManifestEqual(rebuilt.value.workspaceManifest, manifest)) {

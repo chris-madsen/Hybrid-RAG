@@ -123,6 +123,23 @@ test('native policy/Effect produces additive context without mutating function/r
   if (receipt._tag === 'Ok') assert.equal(receipt.value.projectedBodySha256, response.value.projectedBodySha256);
 });
 
+test('expired projection interrupts in-flight context and drains its finalizer before BLOCK', async () => {
+  let entered = false;
+  let retired = false;
+  const context: ContextTransformService = {
+    transform: () => Effect.onInterrupt(Effect.gen(function* () {
+      entered = true;
+      yield* Effect.never;
+      return ok(example);
+    }), () => Effect.sync(() => { retired = true; })),
+  };
+  const request = req({ deadlineEpochMs: Date.now() + 500 });
+  const result = await Effect.runPromise(make({ context }).projectResponses(request));
+  assert.equal(entered, true);
+  assert.equal(retired, true);
+  assert.deepEqual(result, ok({ kind: 'BLOCK', reasonCode: 'DEADLINE_EXCEEDED', baseBodySha256: request.bodySha256 }));
+});
+
 test('AR02 Native Responses blocks a ready transform that includes unrequested RepoMap evidence', async () => {
   const context: ContextTransformService = {
     transform: () => Effect.succeed(ok({

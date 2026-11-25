@@ -1,4 +1,4 @@
-> **Implementation note (2026-11-21):** The original accepted distinction **Vertex AI RAG for project documents** versus **local code intelligence** still holds. Its Qdrant choice predates PR #316, which installed Codebase Memory native AST, graph and semantic/BM25 discovery. The runtime *currently* still composes Qdrant for an overlapping code search, but whether to retain it is pending an owner-requested matched CBM-only vs CBM+Qdrant benchmark. Never repurpose Qdrant for documentation or temporal memory to justify it. The original decision below remains historical; see [current architecture](../operations/current-architecture.md).
+> **Superseding owner decision (2026-11-24/25):** native CBM is selected for local code retrieval (#363); Qdrant remains only during migration, not a competing architecture. External LSP and FR-03 remain for deferred independent research (#364). Preserve the original decision below as historical evidence. [Current architecture](../operations/current-architecture.md).
 
 # ADR-003 — Split RAG responsibilities: Vertex AI for documentation, local Qdrant for code
 

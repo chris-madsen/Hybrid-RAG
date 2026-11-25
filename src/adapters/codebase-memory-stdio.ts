@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { resolve } from 'node:path';
+import { accessSync, constants, realpathSync } from 'node:fs';
+import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import {
   createMessageConnection,
   StreamMessageReader,
@@ -8,6 +9,7 @@ import {
 } from 'vscode-jsonrpc/node';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
+import type { ProviderTraceSink } from '../application/ports.js';
 
 /**
  * Application-owned, long-lived Codebase Memory stdio session.
@@ -24,12 +26,17 @@ export interface CodebaseMemoryStdioOptions {
   readonly command?: string;
   readonly args?: readonly string[];
   readonly timeoutMs?: number;
+  /** Optional safe provider evidence; never receives tool arguments or results. */
+  readonly trace?: ProviderTraceSink;
   /** Invalidate ACE's published graph identity on transport loss. */
   readonly onLost?: () => void;
 }
 
 export interface CodebaseMemoryStdio {
-  readonly invoke: (tool: string, args: Readonly<Record<string, unknown>>) => Promise<Result<unknown, DomainError>>;
+  readonly invoke: (tool: string, args: Readonly<Record<string, unknown>>, requestId?: string) => Promise<Result<unknown, DomainError>>;
+  /** Suspend dispatch until the cancelled transaction has settled. */
+  readonly suspend: () => Promise<void>;
+  readonly resume: () => void;
   readonly close: () => Promise<void>;
 }
 
@@ -98,13 +105,61 @@ export const parseCodebaseMemoryToolResult = (value: unknown): Result<unknown, D
   }
 };
 
+/** The upstream npm shim uses spawnSync and is not the native process owner.
+ * Resolve its documented installed binary directly, without invoking its
+ * on-demand downloader. Ordinary native installs and explicit fixture
+ * executables retain their path. The initialize handshake still pins identity.
+ */
+export const resolveCodebaseMemoryCommand = (command: string): string => {
+  const locations = isAbsolute(command) || command.includes(sep)
+    ? [resolve(command)]
+    : (process.env.PATH ?? '').split(delimiter).filter(Boolean).map((directory) => join(directory, command));
+  for (const location of locations) {
+    try {
+      accessSync(location, constants.X_OK);
+      const actual = realpathSync(location);
+      if (basename(actual) === 'bin.js' && basename(dirname(actual)) === 'codebase-memory-mcp') {
+        // Return the binary path even if missing: spawning must fail closed,
+        // not fall back to the shim's network installer.
+        return join(dirname(actual), 'bin', process.platform === 'win32' ? 'codebase-memory-mcp.exe' : 'codebase-memory-mcp');
+      }
+      return actual;
+    } catch { /* preserve normal PATH lookup on absent candidates */ }
+  }
+  return command;
+};
+
 export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): CodebaseMemoryStdio => {
   const root = resolve(options.rootPath);
   const timeoutMs = options.timeoutMs ?? 120_000;
-  const command = options.command?.trim() || 'codebase-memory-mcp';
+  const command = resolveCodebaseMemoryCommand(options.command?.trim() || 'codebase-memory-mcp');
   let closed = false;
+  let suspended = false;
+  let retiring = Promise.resolve(true);
   let session: Session | undefined;
   let starting: Promise<Session> | undefined;
+
+  // Reuse Node's process lifecycle rather than treating signal delivery as
+  // process exit. No replacement writer may start while a retired child lives.
+  const retire = async (child: ChildProcessWithoutNullStreams): Promise<boolean> => {
+    if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return true;
+    let done: () => void = () => undefined;
+    const exited = new Promise<void>((resolveExit) => {
+      done = resolveExit;
+      child.once('exit', done);
+      child.once('close', done);
+    });
+    try {
+      if (child.exitCode !== null || child.signalCode !== null) return true;
+      try { child.kill('SIGTERM'); } catch { /* confirm actual exit below */ }
+      try { await deadline(exited, 750); return true; } catch { /* escalate */ }
+      try { child.kill('SIGKILL'); } catch { /* confirm actual exit below */ }
+      try { await deadline(exited, 1000); return true; } catch { return false; }
+    } finally {
+      child.off('exit', done);
+      child.off('close', done);
+    }
+  };
 
   const discard = (current: Session): void => {
     if (current.dead) return;
@@ -117,12 +172,11 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     }
     try { current.connection.dispose(); } catch { /* already closed */ }
     try { current.child.stdin.end(); } catch { /* already closed */ }
-    if (current.child.exitCode === null && current.child.signalCode === null) {
-      try { current.child.kill('SIGTERM'); } catch { /* already exited */ }
-    }
+    retiring = retire(current.child);
   };
 
   const connect = async (): Promise<Session> => {
+    if (!await retiring || closed || suspended) throw new Error('native provider retirement or cancellation prevents startup');
     const env: NodeJS.ProcessEnv = { ...process.env, CBM_ALLOWED_ROOT: root };
     delete env.GIT_DIR;
     delete env.GIT_WORK_TREE;
@@ -186,38 +240,65 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     return attempt;
   };
 
-  const invoke: CodebaseMemoryStdio['invoke'] = async (tool, args) => {
+  const invoke: CodebaseMemoryStdio['invoke'] = async (tool, args, requestId) => {
     if (!permitted.has(tool)) {
       return err(domainError('INVALID_INPUT', 'codebase_memory.tool', 'tool is not authorized for ACE internal retrieval'));
     }
-    if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native provider session is closed'));
+    if (closed || suspended) return err(domainError('NOT_READY', 'codebase_memory', 'native provider session is closed or suspended'));
+    const startedAtMs = Date.now();
+    const trace = (status: 'success' | 'failure', errorCode?: string, operation = tool): void => {
+      try {
+        options.trace?.record({
+          timestampMs: Date.now(),
+          provider: 'codebase_memory',
+          providerVersion: `codebase-memory-mcp/${expectedVersion}`,
+          operation,
+          status,
+          durationMs: Math.max(0, Date.now() - startedAtMs),
+          ...(requestId === undefined ? {} : { requestId }),
+          ...(errorCode === undefined ? {} : { errorCode }),
+        });
+      } catch {
+        // Trace persistence must not change the provider result or fail open.
+      }
+    };
     let current: Session | undefined;
     try {
       current = await getSession();
-      if (current.dead || closed) throw new Error('Codebase Memory session unavailable');
-      const raw: unknown = await deadline(current.connection.sendRequest('tools/call', {
+      if (current.dead || closed || suspended) throw new Error('Codebase Memory session unavailable');
+      const response = current.connection.sendRequest('tools/call', {
         name: tool, arguments: args,
-      }), timeoutMs);
+      });
+      // Local dispatch observation, not a successful native tool result.
+      // The separate terminal event remains the only provider-result evidence.
+      if (tool === 'index_repository') trace('success', undefined, 'index_repository_request_queued');
+      const raw: unknown = await deadline(response, timeoutMs);
       if (current.dead || closed) throw new Error('Codebase Memory session lost during request');
-      return parseCodebaseMemoryToolResult(raw);
+      const result = parseCodebaseMemoryToolResult(raw);
+      trace(result._tag === 'Ok' ? 'success' : 'failure', result._tag === 'Err' ? result.error.code : undefined);
+      return result;
     } catch {
       if (current !== undefined) discard(current);
+      trace('failure', 'NOT_READY');
       return err(domainError('NOT_READY', 'codebase_memory', 'native stdio provider unavailable or timed out'));
     }
   };
 
-  const close = async (): Promise<void> => {
-    if (closed) return;
-    closed = true;
-    // A pending initialize may still settle; it observes closed and tears
-    // down its own child rather than establishing a post-close session.
+  const suspend = async (): Promise<void> => {
+    suspended = true;
+    const pending = starting;
     const active = session;
     if (active !== undefined) discard(active);
-    const pending = starting;
     if (pending !== undefined) {
       try { discard(await pending); } catch { /* failed startup already cleaned up */ }
     }
+    await retiring;
   };
 
-  return { invoke, close };
+  const close = async (): Promise<void> => {
+    closed = true;
+    await suspend();
+  };
+
+  return { invoke, suspend, resume: () => { if (!closed) suspended = false; }, close };
 };

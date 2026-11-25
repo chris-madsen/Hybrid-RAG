@@ -58,7 +58,7 @@ test('committed Harbor jobs implement one native, one optional-natural and one f
   assert.equal(result.value.natural.codexConfig, result.value.forced.codexConfig);
 });
 
-test('Harbor ACE config uses maintained structural/LSP providers and no removed Tree-sitter route', async () => {
+test('historical Harbor Codex fixture preserves the original structural/LSP identity, not current runtime readiness', async () => {
   const config = await readFile('benchmarks/harbor/ace-retrieval-codex-config.toml', 'utf8');
   assert.match(config, /ACE_AST_GREP_COMMAND\s*=\s*"\/ace\/node_modules\/\.bin\/ast-grep"/u);
   assert.match(config, /ACE_AST_GREP_VERSION\s*=\s*"ast-grep\/0\.51\.0"/u);

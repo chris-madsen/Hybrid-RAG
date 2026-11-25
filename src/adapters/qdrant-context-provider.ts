@@ -72,6 +72,7 @@ import {
 export { exactUtf8ByteRange, exactUtf8Span } from '../domain/utf8-range.js';
 
 export interface QdrantContextConfig {
+  readonly mode?: 'qdrant';
   readonly workspaceId: WorkspaceId;
   readonly rootPath: string;
   readonly files: WorkspaceFilePort;
@@ -121,6 +122,25 @@ export interface QdrantContextConfig {
   /** CBM supplies candidates missing from Qdrant's shortlist; all are exact-read before delivery. */
   readonly codeGraph?: CodeGraphCandidatePort;
 }
+
+/** Migration boundary: native CBM supplies the entire code shortlist. The
+ * existing exact-source, source-plan and delivery pipeline is reused without
+ * an embedding service, vector-store client or ACE-side reranker. */
+export interface NativeCbmContextConfig extends Omit<QdrantContextConfig,
+  'mode' | 'qdrant' | 'embeddings' | 'sparseEmbeddings' | 'retrievalStrategy'
+  | 'reranker' | 'rerankerMode' | 'rerankerCandidateLimit' | 'qdrantStableCollection'
+  | 'codeGraph' | 'reconcile'> {
+  readonly mode: 'cbm';
+  readonly codeGraph: CodeGraphCandidatePort;
+  /** Runtime-owned publication fence, including native session identity loss. */
+  readonly isPublished?: () => boolean;
+  readonly reconcile?: (
+    currentManifest: WorkspaceManifest,
+    delta: WorkspaceManifestDelta,
+  ) => Effect.Effect<Result<NativeCbmContextConfig, DomainError>>;
+}
+
+type ContextConfig = QdrantContextConfig | NativeCbmContextConfig;
 
 export const embeddingContentKey = (providerIdentity: string, chunk: string): string =>
   createHash('sha256').update(providerIdentity, 'utf8').update('\0', 'utf8').update(Buffer.from(chunk, 'utf8')).digest('hex');
@@ -836,7 +856,7 @@ export const reuseOrPopulateQdrantSnapshot = (
   return ok({ count: indexed.value, reused: false, reusedVectorCount: seedVectors.size });
 });
 
-export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
+const makeVerifiedContextProvider = (config: ContextConfig) => {
   let activeConfig = config;
   /* eslint-disable @stylistic/indent -- the generator body retains the existing Effect indentation. */
   const search = (
@@ -853,11 +873,11 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
     retryBudget = 0,
   ): Effect.Effect<Result<ContextBundle, DomainError>> => Effect.gen(function* () {
       if (input.workspaceId !== activeConfig.workspaceId) {
-        return err(domainError('POLICY_DENIED', 'workspace_id', 'Qdrant provider belongs to another workspace'));
+        return err(domainError('POLICY_DENIED', 'workspace_id', 'context provider belongs to another workspace'));
       }
       let requestWorkingContext: WorkingContext | undefined;
       if (activeConfig.workspaceManifest !== undefined) {
-        if (activeConfig.qdrantStableCollection && activeConfig.workspaceSync === undefined) {
+        if (activeConfig.mode !== 'cbm' && activeConfig.qdrantStableCollection && activeConfig.workspaceSync === undefined) {
           return err(domainError(
             'NOT_READY',
             'workspace_sync',
@@ -901,7 +921,8 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
             currentSnapshot.value,
             activeConfig.scopeFingerprint ?? activeConfig.workspaceManifest.scopeFingerprint,
           );
-          if (!workspaceManifestEqual(activeConfig.workspaceManifest, currentManifest)) {
+          if (!workspaceManifestEqual(activeConfig.workspaceManifest, currentManifest)
+            || (activeConfig.mode === 'cbm' && activeConfig.isPublished?.() === false)) {
             const delta = diffWorkspaceManifests(activeConfig.workspaceManifest, currentManifest);
             if (activeConfig.reconcile === undefined) {
               return err(domainError(
@@ -961,7 +982,48 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
       let codeGraphError: DomainError | undefined;
       let codeGraphHitCount = 0;
       let lspConfirmedCount = 0;
-      if (includeCode) {
+      if (includeCode && activeConfig.mode === 'cbm') {
+        const limit = activeConfig.candidateLimit ?? 6;
+        const startedAt = Date.now();
+        const result = yield* activeConfig.codeGraph.search({
+          query: input.query,
+          limit,
+          requestId: requestId.value,
+          changedPaths: [
+            ...(requestWorkingContext?.stagedPaths ?? []),
+            ...(requestWorkingContext?.unstagedPaths ?? []),
+            ...(requestWorkingContext?.untrackedPaths ?? []),
+          ],
+        });
+        if (result._tag === 'Err') {
+          codeProviderError = result.error;
+          codeGraphError = result.error;
+        } else if (result.value.some((item) => item.candidate.workspaceId !== input.workspaceId)) {
+          codeProviderError = domainError('POLICY_DENIED', 'workspace_id', 'native CBM returned a foreign workspace candidate');
+        } else if (result.value.length === 0) {
+          // A native top-k query with no mapped candidate is not proof of
+          // absence across all authorized source. Never certify a false empty.
+          codeProviderError = domainError('NOT_READY', 'codebase_memory', 'native CBM returned no verified candidate hints');
+        } else {
+          // Preserve upstream order; no additional vector search, fusion,
+          // score boosting or cross-encoder is involved on this path.
+          rankedResults = result.value.slice(0, limit);
+          codeGraphHitCount = rankedResults.length;
+          deliveryTraceStartedAtMs = startedAt;
+        }
+        for (const stage of ['dense', 'sparse', 'fused', 'working_context', 'reranked'] as const) {
+          recordBenchmarkStage(
+            activeConfig.benchmarkTrace, activeConfig.benchmarkProviderIdentities,
+            requestId.value, stage, [], 0, activeConfig.benchmarkRepositoryId,
+            'not_applicable',
+          );
+        }
+        if (codeProviderError !== undefined) {
+          if (input.sourceRequirements === undefined) return err(codeProviderError);
+          warnings.push('native code retrieval unavailable: ' + codeProviderError.code);
+          failed.push('code', 'lsp');
+        }
+      } else if (includeCode && activeConfig.mode !== 'cbm') {
         const retrievalStrategy = activeConfig.retrievalStrategy
           ?? (activeConfig.sparseEmbeddings === undefined ? 'dense' : 'hybrid_rrf');
         const benchmarkStageStatus = (stage: 'dense' | 'sparse' | 'fused'): RetrievalBenchmarkStageStatus =>
@@ -1111,6 +1173,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
               const graphResult = yield* activeConfig.codeGraph.search({
                 query: input.query,
                 limit: retrievalLimit,
+                requestId: requestId.value,
                 changedPaths: [
                   ...(requestWorkingContext?.stagedPaths ?? []),
                   ...(requestWorkingContext?.unstagedPaths ?? []),
@@ -1596,6 +1659,21 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
           }
         }
       }
+      // Native ranking depends on the whole graph, not only the returned files.
+      // Re-observe even nonempty results: an uncited changed/deleted/new path can
+      // invalidate the shortlist. This fence does not certify an ABA-free snapshot.
+      if (includeCode && activeConfig.mode === 'cbm' && sourceAtSearchStart !== undefined) {
+        const finalSnapshot = yield* activeConfig.files.snapshot(activeConfig.rootPath, Date.now());
+        if (finalSnapshot._tag === 'Err') return finalSnapshot;
+        const finalManifest = workspaceManifestFromSnapshot(
+          finalSnapshot.value, activeConfig.scopeFingerprint ?? sourceAtSearchStart.scopeFingerprint,
+        );
+        if (activeConfig.isPublished?.() === false || activeConfig.indexKey !== indexKeyAtSearchStart
+          || !workspaceManifestEqual(finalManifest, sourceAtSearchStart)) {
+          return err(domainError('WORKTREE_RACED', 'workspace_manifest',
+            'native graph publication or authoritative source changed during retrieval'));
+        }
+      }
       const merged = mergeEvidence(requestId.value, input.query, evidence, warnings, failed);
       // Unlike cited results, an empty result has no selected file to exact-
       // re-read at the end of a slow query. Re-observe the authoritative
@@ -1709,3 +1787,7 @@ export const makeQdrantContextProvider = (config: QdrantContextConfig) => {
   /* eslint-enable @stylistic/indent */
   return { search };
 };
+
+export const makeQdrantContextProvider = (config: QdrantContextConfig) => makeVerifiedContextProvider(config);
+
+export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => makeVerifiedContextProvider(config);

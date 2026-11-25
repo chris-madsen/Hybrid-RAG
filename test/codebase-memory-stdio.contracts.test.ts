@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Effect } from 'effect';
 import {
-  makeCodebaseMemoryStdio, parseCodebaseMemoryToolResult,
+  makeCodebaseMemoryStdio, parseCodebaseMemoryToolResult, resolveCodebaseMemoryCommand,
 } from '../src/adapters/codebase-memory-stdio.js';
 import { makeCodebaseMemoryGraph } from '../src/adapters/codebase-memory-graph.js';
+import type { ProviderTraceEvent } from '../src/domain/provider-trace.js';
 
 const fixture = resolve('test/fixtures/cbm-stdio-fixture.mjs');
 const root = resolve(process.cwd());
@@ -18,12 +19,32 @@ const readLog = (path: string): { pid: number; method: string; tool?: string }[]
   } catch { return []; }
 };
 
+test('upstream npm launcher resolves directly to the native executable, never its downloader', { skip: process.platform === 'win32' }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-shim-'));
+  try {
+    const pkg = join(dir, 'codebase-memory-mcp');
+    mkdirSync(join(pkg, 'bin'), { recursive: true });
+    const shim = join(pkg, 'bin.js');
+    writeFileSync(shim, '#!/usr/bin/env node\nthrow Error("do not execute shim");\n');
+    chmodSync(shim, 0o755);
+    const launcher = join(dir, 'launcher');
+    symlinkSync(shim, launcher);
+    const binary = join(pkg, 'bin', 'codebase-memory-mcp');
+    assert.equal(resolveCodebaseMemoryCommand(launcher), binary, 'missing native binary must not invoke downloader');
+    writeFileSync(binary, 'fixture');
+    chmodSync(binary, 0o755);
+    assert.equal(resolveCodebaseMemoryCommand(launcher), binary);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('native stdio session reuses one process across indexing, outlines and graph requests', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-stdio-'));
   const log = join(dir, 'calls.jsonl');
+  const traces: ProviderTraceEvent[] = [];
   process.env.ACE_CBM_TEST_LOG = log;
   const graph = makeCodebaseMemoryGraph({
     rootPath: root, command: process.execPath, args: [fixture], timeoutMs: 5_000,
+    trace: { record: (event) => traces.push(event) },
     candidates: () => [],
   });
   try {
@@ -38,9 +59,20 @@ test('native stdio session reuses one process across indexing, outlines and grap
     assert.equal(queried._tag, 'Ok', JSON.stringify(queried));
     const changed = await Effect.runPromise(graph.detectChanges());
     assert.equal(changed._tag, 'Ok', JSON.stringify(changed));
+    const searched = await Effect.runPromise(graph.search({ query: 'private test needle', limit: 2, requestId: 'request-cbm-test' }));
+    assert.equal(searched._tag, 'Ok', JSON.stringify(searched));
+    assert.ok(traces.some((event) => event.provider === 'codebase_memory'
+      && event.providerVersion === 'codebase-memory-mcp/0.12.1'
+      && event.operation === 'search_graph' && event.status === 'success'
+      && event.requestId === 'request-cbm-test'));
+    assert.ok(traces.some((event) => event.provider === 'codebase_memory'
+      && event.operation === 'index_repository' && event.status === 'success'));
+    assert.ok(traces.every((event) => !('query' in event) && !('arguments' in event) && !('result' in event)));
+    assert.doesNotMatch(JSON.stringify(traces), /private test needle/u,
+      'safe native provider trace must not retain query text');
     const logEntries = readLog(log);
     assert.deepEqual(logEntries.map((item) => item.method), [
-      'initialize', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call',
+      'initialize', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call',
     ]);
     assert.equal(new Set(logEntries.map((item) => item.pid)).size, 1);
     assert.ok(logEntries.every((item) => item.method !== 'tools/list'));
@@ -81,12 +113,16 @@ test('a dead native provider invalidates the published graph until explicit rein
     candidates: () => [],
   });
   try {
+    assert.equal(graph.isIndexed(), false);
     assert.equal((await Effect.runPromise(graph.reindex()))._tag, 'Ok');
+    assert.equal(graph.isIndexed(), true);
     const crashed = await Effect.runPromise(graph.search({ query: 'crash-provider', limit: 2 }));
     assert.equal(crashed._tag, 'Err');
+    assert.equal(graph.isIndexed(), false);
     assert.equal((await Effect.runPromise(graph.outline('src/app.ts' as never)))._tag, 'Err',
       'no stale source outline after the native session dies');
     assert.equal((await Effect.runPromise(graph.reindex()))._tag, 'Ok');
+    assert.equal(graph.isIndexed(), true);
     assert.equal((await Effect.runPromise(graph.outline('src/app.ts' as never)))._tag, 'Ok');
     const entries = readLog(log);
     assert.equal(new Set(entries.map((item) => item.pid)).size, 2,
@@ -118,6 +154,40 @@ test('unsupported binary version and request timeout fail closed', async () => {
     assert.equal(blocked._tag, 'Err');
     if (blocked._tag === 'Err') assert.equal(blocked.error.code, 'NOT_READY');
   } finally { await hanging.close(); }
+});
+
+test('cancelled native dispatch waits for child exit before admitting a replacement', {
+  timeout: 15_000, skip: process.platform === 'win32',
+}, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-cancel-'));
+  const log = join(dir, 'calls.jsonl');
+  process.env.ACE_CBM_TEST_LOG = log;
+  const client = makeCodebaseMemoryStdio({
+    rootPath: root, command: process.execPath,
+    args: [fixture, '--ignore-termination'], timeoutMs: 10_000,
+  });
+  try {
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Ok');
+    const pid = readLog(log)[0]?.pid;
+    assert.ok(pid);
+    const inFlight = client.invoke('search_graph', { semantic_query: ['hang-provider'] });
+    const limit = Date.now() + 3000;
+    while (!readLog(log).some((entry) => entry.tool === 'search_graph')) {
+      assert.ok(Date.now() < limit, 'fixture did not receive the in-flight search');
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
+    }
+    await client.suspend();
+    assert.equal((await inFlight)._tag, 'Err');
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'old writer must actually exit');
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Err');
+    client.resume();
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Ok');
+    assert.equal(new Set(readLog(log).map((entry) => entry.pid)).size, 2);
+  } finally {
+    await client.close();
+    delete process.env.ACE_CBM_TEST_LOG;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('closing during initialization cancels the native child instead of waiting for the request deadline', {

@@ -3,6 +3,15 @@ name: ACE Codebase Memory native integration
 on:
   pull_request:
     paths:
+      - 'Dockerfile.ace'
+      - 'test/k3s-ace-runtime.contracts.test.ts'
+      - 'benchmarks/harbor/**/environment/Dockerfile'
+      - 'benchmarks/harbor/**/task.toml'
+      - 'scripts/build-harbor-ace-runtime.mjs'
+      - 'scripts/ace-container-runtime-smoke.mjs'
+      - 'src/domain/ace-runtime-bundle.ts'
+      - 'src/application/ace-runtime-bundle.ts'
+      - 'test/ace-runtime-bundle.contracts.test.ts'
       - 'package.json'
       - 'package-lock.json'
       - 'src/adapters/codebase-memory-graph.ts'
@@ -11,7 +20,14 @@ on:
       - 'test/fixtures/cbm-stdio-fixture.mjs'
       - 'src/adapters/qdrant-context-provider.ts'
       - 'src/application/ports.ts'
+      - 'src/application/workspace-sync.ts'
+      - 'src/application/responses-projection-service.ts'
+      - 'test/responses-projection-service.contracts.test.ts'
+      - 'src/adapters/local-code-index.ts'
+      - 'test/workspace-sync.contracts.test.ts'
+      - 'test/index-state.contracts.test.ts'
       - 'src/bin/ace-runtime.ts'
+      - 'scripts/real-projection-e2e.mjs'
       - 'test/codebase-memory-graph.contracts.test.ts'
       - '.github/workflows/ace-codebase-memory.yml'
   workflow_dispatch:
@@ -31,7 +47,7 @@ jobs:
           fetch-depth: 3
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '22.23.4'
           cache: npm
       - name: Install ACE dependencies
         run: npm ci
@@ -40,7 +56,10 @@ jobs:
         # installer verifies release artifact checksums before execution.
         run: | # zizmor: ignore[adhoc-packages] version 0.12.1 pinned; native archive checksum verified upstream
           npm install --global codebase-memory-mcp@0.12.1
-          codebase-memory-mcp --version
+          native="$(npm root -g)/codebase-memory-mcp/bin/codebase-memory-mcp"
+          test -x "$native"
+          "$native" --version
+          printf 'ACE_CBM_COMMAND=%s\n' "$native" >> "$GITHUB_ENV"
       - name: Typecheck and lint
         run: |
           npm run check
@@ -49,6 +68,42 @@ jobs:
         env:
           ACE_TEST_REAL_CBM: 'true'
         run: npx tsx --test test/codebase-memory-stdio.contracts.test.ts test/codebase-memory-graph.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
+
+      - name: Native CBM-only compiled Context RPC projection
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+        run: npm run test:real-projection
+      - name: Native CBM source modification, rename and deletion
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+          ACE_REAL_PROJECTION_NATIVE_MUTATIONS: 'true'
+        run: node scripts/real-projection-e2e.mjs
+      - name: Native CBM unchanged-worktree recovery after stdio child loss
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+          ACE_REAL_PROJECTION_NATIVE_RECOVERY: 'true'
+        run: node scripts/real-projection-e2e.mjs
+      - name: Native CBM Git worktree add, stage, unstage and branch transitions
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+          ACE_REAL_PROJECTION_NATIVE_WORKTREE: 'true'
+        run: node scripts/real-projection-e2e.mjs
+      - name: Native CBM in-flight cancellation and new generation recovery
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+          ACE_REAL_PROJECTION_NATIVE_CANCELLATION: 'true'
+        run: node scripts/real-projection-e2e.mjs
+      - name: Native CBM deadline, runtime restart and non-Git worktree
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+        run: |
+          ACE_REAL_PROJECTION_NATIVE_DEADLINE=true node scripts/real-projection-e2e.mjs
+          ACE_REAL_PROJECTION_NATIVE_RESTART=true node scripts/real-projection-e2e.mjs
+          ACE_REAL_PROJECTION_NATIVE_NON_GIT=true node scripts/real-projection-e2e.mjs
+      - name: Native CBM startup outage must block projection
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+        run: ACE_REAL_PROJECTION_OUTAGE=true node scripts/real-projection-e2e.mjs
 
   full-regression:
     name: Full ACE regression after native CBM migration
@@ -60,7 +115,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '22.23.4'
           cache: npm
       - name: Install ACE pinned dependencies
         run: npm ci
@@ -70,3 +125,78 @@ jobs:
           codebase-memory-mcp --version
       - name: Run complete source contracts, build, architecture and nightly property suite
         run: npm run verify:full
+
+  native-container:
+    name: Native CBM container zero-egress integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.23.4'
+          cache: npm
+      - name: Build source-bound runtime
+        run: |
+          npm ci
+          npm run build
+      - name: Resolve the exact CI base digest and build native image
+        # This is integration evidence, not a signed release image approval.
+        run: |
+          set -eu
+          docker pull node:22.23.4-bookworm-slim
+          base="$(docker image inspect --format '{{index .RepoDigests 0}}' node:22.23.4-bookworm-slim)"
+          printf '%s\n' "$base" | grep -Eq '@sha256:[a-f0-9]{64}$'
+          docker build --target native-cbm --build-arg "ACE_NODE_IMAGE=$base" -f Dockerfile.ace -t ace-native-ci .
+          docker image inspect --format 'image={{.Id}} size={{.Size}}' ace-native-ci
+          printf 'base=%s\n' "$base"
+      - name: Inspect pinned native runtime without network
+        run: |
+          docker run --rm --network none --entrypoint sh ace-native-ci -ec '
+            test "$(id -u)" != 0
+            test "$ACE_CODE_RETRIEVAL_MODE" = cbm
+            test "$ACE_ENABLE_EXPERIMENTAL_QDRANT" = false
+            test ! -d /opt/ace/.venv-embedding-fast
+            test ! -d /var/lib/ace/model-cache
+            codebase-memory-mcp --version
+            node --version
+          '
+      - name: Reuse real compiled projection and mutation checks inside image
+        # The read-only checkout is used only for the existing source-SHA
+        # evidence runner. The actual source fixture is created inside the
+        # isolated container; no operator worktree or credentials are mounted.
+        run: |
+          set -eu
+          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT; do
+            docker run --rm --init --network none \
+              -v "$PWD:/evidence:ro" \
+              -e GIT_OPTIONAL_LOCKS=0 \
+              -e GIT_CONFIG_COUNT=1 \
+              -e GIT_CONFIG_KEY_0=safe.directory \
+              -e GIT_CONFIG_VALUE_0=/evidence \
+              -e ACE_SOURCE_ROOT=/evidence \
+              -e ACE_RUNTIME_ROOT=/opt/ace \
+              -e ACE_REAL_PROJECTION_NATIVE_CBM=true \
+              -e "$scenario=true" \
+              --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
+          done
+      - name: Build native-compatible Harbor task images and run byte-bound projection
+        run: |
+          set -euo pipefail
+          bundle="$(mktemp -d)/bundle"
+          images=()
+          task_args=()
+          for task in ace-retrieval-impact ace-cloud-policy-impact ace-shared-archive-impact; do
+            docker build -t "$task-ci" "benchmarks/harbor/$task/environment"
+            image="$task-ci@$(docker image inspect --format '{{.Id}}' "$task-ci")"
+            images+=("$image")
+            task_args+=(--task-image "$image")
+            docker run --rm --network none --entrypoint python3 "$task-ci" -c 'import importlib.util as u; assert all(u.find_spec(n) is None for n in ("fastembed", "onnxruntime", "sentence_transformers", "tree_sitter"))'
+          done
+          node scripts/build-harbor-ace-runtime.mjs --source-root "$PWD" --output "$bundle" "${task_args[@]}"
+          for image in "${images[@]}"; do
+            node scripts/ace-container-runtime-smoke.mjs --image "$image" --bundle "$bundle"
+          done

@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 import { type DataClass } from '../domain/policy.js';
 import { containsLikelySecret } from '../domain/sensitive-text.js';
 import { makeWorkspaceId } from '../domain/workspace.js';
@@ -98,13 +98,20 @@ export const makeResponsesProjectionService = (
     if (base._tag === 'Err') return base;
     if (!base.value.allowed) return block(request, base.value.reasonCode);
 
-    const transformed = yield* context.transform({
+    const remainingMs = request.deadlineEpochMs - Date.now();
+    if (remainingMs <= 0) return block(request, 'DEADLINE_EXCEEDED');
+    // Interrupt the context operation at the caller's deadline, not only
+    // after it eventually completes. The native owner drains its transaction
+    // and retires the child before releasing the publication permit.
+    const timed = yield* Effect.timeoutOption(context.transform({
       schemaVersion: 1, requestId: request.requestId, sessionId: request.agentSessionId,
       turnId: request.attemptGroupId, workspaceId: request.workspaceId,
       query: request.query, budgetTokens: Number.MAX_SAFE_INTEGER,
       sourceObligations: { required: ['code'] },
       visibleNativeInputText: nativeResponsesVisibleText(body.value),
-    });
+    }), Math.min(remainingMs, 2_147_483_647));
+    if (Option.isNone(timed)) return block(request, 'DEADLINE_EXCEEDED');
+    const transformed = timed.value;
     if (transformed._tag === 'Err') return block(request, transformed.error.code);
     if (request.deadlineEpochMs <= Date.now()) return block(request, 'DEADLINE_EXCEEDED');
     const result = transformed.value;

@@ -12,7 +12,7 @@ help: ## Show available commands
 install: ## Install pinned dependencies
 	npm ci
 
-install-python-providers: ## Install pinned Graphiti/AST/LSP provider runtime
+install-python-providers: ## Install pinned Graphiti and HTTP provider dependencies
 	uv venv .venv-system --python /usr/bin/python3
 	uv pip install --python .venv-system/bin/python -r requirements-provider.txt
 
@@ -29,7 +29,7 @@ lint: lint-ts lint-rust ## Run TypeScript and Rust linters
 
 verify: lint check test build ## Run the complete local quality gate
 
-lint-ts: ## Run Airbnb TypeScript linting
+lint-ts: ## Run ESLint flat-config TypeScript linting
 	npm run lint
 
 lint-rust: ## Run rustfmt and Clippy when a Rust crate is present

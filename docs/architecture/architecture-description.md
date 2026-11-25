@@ -45,7 +45,7 @@ The views distinguish three kinds of statement:
 - **Target / planned:** a selected future capability or unresolved design option; it does not become a working feature by documentation.
 - **Evidence:** an observed result tied to its original source/configuration, with separate release and owner decisions.
 
-The current architecture comprises Bifröst native subscription passthrough, internal ACE context RPC v3, CBM/Qdrant/LSP code retrieval, policy-gated Vertex document search, archive and evaluation mechanisms. Live Graphiti-based temporal recall is a target, not an active runtime feature. Full provider-wire, agent E2E, paired economics and unified production acceptance remain subject to the [canonical acceptance tracker](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md). Reliability remediation is separately tracked by [OpenSpec 014](../../openspec/changes/014-ace-audit-reliability-remediation/tasks.md).
+The current architecture comprises Bifröst native subscription passthrough, internal ACE context RPC v3, native CBM local migration mode (historical vector composition remains until retirement; independent LSP research deferred), policy-gated Vertex document search, archive and evaluation mechanisms. Live Graphiti-based temporal recall is a target, not an active runtime feature. Full provider-wire, agent E2E, paired economics and unified production acceptance remain subject to the [canonical acceptance tracker](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md). Reliability remediation is separately tracked by [OpenSpec 014](../../openspec/changes/014-ace-audit-reliability-remediation/tasks.md).
 
 ## Architecture decisions and change control
 

@@ -14,7 +14,6 @@
     "probe:providers": "node scripts/provider-capability-probe.mjs",
     "report:harbor-smoke": "tsx scripts/render-harbor-smoke-report.ts",
     "report:harbor-retrieval": "tsx scripts/render-harbor-retrieval-report.ts",
-    "spike:embeddings": "tsx scripts/embedding-spike.ts",
     "recall:codex-history": "tsx scripts/recall-codex-history.ts",
     "probe:vertex": "bash scripts/vertex-rag-readonly-probe.sh",
     "test:memory-process": "npm run build && node scripts/memory-process-e2e.mjs",
@@ -108,17 +107,17 @@
     "test:ace-plan-refinement": "node --test test/ace-plan-refinement.test.mjs"
   },
   "dependencies": {
-    "@ast-grep/cli": "0.51.0",
     "@qdrant/js-client-rest": "1.20.0",
-    "effect": "3.22.3",
+    "effect": "3.22.5",
     "typescript": "5.9.3",
     "typescript-language-server": "6.1.0",
-    "vscode-jsonrpc": "9.0.3",
+    "vscode-jsonrpc": "10.0.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@ast-grep/cli": "0.51.3",
     "@stylistic/eslint-plugin": "6.0.1",
-    "@types/node": "24.10.0",
+    "@types/node": "22.20.5",
     "@typescript-eslint/eslint-plugin": "8.74.0",
     "@typescript-eslint/parser": "8.74.0",
     "eslint": "10.15.0",

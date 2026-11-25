@@ -150,6 +150,33 @@ test('fresh structural records with a mismatched repo path are rejected from sha
   assert.equal(result.value.structuralAnalysesByPath?.size, 0);
 });
 
+test('unchanged bytes do not reuse previously failed structural extraction', async () => {
+  const source = Buffer.from('export function index() { return true; }\n');
+  let calls = 0;
+  const structural: StructuralAnalysisPort = {
+    extract: (input) => Effect.sync(() => {
+      calls += 1;
+      return ok({
+        repoPath: calls === 1 ? 'src/other.ts' : input.repoPath,
+        sourceDigest: 'b'.repeat(64) as never,
+        symbols: [], hasSyntaxErrors: false,
+      });
+    }),
+  };
+  const first = await Effect.runPromise(buildLocalCodeIndex(files(source), workspaceId, '/repo', {
+    generation: 1, parserVersion: 'parser-v1', scopeFingerprint: 'scope-v1', structural,
+  }));
+  assert.equal(first._tag, 'Ok');
+  if (first._tag === 'Err') return;
+  assert.equal(first.value.coverage.failedPaths, 1);
+  const recovered = await Effect.runPromise(buildLocalCodeIndex(files(source), workspaceId, '/repo', {
+    generation: 2, parserVersion: 'parser-v1', scopeFingerprint: 'scope-v1', structural, previous: first.value,
+  }));
+  assert.equal(recovered._tag, 'Ok');
+  if (recovered._tag === 'Ok') assert.equal(recovered.value.coverage.failedPaths, 0);
+  assert.equal(calls, 2);
+});
+
 test('pre-materialized snapshot avoids a second repository snapshot during incremental rebuild', async () => {
   const source = Buffer.from('export function index() { return true; }\n');
   let snapshotCalls = 0;

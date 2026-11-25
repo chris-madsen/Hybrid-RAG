@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Effect } from 'effect';
-import { makeQdrantContextProvider } from '../src/adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider, makeQdrantContextProvider, type NativeCbmContextConfig } from '../src/adapters/qdrant-context-provider.js';
 import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
-import { ok } from '../src/domain/result.js';
+import { err, ok } from '../src/domain/result.js';
+import { domainError } from '../src/domain/errors.js';
 import { makeCandidateId, makeCodeCandidate } from '../src/domain/retrieval.js';
-import { makeWorkspaceId } from '../src/domain/workspace.js';
+import { makeWorkspaceId, type WorkspaceSnapshot } from '../src/domain/workspace.js';
+import { workspaceManifestFromSnapshot } from '../src/domain/workspace-manifest.js';
 import type { CodeCandidatePort, SemanticAnalysisPort, WorkspaceFilePort } from '../src/application/ports.js';
 
 const sourcePlan = () => {
@@ -104,6 +106,107 @@ test('CBM discovery adds a file missing from Qdrant shortlist without bypassing 
   ]));
   assert.ok(direct.every((item) => item.proofClass === 'direct'));
   assert.ok(direct.some((item) => item.content.includes('function related')));
+  // The new native path must not require any vector/embedding client.
+  const native = makeNativeCbmContextProvider({
+    mode: 'cbm',
+    workspaceId: workspace.value, rootPath: '/repo', files: filePort, semantics,
+    codeGraph: {
+      search: () => Effect.succeed(ok([
+        { candidate: related, score: 0.95, freshness: 'unknown' },
+        { candidate: known, score: 0.8, freshness: 'unknown' },
+      ])),
+    },
+    candidateLimit: 2,
+    newRequestId: () => 'native-cbm-discovery-request',
+  });
+  reads.length = 0;
+  const nativeInput = {
+    workspaceId: workspace.value,
+    query: 'follow related implementation',
+    includeCode: true, includeDocs: false, includeMemory: false,
+    sourceRequirements: sourcePlan(),
+  };
+  const nativeResult = await Effect.runPromise(native.search(nativeInput));
+  assert.equal(nativeResult._tag, 'Ok');
+  if (nativeResult._tag === 'Err') return;
+  assert.equal(nativeResult.value.complete, true);
+  assert.deepEqual(new Set(reads), new Set(['src/known.ts', 'src/related.ts']));
+  assert.equal(nativeResult.value.evidence.filter((item) => item.source === 'code'
+    && item.proofClass === 'direct').length, 2);
+
+  // Native publication must be recovered even when the exact source manifest
+  // is unchanged; an uncited changed file must invalidate the final shortlist.
+  const snapshot: WorkspaceSnapshot = {
+    headRevision: 'fixture-head', removedPaths: [], gitStatus: 'available',
+    files: [known, related].map((candidate) => ({
+      repoPath: candidate.repoPath, digest: candidate.sourceDigest,
+      sizeBytes: Buffer.byteLength(content[candidate.repoPath as keyof typeof content]),
+      state: 'tracked', observedAtMs: 1,
+    })),
+  };
+  const manifest = workspaceManifestFromSnapshot(snapshot, 'fixture-scope');
+  let published = false;
+  let reconciliations = 0;
+  let mutateUncitedOnSearch = false;
+  let currentSnapshot = snapshot;
+  const recoveryConfig: NativeCbmContextConfig = {
+    mode: 'cbm', workspaceId: workspace.value, rootPath: '/repo', semantics,
+    files: { ...filePort, snapshot: () => Effect.sync(() => ok(currentSnapshot)) },
+    workspaceManifest: manifest, indexKey: 'fixture-index',
+    isPublished: () => published,
+    reconcile: (currentManifest) => Effect.sync(() => {
+      assert.equal(currentManifest.contentIdentity, manifest.contentIdentity);
+      reconciliations += 1;
+      published = true;
+      return ok(recoveryConfig);
+    }),
+    codeGraph: { search: () => Effect.sync(() => {
+      if (mutateUncitedOnSearch) currentSnapshot = {
+        ...snapshot,
+        files: snapshot.files.map((file) => file.repoPath === related.repoPath
+          ? { ...file, digest: createHash('sha256').update('changed uncited file').digest('hex') as never }
+          : file),
+      };
+      return ok([{ candidate: known, score: 0.9, freshness: 'unknown' as const }]);
+    }) },
+    newRequestId: () => 'native-recovery-fence-request',
+  };
+  const recoveryProvider = makeNativeCbmContextProvider(recoveryConfig);
+  const recovered = await Effect.runPromise(recoveryProvider.search(nativeInput));
+  assert.equal(recovered._tag, 'Ok');
+  if (recovered._tag === 'Ok') assert.equal(recovered.value.complete, true);
+  assert.equal(reconciliations, 1, 'session loss on an unchanged manifest requires re-publication');
+  mutateUncitedOnSearch = true;
+  const raced = await Effect.runPromise(recoveryProvider.search(nativeInput));
+  assert.equal(raced._tag, 'Err', 'a changed uncited file invalidates native shortlist freshness');
+  if (raced._tag === 'Err') assert.equal(raced.error.code, 'WORKTREE_RACED');
+  assert.equal(reconciliations, 1);
+
+  const nativeFailure = makeNativeCbmContextProvider({
+    mode: 'cbm',
+    workspaceId: workspace.value, rootPath: '/repo', files: filePort, semantics,
+    codeGraph: { search: () => Effect.succeed(err(domainError('NOT_READY', 'cbm', 'provider lost'))) },
+    newRequestId: () => 'native-cbm-unavailable-request',
+  });
+  reads.length = 0;
+  const blocked = await Effect.runPromise(nativeFailure.search(nativeInput));
+  assert.equal(blocked._tag, 'Ok');
+  if (blocked._tag === 'Err') return;
+  assert.equal(blocked.value.complete, false);
+  assert.equal(blocked.value.evidence.length, 0);
+  assert.equal(reads.length, 0);
+
+  const unmapped = makeNativeCbmContextProvider({
+    mode: 'cbm',
+    workspaceId: workspace.value, rootPath: '/repo', files: filePort, semantics,
+    codeGraph: { search: () => Effect.succeed(ok([])) },
+    newRequestId: () => 'native-cbm-no-hints-request',
+  });
+  const emptyResult = await Effect.runPromise(unmapped.search(nativeInput));
+  assert.equal(emptyResult._tag, 'Ok');
+  if (emptyResult._tag === 'Err') return;
+  assert.equal(emptyResult.value.complete, false, 'unmapped top-k is not a verified empty result');
+
   const documentSymbolsLookups: string[] = [];
   const definitionsLookups: string[] = [];
   const semanticSelection: SemanticAnalysisPort = {

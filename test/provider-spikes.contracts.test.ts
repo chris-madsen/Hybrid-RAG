@@ -3,21 +3,8 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { makeLocalHashEmbedding } from '../src/adapters/local-hash-embedding.js';
 import { exportCodexHistory } from '../src/adapters/codex-session-history.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
-
-test('local embedding is deterministic, normalized and dimension-checked', () => {
-  const provider = makeLocalHashEmbedding({ dimensions: 32 });
-  assert.equal(provider._tag, 'Ok');
-  if (provider._tag === 'Err') return;
-  const first = provider.value.embed('local code query');
-  const second = provider.value.embed('local code query');
-  assert.equal(first._tag, 'Ok');
-  assert.deepEqual(first, second);
-  if (first._tag === 'Ok') assert.ok(Math.abs(Math.sqrt(first.value.reduce((sum, value) => sum + (value * value), 0)) - 1) < 1e-9);
-  assert.equal(provider.value.embed(' ')._tag, 'Err');
-});
 
 test('Codex history exporter preserves exact JSONL bytes and cursor identity', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ace-history-'));

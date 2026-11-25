@@ -16,7 +16,7 @@ const coverage: readonly SourceCoverage[] = [
 ];
 
 const event = (
-  provider: 'embedding' | 'qdrant' | 'ast_grep' | 'lsp' | 'vertex_rag' | 'graphiti' | 'source_verification',
+  provider: 'embedding' | 'qdrant' | 'codebase_memory' | 'ast_grep' | 'lsp' | 'vertex_rag' | 'graphiti' | 'source_verification',
   status: 'success' | 'failure' = 'success',
   id = requestId,
 ) => ({
@@ -70,6 +70,16 @@ test('wrong request IDs, failed providers and incomplete source coverage remain 
   ]) assert.ok(result.value.failures.includes(failure), failure);
   assert.equal(result.value.failures.some((failure) => failure.includes('structural')), false);
   assert.equal(result.value.failures.some((failure) => failure.includes('documentation')), false);
+});
+
+test('native CBM trace receipts require CBM and source verification instead of vector providers', () => {
+  const result = evaluateProviderTraceReceipt(requestId, [
+    { source: 'code', requirement: 'required', status: 'satisfied' },
+  ], [event('codebase_memory'), event('source_verification')]);
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Err') throw new Error(result.error.message);
+  assert.equal(result.value.receipt, 'provider-trace-complete');
+  assert.deepEqual(result.value.branches[0]?.requiredProviders, ['codebase_memory', 'source_verification']);
 });
 
 test('safe trace validator rejects unexpected payload fields that could smuggle source/query/token data', () => {

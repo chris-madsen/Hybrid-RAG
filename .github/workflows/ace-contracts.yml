@@ -134,12 +134,6 @@ jobs:
         run: | # zizmor: ignore[adhoc-packages] exact upstream v0.12.1 verifies its binary archive
           npm install --global codebase-memory-mcp@0.12.1
           codebase-memory-mcp --version
-      - name: Pin structural Python provider for nightly exhaustive suite
-        if: github.event_name != 'pull_request'
-        run: |
-          python3 -m venv .venv-system
-          grep -E '^tree-sitter(-typescript)?==' requirements-provider.txt > "$RUNNER_TEMP/ace-structural-requirements.txt"
-          .venv-system/bin/python -m pip install --disable-pip-version-check -r "$RUNNER_TEMP/ace-structural-requirements.txt"
       - name: Focused PR typecheck, affected tests, lint and architecture
         if: github.event_name == 'pull_request'
         env:

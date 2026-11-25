@@ -34,6 +34,8 @@ import {
   qdrantCollectionName,
   ensureQdrantCollection,
   makeQdrantContextProvider,
+  makeNativeCbmContextProvider,
+  type NativeCbmContextConfig,
   type QdrantContextConfig,
   probeQdrantService,
   mutateQdrantChangedPaths,
@@ -51,7 +53,7 @@ import { makeVertexRagRetrievalPort } from '../adapters/vertex-rag.js';
 import { makeFileWorkspaceStore } from '../adapters/file-workspace-store.js';
 import type { WorkspaceFilePort } from '../application/ports.js';
 import { defaultLocalPolicy, type DataClass } from '../domain/policy.js';
-import { makeWorkspaceId, type RepoPath, type WorkspaceId } from '../domain/workspace.js';
+import { makeWorkspaceId, workingContextFromSnapshot, type RepoPath, type WorkspaceId, type WorkspaceSnapshot } from '../domain/workspace.js';
 import { isSensitiveSourcePath } from '../domain/sensitive-path.js';
 import { structuralLanguageForPath } from '../domain/structural-language.js';
 import type { CodeCandidate } from '../domain/retrieval.js';
@@ -60,6 +62,7 @@ import {
   workspaceManifestFromSnapshot,
   workspaceManifestEqual,
   workspaceSnapshotFromManifest,
+  type WorkspaceManifest,
   type WorkspaceManifestDelta,
 } from '../domain/workspace-manifest.js';
 import { observeWorkspace, registerWorkspace } from '../application/workspace-service.js';
@@ -69,6 +72,7 @@ import {
   makeWorkspaceSync,
   observeWorkspaceManifest,
   type WorkspaceSync,
+  type WorkspaceSyncState,
 } from '../application/workspace-sync.js';
 import { verifyCompiledRuntimeProvenance } from '../application/runtime-provenance.js';
 import { makeContextTransformService } from '../application/context-transform-service.js';
@@ -258,7 +262,11 @@ const main = async (): Promise<void> => {
     const provenance = await verifyCompiledRuntimeProvenance(runtimeRoot, fileURLToPath(import.meta.url));
     if (provenance._tag === 'Err') throw new Error(`${provenance.error.code}: ${provenance.error.message}`);
     process.stderr.write(`ace-runtime runtime provenance runtime_id=${provenance.value.runtimeId} source_commit=${provenance.value.sourceCommit} source_manifest_sha256=${provenance.value.sourceManifestSha256} executable_sha256=${provenance.value.executableSha256} runtime_root=${runtimeRoot} node=${process.version} build_node=${provenance.value.buildRuntime.node}\n`);
-    process.stderr.write(`ace-runtime provider identities embedding=${process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx'}|model=${process.env.ACE_EMBEDDING_MODEL?.trim() || defaultEmbeddingModel} sparse=${process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25'} qdrant=${process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2'} lsp=${process.env.ACE_LSP_SERVER?.trim() || 'typescript-language-server'} reranker=${process.env.ACE_RERANKER_MODEL?.trim() || 'disabled'}\n`);
+    if (process.env.ACE_CODE_RETRIEVAL_MODE === 'cbm') {
+      process.stderr.write('ace-runtime provider identities codebase_memory=codebase-memory-mcp/0.12.1 qdrant=disabled embedding=disabled sparse_embedding=disabled lsp=not_configured reranker=disabled\n');
+    } else {
+      process.stderr.write(`ace-runtime provider identities embedding=${process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx'}|model=${process.env.ACE_EMBEDDING_MODEL?.trim() || defaultEmbeddingModel} sparse=${process.env.ACE_SPARSE_EMBEDDING_MODEL?.trim() || 'Qdrant/bm25'} qdrant=${process.env.ACE_QDRANT_VERSION?.trim() || 'qdrant/1.19.2'} lsp=${process.env.ACE_LSP_SERVER?.trim() || 'typescript-language-server'} reranker=${process.env.ACE_RERANKER_MODEL?.trim() || 'disabled'}\n`);
+    }
   }
   const runtimeTestFailpoint = configuredRuntimeTestFailpoint();
   const rootPath = resolve(required('ACE_WORKSPACE_ROOT'));
@@ -370,7 +378,184 @@ const main = async (): Promise<void> => {
   // unobserved default LS from process configuration.
   let activeContextProviderIdentities: Readonly<Record<string, string>> | undefined;
   const cbmStructuralIdentity = 'codebase-memory/v0.12.1:outline:v1';
-  if (process.env.ACE_ENABLE_EXPERIMENTAL_QDRANT === 'true') {
+  const nativeMode = process.env.ACE_CODE_RETRIEVAL_MODE === 'cbm';
+  if (nativeMode) {
+    if (process.env.ACE_ENABLE_EXPERIMENTAL_QDRANT === 'true' || rerankerMode !== 'disabled') {
+      throw new Error('Native CBM retrieval cannot be combined with the historical vector stack or an external reranker');
+    }
+    if (helperUrl !== undefined && helperUrl.length > 0) {
+      throw new Error('Native CBM cutover currently requires an ACE-local workspace');
+    }
+    const candidateLimit = Number(process.env.ACE_CONTEXT_CANDIDATE_LIMIT ?? '6');
+    if (!Number.isSafeInteger(candidateLimit) || candidateLimit < 1 || candidateLimit > 20) {
+      throw new Error('ACE_CONTEXT_CANDIDATE_LIMIT must be an integer between 1 and 20');
+    }
+    const structuralFingerprint = createHash('sha256').update(cbmStructuralIdentity).digest('hex');
+    let candidates: readonly CodeCandidate[] = [];
+    let latestBuild: LocalCodeIndexBuild | undefined;
+    let nativeGeneration = observationEpoch;
+    let nativePublished = false;
+    const graph = makeCodebaseMemoryGraph({
+      rootPath: registered.value.rootPath,
+      ...(process.env.ACE_CBM_COMMAND?.trim() ? { command: process.env.ACE_CBM_COMMAND.trim() } : {}),
+      trace: providerTrace,
+      candidates: () => candidates,
+    });
+    closeCodebaseMemory = graph.close;
+    const structural = makeCodebaseMemoryStructuralPort(graph);
+    const documentation = makeDocumentationProvider(registered.value.workspaceId, makeFetchHttpPort(), providerTrace);
+    // The current Context RPC requests code only. A separate exact identifier
+    // selection/definition contract remains open (#364); do not claim that
+    // native line-based outlines provide independent LSP confirmation.
+    const semantics = makeRoutedLspSession([]);
+    const nativeIdentities = {
+      structural: cbmStructuralIdentity,
+      code_graph: 'codebase-memory/v0.12.1',
+    };
+    const rebuildNative = async (expected?: WorkspaceManifest, sourceSnapshot?: WorkspaceSnapshot): Promise<Result<NativeCbmContextConfig, DomainError>> => {
+      const before = sourceSnapshot === undefined
+        ? await Effect.runPromise(files.snapshot(registered.value.rootPath, Date.now()))
+        : ok(sourceSnapshot);
+      if (before._tag === 'Err') return before;
+      const manifest = workspaceManifestFromSnapshot(before.value, scopeFingerprint);
+      if (expected !== undefined && !workspaceManifestEqual(manifest, expected)) {
+        return err(domainError('WORKTREE_RACED', 'workspace_manifest', 'workspace changed before native CBM reconciliation'));
+      }
+      // Invalidate candidates before any native index mutation. A failed
+      // reindex must not reuse previously certified candidate membership.
+      nativePublished = false;
+      candidates = [];
+      const indexed = await Effect.runPromise(graph.reindex());
+      if (indexed._tag === 'Err') return indexed;
+      nativeGeneration += 1;
+      const built = await Effect.runPromise(buildLocalCodeIndex(
+        files, registered.value.workspaceId, registered.value.rootPath, {
+          generation: nativeGeneration,
+          ...(latestBuild === undefined ? {} : { previous: latestBuild }),
+          scopeFingerprint, structural, parserVersion: structuralFingerprint,
+          snapshot: before.value,
+        },
+      ));
+      if (built._tag === 'Err') return built;
+      const after = await Effect.runPromise(files.snapshot(registered.value.rootPath, Date.now()));
+      if (after._tag === 'Err') return after;
+      if (!workspaceManifestEqual(built.value.workspaceManifest,
+        workspaceManifestFromSnapshot(after.value, scopeFingerprint))) {
+        return err(domainError('WORKTREE_RACED', 'workspace_manifest', 'workspace changed during native CBM indexing'));
+      }
+      if (!graph.isIndexed()) {
+        return err(domainError('NOT_READY', 'codebase_memory', 'native session lost before publication'));
+      }
+      latestBuild = built.value;
+      candidates = built.value.index.candidates;
+      nativePublished = true;
+      return ok({
+        mode: 'cbm',
+        workspaceId: registered.value.workspaceId,
+        rootPath: registered.value.rootPath,
+        files, semantics, codeGraph: graph, candidateLimit,
+        newRequestId: () => randomUUID(),
+        generation: nativeGeneration,
+        indexKey: createHash('sha256').update(cbmStructuralIdentity).update(manifest.contentIdentity).digest('hex'),
+        coverage: built.value.coverage,
+        workspaceManifest: built.value.workspaceManifest,
+        scopeFingerprint,
+        isPublished: () => nativePublished && graph.isIndexed(),
+        trace: providerTrace,
+        ...(benchmarkTrace === undefined ? {} : { benchmarkTrace }),
+        ...(benchmarkRepositoryId === undefined ? {} : { benchmarkRepositoryId }),
+        benchmarkProviderIdentities: nativeIdentities,
+        history,
+        ...(documentation === undefined ? {} : { documentation }),
+      });
+    };
+    const native = await rebuildNative();
+    if (native._tag === 'Err') {
+      readiness.code_retrieval = { state: 'not_ready', reason: 'native_cbm_index_failed' };
+      readiness.unified_context = { state: 'not_ready', reason: 'native_cbm_index_failed' };
+      process.stderr.write(`ace-runtime context NOT_READY: native CBM index failed (${native.error.code})\n`);
+    } else {
+      let published = native.value;
+      const syncState = (config: NativeCbmContextConfig): WorkspaceSyncState => ({
+        workspaceId: config.workspaceId,
+        workspaceManifest: config.workspaceManifest!,
+        generation: config.generation!,
+        indexKey: config.indexKey!,
+        candidateIdsByPath: candidateMembershipByPath(candidates.map((candidate) => ({
+          candidate, score: 0, freshness: 'unknown',
+        }))),
+      });
+      const sync = makeWorkspaceSync({
+        initial: syncState(published),
+        isPublished: () => nativePublished && graph.isIndexed(),
+        // Git-diff hints alone do not establish full source membership on
+        // reverted dirty files, ignored paths or trust-index flags. Keep exact
+        // observation; only changed paths need new structural extraction.
+        observeChanges: (current) => Effect.gen(function* () {
+          const snapshot = yield* files.snapshot(registered.value.rootPath, Date.now());
+          if (snapshot._tag === 'Err') return snapshot;
+          const manifest = workspaceManifestFromSnapshot(snapshot.value, scopeFingerprint);
+          return ok({
+            changed: !workspaceManifestEqual(current.workspaceManifest, manifest)
+              || current.workspaceManifest.headRevision !== manifest.headRevision,
+            manifest, sourceSnapshot: snapshot.value,
+            workingContext: workingContextFromSnapshot(snapshot.value),
+          });
+        }),
+        rebuild: ({ nextManifest, sourceSnapshot }) => Effect.promise(async () => {
+          if (sourceSnapshot === undefined) {
+            return err(domainError('NOT_READY', 'workspace_sync', 'native rebuild requires an exact observed snapshot'));
+          }
+          const rebuilt = await rebuildNative(nextManifest, sourceSnapshot);
+          if (rebuilt._tag === 'Err') return rebuilt;
+          published = rebuilt.value;
+          return ok(syncState(published));
+        }),
+      });
+      const reconcileNative: NonNullable<NativeCbmContextConfig['reconcile']> = (manifest) => Effect.sync(() => {
+        if (!nativePublished || !graph.isIndexed() || published.workspaceManifest === undefined
+          || !workspaceManifestEqual(published.workspaceManifest, manifest)) {
+          return err(domainError('NOT_READY', 'workspace_sync', 'native publication does not match synchronized source'));
+        }
+        return ok({ ...published, workspaceSync: sync, reconcile: reconcileNative });
+      });
+      const provider = makeNativeCbmContextProvider({ ...published, workspaceSync: sync, reconcile: reconcileNative });
+      // Serialize the complete search/reconciliation transaction; no query
+      // may read a candidate list while another query mutates the native index.
+      const semaphore = await Effect.runPromise(Effect.makeSemaphore(1));
+      context = {
+        // Interrupt the caller's wait, retire its actual native I/O, then
+        // drain the owned transaction in the interrupt finalizer BEFORE
+        // releasing the semaphore. The nested promise cannot publish after
+        // suspension; subsequent calls cannot dispatch to another child.
+        search: (input) => semaphore.withPermits(1)(Effect.suspend(() => {
+          graph.resume();
+          let pending: Promise<unknown> | undefined;
+          const operation = Effect.promise(() => {
+            const work = Effect.runPromise(provider.search(input));
+            pending = work;
+            return work;
+          });
+          return Effect.onInterrupt(operation, () => Effect.promise(async () => {
+            nativePublished = false;
+            candidates = [];
+            await graph.suspend();
+            try { await pending; } catch { /* interrupted transaction cannot deliver */ }
+            nativePublished = false;
+            candidates = [];
+          }));
+        })),
+      };
+      activeContextProviderIdentities = nativeIdentities;
+      readiness.semantic_lsp = { state: 'not_ready', reason: 'native_exact_identifier_contract_pending' };
+      readiness.sparse_embedding = { state: 'disabled', reason: 'native_cbm_owns_retrieval' };
+      readiness.code_retrieval = native.value.coverage?.failedPaths === 0
+        ? { state: 'ready', reason: 'native_cbm_indexed' }
+        : { state: 'degraded', reason: 'index_coverage_partial' };
+      readiness.unified_context = readiness.code_retrieval;
+      process.stderr.write('ace-runtime native CBM code retrieval initialized; external vector and embedding providers are not started\n');
+    }
+  } else if (process.env.ACE_ENABLE_EXPERIMENTAL_QDRANT === 'true') {
     const http = makeFetchHttpPort();
     const qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
     const qdrantAllowedHosts = (process.env.ACE_QDRANT_LOCAL_HOSTS ?? '')
@@ -632,6 +817,7 @@ const main = async (): Promise<void> => {
           const codebaseMemory = makeCodebaseMemoryGraph({
             rootPath: registered.value.rootPath,
             ...(process.env.ACE_CBM_COMMAND?.trim() ? { command: process.env.ACE_CBM_COMMAND.trim() } : {}),
+            trace: providerTrace,
             candidates: () => codebaseMemoryCandidates,
           });
           closeCodebaseMemory = codebaseMemory.close;
@@ -1178,7 +1364,7 @@ const main = async (): Promise<void> => {
   } else {
     readiness.code_retrieval = { state: 'not_ready', reason: 'real_provider_disabled' };
     readiness.unified_context = { state: 'not_ready', reason: 'real_provider_disabled' };
-    process.stderr.write('ace-runtime context NOT_READY: enable ACE_ENABLE_EXPERIMENTAL_QDRANT=true for the real local Qdrant+FastEmbed+Codebase Memory+LSP composition; provider outage remains not_ready\n');
+    process.stderr.write('ace-runtime context NOT_READY: configure native CBM cutover or the existing retrieval composition; provider outage remains not_ready\n');
   }
   const gatewayAllowedLlmProviders = configuredStringArray('ACE_CONTEXT_ALLOWED_LLM_PROVIDERS_JSON', [])
     .map((provider) => provider.trim().toLowerCase())
