@@ -156,7 +156,19 @@ try {
     captures.push({ caseId: item.id, request, decision, latencyMs: performance.now() - started });
   }
 } finally {
-  await stopRealProviderProcess(child, { termTimeoutMs: 20_000, killTimeoutMs: 2_000 });
+  // Request one graceful shutdown of ACE, not a process-group signal followed
+  // by a second SIGTERM to the same process. ACE owns trace flush and CBM close.
+  try {
+    if (child.exitCode === null && child.signalCode === null) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('native holdout graceful shutdown timed out')), 20_000);
+        child.once('exit', () => { clearTimeout(timer); resolve(); });
+        child.kill('SIGTERM');
+      });
+    }
+  } finally {
+    await stopRealProviderProcess(child, { termTimeoutMs: 2_000, killTimeoutMs: 2_000 });
+  }
 }
 assert.ok(child.exitCode === 0, 'native holdout runtime did not close gracefully');
 const trace = await readFile(tracePath, 'utf8');
