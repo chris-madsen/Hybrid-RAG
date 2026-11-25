@@ -141,7 +141,8 @@ test('release source validation re-evaluates selection verdicts against retained
 test('native release evidence rejects retired stages, foreign provider and missing runner identity', () => {
   assert.equal(validateNativeRetrievalRunIdentity(holdout, run, revision)._tag, 'Ok');
   assert.equal(validateNativeRetrievalRunIdentity(holdout, { ...run, strategy: 'hybrid_rrf' }, revision)._tag, 'Err');
-  const { runnerVersion: _removed, ...withoutRunner } = run;
+  const { runnerVersion: removedRunnerVersion, ...withoutRunner } = run;
+  assert.equal(removedRunnerVersion, 'fixture/v1');
   assert.equal(validateNativeRetrievalRunIdentity(holdout, withoutRunner, revision)._tag, 'Err');
   assert.equal(evaluateRetrievalStrategy(holdout, withoutRunner)._tag, 'Err');
   assert.equal(validateNativeRetrievalRunIdentity(holdout, {

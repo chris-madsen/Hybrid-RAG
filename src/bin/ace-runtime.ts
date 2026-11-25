@@ -156,6 +156,7 @@ const main = async (): Promise<void> => {
   const runtimeRoot = resolve(
     process.env.ACE_RUNTIME_ROOT?.trim() || resolve(dirname(fileURLToPath(import.meta.url)), '../..'),
   );
+  let verifiedRuntimeCommit: string | undefined;
   if (sourceRuntime) {
     if (process.env.ACE_ALLOW_SOURCE_RUNTIME !== 'true') {
       throw new Error('source ACE runtime requires explicit ACE_ALLOW_SOURCE_RUNTIME=true; compiled dist provenance is mandatory otherwise');
@@ -164,6 +165,7 @@ const main = async (): Promise<void> => {
   } else {
     const provenance = await verifyCompiledRuntimeProvenance(runtimeRoot, fileURLToPath(import.meta.url));
     if (provenance._tag === 'Err') throw new Error(`${provenance.error.code}: ${provenance.error.message}`);
+    verifiedRuntimeCommit = provenance.value.sourceCommit;
     process.stderr.write(`ace-runtime runtime provenance runtime_id=${provenance.value.runtimeId} source_commit=${provenance.value.sourceCommit} source_manifest_sha256=${provenance.value.sourceManifestSha256} executable_sha256=${provenance.value.executableSha256} runtime_root=${runtimeRoot} node=${process.version} build_node=${provenance.value.buildRuntime.node}\n`);
     process.stderr.write('ace-runtime provider identities codebase_memory=codebase-memory-mcp/0.12.1 lsp=not_configured\n');
   }
@@ -208,16 +210,14 @@ const main = async (): Promise<void> => {
   let benchmarkTrace: RetrievalBenchmarkTraceSink | undefined;
   if (benchmarkTracePath !== undefined && benchmarkTracePath.length > 0) {
     const resolvedBenchmarkTracePath = resolve(benchmarkTracePath);
-    let sourceCommit = process.env.ACE_EVIDENCE_SOURCE_COMMIT?.trim();
-    if (sourceCommit === undefined || sourceCommit.length === 0) {
-      try {
-        sourceCommit = execFileSync('git', ['-C', rootPath, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-      } catch {
-        sourceCommit = undefined;
-      }
+    const declaredCommit = process.env.ACE_EVIDENCE_SOURCE_COMMIT?.trim();
+    if (declaredCommit && declaredCommit !== verifiedRuntimeCommit) {
+      throw new Error('benchmark source commit must match verified compiled ACE runtime provenance');
     }
+    // The indexed workspace HEAD is a corpus revision, not the ACE runtime
+    // commit. Development source-runtime traces remain explicitly unbound.
     benchmarkTrace = await makeFileRetrievalBenchmarkTrace(resolvedBenchmarkTracePath, {
-      ...(sourceCommit === undefined || sourceCommit.length === 0 ? {} : { sourceCommit }),
+      ...(verifiedRuntimeCommit === undefined ? {} : { sourceCommit: verifiedRuntimeCommit }),
       runnerVersion: process.env.ACE_BENCHMARK_RUNNER_VERSION?.trim() || 'ace-harness/0.1.0',
     });
   }
