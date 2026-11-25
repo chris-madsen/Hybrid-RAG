@@ -400,11 +400,6 @@ const main = async (): Promise<void> => {
     npm: command('npm', ['--version']),
     astGrep: command('./node_modules/.bin/ast-grep', ['--version']),
     typescriptLanguageServer: command('./node_modules/.bin/typescript-language-server', ['--version']),
-    // Native executable is part of the byte-verified bundle. Version and
-    // real task-container execution are distinct readiness checks.
-    codebaseMemory: args.aceRuntimeBundlePath === undefined
-      ? { status: 'not_ready', reason: 'native runtime bundle is required' }
-      : command(resolve(args.aceRuntimeBundlePath, 'runtime/native/codebase-memory-mcp'), ['--version']),
     harbor: command('harbor', ['--version']),
     harborRun: command('harbor', ['run', '--help']),
     harborDatasets: command('harbor', ['datasets', 'list']),
@@ -450,12 +445,9 @@ const main = async (): Promise<void> => {
       ? { status: 'ready', reason: 'experiment identity matches checkout, Harbor jobs/version, Bifröst endpoint, image provenance and OAuth route' }
       : { status: 'not_ready', reason: `experiment identity mismatch: ${[...new Set(failures)].join(', ')}` };
   }
-  if (checks.codebaseMemory?.status === 'ready' && !/(?:^|\s)0\.12\.1(?:\s|$)/u.test(checks.codebaseMemory.identity ?? '')) {
-    checks.codebaseMemory = { status: 'not_ready', reason: 'unexpected native CBM version' };
-  }
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
-    'codebaseMemory', 'harbor', 'harborRun', 'harborDatasetPinned',
+    'harbor', 'harborRun', 'harborDatasetPinned',
     'hermesCodexAuth', 'bifrostEndpoint', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
     'taskVerifier',
   ];

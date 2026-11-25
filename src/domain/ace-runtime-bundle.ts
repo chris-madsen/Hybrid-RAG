@@ -7,7 +7,7 @@ export interface AceRuntimeBundleManifest {
   readonly taskImages: readonly { readonly reference: string; readonly digest: string }[];
   readonly codebaseMemoryVersion: '0.12.1';
   readonly nativeBinarySha256: string;
-};
+}
 
 export const requiredAceRuntimeBundlePaths = [
   'dist/bin/ace-runtime.js',
