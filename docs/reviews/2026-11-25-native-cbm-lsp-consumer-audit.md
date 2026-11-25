@@ -53,6 +53,10 @@ selection/definition evidence. Conversely, the absence of that evidence does
 not make the code-only Gateway request incomplete: that request never asks for
 LSP evidence, and ACE still validates the selected original source bytes.
 
+## Owner decision — deferred research (2026-11-25)
+
+The owner has explicitly deferred external LSP disposition. Do not withdraw FR-03 or OpenSpec 003, delete the separate LSP implementation/dependencies/tests, or claim CBM supplies equivalent identifier coordinates. The two options below are research alternatives, not instructions to implement either. Vector-only cutover and its acceptance continue independently. Keep #364 open.
+
 ## Disposition
 
 The source audit found no independent external-LSP consumer in the current
