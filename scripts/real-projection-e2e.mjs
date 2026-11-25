@@ -276,19 +276,21 @@ try {
           assert.ok(Date.now() < until, 'native stdio child did not exit');
           await new Promise((resolve) => setTimeout(resolve, 20));
         }
-        const recovered = await projectAgain();
-        assert.equal(recovered.kind, 'PREPARED', JSON.stringify(recovered));
-        const projected = JSON.parse(Buffer.from(recovered.bodyBase64, 'base64').toString('utf8'));
-        const context = projected.input.find((item) => item.role === 'developer'
-          && String(item.content).includes('[ACE verified context]'));
-        assert.ok(context);
-        assert.match(context.content, /retryAfterTransientFailure/u);
-        assert.match(context.content, /service\.ts:/u);
+        const recovered = await Promise.all([projectAgain(), projectAgain()]);
+        for (const outcome of recovered) {
+          assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+          const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+          const context = projected.input.find((item) => item.role === 'developer'
+            && String(item.content).includes('[ACE verified context]'));
+          assert.ok(context);
+          assert.match(context.content, /retryAfterTransientFailure/u);
+          assert.match(context.content, /service\.ts:/u);
+        }
         assert.equal(await readFile(codePath, 'utf8'), code + filler + '\n', 'no artificial source mutation may trigger recovery');
         const traceAfter = await readProviderTrace(providerTracePath);
         const indexesAfter = traceAfter.filter((event) => event.provider === 'codebase_memory'
           && event.operation === 'index_repository' && event.status === 'success').length;
-        assert.ok(indexesAfter > indexesBefore, 'new native index confirmation required after transport loss');
+        assert.equal(indexesAfter, indexesBefore + 1, 'parallel requests must share exactly one recovered publication');
         assertNoExternalRetrievalProcesses(child.pid);
         console.log(JSON.stringify({ status: 'native-recovery-pass', providerWireCertified: false }));
       }
