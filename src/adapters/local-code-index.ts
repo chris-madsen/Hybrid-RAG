@@ -254,7 +254,8 @@ export const buildLocalCodeIndex = (
     if (canReusePreviousFiles && previous !== undefined) {
       for (const observation of snapshot.value.files) {
         const prior = previousFiles.get(observation.repoPath);
-        if (prior === undefined || prior.sourceDigest !== observation.digest) continue;
+        if (prior === undefined || prior.sourceDigest !== observation.digest
+          || (previousFailures.get(observation.repoPath)?.length ?? 0) > 0) continue;
         const candidates = previousCandidates.get(observation.repoPath) ?? [];
         reusableCandidates.push(...candidates.map((candidate) => ({
           ...candidate,
@@ -262,9 +263,6 @@ export const buildLocalCodeIndex = (
           indexedAtMs: Date.now(),
         })));
         reusablePaths.add(observation.repoPath);
-        for (const failure of previousFailures.get(observation.repoPath) ?? []) {
-          coverageFailures.push(failure);
-        }
         warnings.push(...(previousWarnings.get(observation.repoPath) ?? []));
       }
     }

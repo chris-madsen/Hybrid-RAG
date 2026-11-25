@@ -112,6 +112,36 @@ test('WorkspaceSync serializes concurrent refreshes and commits one rebuilt stat
   }
 });
 
+test('WorkspaceSync recovers lost publication with identical source and reuses the observed snapshot', async () => {
+  const first = manifest('src/one.ts', 'a');
+  const sourceSnapshot = {
+    headRevision: first.headRevision, removedPaths: [],
+    files: first.files.map((file) => ({
+      repoPath: file.repoPath, digest: file.sourceDigest, sizeBytes: file.sizeBytes,
+      state: file.state, observedAtMs: 1,
+    })),
+  };
+  let published = false;
+  let rebuilds = 0;
+  const sync = makeWorkspaceSync({
+    initial: initialState(first), isPublished: () => published,
+    observeChanges: () => Effect.succeed(ok({ changed: false, manifest: first, sourceSnapshot })),
+    rebuild: ({ previous, nextManifest, sourceSnapshot: observed }) => Effect.sync(() => {
+      assert.equal(observed, sourceSnapshot);
+      rebuilds += 1;
+      published = true;
+      return ok({ ...previous, workspaceManifest: nextManifest, generation: previous.generation + 1 });
+    }),
+  });
+  const recovered = await Effect.runPromise(sync.refresh());
+  assert.equal(recovered._tag, 'Ok');
+  if (recovered._tag === 'Ok') assert.equal(recovered.value.refreshed, true);
+  const warm = await Effect.runPromise(sync.refresh());
+  assert.equal(warm._tag, 'Ok');
+  if (warm._tag === 'Ok') assert.equal(warm.value.refreshed, false);
+  assert.equal(rebuilds, 1);
+});
+
 test('WorkspaceSync rejects a rebuild whose manifest is already stale', async () => {
   const first = manifest('src/one.ts', 'a');
   const next = manifest('src/one.ts', 'b');
