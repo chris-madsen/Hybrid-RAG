@@ -25,7 +25,7 @@ Run the `native-container` CI steps or the same commands locally for actual proj
 
 The accepted host-worktree helper contract deliberately avoids mounting the live host workspace inside a pod. Native mode currently rejects the remote helper because CBM needs access to the exact local workspace. Do not bypass mTLS or create a private-source shadow copy. Investigate colocating ACE/CBM and Bifröst on the authorized source host versus extending the existing authenticated host boundary to invoke pinned CBM there. This requires an actual topology decision and real tests. The current native container target is local-workspace-only.
 
-PR #376 replaces Harbor's vector bundle with pinned native CBM, schema v2 and byte-bound task images; the three task containers passed actual network-isolated projection/mutation at head `81831723cba7bb6e090be245ef6e291019bd432c` ([job](https://github.com/chris-madsen/Hybrid-RAG/runs/139410524225)). Final regression at the corrected head is required before merge. This is not actual Hermes task or G11 acceptance. No claim that this first image slice completes CBM-03 or CBM-05.
+PR #376 replaces Harbor's vector bundle with pinned native CBM, schema v2 and byte-bound task images; the three task containers passed actual network-isolated projection/mutation at head `81831723cba7bb6e090be245ef6e291019bd432c` ([job](https://github.com/chris-madsen/Hybrid-RAG/runs/139410524225)). Corrected head `a9fbafc3fa7e14b2a969fb4bba8580319e358a14` passed full regression and native/container checks; #376 merged at `e18f90711bb8178056144b37a9941f22906fed21`. This is not actual Hermes task or G11 acceptance. No claim that this first image slice completes CBM-03 or CBM-05.
 
 ## Actual-source development scale observations
 

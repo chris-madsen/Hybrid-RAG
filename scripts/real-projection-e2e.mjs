@@ -345,7 +345,13 @@ try {
         await writeFile(refreshPath, original + '\nexport const nativeScaleRefreshMarker = 913;\n');
         const refreshed = await projectAgain('Find nativeScaleRefreshMarker in src/domain/workspace-manifest.ts.');
         const refreshMs = Math.round(performance.now() - beforeRefresh);
-        const refreshHit = refreshed.kind === 'PREPARED' && Buffer.from(refreshed.bodyBase64, 'base64').toString('utf8').includes(symbol);
+        // Inspect only the verified developer evidence, never the original
+        // query (which already contains the symbol and would fake a hit).
+        const refreshedInput = refreshed.kind === 'PREPARED'
+          ? JSON.parse(Buffer.from(refreshed.bodyBase64, 'base64').toString('utf8')).input : [];
+        const refreshedEvidence = refreshedInput.find((entry) => entry.role === 'developer' && String(entry.content).includes('[ACE verified context]'));
+        const refreshHit = Boolean(refreshedEvidence?.content.includes('src/domain/workspace-manifest.ts:')
+          && refreshedEvidence.content.includes('export const ' + symbol + ' = 913;'));
         const events = await readProviderTrace(providerTracePath);
         const indexEvents = events.filter((event) => event.provider === 'codebase_memory' && event.operation === 'index_repository' && event.status === 'success');
         assert.ok(indexEvents.length >= 2, 'cold and refresh must actually index');
