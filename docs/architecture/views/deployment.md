@@ -12,9 +12,9 @@ flowchart TD
     subgraph Local["Required colocation / shared network namespace"]
         B <-->|"loopback authenticated RPC"| A["ACE Node.js / Effect process"]
         A --> CBM["Persistent CBM stdio child"]
-        A --> W["Embedding / LSP workers"]
+        A -. "historical mode only" .-> W["Embedding / LSP workers"]
     end
-    A --> Q["Local Qdrant"]
+    A -. "historical mode only" .-> Q["Local Qdrant"]
     A --> S["Workspace + local archive"]
     A -->|"authorized only"| V["Vertex"]
     B -->|"approved model route"| P["ChatGPT provider"]
@@ -25,7 +25,7 @@ The diagram is a placement constraint and development topology, not a certified 
 | Component / concern | Current support | Operational verification still required |
 | --- | --- | --- |
 | ACE artifact | Clean source build and runtime provenance; Docker packaging | Exact release build/image/signature evidence and deployed runtime identity |
-| Local providers | Local Qdrant and FalkorDB manifests; CBM process and external workers | Actual readiness and recovery under the chosen topology |
+| Local providers | Native CBM direct child and native Docker target tested; Qdrant/embedding manifests remain transitional; LSP retained separately | Absolute scale, cache scope and host-helper topology; local recovery already tested |
 | Kubernetes | Local dependency manifests, host-worktree design | Accepted ACE/Bifröst deployment, network/resource constraints and real workload lifecycle |
 | Crash/recovery | Archive and index publication/reconciliation mechanisms; documented runbooks | Cross-process and real-provider restart/outage evidence for applicable release |
 | Observability | Typed status, diagnostics and evidence records | Actual incident/latency/resource observations, not inferred operational SLOs |

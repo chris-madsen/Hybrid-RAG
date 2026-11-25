@@ -11,7 +11,7 @@
 | Freshness, coverage and losslessness | Exact source digest/range, source-race and retrieval contracts | Required evidence must be current; no silent truncation or empty success |
 | Interface and authorization correctness | TypeSpec generated contracts, Go connector, signed receipt and attempt tests | Local contract tests do not prove actual external provider bytes |
 | Architectural integrity | Domain dependency fitness rules and single-gateway audits | Deterministic structural verification; no agent-E2E implication |
-| Provider behavior | Real CBM, Qdrant and LSP integration tests and fault cases | Each observed provider/configuration and SHA; no blanket certification |
+| Provider behavior | Real native CBM host/container lifecycle and source mutation tests; historical Qdrant and independent LSP tests remain scoped | Each observed provider/configuration and SHA; no blanket certification |
 | Agent behavior | Native wire, SSE/cancellation, real Hermes multi-turn task | C03–C07 acceptance remains independent |
 | Token and cost efficiency | Harbor matched frozen baseline/ACE tasks with independent task correctness and attempt accounting | C08; unknown usage is unknown, failed tasks are not savings |
 | Operational/release assurance | Source provenance, security checks, SBOM/signature evidence, backup/restore | Release-specific retained artifacts and owner acceptance |

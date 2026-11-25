@@ -42,6 +42,10 @@ This sequence describes the accepted integration and source-level behavior. Actu
 - Bifröst owns authentication forwarding, final request dispatch, provider retries, response stream and accounting. ACE does not generate a second model request or claim coding-host transcript attestation from request visibility.
 - Context projection preserves native input and opaque request fields, adds verified evidence and checks final request binding. Required retrieval failure or unauthorized destination must not become silent passthrough.
 
+## Native retrieval lifecycle
+
+Native local mode uses WorkspaceSync and one direct CBM child. Provider loss, cancelled/expired requests and failed rebuilds invalidate publication; the transaction drains before a replacement child may publish. Final source observation fences shortlist delivery. Host and isolated Docker E2E at #375 prove these scoped scenarios, not shared-cache concurrency, ABA-free observations or external provider-wire cancellation.
+
 ## Supporting sources and evaluation references
 
 [ADR-021](../../references/ADR-021-bifrost-single-gateway-ace-context-service.md), [TypeSpec](../../../typespec/context-v3.tsp), [RPC transport](../../../src/transport/context-rpc-http.ts), [projection service](../../../src/application/responses-projection-service.ts), [attempt authorization](../../../src/application/gateway-attempt-authorization-service.ts), [Go connector](../../../integrations/bifrost/ace-connector/README.md), [subscription runbook](../../operations/gateway-subscription-oauth.md).
