@@ -95,12 +95,16 @@ test('a dead native provider invalidates the published graph until explicit rein
     candidates: () => [],
   });
   try {
+    assert.equal(graph.isIndexed(), false);
     assert.equal((await Effect.runPromise(graph.reindex()))._tag, 'Ok');
+    assert.equal(graph.isIndexed(), true);
     const crashed = await Effect.runPromise(graph.search({ query: 'crash-provider', limit: 2 }));
     assert.equal(crashed._tag, 'Err');
+    assert.equal(graph.isIndexed(), false);
     assert.equal((await Effect.runPromise(graph.outline('src/app.ts' as never)))._tag, 'Err',
       'no stale source outline after the native session dies');
     assert.equal((await Effect.runPromise(graph.reindex()))._tag, 'Ok');
+    assert.equal(graph.isIndexed(), true);
     assert.equal((await Effect.runPromise(graph.outline('src/app.ts' as never)))._tag, 'Ok');
     const entries = readLog(log);
     assert.equal(new Set(entries.map((item) => item.pid)).size, 2,
