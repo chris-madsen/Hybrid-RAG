@@ -76,3 +76,110 @@ Continue #275 and #323/G11 on exact native Responses subscription path under exi
 ## Local reproducibility
 
 Use a clean worktree, exact main/PR SHA, Node 22.23.4 and pinned CBM. Keep log artifacts with digest and source SHA; upload reproducible redacted results, not secrets or source outside authorized policy. Actual real-provider integration can require Linux/WSL with Unix sockets; container EPERM is BLOCKED, not product failure or PASS. Fix actual failures, rerun owning contracts and final gate, and record remaining gaps; do not weaken acceptance or invent new infrastructure.
+
+## Historical proposal for requirement supersession — superseded by the revised OpenSpec 014
+
+This historical proposal predates the substantive OpenSpec 014 revision in PR #378. The active 014 specs, tasks and phase briefs now own the native lifecycle and retrieval acceptance requirements; the strict validator checks the revised phase fingerprints. The proposal below is retained as history, not an alternative active requirement or acceptance tracker. No unchecked acceptance is promoted by the replan. FR-03 remains deferred, not withdrawn.
+
+### Proposed replacement requirements and scenarios (for review)
+
+#### Proposed workspace-snapshot-correctness
+
+
+
+##### Requirement: Verified freshness for complete source search
+
+A successful complete retrieval SHALL require a trustworthy source observation. Non-Git size/mtime hints alone SHALL NOT prove freshness.
+
+###### Scenario: REM-001 — Same-metadata non-Git mutation
+- **WHEN** source bytes change without a size/mtime change, or watcher events are dropped
+- **THEN** reconciliation detects the change or represents source coverage as incomplete
+- **AND** no empty search is declared verified-current before reconciliation
+
+###### Scenario: REM-002 — Truthful empty Native Responses pass-through
+- **WHEN** an authorized request yields a truly complete, fresh, successful empty retrieval
+- **THEN** the already approved verified-no-addition response preserves native input bytes exactly
+- **AND** stale, denied, partial, failed or unknown results never enter that success path
+
+##### Requirement: Concurrent source publishers cannot roll back newer source
+
+The publisher SHALL preserve workspace-scoped authority that prevents stale writers from erasing or activating older generations. For the owner-selected native CBM cutover, reuse upstream coordination and ACE exact source/generation verification rather than rebuilding the retired vector publication mechanism. A process-local semaphore alone SHALL NOT be treated as cross-process authority. Supported concurrent topology must be proven, or an explicit approved constraint must prevent unsupported publishers from sharing mutable index state.
+
+###### Scenario: REM-005 — Stale writer after newer publication
+- **WHEN** process A observes v1, pauses, and process B publishes v2 before A continues
+- **THEN** A neither deletes v2 membership nor promotes v1 over v2
+- **AND** readers see a complete current generation or an explicit typed unavailable result
+
+###### Scenario: REM-006 — Failed/restarted publication
+- **WHEN** publication fails, a writer crashes/restarts or competing writers have the same claimed generation
+- **THEN** the system cannot expose a partial or rolled-back snapshot as complete
+- **AND** verified newer membership survives restart/cleanup and is not lost by stale pruning
+- **AND** index/cache atomicity alone is never mistaken for verified source-generation ownership
+- **AND** restart or provider loss requires a fresh verified publication before any result can be declared complete
+
+
+#### Proposed retrieval-quality-provenance
+
+
+
+##### Requirement: Working-context priors preserve documented ranking semantics
+
+Positive working-context preferences SHALL not demote candidates merely because cosine scores can be negative.
+
+###### Scenario: REM-015 — Prior applied to negative/zero/positive score
+- **WHEN** Qdrant returns negative, zero or positive ranked scores and a relevant candidate receives a preference
+- **THEN** the prior never decreases its intended relative rank under the documented strategy
+- **AND** held-out retrieval quality and latency are measured before promotion
+
+##### Requirement: Delivered evidence and provider provenance are accurate
+
+Retrieval metrics SHALL distinguish shortlist from final verified model-visible evidence; provider identities SHALL describe the actual active implementation.
+
+###### Scenario: REM-016 — Stale shortlisted hit excluded from delivered stage
+- **WHEN** a hit fails source verification, final reread, dedup or actual delivery
+- **THEN** it is recorded as shortlisted/rejected rather than delivered verified evidence
+- **AND** delivered recall cannot count its missing code body
+
+###### Scenario: REM-017 — Selected runtime provider identity
+- **WHEN** Rust/Go/Python/custom LSP or embedding runtime supplies evidence
+- **THEN** trace and receipt carry effective resolved identities where observed
+- **AND** unavailable providers never inherit hard-coded TypeScript defaults
+
+##### Requirement: Maintained native structural and ranking provider has measured task quality
+
+Native CBM SHALL own discovery and structural hints in the selected code retrieval architecture. Unobserved paths SHALL NOT count as recall and native outline ranges SHALL NOT be promoted to exact identifier coordinates. Provider identity, corpus quality, source scope and license provenance SHALL be established before acceptance; no independent LSP contract is withdrawn.
+
+###### Scenario: REM-018 — Multi-file path outside native top-K
+- **WHEN** a relevant path falls outside initial candidate shortlist on a multi-file coding task
+- **THEN** the strategy measures and reports that bound or uses proven provider-native diversity/overfetch
+- **AND** no unverified RepoMap text substitutes for exact cited source
+
+###### Scenario: REM-019 — Native structural evidence remains source-bound
+- **WHEN** a native CBM outline, graph result or unsupported language supplies incomplete, ambiguous or inconsistent structural evidence
+- **THEN** ACE rereads and verifies exact current UTF-8 source ranges or reports typed partial/unavailable
+- **AND** corpus quality, provider identity and license provenance are recorded independently
+- **AND** no line hint claims exact independent LSP identifier coordinates; FR-03 remains open for separate research
+
+##### Requirement: Timed-out native provider work cannot monopolize the transaction indefinitely
+
+A cancelled client wait SHALL not leave unbounded serial provider work or misattribute stale responses.
+
+###### Scenario: REM-020 — Native CBM timeout and next request
+- **WHEN** native indexing or retrieval stalls, is cancelled or times out before a queued healthy request
+- **THEN** cancellation/recovery and transaction fencing let the healthy request complete or return typed bounded unavailability
+- **AND** the cancelled generation cannot publish and stale late output cannot be attributed to the next request
+- **AND** shared upstream jobs or other processes must not invalidate the approved source/generation isolation boundary
+
+
+## CBM-05 executable worker retirement slice (candidate)
+
+The historical Python dense/sparse embedding and cross-encoder worker environments, launchers, provider benchmark runners and process adapters are removed in this candidate. The original evidence reports and pure historical report validators remain, with no claim of current approval. Replace the old nightly Qdrant projection job with the existing native integration workflow; retain memory/HTTP Python dependency verification and independent real LSP checks. REM-020 operational cancellation evidence is supplied by the real CBM child/deadline tests, not by relabeling old Python-worker tests. The candidate now extracts native source verification into `src/adapters/native-cbm-context-provider.ts`, removes the Qdrant context/SDK adapters and HTTP vector boundary, and migrates mixed-source and exact-source contracts to the native provider. The npm-generated lockfile removes the Qdrant client, its OpenAPI helper and its exclusive undici dependency. Historical AR03 vector-specific executable fixtures are removed; the native cross-process/source-authority requirements remain open in the revised OpenSpec. Release preflight now requires native identities and absolute retrieval quality, but the independent corpus and real final-projection evidence still need to be collected and verified. The owner permits merging the code cutover before local acceptance; this does not authorize release, unsupported topology, or closure of #363.
+
+
+## 2026-11-25 native scale correction and retirement progress
+
+- PR #379 merged at `2c8d1bf4ae68023b68b6a7a3a9c1429c91eb74b7`. The first real ACE corpus run failed all 20 expected delivery checks. The correction uses bounded explicit-symbol queries against the existing native CBM graph, prioritizes explicit file mentions only among graph-returned candidates, and retains exact-source verification and secret policy. No additional embedding, vector index or ranking service.
+- Corrected [native container integration evidence](https://github.com/chris-madsen/Hybrid-RAG/runs/139442186573) (job 139442186573; CI tested source commit `9f3b26e3c865cd20b81ee928a70b28d33c931f35`, corpus tree `f7e87c2943ca3733439c71bbe6f90d8b7de8dce7`): 126 source files, 1,413,120 archived bytes, CBM 0.12.1, Node 22.23.4, four repeated explicit-symbol queries, 20/20 delivered hits, refresh hit true, cold index 1,680 ms, startup 2,469 ms, warm p50 307 ms/p95 325 ms, refresh 1,678 ms, cgroup peak 298,086,400 bytes, native home 18,135,711 bytes. This is development evidence, not a held-out corpus, resource approval, or physical provider-wire certification.
+- PR #357 merged at `b2adb6cb95feadbccf372e39174df63b90e1d728` after updating the retained independent TypeScript LSP pin to 6.1.0 and re-running checks. Independent LSP research remains deferred, not withdrawn.
+- PR #340 is not a necessary update for the selected native architecture; retire its obsolete ONNX requirement only when the removal lands on main.
+- PR #378 implements the native-only runtime, Docker image, Python worker and SDK/lockfile removal, revised OpenSpec/phase bindings and native release-evidence identity checks. Merge requires green applicable checks on the reviewed head; the owner explicitly separates merge from local acceptance. The remaining independent holdout runner and scoring of actual PREPARED projections (not just source-verified retrieval traces), shared-daemon/worker/scope/ABA isolation, and remote host-worktree topology remain open. Local container daemon recovery and cache-conflict refusal do not certify all concurrent topologies. Keep #363 and #364 open, and do not restore the old vector stack.

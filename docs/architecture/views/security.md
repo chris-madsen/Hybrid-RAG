@@ -2,7 +2,7 @@
 
 **Governing viewpoint:** VP-05 · **Model kinds:** MK-06, MK-09 · **Concerns:** C-02, C-04, C-05, C-10.
 
-**Identity/version:** V-05 v1.1; ACE-AD-001 v1.1; 2026-11-24. **Perspectives:** SP-03, SP-04. **Aspects:** AS-05, AS-03. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
+**Identity/version:** V-05 v1.1; ACE-AD-001 v1.2; 2026-11-24. **Perspectives:** SP-03, SP-04. **Aspects:** AS-05, AS-03. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
 
 ## Trust boundaries and control model
 

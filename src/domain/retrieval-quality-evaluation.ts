@@ -5,6 +5,7 @@ import type {
   RetrievalBenchmarkStageStatus,
 } from './retrieval-benchmark.js';
 import { retrievalBenchmarkStages } from './retrieval-benchmark.js';
+import { nativeCodeRetrieval } from './retrieval.js';
 
 export interface RetrievalHoldoutRepository {
   readonly id: string;
@@ -159,13 +160,6 @@ export interface RetrievalQualityVerdict {
   readonly metrics: RetrievalQualityMetrics;
 }
 
-export interface RetrievalStrategySelection {
-  readonly selectedStrategy: string;
-  readonly qualityGatePassed: boolean;
-  readonly fallbackToDense: boolean;
-  readonly rejectedStrategies: readonly string[];
-}
-
 const sha256 = (value: string): boolean => /^[a-f0-9]{64}$/u.test(value);
 const unit = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
 const nonNegative = (value: number): boolean => Number.isFinite(value) && value >= 0;
@@ -175,6 +169,30 @@ const commitIdentity = (value: string | undefined): boolean => value === undefin
 const providerIdentityMap = (value: Readonly<Record<string, string>> | undefined): boolean => value !== undefined
   && Object.keys(value).length > 0
   && Object.entries(value).every(([key, identity]) => key.trim().length > 0 && identity.trim().length > 0);
+/** Current native release identity; historical report readers stay generic. */
+export const validateNativeRetrievalRunIdentity = (
+  holdout: RetrievalHoldout,
+  run: RetrievalStrategyRun,
+  expectedCommit: string,
+): Result<void, DomainError> => {
+  if (holdout.status !== 'frozen_multi_repository_holdout'
+    || !commitIdentity(expectedCommit) || !expectedCommit
+    || run.sourceCommit !== expectedCommit
+    || typeof run.runnerVersion !== 'string' || run.runnerVersion.trim().length === 0
+    || run.strategy !== nativeCodeRetrieval.strategy
+    || run.providerIdentities?.code_graph !== nativeCodeRetrieval.providerIdentities.code_graph
+    || run.providerIdentities?.structural !== nativeCodeRetrieval.providerIdentities.structural
+    || Object.keys(run.providerIdentities ?? {}).length !== 2
+    || run.observations.some((observation) => retrievalBenchmarkStages.some((stage) =>
+      stage === 'delivered'
+        ? observation.stageStatuses?.[stage] !== 'executed' && observation.stageStatuses?.[stage] !== 'unavailable'
+        : observation.stageStatuses?.[stage] !== 'not_applicable'))) {
+    return err(domainError('INVALID_BENCHMARK', 'native_retrieval.identity',
+      'native acceptance requires pinned providers, exact commit, runner identity, frozen holdout and retired stages marked not applicable'));
+  }
+  return ok(undefined);
+};
+
 const mean = (values: readonly number[]): number =>
   values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
 const optionalMean = (values: readonly (number | undefined)[]): number | undefined => {
@@ -303,7 +321,7 @@ export const evaluateRetrievalStrategy = (
   if (holdout.status === 'frozen_multi_repository_holdout'
     && (!commitIdentity(run.sourceCommit)
       || run.sourceCommit === undefined
-      || run.runnerVersion?.trim().length === 0
+      || typeof run.runnerVersion !== 'string' || run.runnerVersion.trim().length === 0
       || !providerIdentityMap(run.providerIdentities))) {
     return err(domainError(
       'INVALID_BENCHMARK',
@@ -528,39 +546,3 @@ export const evaluateRetrievalQualityPolicy = (
   });
 };
 
-/**
- * Selects only among candidates that are non-inferior to the same-holdout
- * dense reference. Compactness and latency are tie-breakers, never a way to
- * compensate for a quality regression.
- */
-export const selectRetrievalStrategy = (
-  metrics: readonly RetrievalQualityMetrics[],
-  baselineStrategy = 'dense',
-): Result<RetrievalStrategySelection, DomainError> => {
-  const baseline = metrics.find((item) => item.strategy === baselineStrategy);
-  if (baseline === undefined) {
-    return err(domainError('INVALID_BENCHMARK', 'retrieval_selection', 'dense-only reference metrics are required'));
-  }
-  const compatible = metrics.filter((item) => item.holdoutStatus === baseline.holdoutStatus
-    && item.cases === baseline.cases
-    && item.repositoryCount === baseline.repositoryCount);
-  const eligible = compatible.filter((item) => item.criticalRecallAt5 >= baseline.criticalRecallAt5
-    && item.mrr >= baseline.mrr
-    && item.ndcgAt5 >= baseline.ndcgAt5);
-  const ranked = [...eligible].sort((left, right) =>
-    right.criticalRecallAt5 - left.criticalRecallAt5
-      || right.mrr - left.mrr
-      || right.ndcgAt5 - left.ndcgAt5
-      || (left.payloadBytesMean ?? left.payloadCharactersMean) - (right.payloadBytesMean ?? right.payloadCharactersMean)
-      || left.latencyP95Ms - right.latencyP95Ms
-      || left.strategy.localeCompare(right.strategy));
-  const selected = ranked[0] ?? baseline;
-  return ok({
-    selectedStrategy: selected.strategy,
-    qualityGatePassed: ranked.length > 0,
-    fallbackToDense: ranked.length === 0 || selected.strategy === baselineStrategy,
-    rejectedStrategies: metrics
-      .filter((item) => item.strategy !== selected.strategy && !eligible.includes(item))
-      .map((item) => item.strategy),
-  });
-};

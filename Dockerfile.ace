@@ -30,8 +30,7 @@ ENV ACE_STATE_DIR=/var/lib/ace/state \
     ACE_ARTIFACT_DIR=/var/lib/ace/artifacts \
     TMPDIR=/tmp
 
-# Opt-in migration target. The shared TS package still contains legacy vector
-# dependencies until CBM-05; no Python embedding/model runtime is installed here.
+# Native code retrieval only; no separate vector service or Python workers.
 FROM ace-base AS native-cbm
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git procps \
@@ -44,36 +43,7 @@ RUN apt-get update \
   && ln -s /opt/ace-native/codebase-memory-mcp /usr/local/bin/codebase-memory-mcp \
   && mkdir -p /var/lib/ace/native-home \
   && chown node:node /var/lib/ace/native-home
-ENV HOME=/var/lib/ace/native-home \
-    ACE_CODE_RETRIEVAL_MODE=cbm \
-    ACE_ENABLE_EXPERIMENTAL_QDRANT=false \
-    ACE_RERANKER_MODE=disabled
+ENV HOME=/var/lib/ace/native-home
 USER node
 CMD ["node", "/opt/ace/dist/bin/ace-runtime.js"]
 
-# Keep the currently deployed default until the physical vector cutover.
-# This stage is transitional, not an additional supported target architecture.
-FROM ace-base AS historical-vector
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip python3-venv \
-  && python3 -c 'import sys; sys.exit("ACE runtime requires Python 3.11+") if sys.version_info < (3, 11) else None' \
-  && rm -rf /var/lib/apt/lists/* \
-  && python3 -m venv /opt/ace/.venv-embedding-fast \
-  && /opt/ace/.venv-embedding-fast/bin/pip install --no-cache-dir \
-       pillow==13.0.0 fastembed==0.9.1 onnxruntime==1.23.2 numpy==2.2.6 huggingface-hub==1.33.0 \
-  && mkdir -p /var/lib/ace/state /var/lib/ace/artifacts /var/lib/ace/model-cache /tmp/ace \
-  && chown -R node:node /var/lib/ace /tmp/ace
-
-ENV ACE_STATE_DIR=/var/lib/ace/state \
-    ACE_ARTIFACT_DIR=/var/lib/ace/artifacts \
-    FASTEMBED_CACHE_PATH=/var/lib/ace/model-cache \
-    ACE_EMBEDDING_WORKER=/opt/ace/scripts/fastembed-worker.sh \
-    ACE_EMBEDDING_PYTHON=/opt/ace/.venv-embedding-fast/bin/python \
-    TMPDIR=/tmp
-
-USER node
-
-# Gateway is the sole agent-facing context path. The listener stays loopback-
-# only, so a production deployment needs an accepted Bifröst sidecar/network
-# namespace and explicit signed image approval; this image alone does not certify it.
-CMD ["node", "/opt/ace/dist/bin/ace-runtime.js"]

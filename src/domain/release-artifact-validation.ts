@@ -1,3 +1,5 @@
+import { nativeCodeRetrieval } from './retrieval.js';
+
 const record = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 const sha256 = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -30,53 +32,52 @@ const verdictFailures = (root: Record<string, unknown>, path: string, failures: 
 
 export const validateReleaseAcceptanceArtifacts = (
   input: {
-    readonly embeddingSelection: unknown;
-    readonly semanticSelection: unknown;
+    readonly semanticSelection?: unknown;
     readonly retrievalQuality: unknown;
     readonly harborThreeArm: unknown;
   },
   currentCommit: string,
+  requireIndependentSemantic = true,
 ): readonly string[] => {
   const failures: string[] = [];
-  const embedding = record(input.embeddingSelection);
-  if (embedding === undefined || embedding.schemaVersion !== 1 || embedding.sourceCommit !== currentCommit
-    || !sha256(embedding.reportSha256) || !sha256(embedding.policySha256)
-    || !nonEmpty(embedding.reportPath) || !nonEmpty(embedding.policyPath)
-    || embedding.evidenceStage !== 'frozen_holdout' || !sha256(embedding.datasetSha256) || !nonEmpty(embedding.dataset)) {
-    failures.push('embedding_evidence_identity_invalid');
-  } else {
-    verdictFailures(embedding, 'embedding', failures);
-  }
-
-  const semantic = record(input.semanticSelection);
-  const semanticVerdict = record(semantic?.verdict);
-  const semanticReports = semantic?.reports;
-  if (semantic === undefined || semantic.schemaVersion !== 1 || semantic.sourceCommit !== currentCommit
-    || !sha256(semantic.policySha256) || !sha256(semantic.fixtureSha256) || !sha256(semantic.oracleSha256)
-    || !nonEmpty(semantic.policyPath)
-    || !Array.isArray(semanticReports) || semanticReports.length < 2
-    || !semanticReports.every((item) => {
-      const report = record(item);
-      return report !== undefined && nonEmpty(report.path) && sha256(report.sha256);
-    })) {
-    failures.push('semantic_evidence_identity_invalid');
-  } else {
-    verdictFailures(semantic, 'semantic', failures);
-    if (semanticVerdict?.matchedComparison !== true) failures.push('semantic_comparison_not_matched');
-    if (Array.isArray(semantic.providerIds)
-      && (!stringArray(semantic.providerIds) || !semantic.providerIds.includes(String(semanticVerdict?.selectedProvider)))) {
-      failures.push('semantic_selected_provider_not_in_reports');
+  if (requireIndependentSemantic) {
+    const semantic = record(input.semanticSelection);
+    const semanticVerdict = record(semantic?.verdict);
+    const semanticReports = semantic?.reports;
+    if (semantic === undefined || semantic.schemaVersion !== 1 || semantic.sourceCommit !== currentCommit
+      || !sha256(semantic.policySha256) || !sha256(semantic.fixtureSha256) || !sha256(semantic.oracleSha256)
+      || !nonEmpty(semantic.policyPath)
+      || !Array.isArray(semanticReports) || semanticReports.length < 2
+      || !semanticReports.every((item) => {
+        const report = record(item);
+        return report !== undefined && nonEmpty(report.path) && sha256(report.sha256);
+      })) {
+      failures.push('semantic_evidence_identity_invalid');
+    } else {
+      verdictFailures(semantic, 'semantic', failures);
+      if (semanticVerdict?.matchedComparison !== true) failures.push('semantic_comparison_not_matched');
+      if (Array.isArray(semantic.providerIds)
+        && (!stringArray(semantic.providerIds) || !semantic.providerIds.includes(String(semanticVerdict?.selectedProvider)))) {
+        failures.push('semantic_selected_provider_not_in_reports');
+      }
     }
+
   }
 
   const retrieval = record(input.retrievalQuality);
+  const identities = record(retrieval?.providerIdentities);
   const retrievalVerdict = record(retrieval?.verdict);
   const retrievalMetrics = record(retrievalVerdict?.metrics);
-  if (retrieval === undefined || retrieval.schemaVersion !== 1 || retrieval.sourceCommit !== currentCommit
+  if (retrieval === undefined || retrieval.schemaVersion !== 2 || retrieval.sourceCommit !== currentCommit
     || !sha256(retrieval.holdoutSha256) || !sha256(retrieval.runSha256) || !sha256(retrieval.policySha256)
-    || retrievalVerdict === undefined || !nonEmpty(retrievalVerdict.selectedStrategy)
+    || !nonEmpty(retrieval.holdoutPath) || !nonEmpty(retrieval.runPath) || !nonEmpty(retrieval.policyPath)
+    || identities?.code_graph !== nativeCodeRetrieval.providerIdentities.code_graph
+    || identities?.structural !== nativeCodeRetrieval.providerIdentities.structural
+    || Object.keys(identities ?? {}).length !== 2
+    || retrievalVerdict === undefined || retrievalVerdict.selectedStrategy !== nativeCodeRetrieval.strategy
     || !boolean(retrievalVerdict.measurementAccepted) || !stringArray(retrievalVerdict.failures)
-    || retrievalMetrics === undefined || retrievalMetrics.holdoutStatus !== 'frozen_holdout'
+    || retrievalMetrics === undefined || retrievalMetrics.holdoutStatus !== 'frozen_multi_repository_holdout'
+    || !nonNegativeInteger(retrievalMetrics.repositoryCount) || retrievalMetrics.repositoryCount < 2
     || !nonNegativeInteger(retrievalMetrics.cases) || retrievalMetrics.cases < 1
     || !optionalFinite(retrievalMetrics.recallAt1) || !optionalFinite(retrievalMetrics.recallAt3)
     || !optionalFinite(retrievalMetrics.recallAt5) || !optionalFinite(retrievalMetrics.mrr)

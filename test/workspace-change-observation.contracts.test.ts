@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, rename, rm, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -56,6 +57,44 @@ test('NodeWorkspacePort observes changed, added, deleted, and renamed paths with
     assert.deepEqual(observed.value.deletedPaths, ['src/deleted.ts']);
     assert.deepEqual(observed.value.unstagedPaths, []);
     assert.equal(typeof observed.value.branch, 'string');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('exact snapshot hashes large and Git-hidden edits with deterministic membership', async () => {
+  const root = await createGitWorkspace();
+  try {
+    const changed = join(root, 'src/changed.ts');
+    const large = Buffer.alloc(2 * 1024 * 1024 + 17, 97);
+    await writeFile(join(root, 'src/large.txt'), large);
+    await git(root, ['add', 'src/large.txt']);
+    await git(root, ['commit', '-qm', 'large fixture']);
+    const fixedTime = new Date('2024-05-01T00:00:00.000Z');
+    await utimes(changed, fixedTime, fixedTime);
+    await git(root, ['update-index', '--assume-unchanged', 'src/changed.ts']);
+    const port = makeNodeWorkspacePort({ allowedRoots: [root] });
+    const before = await Effect.runPromise(port.snapshot(root, 1));
+    assert.equal(before._tag, 'Ok');
+    const prior = before.value.files.find((file) => file.repoPath === 'src/changed.ts');
+    assert.ok(prior);
+    const modified = 'export const changed = falsE;\n';
+    await writeFile(changed, modified);
+    await utimes(changed, fixedTime, fixedTime);
+    assert.equal((await stat(changed)).size, prior.sizeBytes);
+    assert.equal((await stat(changed)).mtimeMs, prior.mtimeMs);
+    assert.equal((await git(root, ['diff', '--name-only'])).stdout.trim(), '');
+    const after = await Effect.runPromise(port.snapshot(root, 2));
+    assert.equal(after._tag, 'Ok');
+    assert.deepEqual(after.value.files.map((file) => file.repoPath),
+      before.value.files.map((file) => file.repoPath));
+    assert.equal(after.value.files.find((file) => file.repoPath === 'src/changed.ts')?.digest,
+      createHash('sha256').update(modified).digest('hex'));
+    assert.notEqual(after.value.files.find((file) => file.repoPath === 'src/changed.ts')?.digest, prior.digest);
+    assert.equal(after.value.files.find((file) => file.repoPath === 'src/large.txt')?.digest,
+      createHash('sha256').update(large).digest('hex'));
+    assert.deepEqual(after.value.files.map((file) => file.repoPath),
+      after.value.files.map((file) => file.repoPath).sort((left, right) => left.localeCompare(right)));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

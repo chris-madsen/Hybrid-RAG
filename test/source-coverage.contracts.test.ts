@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Effect } from 'effect';
-import { makeQdrantContextProvider } from '../src/adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider } from '../src/adapters/native-cbm-context-provider.js';
 import {
   initialSourceCoverage,
   requiredIncompleteSources,
@@ -19,11 +19,10 @@ import { makeWorkspaceId } from '../src/domain/workspace.js';
 import { diffWorkspaceManifests, workspaceManifestFromSnapshot } from '../src/domain/workspace-manifest.js';
 import type {
   ArtifactStore,
-  CodeCandidatePort,
+  CodeGraphCandidatePort,
   DocumentationPort,
   MemorySearchPort,
   SemanticAnalysisPort,
-  VectorEmbeddingPort,
   WorkspaceFilePort,
 } from '../src/application/ports.js';
 
@@ -125,7 +124,7 @@ test('workspace manifest is authoritative when watcher delivery is missing', () 
   assert.equal(initial.contentIdentity === dirty.contentIdentity, false);
 });
 
-test('Qdrant context refuses an old complete result after a missed watcher event', async () => {
+test('CBM context refuses an old complete result after a missed watcher event', async () => {
   let currentSnapshot = {
     headRevision: 'head-1',
     files: [{ repoPath: 'src/save.ts' as never, digest: digest as never, sizeBytes: source.length, state: 'tracked' as const, observedAtMs: 1 }],
@@ -133,12 +132,12 @@ test('Qdrant context refuses an old complete result after a missed watcher event
   };
   const manifest = workspaceManifestFromSnapshot(currentSnapshot, 'scope-a');
   const reconciledFiles: WorkspaceFilePort = { ...files, snapshot: () => Effect.succeed(ok(currentSnapshot)) };
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files: reconciledFiles,
-    qdrant,
-    embeddings,
+    codeGraph,
     artifacts,
     semantics,
     workspaceManifest: manifest,
@@ -179,7 +178,7 @@ test('Qdrant context refuses an old complete result after a missed watcher event
   if (dirty._tag === 'Err') assert.equal(dirty.error.code, 'NOT_READY');
 });
 
-test('Qdrant context accepts an authoritative catch-up only after the hook returns the current manifest', async () => {
+test('CBM context accepts an authoritative catch-up only after the hook returns the current manifest', async () => {
   let currentSnapshot = {
     headRevision: 'head-1',
     files: [{ repoPath: 'src/save.ts' as never, digest: digest as never, sizeBytes: source.length, state: 'tracked' as const, observedAtMs: 1 }],
@@ -188,12 +187,12 @@ test('Qdrant context accepts an authoritative catch-up only after the hook retur
   let reconcileCalls = 0;
   const reconciledFiles: WorkspaceFilePort = { ...files, snapshot: () => Effect.succeed(ok(currentSnapshot)) };
   const initialManifest = workspaceManifestFromSnapshot(currentSnapshot, 'scope-a');
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files: reconciledFiles,
-    qdrant,
-    embeddings,
+    codeGraph,
     artifacts,
     semantics,
     workspaceManifest: initialManifest,
@@ -201,11 +200,11 @@ test('Qdrant context accepts an authoritative catch-up only after the hook retur
     reconcile: (currentManifest) => {
       reconcileCalls += 1;
       return Effect.succeed(ok({
+        mode: 'cbm' as const,
         workspaceId,
         rootPath: '/repo',
         files: reconciledFiles,
-        qdrant,
-        embeddings,
+        codeGraph,
         artifacts,
         semantics,
         workspaceManifest: currentManifest,
@@ -234,7 +233,7 @@ test('Qdrant context accepts an authoritative catch-up only after the hook retur
   assert.equal(reconcileCalls, 1);
 });
 
-test('Qdrant context rejects a reconciliation result whose manifest is already stale', async () => {
+test('CBM context rejects a reconciliation result whose manifest is already stale', async () => {
   let currentSnapshot = {
     headRevision: 'head-1',
     files: [{ repoPath: 'src/save.ts' as never, digest: digest as never, sizeBytes: source.length, state: 'tracked' as const, observedAtMs: 1 }],
@@ -242,22 +241,22 @@ test('Qdrant context rejects a reconciliation result whose manifest is already s
   };
   const reconciledFiles: WorkspaceFilePort = { ...files, snapshot: () => Effect.succeed(ok(currentSnapshot)) };
   const initialManifest = workspaceManifestFromSnapshot(currentSnapshot, 'scope-a');
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files: reconciledFiles,
-    qdrant,
-    embeddings,
+    codeGraph,
     artifacts,
     semantics,
     workspaceManifest: initialManifest,
     newRequestId: () => 'manifest-race',
     reconcile: () => Effect.succeed(ok({
+      mode: 'cbm' as const,
       workspaceId,
       rootPath: '/repo',
       files: reconciledFiles,
-      qdrant,
-      embeddings,
+      codeGraph,
       artifacts,
       semantics,
       workspaceManifest: initialManifest,
@@ -307,13 +306,8 @@ const files: WorkspaceFilePort = {
   readExact: () => Effect.succeed(ok({ bytes: source, digest: digest as never })),
 };
 
-const qdrant: CodeCandidatePort = {
-  upsert: () => Effect.succeed(ok(undefined)),
+const codeGraph: CodeGraphCandidatePort = {
   search: () => Effect.succeed(ok([{ candidate, score: 1, freshness: 'unknown' as const }])),
-};
-
-const embeddings: VectorEmbeddingPort = {
-  embedMany: () => Effect.succeed(ok([[1, 0]])),
 };
 
 const artifacts: ArtifactStore = {
@@ -354,12 +348,12 @@ test('legacy includeCode remains complete when optional LSP enrichment is unavai
     typeInfo: () => Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'lsp', 'offline'))),
     diagnostics: () => Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'lsp', 'offline'))),
   };
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files,
-    qdrant,
-    embeddings,
+    codeGraph,
     artifacts,
     semantics: unavailableSemantics,
     newRequestId: () => 'legacy-optional-lsp',
@@ -380,12 +374,12 @@ test('legacy includeCode remains complete when optional LSP enrichment is unavai
 });
 
 test('optional stale documentation enriches a required code answer without making it incomplete', async () => {
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files,
-    qdrant,
-    embeddings,
+    codeGraph,
     artifacts,
     semantics,
     documentation: staleDocs,
@@ -411,12 +405,12 @@ test('optional stale documentation enriches a required code answer without makin
 });
 
 test('the same stale documentation makes the bundle incomplete when documentation is required', async () => {
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files,
-    qdrant,
-    embeddings,
+    codeGraph,
     artifacts,
     semantics,
     documentation: staleDocs,
@@ -441,26 +435,22 @@ test('the same stale documentation makes the bundle incomplete when documentatio
 });
 
 test('managed mixed-source request returns truthful partial coverage when code provider is down but memory is healthy', async () => {
-  let qdrantCalls = 0;
-  const failingEmbeddings: VectorEmbeddingPort = {
-    embedMany: () => Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'embedding', 'offline'))),
-  };
-  const guardedQdrant: CodeCandidatePort = {
-    upsert: () => Effect.succeed(ok(undefined)),
+  let graphCalls = 0;
+  const guardedGraph: CodeGraphCandidatePort = {
     search: () => {
-      qdrantCalls += 1;
-      return Effect.succeed(ok([]));
+      graphCalls += 1;
+      return Effect.succeed(err(domainError('EXTERNAL_UNAVAILABLE', 'cbm', 'offline')));
     },
   };
   const memory: MemorySearchPort = {
     search: () => Effect.succeed(ok({ hits: [], conflicts: [] })),
   };
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files,
-    qdrant: guardedQdrant,
-    embeddings: failingEmbeddings,
+    codeGraph: guardedGraph,
     artifacts,
     semantics,
     memory,
@@ -479,7 +469,7 @@ test('managed mixed-source request returns truthful partial coverage when code p
       memory: { requirement: 'required', allowed: true },
     },
   })));
-  assert.equal(qdrantCalls, 0);
+  assert.equal(graphCalls, 1);
   assert.equal(result.complete, false);
   assert.deepEqual(result.partialSources, ['code']);
   assert.equal(result.sourceCoverage?.find((item) => item.source === 'code')?.status, 'unavailable');
@@ -488,21 +478,16 @@ test('managed mixed-source request returns truthful partial coverage when code p
 });
 
 test('documentation policy denial remains denied rather than technical unavailable', async () => {
-  let embeddingCalls = 0;
+  let graphCalls = 0;
   const deniedDocs: DocumentationPort = {
     search: () => Effect.succeed(err(domainError('POLICY_DENIED', 'vertex', 'cloud disabled'))),
   };
-  const provider = makeQdrantContextProvider({
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId,
     rootPath: '/repo',
     files,
-    qdrant,
-    embeddings: {
-      embedMany: () => {
-        embeddingCalls += 1;
-        return Effect.succeed(ok([[1, 0]]));
-      },
-    },
+    codeGraph: { search: () => { graphCalls += 1; return Effect.succeed(ok([])); } },
     artifacts,
     semantics,
     documentation: deniedDocs,
@@ -521,7 +506,7 @@ test('documentation policy denial remains denied rather than technical unavailab
       memory: { requirement: 'not_requested', allowed: true },
     },
   })));
-  assert.equal(embeddingCalls, 0);
+  assert.equal(graphCalls, 0);
   assert.equal(result.complete, false);
   assert.deepEqual(result.partialSources, ['documentation']);
   assert.equal(result.sourceCoverage?.find((item) => item.source === 'documentation')?.status, 'denied');

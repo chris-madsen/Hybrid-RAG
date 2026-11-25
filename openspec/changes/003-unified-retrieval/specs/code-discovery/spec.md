@@ -6,9 +6,9 @@ Local hybrid code candidates, versioned indexes.
 
 ## ADDED Requirements
 
-### Requirement: Qdrant code discovery
+### Requirement: Native CBM code discovery
 
-The system SHALL use a local Qdrant-backed code candidate index with symbol-aware references and a lexical fallback.
+The system SHALL use pinned local Codebase Memory as the sole AST/graph/semantic/BM25 code retrieval engine with source-verified candidate identities.
 
 #### Scenario: Unknown behavior search
 
@@ -31,7 +31,7 @@ The system SHALL version indexed code entries and invalidate stale candidates af
 
 #### Scenario: Index rebuild failure
 
-- **WHEN** Qdrant is unavailable during rebuild
+- **WHEN** CBM is unavailable during rebuild
 - **THEN** the system reports stale/unavailable and does not manufacture current snippets
 
 ### Requirement: Snapshot-bound coverage and race handling
@@ -46,22 +46,22 @@ The system SHALL retain a deterministic digest of the workspace snapshot metadat
 #### Scenario: Coverage identity changes
 
 - **WHEN** the workspace snapshot metadata or parser identity changes
-- **THEN** the persisted coverage/snapshot identity changes and a previous Qdrant snapshot is not reused as if it were the same source state
+- **THEN** the persisted coverage/snapshot identity changes and a previous native candidate snapshot is not reused as if it were the same source state
 
-### Requirement: Embedding provider selection
+### Requirement: Local native semantic retrieval
 
-The system SHALL support a locally allowed embedding path and SHALL require explicit project policy approval for cloud embeddings.
+The system SHALL use CBM's native semantic and lexical discovery without an independent embedding worker or vector database. Private source SHALL NOT be sent to an external embedding provider.
 
-#### Scenario: Cloud provider not selected
+#### Scenario: Native provider unavailable
 
-- **WHEN** no embedding provider has been approved by a measured spike
-- **THEN** the production integration remains blocked rather than selecting an unreviewed SaaS
+- **WHEN** native discovery is unavailable or its provider identity is unverified
+- **THEN** the required capability is unavailable or incomplete, without a cloud or lexical fallback
 
 ---
 
 ### Requirement: Genuine semantic and structurally precise production index
 
-Production code discovery SHALL use approved real semantic embeddings with local Qdrant candidates and real parser-derived symbol boundaries; regex identifiers, hash projections and whole-file-per-symbol records MAY be used as declared test doubles/fallbacks but SHALL NOT satisfy real semantic/AST acceptance.
+Production code discovery SHALL use the selected native CBM semantic discovery and real CBM parser-derived symbol boundaries; regex identifiers, hash projections and whole-file-per-symbol records MAY be used as declared test doubles/fallbacks but SHALL NOT satisfy real semantic/AST acceptance.
 
 #### Scenario: DBC-02 exact 25-line function
 

@@ -2,7 +2,7 @@
 
 **Governing viewpoint:** VP-08 · **Model kinds:** MK-09, MK-08 · **Concerns:** C-03, C-08, C-09, C-11.
 
-**Identity/version:** V-08 v1.1; ACE-AD-001 v1.1; 2026-11-24. **Perspectives:** SP-02, SP-04. **Aspects:** AS-08, AS-02. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
+**Identity/version:** V-08 v1.2; ACE-AD-001 v1.2; 2026-11-25. **Perspectives:** SP-02, SP-04. **Aspects:** AS-08, AS-02. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
 
 ## Decision and evolution model
 
@@ -16,7 +16,7 @@
 | Source and retained verification | Evidence of actual implementation and observed behavior, tied to revision and configuration |
 | Dated plans, spikes and reviews | Historical evidence, alternatives and work instructions, not competing current architecture |
 
-The accepted approach uses one modular monolith, functional DDD and maintained provider primitives. Material changes to provider selection or security/transport boundaries need the applicable owner decision and G02 review. The CBM-only versus CBM/Qdrant and independent LSP comparisons remain open. Full unified memory depends on a future active temporal provider and evidence.
+The accepted approach uses one modular monolith, functional DDD and maintained provider primitives. Material changes to provider selection or security/transport boundaries need the applicable owner decision and G02 review. Native CBM is the owner-selected code retrieval engine; absolute quality, lifecycle and topology acceptance remain open. Independent LSP research is separate. Full unified memory depends on a future active temporal provider and evidence.
 
 ## Architecture change procedure
 
@@ -36,8 +36,8 @@ The protected-main policy and scoped checks are governed by the repository engin
 
 | Component / version | Contents in this view | Governing model kind |
 | --- | --- | --- |
-| VC-08A v1.1 | Decision and evolution model | MK-09 |
-| VC-08B v1.1 | Change/review and evidence rules | MK-08 |
+| VC-08A v1.2 | Decision and evolution model | MK-09 |
+| VC-08B v1.2 | Change/review and evidence rules | MK-08 |
 
 The [versioned catalog](../viewpoints.md) supplies the conventions, construction/analysis methods and interpretation legends. Linked historical source documents are supporting material, not automatically current components. Correspondence methods: CR-01, CR-02, CR-07, CR-09.
 

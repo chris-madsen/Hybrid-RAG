@@ -9,7 +9,7 @@ import type { CodeCandidate } from '../src/domain/retrieval.js';
 import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
 import { makeCodebaseMemoryStructuralPort } from '../src/adapters/codebase-memory-structural.js';
-import { makeNativeCbmContextProvider } from '../src/adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider } from '../src/adapters/native-cbm-context-provider.js';
 import { makeRoutedLspSession } from '../src/application/lsp/routed-semantic.js';
 import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 
@@ -35,8 +35,8 @@ test('native semantic result table retains source path and rejects escapes', () 
 test('native CBM BM25 rows use documented columns without inventing a search rank', () => {
   assert.deepEqual(parseCodebaseMemoryLexicalRows(resolve(process.cwd()), {
     cols: ['qn', 'label', 'file', 'lines', 'rank'],
-    rows: [['ace.makeQdrantContextProvider', 'Function', 'src/adapters/qdrant-context-provider.ts', '800-870', -7.5]],
-  }), [{ qn: 'ace.makeQdrantContextProvider', file: 'src/adapters/qdrant-context-provider.ts', score: 7.5 }]);
+    rows: [['ace.makeNativeCbmContextProvider', 'Function', 'src/adapters/native-cbm-context-provider.ts', '800-870', -7.5]],
+  }), [{ qn: 'ace.makeNativeCbmContextProvider', file: 'src/adapters/native-cbm-context-provider.ts', score: 7.5 }]);
 });
 
 test('native graph traversal and Cypher are decoded from upstream wire shape', () => {
@@ -85,17 +85,17 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   // Use an actual ACE file rather than a synthetic benchmark corpus. The
   // upstream binary does all parsing, graph construction and semantic search.
   const root = resolve(process.cwd());
-  const path = 'src/adapters/qdrant-context-provider.ts';
+  const path = 'src/adapters/native-cbm-context-provider.ts';
   const data = readFileSync(resolve(root, path), 'utf8');
   const lines = data.split('\n');
-  const line = lines.findIndex((item) => item.startsWith('export const makeQdrantContextProvider'));
+  const line = lines.findIndex((item) => item.startsWith('export const makeNativeCbmContextProvider'));
   assert.ok(line >= 0);
   const candidate: CodeCandidate = {
     candidateId: 'real-codebase-memory-contract' as CodeCandidate['candidateId'],
     workspaceId: 'ace-integration-smoke' as CodeCandidate['workspaceId'],
     repoPath: path as CodeCandidate['repoPath'],
     range: { startLine: line + 1, startColumn: 1, endLine: line + 1, endColumn: Buffer.byteLength(lines[line]!) + 1 },
-    symbolName: 'makeQdrantContextProvider',
+    symbolName: 'makeNativeCbmContextProvider',
     structuralKind: 'function',
     text: lines[line]!,
     sourceDigest: createHash('sha256').update(data).digest('hex') as CodeCandidate['sourceDigest'],
@@ -115,7 +115,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     // Native CBM's second index must remain usable without an index rebuild.
     const second = await Effect.runPromise(provider.reindex());
     assert.equal(second._tag, 'Ok', JSON.stringify(second));
-    const found = await Effect.runPromise(provider.search({ query: 'makeQdrantContextProvider', limit: 100 }));
+    const found = await Effect.runPromise(provider.search({ query: 'makeNativeCbmContextProvider', limit: 100 }));
     assert.equal(found._tag, 'Ok', JSON.stringify(found));
     if (found._tag === 'Ok') {
       assert.ok(found.value.length > 0, 'native CBM must discover at least one matching ACE symbol');
@@ -124,7 +124,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     const outline = await Effect.runPromise(provider.outline(path as never));
     assert.equal(outline._tag, 'Ok', JSON.stringify(outline));
     if (outline._tag === 'Ok') {
-      assert.ok(outline.value.some((item) => item.name.includes('makeQdrantContextProvider')),
+      assert.ok(outline.value.some((item) => item.name.includes('makeNativeCbmContextProvider')),
         'native CBM must extract source declarations');
     }
     const graph = await Effect.runPromise(provider.queryGraph(
@@ -145,7 +145,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
         + 'a seed-only node lookup is not dependency discovery');
     }
     const exactGraphSymbol = outline._tag === 'Ok'
-      ? outline.value.find((item) => item.name === 'makeQdrantContextProvider')?.qualifiedName
+      ? outline.value.find((item) => item.name === 'makeNativeCbmContextProvider')?.qualifiedName
       : undefined;
     assert.ok(exactGraphSymbol, 'real CBM must return the declaration qualified name');
     const trace = await Effect.runPromise(provider.trace(exactGraphSymbol!));
@@ -176,7 +176,7 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     if (plan._tag === 'Err') return;
     const nativeResult = await Effect.runPromise(native.search({
       workspaceId: candidate.workspaceId,
-      query: 'makeQdrantContextProvider',
+      query: 'makeNativeCbmContextProvider',
       includeCode: true, includeDocs: false, includeMemory: false,
       sourceRequirements: plan.value,
     }));
@@ -193,8 +193,8 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     const included = observed.value.files.filter((file) =>
       file.repoPath.startsWith('src/') && file.repoPath.endsWith('.ts'));
     const selected = [
-      ...included.filter((file) => file.repoPath === 'src/adapters/qdrant-context-provider.ts'),
-      ...included.filter((file) => file.repoPath !== 'src/adapters/qdrant-context-provider.ts').slice(0, 17),
+      ...included.filter((file) => file.repoPath === 'src/adapters/native-cbm-context-provider.ts'),
+      ...included.filter((file) => file.repoPath !== 'src/adapters/native-cbm-context-provider.ts').slice(0, 17),
     ];
     const built = await Effect.runPromise(buildLocalCodeIndex(
       files, 'cbm-actual-source-smoke' as never, root,
@@ -209,15 +209,15 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
       const actual = makeCodebaseMemoryGraph({ rootPath: root, candidates: () => built.value.index.candidates, timeoutMs: 165_000 });
       try {
         assert.equal((await Effect.runPromise(actual.reindex()))._tag, 'Ok');
-        const named = await Effect.runPromise(actual.search({ query: 'Find makeQdrantContextProvider in src/adapters/qdrant-context-provider.ts.', limit: 6 }));
+        const named = await Effect.runPromise(actual.search({ query: 'Find makeNativeCbmContextProvider in src/adapters/native-cbm-context-provider.ts.', limit: 6 }));
         assert.equal(named._tag, 'Ok');
         if (named._tag === 'Ok') assert.ok(named.value.some((item) => item.candidate.repoPath === path
-          && item.candidate.symbolName === 'makeQdrantContextProvider'));
+          && item.candidate.symbolName === 'makeNativeCbmContextProvider'));
       } finally { await actual.close(); }
       assert.ok(built.value.index.candidates.length > 30,
         'native CBM must supply useful real ACE code candidates');
       assert.ok(built.value.index.candidates.some((item) =>
-        item.repoPath === 'src/adapters/qdrant-context-provider.ts'));
+        item.repoPath === 'src/adapters/native-cbm-context-provider.ts'));
     }
   } finally {
     await provider.close();

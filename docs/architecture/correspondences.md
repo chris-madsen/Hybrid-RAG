@@ -18,7 +18,7 @@ Correspondences relate architecture-description elements and support consistency
 
 ## Recorded correspondences and evaluation
 
-The participating architecture description for each CO relation is ACE-AD-001 v1.1. CO identifies the actual relationship between AD elements; CR identifies its governing method. These are documentary/source evaluations, not a fresh live execution. An unproved method is recorded as not satisfied, with its missing evidence.
+The participating architecture description for each CO relation is ACE-AD-001 v1.2. CO identifies the actual relationship between AD elements; CR identifies its governing method. These are documentary/source evaluations, not a fresh live execution. An unproved method is recorded as not satisfied, with its missing evidence.
 
 | Correspondence | Participating AD elements | Method | Evaluated result and known gap |
 | --- | --- | --- | --- |
@@ -27,7 +27,7 @@ The participating architecture description for each CO relation is ACE-AD-001 v1
 | CO-03 | VC-01A, VC-03A, VC-04B, VC-05A, C-02, C-04 | CR-03 | NOT SATISFIED for end-to-end proof: source authority and policy agree; complete source coverage and real outbound data evidence remain open |
 | CO-04 | VC-03A, VC-06A, VC-07A | CR-04 | NOT SATISFIED operationally: temporal recall and deployment status agree; provider restart, publication and archive recovery acceptance remains incomplete |
 | CO-05 | VC-01A, VC-04A, VC-05A, VC-06A, VC-07A | CR-05 | NOT SATISFIED: documented route and placement agree; real physical wire, native stream and tenant/attempt evidence remain open |
-| CO-06 | VC-02A, VC-07A | CR-06 | NOT SATISFIED for full composition: scoped CBM/Qdrant/LSP source and tests exist; real provider/agent acceptance remains incomplete |
+| CO-06 | VC-02A, VC-07A | CR-06 | NOT SATISFIED for full composition: native CBM code composition and independent LSP contracts exist; real provider/agent acceptance remains incomplete |
 | CO-07 | VC-03A, VC-07A, VC-08A | CR-07 | NOT SATISFIED: absolute native retrieval/scale and accepted-task economics remain unproven; no claimed fivefold saving |
 | CO-08 | VC-05A, VC-06B, VC-07A | CR-08 | NOT SATISFIED: exact release signature, deployment and recovery evidence remain incomplete |
 | CO-09 | VC-05B, VC-07B, VC-08A, C-11 | CR-09 | HOLDS for the AD: current/target/acceptance states remain separate; migration does not approve a release or promote tracker status |
@@ -47,7 +47,7 @@ Source and test links indicate verification mechanisms, not current PASS results
 | C-05 | [ADR-020](../references/ADR-020-native-responses-only.md), [ADR-021](../references/ADR-021-bifrost-single-gateway-ace-context-service.md) | [Projection service](../../src/application/responses-projection-service.ts), [attempt authorization](../../src/application/gateway-attempt-authorization-service.ts) | [Projection contracts](../../test/responses-projection-service.contracts.test.ts), 013 C03–C07 |
 | C-06 | [ADR-008](../references/ADR-008-local-kubernetes.md), V-06 | [Runtime](../../src/bin/ace-runtime.ts), [workspace sync](../../src/application/workspace-sync.ts) | [Readiness](../operations/ace-configuration-and-readiness-matrix.md), [backup/restore](../operations/local-memory-backup-restore.md), 014 |
 | C-07 | [ADR-009](../references/ADR-009-harbor-benchmark.md), [ADR-018](../references/ADR-018-ace-context-economics-audit.md) | [Evaluation model](../../src/domain/evaluation.ts), [Harbor evidence](../../src/domain/harbor-four-arm-evidence.ts) | [Testing strategy](../operations/testing-strategy.md), 013 C08 |
-| C-08 | [ADR-014](../references/ADR-014-hybrid-context-engine.md), [ADR-019](../references/ADR-019-functional-ddd-typespec-contracts.md) | [Runtime composition](../../src/bin/ace-runtime.ts) | [CBM integration](../operations/codebase-memory-provider.md), open comparative evaluation |
+| C-08 | [ADR-014](../references/ADR-014-hybrid-context-engine.md), [ADR-019](../references/ADR-019-functional-ddd-typespec-contracts.md) | [Runtime composition](../../src/bin/ace-runtime.ts) | [CBM integration](../operations/codebase-memory-provider.md), open absolute native quality and scale evaluation |
 | C-09 | [ADR-012](../references/ADR-012-production-capability-and-provider-gates.md), V-07 | [Fitness contracts](07-architecture-fitness-contracts.md), [Harbor task contracts](../../test/harbor-task-adapter.contracts.test.ts) | [013](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md), [014](../../openspec/changes/014-ace-audit-reliability-remediation/tasks.md) |
 | C-10 | V-05/V-06/V-07 | [Runtime provenance](../../src/domain/runtime-provenance.ts), [supply-chain evidence model](../../src/domain/supply-chain-evidence.ts) | [Security gates](../operations/security-gates.md), [release evidence](../operations/supply-chain-release-evidence.md) |
 | C-11 | V-07/V-08, [ADR register](../references/ADR-000-decision-register.md) | [AGENTS](../../AGENTS.md), [SDLC](../operations/ai-assisted-sdlc.md) | [Traceability record](06-traceability-and-review.md), [conformance](conformance.md) |
@@ -61,7 +61,7 @@ The detailed historical PRD-to-OpenSpec mapping is retained in [06-traceability-
 | INC-01 | Older records describe retired integration paths and earlier contract versions | Retain them as dated evidence; V-01/V-04 and ADR-021 determine current architecture |
 | INC-02 | Historical retrieval designs describe replaced structural providers | Current source uses CBM; compare V-03 and current operational architecture |
 | INC-03 | Selected Graphiti architecture versus absent active runtime provider | Explicit target/not-ready distinction in V-03/V-06/V-07 |
-| INC-04 | Overlapping CBM/Qdrant discovery and independent LSP verification | Owner selected native CBM; complete physical retirement after safety/scale/topology evidence. LSP research deferred independently |
+| INC-04 | Native code retrieval and upstream daemon/cache lifecycle | Separate vector composition removed; native safety/scale/topology acceptance remains open. LSP research deferred independently |
 | INC-05 | Offline contracts and local projection evidence versus open real-agent acceptance | Explicit evidence progression in V-07; 013/014 remain canonical |
 | INC-06 | Previous layout and stale design fingerprints | Resolved by relocating documentation and fixing all identified script, test fixture, workflow and configuration consumers; rebind path-only design fingerprints; retain the obsolete checksum snapshot in Git history. Final CI is independently verified. |
 | INC-07 | Shared loopback identity is not per-principal host/workspace authentication | Keep the supported single-workspace deployment scope and the exact authorization boundary. Do not claim untrusted multi-tenant isolation. |

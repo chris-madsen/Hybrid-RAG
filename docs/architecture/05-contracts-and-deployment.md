@@ -2,7 +2,7 @@
 
 > **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
 
-**Статус:** Native Responses/Gateway baseline from 2026-11-18; native code-intelligence wiring was migrated in PR #316. See [source-inspected current architecture](../operations/current-architecture.md). Older ast-grep/RepoMap and Qdrant-only target sections remain dated design history, not current source. Domain contracts remain provider-neutral; native Responses Gateway v2 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
+**Статус:** Native Responses/Gateway baseline from 2026-11-18; native code-intelligence wiring was migrated in PR #316 and the separate vector path retired in #378. Historical provider-specific sections below are superseded where they conflict with the current native-only runtime and OpenSpec 003/006/007/014. See [source-inspected current architecture](../operations/current-architecture.md). Older ast-grep/RepoMap and Qdrant-only target sections remain dated design history, not current source. Domain contracts remain provider-neutral; native Responses Gateway v2 public wire is TypeSpec-owned and concrete provider DTOs remain adapter-specific.
 
 ## 1. Инварианты границ
 
@@ -43,7 +43,7 @@ interface EvidenceV1 {
   revision_or_digest: string | null;
   range?: { start: number; end: number; unit: 'byte' | 'line' };
   symbol_key?: string;
-  method: string; // e.g. qdrant-candidate, ast, lsp, graphiti
+  method: string; // e.g. native CBM candidate, AST, LSP, Graphiti
   freshness: Freshness;
   certainty: ConfidenceKind;
   excerpt?: string; // never sole storage for original
@@ -121,7 +121,6 @@ flowchart TB
   AG -->|"configured model endpoint"| BF["Bifröst + pinned thin Go ACE connector"]
   BF -->|"authenticated ace.context.v3"| ACE["ACE modular monolith / TS+Effect"]
   BF -.->|"dispatch blocked until certified"| LLM["LLM provider"]
-  ACE --> Q["Qdrant"]
   ACE --> T["Codebase Memory AST / graph / semantic / BM25 + LSP"]
   ACE --> G["Archive / Graphiti"]
   ACE -->|"Authorized docs"| V["Vertex RAG"]
@@ -174,7 +173,7 @@ CPU/memory-heavy code-intelligence операций; Python остаётся в�
 
 ## Implementation correction — executable composition and proof (proposed, 2026-10-18)
 
-1. **Production bootstrap contract (current implementation correction):** a supported coding-agent model request traverses Bifröst → request-bound ACE context extension Projection → Effect runtime with Codebase Memory as sole AST/graph/semantic/BM25 native engine, plus *currently* Qdrant dense/sparse retrieval and independent LSP verification as needed. Qdrant necessity is under independent CBM-only A/B evaluation, not proved by historical architecture. Vertex and Graphiti are routed only on authorized requests; an unavailable/unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
+1. **Production bootstrap contract (current implementation correction):** a supported coding-agent model request traverses Bifröst → request-bound ACE context extension Projection → Effect runtime with Codebase Memory as sole AST/graph/semantic/BM25 native engine, with independent LSP verification retained as a separately scoped contract, not an active code-only dependency. No second retrieval engine or competing-vector evaluation is required. Vertex and Graphiti are routed only on authorized requests; an unavailable/unapproved provider cannot be reported ready. An adapter existing on disk does **not** satisfy this clause.
 2. **Provider truth:** attach `provider_id`, `version`, `status`, `source_digest`, `range`, `evidence_method`, and internal trace/call receipts to every claimed real-provider integration. Runtime receipts may be logged in a secret-safe test channel rather than exposed as user text. Do not silently substitute regex/whole-file candidates for AST spans or hash vectors for embeddings.
 3. **Completeness:** compute `complete` from the **required** retrieval plan (covered/failed/skipped-by-policy per source) and source verification; a missing required backend makes the bundle partial even when other evidence is current.
 4. **Relevance vs losslessness:** first response provides accurate minimal relevant spans without arbitrary mandatory token ceilings; exact full file/2000-line artifact remains retrievable with an authorized handle. Returning every entire file per lexical symbol is a retrieval-quality failure, not compliance with ADR-006.
@@ -192,16 +191,12 @@ The following was the **2026-10-21 historical target**, superseded as a runtime 
 
 ```text
 ast-grep structural chunks
-  -> dense embedding + sparse/BM25 representation
-  -> Qdrant dense+sparse prefetch
-  -> provider-native RRF fusion
-  -> optional evidence-approved local reranker
-  -> exact current-source verification
-  -> maintained LSP enrichment
-  -> ContextBundle
+  -> CBM native semantic/BM25/graph discovery
+  -> ACE verified source membership, exact bytes and required coverage
+  -> authorized source-plan assembly
 ```
 
-A separate lexical database is not required by the architecture. Qdrant is the default dense+sparse data plane until benchmark evidence justifies another service.
+CBM owns the native code search data plane. No separate lexical or vector database, external embedding worker or reranker is required.
 
 ### Working Context
 

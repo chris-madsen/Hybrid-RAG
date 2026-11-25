@@ -3,7 +3,6 @@ import test from 'node:test';
 import {
   evaluateRetrievalQualityPolicy,
   evaluateRetrievalStrategy,
-  selectRetrievalStrategy,
   type RetrievalHoldout,
   type RetrievalQualityPolicy,
   type RetrievalStrategyRun,
@@ -275,33 +274,6 @@ test('quality, critical recall, compactness and latency regressions are separate
     'latency_p95_above_threshold',
   ]) assert.ok(verdict.value.failures.includes(failure), failure);
 });
-
-test('retrieval selection uses dense non-inferiority before compactness tie-breakers', () => {
-  const dense = evaluateRetrievalStrategy(holdout, { ...run, strategy: 'dense' });
-  assert.equal(dense._tag, 'Ok');
-  if (dense._tag === 'Err') return;
-  const selected = selectRetrievalStrategy([
-    dense.value,
-    {
-      ...dense.value,
-      strategy: 'hybrid_rrf',
-      payloadCharactersMean: dense.value.payloadCharactersMean - 1,
-      latencyP95Ms: dense.value.latencyP95Ms - 1,
-    },
-    {
-      ...dense.value,
-      strategy: 'hybrid_reranker',
-      mrr: dense.value.mrr - 0.01,
-    },
-  ]);
-  assert.equal(selected._tag, 'Ok');
-  if (selected._tag === 'Ok') {
-    assert.equal(selected.value.selectedStrategy, 'hybrid_rrf');
-    assert.equal(selected.value.qualityGatePassed, true);
-    assert.ok(selected.value.rejectedStrategies.includes('hybrid_reranker'));
-  }
-});
-
 
 test('release-grade multi-repository holdout binds exact repositories and case ownership', () => {
   const multi: RetrievalHoldout = {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { realpath, readdir, open, stat } from 'node:fs/promises';
+import { realpath, readdir, open, stat, type FileHandle } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
@@ -47,26 +47,60 @@ export interface NodeWorkspacePortOptions {
 // leaf symlink and a changing inode rather than hashing unchecked bytes.
 class WorkspaceReadRaceError extends Error {}
 
-const readStableWorkspaceFile = async (path: string): Promise<{
-  readonly bytes: Uint8Array;
-  readonly metadata: import('node:fs').Stats;
-}> => {
+const withStableWorkspaceFile = async <T>(
+  path: string,
+  read: (descriptor: FileHandle, metadata: import('node:fs').Stats) => Promise<{
+    readonly value: T;
+    readonly byteLength: number;
+  }>,
+): Promise<{ readonly value: T; readonly metadata: import('node:fs').Stats }> => {
   const descriptor = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const before = await descriptor.stat();
     if (!before.isFile()) throw new WorkspaceReadRaceError('workspace path is not a regular file');
-    const bytes = new Uint8Array(await descriptor.readFile());
+    const result = await read(descriptor, before);
     const after = await descriptor.stat();
     if (before.ino !== after.ino || before.dev !== after.dev
       || before.size !== after.size || before.mtimeMs !== after.mtimeMs
-      || before.ctimeMs !== after.ctimeMs || bytes.byteLength !== after.size) {
+      || before.ctimeMs !== after.ctimeMs || result.byteLength !== after.size) {
       throw new WorkspaceReadRaceError('workspace file changed during read');
     }
-    return { bytes, metadata: after };
+    return { value: result.value, metadata: after };
   } finally {
     await descriptor.close();
   }
 };
+
+const readStableWorkspaceFile = async (path: string): Promise<{
+  readonly bytes: Uint8Array;
+  readonly metadata: import('node:fs').Stats;
+}> => {
+  const result = await withStableWorkspaceFile(path, async (descriptor) => {
+    const bytes = new Uint8Array(await descriptor.readFile());
+    return { value: bytes, byteLength: bytes.byteLength };
+  });
+  return { bytes: result.value, metadata: result.metadata };
+};
+
+// Snapshot observation needs a digest, not a retained copy of the source.
+// Bound large-file memory while keeping the same descriptor/race checks as
+// readExact. Never infer a digest from Git status, mtime or size.
+const digestStableWorkspaceFile = (path: string) => withStableWorkspaceFile(path, async (descriptor, metadata) => {
+  const hash = createHash('sha256');
+  let byteLength = 0;
+  if (metadata.size <= 1024 * 1024) {
+    const bytes = await descriptor.readFile();
+    hash.update(bytes);
+    byteLength = bytes.byteLength;
+  } else {
+    const stream = descriptor.createReadStream({ autoClose: false, start: 0, end: metadata.size - 1 });
+    for await (const bytes of stream as AsyncIterable<Buffer>) {
+      hash.update(bytes);
+      byteLength += bytes.byteLength;
+    }
+  }
+  return { value: hash.digest('hex'), byteLength };
+});
 
 const walkFiles = async (
   rootPath: string,
@@ -75,33 +109,49 @@ const walkFiles = async (
   excluded: ReadonlySet<string>,
   trackedPaths: ReadonlySet<string> | undefined,
 ): Promise<FileObservation[]> => {
-  const entries = await readdir(currentPath, { withFileTypes: true });
   const files: FileObservation[] = [];
-  for (const entry of entries) {
-    if (excluded.has(entry.name)) continue;
-    const absolutePath = join(currentPath, entry.name);
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) {
-      files.push(...(await walkFiles(rootPath, absolutePath, observedAtMs, excluded, trackedPaths)));
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    const { metadata, bytes } = await readStableWorkspaceFile(absolutePath);
-    const digestValue = createHash('sha256').update(bytes).digest('hex');
+  const observe = async (absolutePath: string): Promise<FileObservation> => {
+    const { metadata, value: digestValue } = await digestStableWorkspaceFile(absolutePath);
     const digest = makeContentDigest(digestValue);
     if (digest._tag === 'Err') throw new Error(digest.error.message);
     const filePath = relative(rootPath, absolutePath).split(sep).join('/');
     const repoPath = ingestRepoPath(filePath);
     if (repoPath._tag === 'Err') throw new Error(repoPath.error.message);
-    files.push({
+    return {
       repoPath: repoPath.value,
       digest: digest.value,
-      sizeBytes: bytes.byteLength,
+      sizeBytes: metadata.size,
       mtimeMs: metadata.mtimeMs,
       state: trackedPaths === undefined ? 'unknown' : trackedPaths.has(repoPath.value) ? 'tracked' : 'untracked',
       observedAtMs,
-    });
-  }
+    };
+  };
+  // Keep directory traversal serial and exact reads bounded. Drain each
+  // batch even on failure; no detached reads may survive a failed snapshot.
+  const visit = async (directory: string): Promise<void> => {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const batch: string[] = [];
+    const drain = async (): Promise<void> => {
+      const results = await Promise.allSettled(batch.splice(0).map(observe));
+      for (const result of results) {
+        if (result.status === 'rejected') throw result.reason;
+        files.push(result.value);
+      }
+    };
+    for (const entry of entries) {
+      if (excluded.has(entry.name) || entry.isSymbolicLink()) continue;
+      const absolutePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await drain();
+        await visit(absolutePath);
+      } else if (entry.isFile()) {
+        batch.push(absolutePath);
+        if (batch.length === 4) await drain();
+      }
+    }
+    await drain();
+  };
+  await visit(currentPath);
   return files.sort((left, right) => left.repoPath.localeCompare(right.repoPath));
 };
 

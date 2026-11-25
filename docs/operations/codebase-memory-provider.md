@@ -4,14 +4,14 @@
 tested in CI; a real Hermes/Bifröst task and token savings still require
 independent, provider-measured acceptance.
 
-See [current runtime ownership and readiness](current-architecture.md). **CBM-only code retrieval is available as an explicit migration mode** (`ACE_CODE_RETRIEVAL_MODE=cbm`, PR #366), with local-workspace real integration evidence. The historical composition remains behind `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` pending cutover. This document explains the live integration, not a final recommendation to retain Qdrant.
+See [current runtime ownership and readiness](current-architecture.md). CBM is the default and sole local code retrieval engine in the native cutover. The historical alternate composition is retired; the code-only path does not require external LSP.
 
 ## Architecture
 
 - CBM is the ONLY **currently wired native** code-structure/graph engine, not a certified production provider. The adapter invokes `index_repository` with `persistence: false`. Upstream defines this flag as disabling the optional repo-local `.codebase-memory/graph.db.zst` export, **not** the normal local SQLite index. ACE never infers current-source freshness solely from that cache.
   Native operations: index_repository, get_file_outline, search_graph,
   trace_path, query_graph and detect_changes.
-- Qdrant **currently** owns a second code-retrieval index (dense/sparse vectors and publication semantics). CBM **also** provides native semantic/BM25 search; the owner selected native CBM-only on 2026-11-24 (#363). Verify required behavior and independent consumers before removing legacy components; a comparative Qdrant competition is not an acceptance gate.
+- CBM owns native graph, semantic and BM25 discovery (#363). ACE owns current-source verification and policy, not another search index. Evaluate absolute retrieval behavior; no competing vector-provider election is required.
 - External LSP exact-symbol contracts and adapters remain; native code-only RPC does not request their evidence. Further research is deferred (#364).
 - ACE owns original-source reads, source policy, SHA-256, exact byte spans,
   workspace generation/publication and model-bound context verification.
@@ -31,7 +31,7 @@ is no longer an ACTIVE runtime constraint, not proof of CBM correctness.
    ACE extracts exact UTF-8 line bytes ONLY from an independently verified
    workspace read; out-of-range native spans fail closed. Declaration-free
    files remain retrievable as bounded raw chunks, not fabricated symbols.
-4. In native mode, WorkspaceSync reuses the exact observed snapshot and rebuilds changed structural candidates; CBM owns ranked retrieval. No vector SDK operations or external workers run. The historical vector path remains transitional.
+4. In native mode, WorkspaceSync reuses the exact observed snapshot and rebuilds changed structural candidates; CBM owns ranked retrieval. No vector SDK operations or external workers run.
 5. Native
    trace_path traverses callers/callees, query_graph resolves graph nodes
    to source paths, and detect_changes examines git-based impact. All graph
@@ -50,9 +50,6 @@ Install pinned upstream native executable for the same account running ACE:
 ~~~bash
 npm install --global codebase-memory-mcp@0.12.1
 codebase-memory-mcp --version
-export ACE_CODE_RETRIEVAL_MODE=cbm
-export ACE_ENABLE_EXPERIMENTAL_QDRANT=false
-export ACE_RERANKER_MODE=disabled
 # Optional export ACE_CBM_COMMAND=/absolute/path/to/CBM-executable
 npm run gateway:http
 ~~~
@@ -84,7 +81,7 @@ ACE_TEST_REAL_CBM=true npx tsx --test \
 
 The dedicated workflow runs the actual native binary and exercises deterministic stdio session-reuse/crash/timeout contracts first. It checks reindex, symbol outline, trace/Cypher/impact,
 local-code-index candidate production, and independently verified source
-delivery outside Qdrant top-K.
+delivery outside native top-K.
 
 ## Required real Hermes acceptance — not yet inferred
 
@@ -109,10 +106,18 @@ The Python structural and LSP-server-framework dependencies left over from the r
 
 ## Native retrieval cutover — first implementation slice
 
-The owner has selected native CBM as the code retrieval target (#363). The native context-provider constructor reuses the existing source verification and source-plan pipeline with CBM's ranked candidates directly: no vector client, embedding workers, fusion or ACE reranker are required by this constructor. The explicit migration-only runtime setting `ACE_CODE_RETRIEVAL_MODE=cbm` composes this path for an ACE-local workspace; omit `ACE_ENABLE_EXPERIMENTAL_QDRANT` and external reranker configuration. No vector/embedding processes are started. The legacy default remains unchanged pending native integration acceptance and deletion of the old stack. Unmapped native top-k, provider outage and foreign-workspace candidates fail closed. The existing external language-server contract remains unchanged: line-only CBM outlines do not yet prove exact identifier selection columns (#364). The new composition uses existing verified workspace snapshots and serialized reconciliation; actual host/container recovery, deadline, restart and Git/non-Git mutations have passed (#375); scale, scope/ABA, remote topology and physical retirement remain acceptance work. The cutover path does not claim independent external LSP coverage and does not yet support a remote worktree helper.
+The native context provider reuses the verified source-plan pipeline with CBM's ranked candidates directly. The default and sole code runtime accepts an ACE-local workspace. Unmapped native top-K, provider outage and foreign-workspace candidates fail closed. The external language-server contract remains unchanged: line-only CBM outlines do not prove exact identifier selection columns (#364). Shared-cache and daemon cancellation, scope/ABA, absolute quality/scale and remote topology require acceptance evidence; the remote worktree helper is not supported by this path.
 
 Execution plan: [native CBM cutover and legacy retirement](../plans/2026-11-25-native-cbm-cutover-and-legacy-retirement.md). The dated acceptance reports remain historical evidence; the merge of #366 accepted only the migration slice, not production readiness or completion of #363/#364.
 
 ### Explicit symbol lookup
 
 The native adapter supplements semantic search for bounded, explicitly named identifiers with CBM's own read-only graph query (`n.name`), preserving the qualified-symbol-to-source verification pipeline. Explicit file mentions only disambiguate graph-returned candidates. This is not a second lexical index or external LSP. Real scale acceptance remains measured at the final assembled context; secret policy is unchanged.
+
+## Native daemon boundary
+
+The [pinned upstream implementation](https://github.com/DeusData/codebase-memory-mcp/tree/v0.12.1) owns the SQLite cache, detached daemon and indexing workers. ACE supervises its stdio frontend, not the entire daemon. Use a dedicated service identity and a canonical cache root; do not assume frontend termination shuts down detached workers. Shared-cache ownership and cancellation must be validated rather than reimplemented or presumed safe.
+
+The isolated container E2E includes an actual upstream `daemon status` identity check, conflicting canonical-cache admission and fixture-owned daemon termination/recovery. The scenario does not kill a daemon outside its disposable fixture and does not establish cross-host, all worker-failure or shared-tenant acceptance. Run it through the dedicated workflow; its observed result, not the presence of the test, determines evidence status.
+
+Exact source snapshots reuse the same descriptor/race verification as direct source reads. Snapshot-only hashing streams large files and bounds concurrent reads within each directory; no Git status, mtime or size shortcut authorizes reused digests. Native structural reuse is invalidated after session/publication loss. This is an implementation-level resource optimization, not a measured latency improvement or an ABA-free snapshot claim.

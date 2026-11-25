@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """Offline dependency smoke tests; no remote model, workspace or credentials."""
-import runpy
 import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent
 
 
 def provider():
@@ -18,23 +14,8 @@ def provider():
     assert httpcore2 and httpx2
 
 
-def fast():
-    import onnxruntime
-    import numpy as np
-    assert "CPUExecutionProvider" in onnxruntime.get_available_providers()
-    assert np.isfinite(np.array([1.0])).all()
-    for name in ("fastembed-worker.py", "fastembed-sparse-worker.py", "fastembed-reranker-worker.py"):
-        assert callable(runpy.run_path(str(ROOT / name))["main"])
-
-
-def st():
-    import torch
-    from sentence_transformers import SentenceTransformer
-    assert torch.equal(torch.tensor([1.0]) + 1, torch.tensor([2.0]))
-    assert callable(SentenceTransformer)
-    assert callable(runpy.run_path(str(ROOT / "sentence-transformers-worker.py"))["main"])
-
-
 if __name__ == "__main__":
-    {"provider": provider, "fast": fast, "st": st}[sys.argv[1]]()
+    if sys.argv[1:] != ["provider"]:
+        raise SystemExit("Usage: dependency-provider-smoke.py provider")
+    provider()
     print("Dependency environment smoke PASS:", sys.argv[1])

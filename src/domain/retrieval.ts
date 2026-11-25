@@ -10,7 +10,14 @@ export type Generation = number & { readonly __brand: 'IndexGeneration' };
 export type EvidenceId = string & { readonly __brand: 'EvidenceId' };
 export type EvidenceReceiptId = string & { readonly __brand: 'EvidenceReceiptId' };
 export type BundleId = string & { readonly __brand: 'ContextBundleId' };
-export type CodeRetrievalStrategy = 'dense' | 'sparse' | 'hybrid_rrf';
+/** The single code retrieval owner; shared by runtime and release evidence. */
+export const nativeCodeRetrieval = {
+  strategy: 'native_cbm',
+  providerIdentities: {
+    code_graph: 'codebase-memory/v0.12.1',
+    structural: 'codebase-memory/v0.12.1:outline:v1',
+  },
+} as const;
 
 export interface SourceRange {
   readonly startLine: number;

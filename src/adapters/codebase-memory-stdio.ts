@@ -170,6 +170,8 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
       starting = undefined;
       if (!closed) options.onLost?.();
     }
+    // The child can exit with an in-flight pipe write. The raw stream error
+    // listeners below outlive JSON-RPC disposal, which removes its listeners.
     try { current.connection.dispose(); } catch { /* already closed */ }
     try { current.child.stdin.end(); } catch { /* already closed */ }
     retiring = retire(current.child);
@@ -202,10 +204,17 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     // close() must be able to cancel a stalled startup without waiting for its deadline.
     session = current;
     const lost = (): void => { discard(current); };
+    // Own pipe errors until the child is gone, including errors emitted after
+    // connection.dispose() removes the JSON-RPC stream listeners. Schedule
+    // disposal after the current event so its writer can settle the write.
+    const pipeLost = (): void => { queueMicrotask(lost); };
+    child.stdin.on('error', pipeLost);
+    child.stdout.on('error', pipeLost);
+    child.stderr.on('error', pipeLost);
     child.once('error', lost);
     child.once('exit', lost);
     connection.onClose(lost);
-    connection.onError(lost);
+    connection.onError(pipeLost);
     process.once('exit', current.exitHook);
     connection.listen();
 
@@ -273,7 +282,7 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
       // The separate terminal event remains the only provider-result evidence.
       if (tool === 'index_repository') trace('success', undefined, 'index_repository_request_queued');
       const raw: unknown = await deadline(response, timeoutMs);
-      if (current.dead || closed) throw new Error('Codebase Memory session lost during request');
+      if (current.dead || closed || suspended || session !== current) throw new Error('Codebase Memory session lost during request');
       const result = parseCodebaseMemoryToolResult(raw);
       trace(result._tag === 'Ok' ? 'success' : 'failure', result._tag === 'Err' ? result.error.code : undefined);
       return result;

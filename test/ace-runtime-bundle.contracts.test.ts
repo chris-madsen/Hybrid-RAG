@@ -98,18 +98,10 @@ test('verifies bundle bytes rather than accepting an unverified manifest digest'
   assert.match(tampered.reason, /bytes do not match/u);
 });
 
-test('Docker runtime uses the pinned embedding versions from the Harbor bundle contract', async () => {
-  const cpuEmbeddingRequirements = await readFile('requirements-embedding-st.txt', 'utf8');
-  assert.match(cpuEmbeddingRequirements, /^torch==2\.15\.0\+cpu$/mu, 'CPU-only Sentence-Transformers environment must not resolve a CUDA torch wheel');
+test('Docker runtime uses pinned native CBM without an embedding environment', async () => {
   const dockerfile = await readFile('Dockerfile.ace', 'utf8');
-  assert.match(dockerfile, /sys\.version_info < \(3, 11\)/u);
-  assert.ok(dockerfile.includes('pillow==13.0.0'));
-  assert.ok(dockerfile.includes('fastembed==0.9.1'));
-  assert.ok(dockerfile.includes('numpy==2.2.6'));
-  assert.ok(dockerfile.includes('onnxruntime==1.23.2'));
-  assert.ok(!dockerfile.includes('pillow==11.3.0'));
-  assert.ok(!dockerfile.includes('fastembed==0.7.4'));
-  assert.ok(!dockerfile.includes('numpy==2.5.4'));
+  assert.match(dockerfile, /codebase-memory-mcp@0\.12\.1/u);
+  assert.doesNotMatch(dockerfile, /fastembed|onnxruntime|historical-vector|python3 -m venv/u);
 
   // Host Git owns source identity; Docker verifies exactly those source bytes
   // and the compiled binary instead of inventing a HEAD inside a .git-free image.

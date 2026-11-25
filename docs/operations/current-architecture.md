@@ -1,6 +1,6 @@
 # ACE current runtime architecture and verification boundary
 
-**Source baseline:** main `26c67704d5725d2035adc7776a7d017eb0fb7de3` (#367–377), 25 November 2026. Native Harbor bundle and three isolated task-image checks are merged (#376). Real local projection evidence is not real Hermes or provider-wire certification.
+**Source baseline:** native-only cutover PR #378, 25 November 2026; earlier main `26c67704d5725d2035adc7776a7d017eb0fb7de3` (#367–377) is historical. Native Harbor bundle and three isolated task-image checks are merged (#376). Real local projection evidence is not real Hermes or provider-wire certification.
 
 ## Runtime composition (implemented vs certified)
 
@@ -10,8 +10,7 @@ Hermes native Responses client
       -> authenticated loopback ACE context RPC (TypeSpec ace.context.v3; no model dispatch)
       -> ACE TypeScript/Effect application
            code       CBM v0.12.1 native index/AST/graph/semantic/BM25 discovery
-                      native migration mode: CBM ranked candidates only
-                      historical vector composition: Qdrant + workers, pending removal
+                      CBM ranked candidates only
                       external LSP: independent research deferred
            documents  Vertex AI RAG, only for authorized project_document
            memory     immutable archive/lifecycle code; Graphiti/FalkorDB target
@@ -20,15 +19,15 @@ Hermes native Responses client
       -> Bifröst physical-send guard -> selected provider (NOT CERTIFIED)
 ```
 
-**Codebase Memory is the only active structural/code-graph engine.** ACE owns one persistent local `codebase-memory-mcp` stdio process, using the existing `vscode-jsonrpc` transport for `index_repository`, `get_file_outline`, `search_graph`, `trace_path`, `query_graph`, and `detect_changes`. The inner Model Context Protocol is **provider-only**: ACE selects each call, never exposes CBM tools to the model, and still delivers all model context exclusively through Bifröst. No active ast-grep parser or bespoke RepoMap ranking/graph engine remains. The ast-grep CLI remains an *SDLC architecture linter only* through `check:arch` and `test:arch-rules`. CBM also performs semantic retrieval and SQLite FTS5/BM25: this **overlaps** with Qdrant's retrieval function.
+**Codebase Memory is the only active structural/code-graph engine.** ACE owns one persistent local `codebase-memory-mcp` stdio process, using the existing `vscode-jsonrpc` transport for `index_repository`, `get_file_outline`, `search_graph`, `trace_path`, `query_graph`, and `detect_changes`. The inner Model Context Protocol is **provider-only**: ACE selects each call, never exposes CBM tools to the model, and still delivers all model context exclusively through Bifröst. No active ast-grep parser or bespoke RepoMap ranking/graph engine remains. The ast-grep CLI remains an *SDLC architecture linter only* through `check:arch` and `test:arch-rules`. CBM also owns native semantic retrieval and SQLite FTS5/BM25. No secondary code index is composed.
 
-**Native code retrieval is implemented and locally tested.** Set `ACE_CODE_RETRIEVAL_MODE=cbm`. WorkspaceSync owns source observations; ACE verifies the manifest and exact cited bytes before delivery. The direct native child is owned by ACE; transport loss, cancellation and deadlines invalidate publication, retire the old child and permit a new generation. Real host and isolated container tests include Git transitions, restart and non-Git edits. The historical vector mode still exists and is not the target. Qdrant removal and absolute scale/quality acceptance are open (#363). `persistence: false` omits the portable repo-local export; restart tests do not establish persisted-index reuse.
+**Native code retrieval is the sole code runtime.** WorkspaceSync owns source observations; ACE verifies the manifest and exact cited bytes before delivery. Loss, cancellation and deadlines invalidate ACE publication; the stdio frontend is retired before recovery. CBM v0.12.1 can coordinate with an upstream detached daemon and supervised workers. Frontend exit does not prove daemon or worker exit, nor cache isolation. Use a dedicated service identity and one canonical cache root; do not share an unverified daemon/cache with unrelated runtimes. Shared-cache, scope/ABA, remote topology, absolute quality and scale remain acceptance obligations (#363). `persistence: false` disables the portable repo-local export, not the normal native SQLite cache.
 
 **External LSP:** the independent adapters and FR-03/OpenSpec contract remain. The code-only RPC does not request LSP evidence and the routed facade lacks `documentSymbols`; startup is not proof of semantic validation. Further research is deferred (#364), not a gate for vector retirement.
 
-**Source ownership:** ACE must reread current source bytes and verify source digests and ranges. Neither CBM graph hints nor Qdrant payload alone can establish current source facts.
+**Source ownership:** ACE must reread current source bytes and verify source digests and ranges. CBM graph hints alone can establish current source facts.
 
-**Data ownership:** Vertex AI RAG is the selected documentation search source, subject to both `ACE_ENABLE_VERTEX=true` and `ACE_CLOUD_DOCS_OPT_IN=true`. Graphiti/FalkorDB is the *selected target* for temporal/project memory, with existing immutable-archive/reconciliation code. **The current Gateway runtime explicitly throws if `ACE_ENABLE_GRAPHITI=true`** (`src/bin/ace-runtime.ts`, before provider initialization): the retired tool-server adapter was removed and no Gateway-native memory provider is configured. Thus Graphiti is NOT_READY, not a working full-unified provider. Do not repurpose Qdrant for either docs or memory merely to justify its retention.
+**Data ownership:** Vertex AI RAG is the selected documentation search source, subject to both `ACE_ENABLE_VERTEX=true` and `ACE_CLOUD_DOCS_OPT_IN=true`. Graphiti/FalkorDB is the *selected target* for temporal/project memory, with existing immutable-archive/reconciliation code. **The current Gateway runtime explicitly throws if `ACE_ENABLE_GRAPHITI=true`** (`src/bin/ace-runtime.ts`, before provider initialization): the retired tool-server adapter was removed and no Gateway-native memory provider is configured. Thus Graphiti is NOT_READY, not a working full-unified provider.
 
 ## Readiness — code merged is not accepted E2E
 
@@ -44,7 +43,7 @@ Hermes native Responses client
 
 - [Root README](../../README.md) — entry point and verified source boundaries.
 - [CBM provider](codebase-memory-provider.md) — current native integration and tests.
-- [Runtime flags/readiness](ace-configuration-and-readiness-matrix.md) — native migration mode and historical configuration.
+- [Runtime flags/readiness](ace-configuration-and-readiness-matrix.md) — native-only configuration and readiness.
 - [Testing strategy](testing-strategy.md) — deterministic vs provider vs independently scored agent tests.
 - [ADR-020](../references/ADR-020-native-responses-only.md) — accepted Responses-only boundary.
 - [Historical retrieval plans](../plans/README.md) — source decisions, not an alternative active queue.
@@ -55,4 +54,4 @@ Current instructions (`README.md`, `AGENTS.md`, this runbook, operational runtim
 
 
 
-**Dependency ownership:** CBM owns structural parsing and native retrieval. Qdrant and embedding workers remain only as transitional runtime code. External LSP is retained for further research. The RepoBench-R adapter uses CBM outlines; immutable historical benchmark identities remain distinct. See [cutover plan](../plans/2026-11-25-native-cbm-cutover-and-legacy-retirement.md).
+**Dependency ownership:** CBM owns structural parsing and retrieval. The separate vector SDK, index publication mechanism and embedding/reranking workers are retired. External LSP remains available for deferred research. The RepoBench-R adapter uses CBM outlines; immutable historical benchmark identities remain distinct. See [cutover plan](../plans/2026-11-25-native-cbm-cutover-and-legacy-retirement.md).

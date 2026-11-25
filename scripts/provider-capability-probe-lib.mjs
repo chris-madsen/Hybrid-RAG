@@ -185,7 +185,6 @@ export const httpHealthProbe = async (name, url, fetchImpl = globalThis.fetch) =
 export const buildProviderReport = async ({
   platform = process.platform,
   pathValue = process.env.PATH ?? process.env.Path ?? '',
-  fetchImpl = globalThis.fetch,
 } = {}) => {
   const commandOptions = { platform, pathValue };
   const wsl = requiredWsl(platform);
@@ -228,20 +227,6 @@ export const buildProviderReport = async ({
     ...commandProbe(kubernetesCommand, kubectlArgs(['config', 'current-context']), commandOptions),
   };
   const kubernetesCluster = commandProbe(kubernetesCommand, kubectlArgs(['get', 'nodes', '--no-headers']), commandOptions);
-  const qdrantLocalHealth = await httpHealthProbe('qdrant', 'http://127.0.0.1:6333/healthz', fetchImpl);
-  const qdrantHealth = qdrantLocalHealth.status === 'available' || !wsl
-    ? qdrantLocalHealth
-    : (() => {
-      const viaWsl = providerCommand('curl', ['-fsS', '--max-time', '5', 'http://127.0.0.1:6333/healthz'], {
-        ...commandOptions,
-        wsl: true,
-      });
-      return {
-        name: qdrantLocalHealth.name,
-        url: qdrantLocalHealth.url,
-        ...viaWsl,
-      };
-    })();
   const [falkorHealth] = await Promise.all([
     Promise.resolve(graphitiFalkorHealth(platform)),
   ]);
@@ -255,7 +240,6 @@ export const buildProviderReport = async ({
     kubernetesContext,
     kubernetesCluster,
     localServices: {
-      qdrantHealth,
       graphitiFalkorDriverHealth: falkorHealth,
     },
   };

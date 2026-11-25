@@ -2,7 +2,7 @@
 
 **Governing viewpoint:** VP-04 · **Model kinds:** MK-05, MK-03 · **Concerns:** C-01, C-02, C-03, C-04, C-05, C-06.
 
-**Identity/version:** V-04 v1.1; ACE-AD-001 v1.1; 2026-11-24. **Perspectives:** SP-01, SP-02, SP-03. **Aspects:** AS-01, AS-04, AS-05. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
+**Identity/version:** V-04 v1.2; ACE-AD-001 v1.2; 2026-11-25. **Perspectives:** SP-01, SP-02, SP-03. **Aspects:** AS-01, AS-04, AS-05. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
 
 ## Native subscription request sequence
 
@@ -44,7 +44,7 @@ This sequence describes the accepted integration and source-level behavior. Actu
 
 ## Native retrieval lifecycle
 
-Native local mode uses WorkspaceSync and one direct CBM child. Provider loss, cancelled/expired requests and failed rebuilds invalidate publication; the transaction drains before a replacement child may publish. Final source observation fences shortlist delivery. Host and isolated Docker E2E at #375 prove these scoped scenarios, not shared-cache concurrency, ABA-free observations or external provider-wire cancellation.
+Native code retrieval uses WorkspaceSync and the CBM stdio frontend. Provider loss, cancelled/expired requests and failed rebuilds invalidate ACE publication; final source observation fences delivery. The upstream daemon may outlive the frontend. Its lifecycle and shared-cache ownership, ABA-free observations and external provider-wire cancellation remain separate acceptance obligations.
 
 ## Supporting sources and evaluation references
 
@@ -56,8 +56,8 @@ Native local mode uses WorkspaceSync and one direct CBM child. Provider loss, ca
 
 | Component / version | Contents in this view | Governing model kind |
 | --- | --- | --- |
-| VC-04A v1.1 | Native subscription sequence | MK-05 |
-| VC-04B v1.1 | Preparation, denial and attempt lifecycle | MK-03 |
+| VC-04A v1.2 | Native subscription sequence | MK-05 |
+| VC-04B v1.2 | Preparation, denial and attempt lifecycle | MK-03 |
 
 The [versioned catalog](../viewpoints.md) supplies the conventions, construction/analysis methods and interpretation legends. Linked historical source documents are supporting material, not automatically current components. Correspondence methods: CR-01, CR-02, CR-03, CR-05.
 

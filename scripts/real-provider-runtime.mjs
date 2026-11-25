@@ -50,6 +50,5 @@ export const resolveRealProviderRuntime = async (scriptDirectory) => {
     runtimeRoot,
     sourceCommit,
     executable: resolve(runtimeRoot, 'dist/bin/ace-context-rpc.js'),
-    embeddingWorker: resolve(runtimeRoot, 'scripts/fastembed-worker.sh'),
   };
 };

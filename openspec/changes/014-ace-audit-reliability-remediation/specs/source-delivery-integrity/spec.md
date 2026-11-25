@@ -4,15 +4,15 @@
 
 ### Requirement: Requested source plan controls optional derived evidence
 
-RepoMap and similar derived sources SHALL only enter model context when requested, allowed and source-verified.
+Optional structural and derived sources SHALL only enter model context when requested, allowed and source-verified.
 
-#### Scenario: REM-003 — Code-only request excludes RepoMap
-- **WHEN** Gateway requests code only while RepoMap is configured with nonempty unverified text
-- **THEN** no RepoMap structural bytes reach the Native Responses prepared body
+#### Scenario: REM-003 — Code-only request excludes unrequested structural evidence
+- **WHEN** Gateway requests code only while optional structural evidence is nonempty and unverified
+- **THEN** no unrequested structural bytes reach the Native Responses prepared body
 - **AND** code permission does not grant implicit structural-evidence permission
 
 #### Scenario: REM-004 — Required structural evidence unavailable
-- **WHEN** structural source is required but the rendered map cannot be verified against its paths/revisions
+- **WHEN** structural source is required but the derived evidence cannot be verified against its paths/revisions
 - **THEN** Gateway returns typed partial/not-ready rather than promoting unverified map text as ready
 - **AND** warnings are not silently dropped while their unverified facts remain model-visible
 

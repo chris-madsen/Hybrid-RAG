@@ -40,6 +40,12 @@ jobs:
           set -euo pipefail
           npm exec --yes --package='@fission-ai/openspec@1.17.0' -- \
             openspec validate --all --strict --no-interactive --report full
+      - name: Validate native reliability phase fingerprints and acceptance ownership
+        run: |
+          set -eu
+          for phase in AR01 AR02 AR03 AR04 AR05 AR06 AR07 AR08 AR09 AR10; do
+            node scripts/ace-phase-plan-check.mjs --change 014-ace-audit-reliability-remediation --phase "$phase" --json
+          done
       - name: Prove strict validation rejects an invalid scenario
         shell: bash
         run: |

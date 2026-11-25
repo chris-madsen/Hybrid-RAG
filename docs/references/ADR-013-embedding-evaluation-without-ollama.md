@@ -1,3 +1,5 @@
+> **Superseding owner decision (2026-11-24/25, #363):** CBM is the sole native code retrieval engine. The separate vector SDK, embedding/reranking processes and vector publication mechanisms are retired by #378. The former provider-election gates no longer govern code-only release; absolute quality, source correctness, runtime identity and signed owner approval remain required. Independent LSP and FR-03 remain deferred (#364). The original decision below is historical evidence, not current implementation guidance. [Current architecture](../operations/current-architecture.md).
+
 # ADR-013 — Genuine embeddings without a mandatory model-serving wrapper
 
 **Status: Accepted (evaluation protocol only) — owner approval on 2026-10-19; production model/runtime selection remains open.** Date: 2026-10-19. The owner explicitly rejected adding Ollama as a selected or mandatory ACE dependency.

@@ -10,7 +10,7 @@ const commit = 'a'.repeat(40);
 const digest = 'b'.repeat(64);
 
 const codeInput = (deployment: 'host' | 'k3s' = 'host'): RuntimeConfigEvidenceInput => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   scope: 'code-only',
   deployment,
   sourceCommit: commit,
@@ -19,11 +19,9 @@ const codeInput = (deployment: 'host' | 'k3s' = 'host'): RuntimeConfigEvidenceIn
   workspaceIdHash: digest,
   codeRetrieval: {
     enabled: true,
-    qdrantEnabled: true,
-    pinnedEmbeddingRequired: true,
     localFallbackAllowed: false,
-    embeddingProvider: 'fastembed/onnx',
-    semanticProvider: 'typescript-language-service',
+    codeProviderIdentity: 'codebase-memory/v0.12.1',
+    semanticProvider: 'not_configured',
   },
   documentation: { enabled: false, cloudDocsOptIn: false },
   memory: { enabled: false, localOnly: true },
@@ -54,13 +52,14 @@ const finalized = (input: RuntimeConfigEvidenceInput) => {
   };
 };
 
-test('code-only runtime accepts host or mTLS k3s only with docs/memory/cloud disabled', () => {
+test('native code-only runtime accepts only ACE-local host configuration', () => {
   for (const deployment of ['host', 'k3s'] as const) {
     const result = evaluateRuntimeConfigEvidence(codeInput(deployment), commit);
     assert.equal(result._tag, 'Ok');
     if (result._tag === 'Err') throw new Error(result.error.message);
-    assert.equal(result.value.evidence, 'runtime-config-accepted');
-    assert.deepEqual(result.value.failures, []);
+    assert.equal(result.value.evidence, deployment === 'host' ? 'runtime-config-accepted' : 'runtime-config-incomplete');
+    if (deployment === 'host') assert.deepEqual(result.value.failures, []);
+    else assert.ok(result.value.failures.includes('native_k3s_topology_not_accepted'));
   }
 });
 
@@ -88,7 +87,8 @@ test('full unified runtime requires k3s+mTLS, docs opt-in, local memory and Vert
   const accepted = evaluateRuntimeConfigEvidence(fullInput(), commit);
   assert.equal(accepted._tag, 'Ok');
   if (accepted._tag === 'Err') throw new Error(accepted.error.message);
-  assert.equal(accepted.value.evidence, 'runtime-config-accepted');
+  assert.equal(accepted.value.evidence, 'runtime-config-incomplete');
+  assert.ok(accepted.value.failures.includes('full_unified_native_runtime_not_implemented'));
 
   const input = fullInput();
   const denied = evaluateRuntimeConfigEvidence({
@@ -105,20 +105,20 @@ test('full unified runtime requires k3s+mTLS, docs opt-in, local memory and Vert
 });
 
 test('finalized runtime document is exact-commit/scope/deployment bound and internally re-evaluated', () => {
-  const document = finalized(codeInput('k3s'));
-  const accepted = validateRuntimeConfigEvidenceDocument(document, commit, 'code-only', 'k3s');
+  const document = finalized(codeInput('host'));
+  const accepted = validateRuntimeConfigEvidenceDocument(document, commit, 'code-only', 'host');
   assert.equal(accepted._tag, 'Ok');
 
   const wrongCommit = validateRuntimeConfigEvidenceDocument(document, 'c'.repeat(40), 'code-only', 'k3s');
   assert.equal(wrongCommit._tag, 'Err');
 
-  const wrongDeployment = validateRuntimeConfigEvidenceDocument(document, commit, 'code-only', 'host');
+  const wrongDeployment = validateRuntimeConfigEvidenceDocument(document, commit, 'code-only', 'k3s');
   assert.equal(wrongDeployment._tag, 'Err');
 
   const forged = validateRuntimeConfigEvidenceDocument({
     ...document,
     codeRetrieval: { ...document.codeRetrieval, localFallbackAllowed: true },
-  }, commit, 'code-only', 'k3s');
+  }, commit, 'code-only', 'host');
   assert.equal(forged._tag, 'Err');
 });
 

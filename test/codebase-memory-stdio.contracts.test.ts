@@ -206,6 +206,41 @@ test('closing during initialization cancels the native child instead of waiting 
   } finally { await client.close(); }
 });
 
+test('broken native input settles in-flight writes and permits a fresh indexed session', {
+  timeout: 12_000, skip: process.platform === 'win32',
+}, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-broken-pipe-'));
+  const log = join(dir, 'calls.jsonl');
+  process.env.ACE_CBM_TEST_LOG = log;
+  let losses = 0;
+  const client = makeCodebaseMemoryStdio({
+    rootPath: root, command: process.execPath, args: [fixture], timeoutMs: 4_000,
+    onLost: () => { losses += 1; },
+  });
+  try {
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Ok');
+    const pending = client.invoke('search_graph', { semantic_query: ['close-input-provider'] });
+    const until = Date.now() + 2000;
+    while (!readLog(log).some((entry) => entry.method === 'stdin-closed')) {
+      assert.ok(Date.now() < until, 'fixture did not close its input');
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
+    }
+    const second = client.invoke('query_graph', { query: 'x'.repeat(256 * 1024) });
+    const outcomes = await Promise.all([pending, second]);
+    for (const outcome of outcomes) {
+      assert.equal(outcome._tag, 'Err');
+      if (outcome._tag === 'Err') assert.equal(outcome.error.code, 'NOT_READY');
+    }
+    assert.equal(losses, 1, 'one lost session invalidates publication once');
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Ok');
+    assert.equal(new Set(readLog(log).map((entry) => entry.pid)).size, 2);
+  } finally {
+    await client.close();
+    delete process.env.ACE_CBM_TEST_LOG;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('native result decoding uses structuredContent, rejects errors and never trusts text as code evidence', () => {
   const structured = parseCodebaseMemoryToolResult({
     isError: false,

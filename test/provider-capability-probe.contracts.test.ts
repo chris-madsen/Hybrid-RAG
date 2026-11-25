@@ -68,7 +68,6 @@ test('provider probe marks project-external terminal-bench tools as not required
   const report = await probe.buildProviderReport({
     platform: 'linux',
     pathValue: '',
-    fetchImpl: async () => new Response('ok', { status: 200 }),
   });
   assert.equal(report.commands.find((item) => item.command === 'tb')?.status, 'not_required');
   assert.equal(report.commands.find((item) => item.command === 'terminal-bench')?.status, 'not_required');
@@ -76,12 +75,12 @@ test('provider probe marks project-external terminal-bench tools as not required
 
 test('health probes use endpoints and expose no request payload', async () => {
   const calls: string[] = [];
-  const result = await probe.httpHealthProbe('qdrant', 'http://127.0.0.1:6333/healthz', async (url: string) => {
+  const result = await probe.httpHealthProbe('local-fixture', 'http://127.0.0.1:8765/healthz', async (url: string) => {
     calls.push(url);
     return new Response('healthz check passed\n', { status: 200 });
   });
   assert.equal(result.status, 'available');
-  assert.deepEqual(calls, ['http://127.0.0.1:6333/healthz']);
+  assert.deepEqual(calls, ['http://127.0.0.1:8765/healthz']);
   assert.equal('query' in result, false);
   assert.equal('token' in result, false);
   assert.equal('source' in result, false);

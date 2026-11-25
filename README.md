@@ -6,11 +6,11 @@ ACE combines hybrid retrieval, code intelligence and source verification to supp
 
 Unlike a standalone vector search or an agent-specific retrieval plugin, ACE integrates at the LLM gateway boundary. Coding agents retain their own reasoning and tool workflows while the context engine handles evidence retrieval, verification and delivery.
 
-**TypeScript · Effect · Go · Python · Qdrant · Codebase Memory · LSP · TypeSpec · Docker/k3s**
+**TypeScript · Effect · Go · Python · Codebase Memory · LSP · TypeSpec · Docker/k3s**
 
 ## Key capabilities
 
-- **Hybrid code intelligence:** native CBM AST, dependency graph, semantic and BM25 retrieval; ACE verifies original source. The historical vector stack remains temporarily available; independent LSP research is deferred.
+- **Hybrid code intelligence:** native CBM AST, dependency graph, semantic and BM25 retrieval; ACE verifies original source. CBM is the only code retrieval engine; independent LSP research is deferred.
 - **Source-grounded context:** exact current-file verification, SHA-256 digests, UTF-8 source spans, workspace reconciliation and lossless access to authorized originals.
 - **Agent-neutral integration:** additive context projection into native Responses requests through a Bifröst plugin, with signed receipts and per-attempt source/data-policy authorization.
 - **Privacy-aware data architecture:** local code indexing and immutable archival storage, explicit authorization for external document retrieval and model egress.
@@ -31,7 +31,7 @@ Bifröst — sole agent-facing LLM Gateway
   | POST /chatgpt_passthrough/backend-api/codex/responses
   | post-auth Go ACE plugin
   +---- authenticated loopback context RPC ----> ACE Core (TypeScript + Effect)
-  |                                              | code: native CBM (migration mode)
+  |                                              | code: native CBM
   |                                              | legacy vector path pending retirement
   |                                              | docs: authorized Vertex AI RAG
   |                                              | memory: archive; Graphiti target
@@ -64,13 +64,12 @@ See [ADR-021: single Bifröst Gateway](docs/references/ADR-021-bifrost-single-ga
 | Component | Role | Current boundary |
 | --- | --- | --- |
 | Codebase Memory (CBM) v0.12.1 | Native AST, code graph, semantic and SQLite FTS5/BM25 discovery | Active structural/graph engine; persistent application-owned stdio RPC; retrieval tools remain internal and are never exposed to the agent |
-| Qdrant | Dense/sparse code retrieval and native RRF | Historical vector composition remains selectable during migration; owner selected native CBM, not a competing architecture |
 | External LSP | Independent symbol/definition verification | Independent exact-symbol contracts and implementation retained for research (#364); not requested by native code-only RPC |
 | Vertex AI RAG | Authorized project documentation | Explicit cloud opt-in and corpus/IAM configuration; not a private-code destination |
 | Local immutable archive | Content-addressed originals, replay, tombstones and lifecycle/reconciliation | Implemented separately; archive availability is not live temporal recall |
 | Graphiti / FalkorDB | Target for temporal/project memory | NOT_READY: no active context RPC memory provider; enabling the retired adapter fails startup |
 
-Native CBM is the selected code retrieval owner (#363). The explicit local migration mode already passes real source mutation, loss/recovery, cancellation, deadline, restart and non-Git tests on host and in isolated Docker. Qdrant remains in source and dependencies until physical retirement; no architecture-election comparison is required. External LSP is retained for separate research (#364), not a vector-cutover gate. Vertex and temporal memory are separate. The development-only ast-grep CLI enforces architectural fitness, not runtime parsing.
+Native CBM is the sole code retrieval owner (#363). It supplies structural, graph, semantic and lexical discovery; ACE verifies the current original bytes, authorization, and coverage. The former separate vector index, embedding workers, and reranker are retired in the native cutover. Independent external LSP is retained for research (#364). Vertex and temporal memory remain separate. The development-only ast-grep CLI enforces architectural fitness, not runtime parsing. Final acceptance of the cutover requires absolute quality, scale and safety evidence.
 
 ACE validates workspace identity and path containment, reconciles tracked, untracked and removed files, rereads original source bytes and verifies SHA-256 and UTF-8 ranges. Current verified source outranks stale index payloads, documentation and derived memory. Required-source coverage, freshness and uncertainty determine completeness. Large originals remain losslessly accessible under authorization; partial results, failed providers and unknown usage are reported explicitly. Private source and conversations remain local by default; each external provider and data class requires separate authorization.
 
@@ -91,7 +90,7 @@ The following snapshot summarizes active work; OpenSpec remains the canonical ac
 | C03–C07 physical-send guard, route, streaming, Hermes loop | Implementation in place; live subscriber final-wire, streaming/cancellation and long agent-loop acceptance are the next milestones. |
 | C08 Harbor task quality and economics | Independent paired trials and release decision remain open; no certified 5× improvement. |
 | AR01–AR10 reliability | Source coverage, publication authority, archive durability, ranking/trace integrity, worker lifecycle and Harbor usage binding. Acceptance tracked per phase. |
-| Retrieval architecture evaluation | Native CBM cutover: verify absolute quality/scale and topology, retire legacy vector dependencies; independent LSP research deferred. No production certificate. |
+| Retrieval architecture evaluation | Native CBM cutover: verify absolute quality/scale and topology, validate the retired-vector-free composition; independent LSP research deferred. No production certificate. |
 | Full unified memory | Blocked by the missing active Graphiti context provider; do not infer temporal recall from archive tests. |
 
 **Recent evidence and remediation (21 November 2026):**
@@ -105,7 +104,7 @@ The [Hermes E2E recovery runbook](docs/operations/2026-11-21-hermes-e2e-repair-r
 
 ## Local development
 
-Node.js/TypeScript and Effect implement the core modular monolith using functional DDD; Go is the Bifröst integration boundary. Python workers are used for embedding/reranking and selected evaluation tooling. Docker/k3s provide local deployment infrastructure.
+Node.js/TypeScript and Effect implement the core modular monolith using functional DDD; Go is the Bifröst integration boundary. Python remains available for independent memory, HTTP and evaluation tooling. Docker/k3s provide local deployment infrastructure.
 
 ```bash
 npm ci
@@ -121,7 +120,7 @@ npm install --global codebase-memory-mcp@0.12.1
 codebase-memory-mcp --version
 ```
 
-Use the [configuration matrix](docs/operations/ace-configuration-and-readiness-matrix.md) for the native local path. No external embedding worker, Qdrant service or LSP is needed for native code-only projection. The historical vector composition remains transitional.
+Use the [configuration matrix](docs/operations/ace-configuration-and-readiness-matrix.md) for the native local path. No external embedding worker, Qdrant service or LSP is needed for native code-only projection.
 
 ### Local context RPC and hybrid retrieval
 
@@ -130,15 +129,12 @@ Start the local context engine with the configured retrieval providers:
 ```bash
 export ACE_WORKSPACE_ROOT=/absolute/path/to/repo
 export ACE_ALLOWED_ROOTS=/absolute/path/to
-export ACE_CODE_RETRIEVAL_MODE=cbm
-export ACE_ENABLE_EXPERIMENTAL_QDRANT=false
-export ACE_RERANKER_MODE=disabled
 # Optional ACE_CBM_COMMAND: absolute path to the pinned native executable.
 # Supply ACE_CONTEXT_RPC_SHARED_SECRET securely, outside version control.
 npm run context:rpc
 ```
 
-Native mode is explicit during migration and rejects the remote host helper and vector/reranker enablement. No legacy provider fallback. By default the internal RPC listens on loopback port 8765. Configure the colocated Bifröst plugin with `ACE_CONTEXT_RPC_URL=http://127.0.0.1:8765/internal/ace-context/v3/project`, matching `ACE_CONTEXT_RPC_TOKEN` and the registered workspace/single-workspace tenancy configuration. A missing secret leaves projection unavailable; incorrect bearer credentials are rejected. Hermes must target Bifröst's `/chatgpt_passthrough` base prefix, never the ACE RPC or a direct provider endpoint.
+The native runtime is the default and only code retrieval path. It requires an ACE-local authorized workspace, rejects remote helper and legacy provider enablement, and never falls back to another code engine. By default the internal RPC listens on loopback port 8765. Configure the colocated Bifröst plugin with `ACE_CONTEXT_RPC_URL=http://127.0.0.1:8765/internal/ace-context/v3/project`, matching `ACE_CONTEXT_RPC_TOKEN` and the registered workspace/single-workspace tenancy configuration. A missing secret leaves projection unavailable; incorrect bearer credentials are rejected. Hermes must target Bifröst's `/chatgpt_passthrough` base prefix, never the ACE RPC or a direct provider endpoint.
 
 Use the [subscription OAuth runbook](docs/operations/gateway-subscription-oauth.md) for exact pinned build, route, workspace and data-policy configuration. The v3 endpoint, generated types and plugin must be deployed atomically; there is no compatibility alias or silent provider fallback. Without real required retrieval providers, the service reports not-ready rather than simulating production search.
 

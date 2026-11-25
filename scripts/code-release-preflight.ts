@@ -12,15 +12,13 @@ import { validateReleaseExternalEvidenceDocument } from '../src/domain/release-e
 import { validateReleaseSelectionSources } from './release-selection-source-validation.js';
 
 interface CodeReleasePolicy {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly scope: 'code-only';
   readonly deployment: CodeReleaseDeployment;
   readonly ownerApproval: ReleaseOwnerApproval;
   readonly ownerApprovalTrustRoot: ReleaseOwnerApprovalTrustRoot;
   readonly artifacts: {
     readonly dbc: string;
-    readonly embeddingSelection: string;
-    readonly semanticSelection: string;
     readonly retrievalQuality: string;
     readonly harborThreeArm: string;
     readonly resourceBudget: string;
@@ -71,7 +69,7 @@ if (policyArg === undefined || outputArg === undefined) {
 
 const policyEvidence = await readEvidenceJson(policyArg);
 const policy = policyEvidence.value as Partial<CodeReleasePolicy>;
-if (policy.schemaVersion !== 1
+if (policy.schemaVersion !== 2
   || policy.scope !== 'code-only'
   || (policy.deployment !== 'host' && policy.deployment !== 'k3s')
   || typeof policy.ownerApproval !== 'object' || policy.ownerApproval === null
@@ -81,24 +79,22 @@ if (policy.schemaVersion !== 1
   throw new Error('code-only release policy schema is invalid');
 }
 const artifacts = policy.artifacts as CodeReleasePolicy['artifacts'];
-for (const key of ['dbc', 'embeddingSelection', 'semanticSelection', 'retrievalQuality', 'harborThreeArm', 'resourceBudget', 'runtimeConfig'] as const) {
+for (const key of ['dbc', 'retrievalQuality', 'harborThreeArm', 'resourceBudget', 'runtimeConfig'] as const) {
   if (typeof artifacts[key] !== 'string' || artifacts[key].trim().length === 0) {
     throw new Error(`code-only release policy artifacts.${key} is required`);
   }
 }
 
-const [dbc, embedding, semantic, retrieval, harbor, resourceBudget, runtimeConfig] = await Promise.all([
+const [dbc, retrieval, harbor, resourceBudget, runtimeConfig] = await Promise.all([
   readEvidenceJson(artifacts.dbc),
-  readEvidenceJson(artifacts.embeddingSelection),
-  readEvidenceJson(artifacts.semanticSelection),
   readEvidenceJson(artifacts.retrievalQuality),
   readEvidenceJson(artifacts.harborThreeArm),
   readEvidenceJson(artifacts.resourceBudget),
   readEvidenceJson(artifacts.runtimeConfig),
 ]);
 const selectionSources = await validateReleaseSelectionSources(
-  embedding.value,
-  semantic.value,
+  retrieval.value,
+  undefined,
   readEvidenceJson,
 );
 
@@ -173,8 +169,6 @@ const verdict = evaluateCodeReleasePreflight({
   currentCommit,
   deployment: policy.deployment,
   dbc: dbc.value,
-  embeddingSelection: embedding.value,
-  semanticSelection: semantic.value,
   retrievalQuality: retrieval.value,
   harborThreeArm: harbor.value,
   resourceBudget: resourceBudget.value,
@@ -188,7 +182,7 @@ if (verdict._tag === 'Err') {
 }
 
 const output = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: new Date().toISOString(),
   scope: 'code-only',
   deployment: policy.deployment,
@@ -196,8 +190,6 @@ const output = {
   policy: { path: policyEvidence.path, sha256: policyEvidence.sha256 },
   evidence: {
     dbc: { path: dbc.path, sha256: dbc.sha256 },
-    embeddingSelection: { path: embedding.path, sha256: embedding.sha256 },
-    semanticSelection: { path: semantic.path, sha256: semantic.sha256 },
     retrievalQuality: { path: retrieval.path, sha256: retrieval.sha256 },
     harborThreeArm: { path: harbor.path, sha256: harbor.sha256 },
     resourceBudget: { path: resourceBudget.path, sha256: resourceBudget.sha256 },

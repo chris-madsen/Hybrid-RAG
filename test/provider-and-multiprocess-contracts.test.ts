@@ -5,13 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { Effect } from 'effect';
-import type { QdrantClient } from '@qdrant/js-client-rest';
 import { makeVertexRagRetrievalPort } from '../src/adapters/vertex-rag.js';
-import { makeQdrantCodeCandidatePort } from '../src/adapters/http-provider-boundaries.js';
-import { validateLocalQdrantBaseUrl } from '../src/adapters/qdrant-sdk-adapter.js';
 import { makeFileArtifactStore } from '../src/adapters/file-artifact-store.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
-import { makeQdrantContextProvider } from '../src/adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider } from '../src/adapters/native-cbm-context-provider.js';
 import { makeAsyncFileMemoryArchive } from '../src/adapters/file-memory-archive.js';
 import { makeEpisodeId, type SessionEpisode } from '../src/domain/memory.js';
 import { defaultLocalPolicy } from '../src/domain/policy.js';
@@ -19,7 +16,6 @@ import { makeWorkspaceId } from '../src/domain/workspace.js';
 import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 import { ok, type Result } from '../src/domain/result.js';
 import type { HttpPort } from '../src/application/ports.js';
-import { makeQdrantSdkTestPort } from './helpers/qdrant-sdk-test-double.js';
 
 const value = <T, E>(result: Result<T, E>): T => {
   assert.equal(result._tag, 'Ok');
@@ -103,15 +99,14 @@ test('AR02 code-only retrieval never renders an unrequested RepoMap or asserts u
     const workspaceId = value(makeWorkspaceId('repo-map-context-evidence'));
     let repoMapRenders = 0;
     const files = makeNodeWorkspacePort({ allowedRoots: [root] });
-    const provider = makeQdrantContextProvider({
+    const provider = makeNativeCbmContextProvider({
+      mode: 'cbm',
       workspaceId,
       rootPath: root,
       files,
-      qdrant: {
+      codeGraph: {
         search: () => Effect.succeed(ok([])),
-        upsert: () => Effect.succeed(ok(undefined)),
       },
-      embeddings: { embedMany: (input) => Effect.succeed(ok(input.map(() => [1]))) },
       artifacts: makeFileArtifactStore(join(root, 'artifacts')),
       semantics: {
         definition: () => Effect.succeed(ok([])),
@@ -143,14 +138,17 @@ test('AR02 code-only retrieval never renders an unrequested RepoMap or asserts u
     assert.equal(repoMapRenders, 0, 'code-only source plan does not authorize RepoMap rendering');
     // No authoritative indexed snapshot was supplied; a zero-hit code search
     // must also fail closed rather than certify an unverified empty result.
-    assert.equal(result._tag, 'Err');
-    if (result._tag === 'Err') assert.equal(result.error.code, 'NOT_READY');
+    assert.equal(result._tag, 'Ok');
+    if (result._tag === 'Ok') {
+      assert.equal(result.value.complete, false);
+      assert.deepEqual(result.value.evidence, []);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('required structural coverage is unavailable when no RepoMap was actually produced', async () => {
+test('required structural coverage remains partial when only native hints exist', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ace-structural-coverage-'));
   try {
     const workspaceId = value(makeWorkspaceId('structural-coverage'));
@@ -174,15 +172,14 @@ test('required structural coverage is unavailable when no RepoMap was actually p
       indexedAtMs: 1,
       invalidated: false,
     } as never;
-    const provider = makeQdrantContextProvider({
+    const provider = makeNativeCbmContextProvider({
+      mode: 'cbm',
       workspaceId,
       rootPath: root,
       files,
-      qdrant: {
+      codeGraph: {
         search: () => Effect.succeed(ok([{ candidate, score: 1, freshness: 'unknown' }] as never)),
-        upsert: () => Effect.succeed(ok(undefined)),
       },
-      embeddings: { embedMany: (input) => Effect.succeed(ok(input.map(() => [1]))) },
       artifacts: makeFileArtifactStore(join(root, 'artifacts')),
       semantics: {
         definition: () => Effect.succeed(ok([])),
@@ -208,60 +205,13 @@ test('required structural coverage is unavailable when no RepoMap was actually p
     assert.equal(result._tag, 'Ok');
     if (result._tag === 'Ok') {
       const structural = result.value.sourceCoverage?.find((item) => item.source === 'structural');
-      assert.equal(structural?.status, 'unavailable');
+      assert.equal(structural?.status, 'partial');
       assert.equal(result.value.complete, false);
       assert.ok(result.value.partialSources.includes('structural'));
     }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
-});
-
-test('Qdrant code payload is local-only and rejects external HTTPS before every SDK operation', async () => {
-  let sdkCalls = 0;
-  const client = {
-    query: async () => {
-      sdkCalls += 1;
-      return { points: [] };
-    },
-    upsert: async () => {
-      sdkCalls += 1;
-      return { status: 'completed' };
-    },
-    delete: async () => {
-      sdkCalls += 1;
-      return { status: 'completed' };
-    },
-  } as unknown as QdrantClient;
-  const qdrant = makeQdrantCodeCandidatePort({
-    collection: 'ace-code',
-    sdk: makeQdrantSdkTestPort(client, 'https://vector.example.com'),
-  });
-  const results = [
-    await Effect.runPromise(qdrant.search({
-      workspaceId: ws,
-      vector: [1],
-      strategy: 'dense',
-      limit: 1,
-    })),
-    await Effect.runPromise(qdrant.upsert([])),
-    await Effect.runPromise(qdrant.deletePaths!({
-      workspaceId: ws,
-      repoPaths: ['src/private.ts' as never],
-    })),
-    await Effect.runPromise(qdrant.deleteWorkspaceVersions!({
-      workspaceId: ws,
-      exceptIndexKey: 'current-index',
-    })),
-  ];
-  for (const result of results) {
-    assert.equal(result._tag, 'Err');
-    if (result._tag === 'Err') assert.equal(result.error.code, 'POLICY_DENIED');
-  }
-  assert.equal(sdkCalls, 0, 'policy denial must happen before any SDK client method is invoked');
-
-  const validator = validateLocalQdrantBaseUrl('https://vector.example.com');
-  assert.equal(validator._tag, 'Err');
 });
 
 test('Vertex blocks secret-like documentation queries before outbound HTTP even when cloud opt-in is enabled', async () => {

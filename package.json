@@ -35,7 +35,6 @@
     "memory:sync": "npm run build && node dist/bin/ace-memory.js",
     "test:real-same-name": "npm run build && tsx scripts/real-same-name-lsp-e2e.ts",
     "test:real-non-ts-lsp": "npm run build && tsx scripts/non-ts-lsp-conformance.ts",
-    "compare:embeddings": "bash scripts/embedding-provider-comparison.sh",
     "memory:reconcile": "npm run build && node dist/bin/ace-memory.js reconcile",
     "worktree-helper": "npm run build && node dist/bin/ace-worktree-helper.js",
     "worktree:audit": "node scripts/git-worktree-lifecycle.mjs audit",
@@ -44,11 +43,6 @@
     "worktree:status": "node scripts/git-worktree-lifecycle.mjs status",
     "worktree:cleanup": "node scripts/git-worktree-lifecycle.mjs cleanup",
     "eval:memory-admission": "tsx scripts/memory-admission-eval.ts",
-    "eval:reranker": "tsx scripts/reranker-evaluation.ts",
-    "freeze:reranker-holdout": "tsx scripts/freeze-reranker-holdout.ts",
-    "convert:reranker-holdout": "tsx scripts/reranker-holdout-to-retrieval-holdout.ts",
-    "baseline:reranker": "tsx scripts/reranker-baseline-from-retrieval.ts",
-    "gate:reranker-selection": "tsx scripts/reranker-selection-gate.ts",
     "gate:harbor-three-arm": "tsx scripts/harbor-three-arm-gate.ts",
     "gate:harbor-four-arm": "tsx scripts/harbor-four-arm-gate.ts",
     "verify:harbor-four-arm-binding": "tsx scripts/verify-harbor-four-arm-binding.ts",
@@ -56,16 +50,13 @@
     "vertex:import-synthetic": "bash scripts/vertex-synthetic-fixture-import.sh",
     "test:real-vertex-conflict": "tsx scripts/vertex-synthetic-conflict-e2e.ts",
     "evidence:dbc": "tsx scripts/dbc-evidence-manifest.ts",
-    "gate:embedding-selection": "tsx scripts/embedding-selection-gate.ts",
     "compare:semantic-tsls": "tsx scripts/typescript-ls-semantic-comparison.ts",
     "gate:semantic-selection": "tsx scripts/semantic-provider-selection-gate.ts",
     "report:retrieval-quality": "tsx scripts/retrieval-quality-report.ts",
     "gate:retrieval-quality": "tsx scripts/retrieval-quality-gate.ts",
     "freeze:retrieval-holdout": "tsx scripts/freeze-retrieval-holdout.ts",
     "validate:retrieval-holdout": "tsx scripts/validate-retrieval-holdout.ts",
-    "probe:retrieval-rank": "tsx scripts/qdrant-hybrid-rank-probe.ts",
     "merge:retrieval-runs": "tsx scripts/merge-retrieval-runs.ts",
-    "gate:retrieval-ablation": "tsx scripts/retrieval-ablation-gate.ts",
     "release:preflight": "tsx scripts/release-preflight.ts",
     "memory:backup": "tsx scripts/local-memory-backup.ts",
     "release:supply-chain": "tsx scripts/supply-chain-evidence.ts",
@@ -96,9 +87,7 @@
     "test:sdlc-closure": "node --test test/sdlc-closure-audit.test.mjs",
     "test:real-projection": "npm run build && node scripts/real-projection-e2e.mjs",
     "receipt:responses-stream": "tsx scripts/native-responses-stream-receipt.ts",
-    "test:real-projection-race": "npm run build && ACE_REAL_PROJECTION_RACE=true node scripts/real-projection-e2e.mjs",
     "test:real-projection-outage": "npm run build && ACE_REAL_PROJECTION_OUTAGE=true node scripts/real-projection-e2e.mjs",
-    "test:real-projection-hard-outage": "npm run build && ACE_REAL_PROJECTION_HARD_OUTAGE=true node scripts/real-projection-e2e.mjs",
     "test:mutation:critical": "node scripts/nightly-targeted-mutation.mjs",
     "check:sdd-prepare": "node scripts/sdd-preparation-check.mjs",
     "test:sdd-prepare": "node --test test/sdd-preparation-check.test.mjs",
@@ -107,7 +96,6 @@
     "test:ace-plan-refinement": "node --test test/ace-plan-refinement.test.mjs"
   },
   "dependencies": {
-    "@qdrant/js-client-rest": "1.20.0",
     "effect": "3.22.5",
     "typescript": "5.9.3",
     "typescript-language-server": "6.1.0",
@@ -127,9 +115,6 @@
     "tsx": "4.23.15"
   },
   "overrides": {
-    "@qdrant/js-client-rest": {
-      "undici": "7.30.2"
-    },
     "@typescript-eslint/typescript-estree": {
       "minimatch": "11.0.1"
     }

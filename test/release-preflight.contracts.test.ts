@@ -4,6 +4,7 @@ import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
+import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   evaluateReleasePreflight,
   ownerApprovalPayload,
@@ -27,7 +28,7 @@ const ownerTrustRoot: ReleaseOwnerApprovalTrustRoot = {
 const signedApproval = (
   approvedCapabilities: readonly ('code' | 'documentation' | 'memory')[],
   reference: string,
-  approvedProviderIdentities: readonly string[] = ['embedding-fixture-identity', 'semantic-fixture-identity'],
+  approvedProviderIdentities: readonly string[] = [...Object.values(nativeCodeRetrieval.providerIdentities), 'semantic-fixture-identity'],
 ): ReleaseOwnerApproval => {
   const unsigned: ReleaseOwnerApproval = {
     schemaVersion: 1,
@@ -47,7 +48,7 @@ const signedApproval = (
   };
 };
 const boundMeasurementArtifacts = [
-  'dbc', 'embeddingSelection', 'semanticSelection', 'retrievalQuality',
+  'dbc', 'semanticSelection', 'retrievalQuality',
   'harborThreeArm', 'resourceBudget', 'runtimeConfig',
 ].map((name) => ({ name, path: `artifacts/${name}.json`, sha256: digest }))
   .sort((left, right) => left.name.localeCompare(right.name));
@@ -55,7 +56,7 @@ const evidenceBinding = {
   schemaVersion: 1 as const,
   sourceCommit: commit,
   measurementArtifacts: boundMeasurementArtifacts,
-  providerIdentities: ['fastembed/onnx', 'typescript-language-service'],
+  providerIdentities: [...Object.values(nativeCodeRetrieval.providerIdentities), 'typescript-language-service', 'semantic-fixture-identity'],
   reportIdentitySha256: createHash('sha256').update(JSON.stringify(boundMeasurementArtifacts), 'utf8').digest('hex'),
   reportIdentityVerified: true,
 };
@@ -256,7 +257,7 @@ const resourceBudget = {
 };
 
 const runtimeConfig = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-10-20T00:00:00.000Z',
   evidence: 'runtime-config-accepted',
   scope: 'full-unified',
@@ -267,11 +268,9 @@ const runtimeConfig = {
   workspaceIdHash: digest,
   codeRetrieval: {
     enabled: true,
-    qdrantEnabled: true,
-    pinnedEmbeddingRequired: true,
     localFallbackAllowed: false,
-    embeddingProvider: 'fastembed/onnx',
-    semanticProvider: 'typescript-language-service',
+    codeProviderIdentity: nativeCodeRetrieval.providerIdentities.code_graph,
+    semanticProvider: 'not_configured',
   },
   documentation: { enabled: true, cloudDocsOptIn: true },
   memory: { enabled: true, localOnly: true },
@@ -282,8 +281,8 @@ const runtimeConfig = {
     scope: 'full-unified',
     deployment: 'k3s',
     sourceCommit: commit,
-    embeddingProvider: 'fastembed/onnx',
-    semanticProvider: 'typescript-language-service',
+    codeProviderIdentity: nativeCodeRetrieval.providerIdentities.code_graph,
+    semanticProvider: 'not_configured',
     failures: [],
   },
 };
@@ -294,25 +293,6 @@ const baseInput = () => ({
     schemaVersion: 1,
     generatedAt: '2026-10-20T00:00:00.000Z',
     records: dbcRecords(),
-  },
-  embeddingSelection: {
-    schemaVersion: 1,
-    sourceCommit: commit,
-    reportPath: 'artifacts/embedding-comparison.json',
-    policyPath: 'benchmarks/policies/embedding-selection.json',
-    reportSha256: digest,
-    policySha256: digest,
-    evidenceStage: 'frozen_holdout',
-    dataset: 'release-fixture',
-    datasetSha256: digest,
-    verdict: {
-      status: 'PRODUCTION_APPROVED',
-      productionApproved: true,
-      measurementAccepted: true,
-      selectedProvider: 'fastembed/onnx',
-      selectedProviderIdentity: 'embedding-fixture-identity',
-      failures: [],
-    },
   },
   semanticSelection: {
     schemaVersion: 1,
@@ -334,18 +314,23 @@ const baseInput = () => ({
     },
   },
   retrievalQuality: {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    holdoutPath: 'artifacts/holdout.json',
+    runPath: 'artifacts/native-run.json',
+    policyPath: 'artifacts/native-policy.json',
+    providerIdentities: nativeCodeRetrieval.providerIdentities,
     sourceCommit: commit,
     holdoutSha256: digest,
     runSha256: digest,
     policySha256: digest,
     verdict: {
       measurementAccepted: true,
-      selectedStrategy: 'hybrid',
+      selectedStrategy: nativeCodeRetrieval.strategy,
       failures: [],
       metrics: {
-        holdoutStatus: 'frozen_holdout',
-        strategy: 'hybrid',
+        holdoutStatus: 'frozen_multi_repository_holdout',
+        repositoryCount: 2,
+        strategy: nativeCodeRetrieval.strategy,
         cases: 3,
         recallAt1: 1,
         recallAt3: 1,
@@ -390,12 +375,12 @@ const baseInput = () => ({
   ownerApprovalTrustRoot: ownerTrustRoot,
 });
 
-test('full unified release is READY only when every mandatory evidence family is accepted', () => {
+test('full unified release remains blocked until the native full runtime is implemented', () => {
   const result = evaluateReleasePreflight(baseInput());
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Err') throw new Error(result.error.message);
-  assert.equal(result.value.status, 'READY');
-  assert.deepEqual(result.value.failures, []);
+  assert.equal(result.value.status, 'BLOCKED');
+  assert.ok(result.value.failures.includes('runtime_config_not_accepted'));
 });
 
 test('release preflight rejects an unbound verdict or a tampered owner approval', () => {
@@ -419,7 +404,7 @@ test('owner approval binds the selected provider identities into the signed rele
     ownerApproval: signedApproval(
       ['code', 'documentation', 'memory'],
       'owner-signoff-2026-10-20',
-      ['embedding-fixture-identity', 'serena-identity'],
+      ['retired-provider-identity', 'serena-identity'],
     ),
   });
   assert.equal(mismatched._tag, 'Ok');
@@ -446,7 +431,7 @@ test('provider approval, current-commit DBC, external evidence and owner scope f
   const result = evaluateReleasePreflight({
     ...input,
     dbc: { schemaVersion: 1, generatedAt: '2026-10-20T00:00:00Z', records },
-    embeddingSelection: {
+    semanticSelection: {
       verdict: { status: 'MEASUREMENT_PASS_APPROVAL_PENDING', productionApproved: false },
     },
     externalEvidence: input.externalEvidence.filter((item) => item.name !== 'k3s-worktree'),
@@ -461,7 +446,7 @@ test('provider approval, current-commit DBC, external evidence and owner scope f
   assert.equal(result.value.status, 'BLOCKED');
   for (const failure of [
     'dbc_wrong_commit:DBC-01',
-    'embedding_not_production_approved',
+    'semantic_provider_not_production_approved',
     'external_evidence_missing:k3s-worktree',
     'owner_approval_wrong_commit',
     'owner_capability_not_approved:documentation',
@@ -542,7 +527,7 @@ test('full release blocks runtime scope/provider/config drift even when selectio
   assert.equal(mismatchedProvider._tag, 'Ok');
   if (mismatchedProvider._tag === 'Ok') {
     assert.equal(mismatchedProvider.value.status, 'BLOCKED');
-    assert.ok(mismatchedProvider.value.failures.includes('runtime_semantic_provider_mismatch'));
+    assert.ok(mismatchedProvider.value.failures.includes('runtime_config_not_accepted'));
   }
 
   const cloudScopeDrift = evaluateReleasePreflight({
@@ -576,11 +561,11 @@ test('full release rejects forged acceptance flags and inconsistent artifact ide
   const input = baseInput();
   const result = evaluateReleasePreflight({
     ...input,
-    embeddingSelection: {
-      ...input.embeddingSelection,
+    semanticSelection: {
+      ...input.semanticSelection,
       sourceCommit: 'f'.repeat(40),
       verdict: {
-        ...input.embeddingSelection.verdict,
+        ...input.semanticSelection.verdict,
         status: 'MEASUREMENT_PASS_APPROVAL_PENDING',
         productionApproved: true,
       },
@@ -596,8 +581,8 @@ test('full release rejects forged acceptance flags and inconsistent artifact ide
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Err') throw new Error(result.error.message);
   assert.equal(result.value.status, 'BLOCKED');
-  assert.ok(result.value.failures.includes('embedding_evidence_identity_invalid'));
-  assert.ok(result.value.failures.includes('embedding_not_production_approved'));
+  assert.ok(result.value.failures.includes('semantic_evidence_identity_invalid'));
+  assert.ok(result.value.failures.includes('semantic_provider_not_production_approved'));
   assert.ok(result.value.failures.includes('retrieval_evidence_identity_invalid'));
 });
 
@@ -613,7 +598,7 @@ test('full release hashes binary DBC artifacts without parsing them as JSON', as
     const policyPath = join(root, 'policy.json');
     const outputPath = join(root, 'output.json');
     await writeFile(policyPath, JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       ownerApproval: {
         status: 'pending',
         releaseCommit: current,
@@ -623,7 +608,6 @@ test('full release hashes binary DBC artifacts without parsing them as JSON', as
       ownerApprovalTrustRoot: { signingKeyId: 'test', publicKeySha256: digest, publicKeyPem: 'test-key' },
       artifacts: {
         dbc: join(root, 'dbc.json'),
-        embeddingSelection: emptyPath,
         semanticSelection: emptyPath,
         retrievalQuality: emptyPath,
         harborThreeArm: emptyPath,

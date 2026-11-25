@@ -34,7 +34,6 @@ export * from './application/memory-reconcile.js';
 export * from './adapters/local-code-index.js';
 export * from './adapters/evaluation-report-artifacts.js';
 export * from './adapters/http-provider-boundaries.js';
-export * from './adapters/qdrant-sdk-adapter.js';
 export * from './adapters/jev-route-provider.js';
 export * from './adapters/hermes-context-evidence.js';
 export * from './adapters/harbor-runner.js';
@@ -43,7 +42,6 @@ export * from './adapters/harbor-task-adapter.js';
 export * from './application/harbor-byte-binding.js';
 export * from './adapters/lsp-semantic.js';
 export * from './adapters/typescript-language-service.js';
-export * from './adapters/process-embedding.js';
 export * from './adapters/codex-session-history.js';
 
 export * from './adapters/codebase-memory-graph.js';

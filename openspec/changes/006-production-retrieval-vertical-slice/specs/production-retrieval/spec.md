@@ -4,12 +4,12 @@
 
 ### Requirement: Real executable production composition
 
-The system SHALL invoke selected, configured real retrieval providers from the production ACE runtime when required by an authorized Bifröst Gateway projection, rather than satisfying the capability with a disconnected adapter, test double or lexical fallback.
+The system SHALL invoke selected, configured real retrieval providers from the production ACE runtime when required by an authorized Bifröst Gateway projection, rather than satisfying the capability with a disconnected adapter, test double or lexical fallback. Native CBM is the only code retrieval owner. Independent exact definition/reference verification (DBC-04) remains a separate contract; native line outlines do not certify it.
 
 #### Scenario: DBC-01 actual provider wiring
 
-- **WHEN** an authorized code-intelligence query requires semantic discovery, AST spans and LSP semantics in a pinned environment with approved providers
-- **THEN** an observable request-bound Bifröst → ACE Gateway projection reaches actual Qdrant with a genuine approved embedding, Tree-sitter/ast-grep, approved LSP and current source verification, and the resulting evidence carries provider/source/request provenance
+- **WHEN** an authorized code-intelligence query requires code discovery and AST spans in a pinned environment with approved providers
+- **THEN** an observable request-bound Bifröst → ACE Gateway projection reaches actual pinned native CBM semantic/lexical/graph discovery and native outlines with current source verification, and the resulting evidence carries provider/source/request provenance
 - **AND** an implementation where only a regex/full-file local provider is invoked SHALL fail this scenario
 
 #### Scenario: Unapproved production dependency
@@ -36,7 +36,7 @@ The system SHALL use real AST-derived symbol boundaries, distinguish verified se
 #### Scenario: DBC-04 same-name references
 
 - **WHEN** two classes define `save()` and call sites resolve to different declarations
-- **THEN** the approved semantic service returns the correct definition/references for each declaration without conflating `isWriteAccess` and `isDefinition`
+- **THEN** the approved independently requested semantic service returns the correct definition/references for each declaration without conflating `isWriteAccess` and `isDefinition`
 
 ### Requirement: Route-coverage completeness and trusted source truth
 
@@ -49,8 +49,8 @@ The system SHALL determine completeness from all required route sources and veri
 
 #### Scenario: DBC-06 required provider fails
 
-- **WHEN** Qdrant is a required route and times out while available local AST still yields results
-- **THEN** the bundle reports Qdrant failure and `complete=false`, even when all returned local evidence is fresh
+- **WHEN** native CBM is a required route and times out while some previously obtained native outline results remain available
+- **THEN** the bundle reports native CBM failure and `complete=false`, even when all returned local evidence is fresh
 
 #### Scenario: DBC-07 private code cloud denied
 
@@ -78,7 +78,7 @@ The system SHALL preserve persisted-index freshness across restarts and SHALL su
 
 #### Scenario: DBC-13 dirty-tree restart
 
-- **WHEN** ACE restarts while a Qdrant index generation predates working-tree edits
+- **WHEN** ACE restarts while a native index generation predates working-tree edits
 - **THEN** startup reports stale/unknown index status and rebuilds or uses a verified overlay, without silently upgrading the old generation to current
 
 #### Scenario: DBC-14 conflicting documentation

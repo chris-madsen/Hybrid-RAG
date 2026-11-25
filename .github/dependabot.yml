@@ -64,13 +64,10 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
-    ignore:
-      - dependency-name: "sentence-transformers"
-        update-types: ["version-update:semver-major"]
     groups:
       provider-http:
         patterns: ["httpcore2", "httpx2"]
-    # Review separate Python environments, marker constraints and CPU wheels.
+    # Retained Python dependencies belong to the independent memory/HTTP providers.
 
   - package-ecosystem: "gomod"
     directory: "/integrations/bifrost/ace-connector"

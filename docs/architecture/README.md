@@ -1,6 +1,6 @@
 # ACE Architecture Description
 
-**AD identifier:** ACE-AD-001 · **Edition:** 1.1 · **Baseline:** 24 November 2026, main at c5983d008c9353e37182883966ab64eb6601705e.
+**AD identifier:** ACE-AD-001 · **Edition:** 1.2 · **Baseline:** 25 November 2026, native-only cutover (#378), pending final review and acceptance.
 
 This architecture description is organized using the concepts of [ISO/IEC/IEEE 42010:2022](https://www.iso.org/standard/74393.html), Software, systems and enterprise — Architecture description. It describes the software system and its environment, rather than prescribing a different development methodology. The [clause-by-clause assessment](conformance.md) records the internal evaluation, including unresolved architecture evidence. It is not third-party certification.
 

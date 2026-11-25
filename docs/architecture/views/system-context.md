@@ -2,7 +2,7 @@
 
 **Governing viewpoint:** VP-01 · **Model kinds:** MK-01, MK-09 · **Concerns:** C-01, C-04, C-05.
 
-**Identity/version:** V-01 v1.1; ACE-AD-001 v1.1; 2026-11-24. **Perspectives:** SP-01, SP-02, SP-03. **Aspects:** AS-01, AS-05. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
+**Identity/version:** V-01 v1.2; ACE-AD-001 v1.2; 2026-11-25. **Perspectives:** SP-01, SP-02, SP-03. **Aspects:** AS-01, AS-05. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
 
 ## Context model
 
@@ -19,7 +19,6 @@ flowchart LR
     Bifrost -->|"authorized final native request"| Provider["ChatGPT / Codex provider"]
     Core -->|"read and verify"| Workspace["Workspace / original source"]
     Core --> CBM["Codebase Memory"]
-    Core --> Qdrant["Qdrant / embedding workers"]
     Core --> LSP["External language servers"]
     Core -->|"authorized project documents"| Vertex["Vertex AI RAG"]
     Core --> Archive["Immutable local archive"]
@@ -47,8 +46,8 @@ Verify that V-04 uses the same endpoint and ownership, V-05 has no unauthorized 
 
 | Component / version | Contents in this view | Governing model kind |
 | --- | --- | --- |
-| VC-01A v1.1 | Context diagram | MK-01 |
-| VC-01B v1.1 | Boundary ownership table | MK-09 |
+| VC-01A v1.2 | Context diagram | MK-01 |
+| VC-01B v1.2 | Boundary ownership table | MK-09 |
 
 The [versioned catalog](../viewpoints.md) supplies the conventions, construction/analysis methods and interpretation legends. Linked historical source documents are supporting material, not automatically current components. Correspondence methods: CR-01, CR-03, CR-05.
 

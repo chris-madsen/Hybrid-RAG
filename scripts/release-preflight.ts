@@ -10,16 +10,16 @@ import {
   type ReleaseOwnerApproval,
   type ReleaseOwnerApprovalTrustRoot,
 } from '../src/domain/release-preflight.js';
+import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import { validateReleaseExternalEvidenceDocument } from '../src/domain/release-external-evidence.js';
 import { validateReleaseSelectionSources } from './release-selection-source-validation.js';
 
 interface ReleasePolicy {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly ownerApproval: ReleaseOwnerApproval;
   readonly ownerApprovalTrustRoot: ReleaseOwnerApprovalTrustRoot;
   readonly artifacts: {
     readonly dbc: string;
-    readonly embeddingSelection: string;
     readonly semanticSelection: string;
     readonly retrievalQuality: string;
     readonly harborThreeArm: string;
@@ -71,7 +71,7 @@ if (policyArg === undefined || outputArg === undefined) {
 
 const policyEvidence = await readEvidenceJson(policyArg);
 const policy = policyEvidence.value as Partial<ReleasePolicy>;
-if (policy.schemaVersion !== 1
+if (policy.schemaVersion !== 2
   || typeof policy.ownerApproval !== 'object' || policy.ownerApproval === null
   || typeof policy.ownerApprovalTrustRoot !== 'object' || policy.ownerApprovalTrustRoot === null
   || typeof policy.artifacts !== 'object' || policy.artifacts === null
@@ -79,15 +79,14 @@ if (policy.schemaVersion !== 1
   throw new Error('release policy schema is invalid');
 }
 const artifacts = policy.artifacts as ReleasePolicy['artifacts'];
-for (const key of ['dbc', 'embeddingSelection', 'semanticSelection', 'retrievalQuality', 'harborThreeArm', 'resourceBudget', 'runtimeConfig'] as const) {
+for (const key of ['dbc', 'semanticSelection', 'retrievalQuality', 'harborThreeArm', 'resourceBudget', 'runtimeConfig'] as const) {
   if (typeof artifacts[key] !== 'string' || artifacts[key].trim().length === 0) {
     throw new Error(`release policy artifacts.${key} is required`);
   }
 }
 
-const [dbc, embedding, semantic, retrieval, harbor, resourceBudget, runtimeConfig] = await Promise.all([
+const [dbc, semantic, retrieval, harbor, resourceBudget, runtimeConfig] = await Promise.all([
   readEvidenceJson(artifacts.dbc),
-  readEvidenceJson(artifacts.embeddingSelection),
   readEvidenceJson(artifacts.semanticSelection),
   readEvidenceJson(artifacts.retrievalQuality),
   readEvidenceJson(artifacts.harborThreeArm),
@@ -95,7 +94,7 @@ const [dbc, embedding, semantic, retrieval, harbor, resourceBudget, runtimeConfi
   readEvidenceJson(artifacts.runtimeConfig),
 ]);
 const selectionSources = await validateReleaseSelectionSources(
-  embedding.value,
+  retrieval.value,
   semantic.value,
   readEvidenceJson,
 );
@@ -160,7 +159,6 @@ for (const raw of policy.externalEvidence) {
 const verdict = evaluateReleasePreflight({
   currentCommit,
   dbc: dbc.value,
-  embeddingSelection: embedding.value,
   semanticSelection: semantic.value,
   retrievalQuality: retrieval.value,
   harborThreeArm: harbor.value,
@@ -170,18 +168,15 @@ const verdict = evaluateReleasePreflight({
   evidenceBinding: (() => {
     const measurementArtifacts = [
       { name: 'dbc', path: dbc.path, sha256: dbc.sha256 },
-      { name: 'embeddingSelection', path: embedding.path, sha256: embedding.sha256 },
       { name: 'semanticSelection', path: semantic.path, sha256: semantic.sha256 },
       { name: 'retrievalQuality', path: retrieval.path, sha256: retrieval.sha256 },
       { name: 'harborThreeArm', path: harbor.path, sha256: harbor.sha256 },
       { name: 'resourceBudget', path: resourceBudget.path, sha256: resourceBudget.sha256 },
       { name: 'runtimeConfig', path: runtimeConfig.path, sha256: runtimeConfig.sha256 },
     ].sort((left, right) => left.name.localeCompare(right.name));
-    const embeddingVerdict = (embedding.value as { verdict?: { selectedProvider?: unknown; selectedProviderIdentity?: unknown } }).verdict;
     const semanticVerdict = (semantic.value as { verdict?: { selectedProvider?: unknown; selectedProviderIdentity?: unknown } }).verdict;
     const providerIdentities = [
-      embeddingVerdict?.selectedProvider,
-      embeddingVerdict?.selectedProviderIdentity,
+      ...Object.values(nativeCodeRetrieval.providerIdentities),
       semanticVerdict?.selectedProvider,
       semanticVerdict?.selectedProviderIdentity,
     ].filter((identity): identity is string => typeof identity === 'string' && identity.length > 0);
@@ -222,13 +217,12 @@ if (verdict._tag === 'Err') {
 }
 
 const output = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: new Date().toISOString(),
   currentCommit,
   policy: { path: policyEvidence.path, sha256: policyEvidence.sha256 },
   evidence: {
     dbc: { path: dbc.path, sha256: dbc.sha256 },
-    embeddingSelection: { path: embedding.path, sha256: embedding.sha256 },
     semanticSelection: { path: semantic.path, sha256: semantic.sha256 },
     retrievalQuality: { path: retrieval.path, sha256: retrieval.sha256 },
     harborThreeArm: { path: harbor.path, sha256: harbor.sha256 },

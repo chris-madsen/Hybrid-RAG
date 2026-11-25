@@ -1,3 +1,5 @@
+> **Superseding owner decision (2026-11-24/25, #363):** CBM is the sole native code retrieval engine. The separate vector SDK, embedding/reranking processes and vector publication mechanisms are retired by #378. The former provider-election gates no longer govern code-only release; absolute quality, source correctness, runtime identity and signed owner approval remain required. Independent LSP and FR-03 remain deferred (#364). The original decision below is historical evidence, not current implementation guidance. [Current architecture](../operations/current-architecture.md).
+
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
 # ADR-012 — Production capability gates, build-versus-buy and Meyer contracts

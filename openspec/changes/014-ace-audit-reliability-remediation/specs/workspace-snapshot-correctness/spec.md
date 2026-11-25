@@ -16,17 +16,17 @@ A successful complete retrieval SHALL require a trustworthy source observation. 
 - **THEN** the already approved verified-no-addition response preserves native input bytes exactly
 - **AND** stale, denied, partial, failed or unknown results never enter that success path
 
-### Requirement: Concurrent Qdrant publishers cannot roll back newer source
+### Requirement: Native index coordination cannot roll back verified source
 
-The publisher SHALL have a workspace-scoped authority that prevents stale writers from erasing or activating older generations.
+CBM SHALL own native index and cache coordination. ACE SHALL fence publication of its derived source membership and verify exact current bytes and scope. It SHALL NOT implement a second persistent index or writer authority.
 
-#### Scenario: REM-005 — Stale writer after newer publication
-- **WHEN** process A observes v1, pauses, and process B publishes v2 before A continues
-- **THEN** A neither deletes v2 membership nor promotes v1 over v2
-- **AND** readers see a complete current generation or an explicit typed unavailable result
+#### Scenario: REM-005 — Stale observation after newer source
+- **WHEN** an older indexing request races a newer source observation, including independently running frontends using the same upstream daemon
+- **THEN** ACE neither delivers stale bytes as current nor claims verified completeness from the older membership
+- **AND** readers see verified current evidence or explicit typed unavailable or partial results
 
-#### Scenario: REM-006 — Failed/restarted publication
-- **WHEN** publication fails, a writer crashes/restarts or competing writers have the same claimed generation
-- **THEN** the system cannot expose a partial or rolled-back snapshot as complete
-- **AND** verified newer membership survives restart/cleanup and is not lost by stale pruning
-- **AND** alias atomicity is never mistaken for generation compare-and-swap
+#### Scenario: REM-006 — Failed/restarted native publication
+- **WHEN** a native frontend, daemon or worker fails or restarts, or incompatible cache roots or builds compete
+- **THEN** ACE cannot expose a partial or rolled-back snapshot as complete
+- **AND** upstream coordination and current source are checked before a new generation is published
+- **AND** frontend termination is never mistaken for confirmed daemon or worker termination

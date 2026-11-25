@@ -18,7 +18,7 @@ on:
       - 'src/adapters/codebase-memory-stdio.ts'
       - 'test/codebase-memory-stdio.contracts.test.ts'
       - 'test/fixtures/cbm-stdio-fixture.mjs'
-      - 'src/adapters/qdrant-context-provider.ts'
+      - 'src/adapters/native-cbm-context-provider.ts'
       - 'src/application/ports.ts'
       - 'src/application/workspace-sync.ts'
       - 'src/application/responses-projection-service.ts'
@@ -119,10 +119,21 @@ jobs:
           cache: npm
       - name: Install ACE pinned dependencies
         run: npm ci
-      - name: Install pinned upstream Codebase Memory for real LSP evidence
+      - name: Install pinned upstream Codebase Memory for native retrieval evidence
         run: | # zizmor: ignore[adhoc-packages] pinned v0.12.1 verifies native archive checksum
           npm install --global codebase-memory-mcp@0.12.1
           codebase-memory-mcp --version
+      - name: Enforce retirement of separate vector runtime dependencies
+        run: |
+          set -eu
+          # Test assertions and retired flag rejection are not active providers.
+          if git grep -n -E '(@qdrant/js-client-rest|qdrant-context-provider|qdrant-publication-authority|qdrant-sdk-adapter|process-embedding|process-sparse-embedding|process-reranker)' -- src scripts infra package.json package-lock.json Dockerfile.ace; then
+            echo 'Retired runtime provider reference found'
+            exit 1
+          else
+            test "$?" = 1
+          fi
+          test ! -e infra/k8s/ace-local/qdrant-values.yaml
       - name: Run complete source contracts, build, architecture and nightly property suite
         run: npm run verify:full
 
@@ -157,8 +168,9 @@ jobs:
         run: |
           docker run --rm --network none --entrypoint sh ace-native-ci -ec '
             test "$(id -u)" != 0
-            test "$ACE_CODE_RETRIEVAL_MODE" = cbm
-            test "$ACE_ENABLE_EXPERIMENTAL_QDRANT" = false
+            test -z "${ACE_CODE_RETRIEVAL_MODE:-}"
+            test -z "${ACE_ENABLE_EXPERIMENTAL_QDRANT:-}"
+            test -z "${ACE_RERANKER_MODE:-}"
             test ! -d /opt/ace/.venv-embedding-fast
             test ! -d /var/lib/ace/model-cache
             codebase-memory-mcp --version
@@ -170,7 +182,7 @@ jobs:
         # isolated container; no operator worktree or credentials are mounted.
         run: |
           set -eu
-          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT; do
+          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT ACE_REAL_PROJECTION_NATIVE_DAEMON_RECOVERY; do
             docker run --rm --init --network none \
               -v "$PWD:/evidence:ro" \
               -e GIT_OPTIONAL_LOCKS=0 \
@@ -180,6 +192,7 @@ jobs:
               -e ACE_SOURCE_ROOT=/evidence \
               -e ACE_RUNTIME_ROOT=/opt/ace \
               -e ACE_REAL_PROJECTION_NATIVE_CBM=true \
+              -e ACE_REAL_PROJECTION_ISOLATED_CONTAINER=true \
               -e "$scenario=true" \
               --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
           done
@@ -203,11 +216,11 @@ jobs:
           images=()
           task_args=()
           for task in ace-retrieval-impact ace-cloud-policy-impact ace-shared-archive-impact; do
-            docker build -t "$task-ci" "benchmarks/harbor/$task/environment"
-            image="$task-ci@$(docker image inspect --format '{{.Id}}' "$task-ci")"
+            docker build -t "${task}-ci" "benchmarks/harbor/$task/environment"
+            image="${task}-ci@$(docker image inspect --format '{{.Id}}' "${task}-ci")"
             images+=("$image")
             task_args+=(--task-image "$image")
-            docker run --rm --network none --entrypoint python3 "$task-ci" -c 'import importlib.util as u; assert all(u.find_spec(n) is None for n in ("fastembed", "onnxruntime", "sentence_transformers", "tree_sitter"))'
+            docker run --rm --network none --entrypoint python3 "${task}-ci" -c 'import importlib.util as u; assert all(u.find_spec(n) is None for n in ("fastembed", "onnxruntime", "sentence_transformers", "tree_sitter"))'
           done
           node scripts/build-harbor-ace-runtime.mjs --source-root "$PWD" --output "$bundle" "${task_args[@]}"
           for image in "${images[@]}"; do

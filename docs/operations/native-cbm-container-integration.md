@@ -4,7 +4,7 @@ Date: 2026-11-25. Scope: local code-only, zero model egress. Source baseline `19
 
 ## Deployment boundary
 
-The existing `Dockerfile.ace` now shares one verified runtime base between an explicitly selected `native-cbm` target and the historical vector target. The native image installs the pinned upstream CBM 0.12.1 package and Git; no embedding Python environment or model cache is installed. It uses the existing compiled runtime, runs as node, and leaves RPC loopback-only. The underlying npm package still has the vector SDK until CBM-05. The old default image is not yet removed.
+`Dockerfile.ace` builds the native CBM image only. It installs pinned upstream CBM 0.12.1 and Git, runs as node, uses the existing compiled runtime and leaves RPC loopback-only. The former vector service, SDK and external embedding/reranking runtime are not installed. The local-workspace topology is the implemented scope; remote worktree and shared-daemon lifecycle are not certified.
 
 CI builds the native target using the resolved immutable Node 22.23.4 base digest, prints image identity and size, and executes the existing compiled projection/mutation/recovery/worktree/cancellation scenarios under Docker `--network none`. Only the source-evidence checkout is mounted read-only; each test creates its own local fixture. This is not a deployment of an operator's private host tree, nor a release signature or Bifröst provider-wire certificate. Host and Docker native tests passed at #375, including deadline, restart and non-Git edits. See the [container job](https://github.com/chris-madsen/Hybrid-RAG/runs/139407146480).
 

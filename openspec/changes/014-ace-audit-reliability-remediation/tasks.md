@@ -2,6 +2,10 @@
 
 **Change:** §014-ace-audit-reliability-remediation§. **Historical T2 Stage P/X plan and the one canonical acceptance/checkbox ledger.** R originated in audit PR #290, S #292 and A #293. **Current source reconciliation (2026-11-21, `main@8591adc9da77f8eb395df43ea7a51eea16e78062`):** many repair implementations were merged after this plan (e.g. #291, #299, #308–310), and PR #316 replaced the old ast-grep structural runtime / homemade RepoMap with native Codebase Memory. Therefore old branch/Stage-I statements below are historical planning context, **not** a claim that current main lacks every AR implementation. Conversely a merged PR and a deterministic PASS do **not** establish real-provider acceptance, so unchecked boxes are preserved pending evidence-based reconciliation. See [current runtime](../../../docs/operations/current-architecture.md).
 
+## Native-only reconciliation (2026-11-25)
+
+Owner decision #363 selects CBM as the sole code retrieval engine. The old vector, embedding and parser implementation instructions in the historical audit are superseded. AR03, AR07, AR08 and AR09 now own the corresponding native lifecycle, ranking/provenance and quality invariants. AR02 and AR06 retain source delivery invariants. No checkbox is promoted from a source change, no retired provider is to be restored, and no competing vector-provider election is required. Follow the revised phase briefs for current paths and commands; old detailed phase descriptions below are historical where they conflict. Independent external LSP research (#364), remote topology and real Bifröst/agent/Harbor acceptance remain separately scoped.
+
 ## Dependency DAG and LOC budget
 
 Automatically sized via §ace-to-tickets§ rules: ten coherent **vertical** one-context slices, approximately 700–1,200 forecast **added + deleted handwritten** source/test/glue lines each, risk boundaries preserved. All REM-001…REM-022 spec IDs appear **exactly once**. No LOC quota on emitted model context; forecasts are not hard token ceilings. Do not write filler to reach a count. Source/test/other columns are estimates, not measured work. One slice = one approved implementation pass and one focused PR followed by STOP.
@@ -9,29 +13,29 @@ Automatically sized via §ace-to-tickets§ rules: ten coherent **vertical** one-
 | ID / title | Blocked by | Acceptance IDs | Source / tests / other = total forecast | Observable result |
 |---|---|---|---:|---|
 | AR01 — Trustworthy non-Git snapshots and verified-empty | none | REM-001, REM-002 | 340 / 400 / 70 = **810** | Digest reconciliation or honest incomplete state; no stale non-Git empty native pass-through |
-| AR02 — Source-plan-gated RepoMap projection | none | REM-003, REM-004 | 380 / 400 / 80 = **860** | Code-only Native Responses emits no unrequested structural map; required unverified map is partial |
-| AR03 — Authoritative cross-process Qdrant publication | none | REM-005, REM-006 | 450 / 480 / 110 = **1040** | Stale A writer cannot erase or roll back newer B generation under the selected publication authority |
+| AR02 — Source-plan-gated optional structural projection | none | REM-003, REM-004 | 380 / 400 / 80 = **860** | Code-only Native Responses emits no unrequested structural map; required unverified map is partial |
+| AR03 — Native cache coordination and verified publication | none | REM-005, REM-006 | 450 / 480 / 110 = **1040** | Stale native observation cannot certify older bytes or incomplete membership |
 | AR04 — Crash-recoverable immutable archive bytes | none | REM-007, REM-008 | 400 / 460 / 90 = **950** | Crash during blob/metadata write recovers exact immutable original or typed quarantine |
 | AR05 — Durable archive-only proof and safe deletion | AR04 | REM-009, REM-010, REM-011 | 430 / 500 / 110 = **1040** | Crash after first import and before never-projected marker is recoverable without graph-absence guess |
 | AR06 — Remove unreachable source copies and legacy digest/expand paths | none | REM-012, REM-013, REM-014 | 400 / 470 / 110 = **980** | No unbounded source artifact duplication or false ace_expand promise; maintained/versioned digest identity |
-| AR07 — Monotone rankings and truthful delivery/provider traces | AR02 | REM-015, REM-016, REM-017 | 440 / 490 / 120 = **1050** | Negative cosine does not reverse positive prior; delivered only after exact verification; actual providers identified |
-| AR08 — Evidence-led RepoMap recall and AST extraction decision | AR02, AR07 | REM-018, REM-019 | 350 / 390 / 130 = **870** | Measured multi-file Qdrant shortlist behavior; canonical CLI preserved until true corpus parity |
-| AR09 — Bound serial Python embedding-worker timeout | none | REM-020 | 300 / 430 / 100 = **830** | Timed-out worker cannot indefinitely monopolize queue or contaminate a subsequent request |
+| AR07 — Native ranking and truthful delivery/provider traces | AR02 | REM-015, REM-016, REM-017 | 440 / 490 / 120 = **1050** | Native disambiguation preserves source authority; delivered only after exact verification; actual providers identified |
+| AR08 — Native graph recall and structural provenance | AR02, AR07 | REM-018, REM-019 | 350 / 390 / 130 = **870** | Measured native multi-file shortlist and exact outline coverage |
+| AR09 — Bound native session cancellation and recovery | none | REM-020 | 300 / 430 / 100 = **830** | Cancelled native work cannot indefinitely monopolize a request or contaminate a subsequent generation |
 | AR10 — Join Harbor usage and task acceptance evidence | none | REM-021, REM-022 | 410 / 470 / 100 = **980** | Usage/retry/failure events bound to frozen task/model/arm/attempt; 5x measured on total accepted-task tokens |
 
-**AR08 implementation update:** The historical AR08 CLI-vs-NAPI parity, RepoMap and Qdrant-only shortlist rationale was superseded by PR #316 as a *runtime design*. Do not reinstall the retired providers or run the old parity test as if current. Native CBM graph/source retrieval and independent A/B retrieval quality must now be measured; this does **not** itself mark REM-018/019 accepted.
+**AR08 implementation update:** The historical AR08 CLI-vs-NAPI parity, RepoMap and Qdrant-only shortlist rationale was superseded by PR #316 as a *runtime design*. Do not reinstall the retired providers or run the old parity test as if current. Native CBM graph/source retrieval and absolute frozen multi-repository retrieval quality must now be measured; this does **not** itself mark REM-018/019 accepted.
 
 ## Canonical phase tracker
 
 - [ ] AR01 — Trustworthy non-Git snapshots and verified-empty; see [AR01](phases/AR01.md).
-- [ ] AR02 — Source-plan-gated RepoMap projection; see [AR02](phases/AR02.md).
-- [ ] AR03 — Authoritative cross-process Qdrant publication; see [AR03](phases/AR03.md).
+- [ ] AR02 — Source-plan-gated optional structural projection; see [AR02](phases/AR02.md).
+- [ ] AR03 — Native cache coordination and verified publication; see [AR03](phases/AR03.md).
 - [ ] AR04 — Crash-recoverable immutable archive bytes; see [AR04](phases/AR04.md).
 - [ ] AR05 — Durable archive-only proof and safe deletion; see [AR05](phases/AR05.md).
 - [ ] AR06 — Remove unreachable source copies and legacy digest/expand paths; see [AR06](phases/AR06.md).
-- [ ] AR07 — Monotone rankings and truthful delivery/provider traces; see [AR07](phases/AR07.md).
-- [ ] AR08 — Evidence-led RepoMap recall and AST extraction decision; see [AR08](phases/AR08.md).
-- [ ] AR09 — Bound serial Python embedding-worker timeout; see [AR09](phases/AR09.md).
+- [ ] AR07 — Native ranking and truthful delivery/provider traces; see [AR07](phases/AR07.md).
+- [ ] AR08 — Native graph recall and structural provenance; see [AR08](phases/AR08.md).
+- [ ] AR09 — Bound native session cancellation and recovery; see [AR09](phases/AR09.md).
 - [ ] AR10 — Join Harbor usage and task acceptance evidence; see [AR10](phases/AR10.md).
 
 Check boxes remain empty until code actually implements that slice and its required tests/review gates pass. A green structural phase check does not mark a task implemented.
@@ -52,7 +56,7 @@ Check boxes remain empty until code actually implements that slice and its requi
 - **Proof type:** actual local owning contract/process/provider test as appropriate; synthetic Go/TS/Hermes tests do not certify egress. Independent external provider/economics evidence only through existing change 013.
 - **STOP / rollback:** refuse unsafe unknown/stale/cancelled state; preserve prior verified originals and deny unsupported source/graph/provider operations. If material owner G02/pin or dependent PR integration is not approved, leave I blocked, keep this as provisional planning.
 
-### AR02 — Source-plan-gated RepoMap projection
+### AR02 — Source-plan-gated optional structural projection
 
 - **Blocked by:** none; external review/G02 additionally applies where material.
 - **Acceptance IDs:** REM-003, REM-004.
@@ -63,7 +67,7 @@ Check boxes remain empty until code actually implements that slice and its requi
 - **Proof type:** actual local owning contract/process/provider test as appropriate; synthetic Go/TS/Hermes tests do not certify egress. Independent external provider/economics evidence only through existing change 013.
 - **STOP / rollback:** refuse unsafe unknown/stale/cancelled state; preserve prior verified originals and deny unsupported source/graph/provider operations. If material owner G02/pin or dependent PR integration is not approved, leave I blocked, keep this as provisional planning.
 
-### AR03 — Authoritative cross-process Qdrant publication
+### AR03 — Native cache coordination and verified publication
 
 - **Blocked by:** none; external review/G02 additionally applies where material.
 - **Acceptance IDs:** REM-005, REM-006.
@@ -107,7 +111,7 @@ Check boxes remain empty until code actually implements that slice and its requi
 - **Proof type:** actual local owning contract/process/provider test as appropriate; synthetic Go/TS/Hermes tests do not certify egress. Independent external provider/economics evidence only through existing change 013.
 - **STOP / rollback:** refuse unsafe unknown/stale/cancelled state; preserve prior verified originals and deny unsupported source/graph/provider operations. If material owner G02/pin or dependent PR integration is not approved, leave I blocked, keep this as provisional planning.
 
-### AR07 — Monotone rankings and truthful delivery/provider traces
+### AR07 — Native ranking and truthful delivery/provider traces
 
 - **Blocked by:** AR02; external review/G02 additionally applies where material.
 - **Acceptance IDs:** REM-015, REM-016, REM-017.
@@ -118,7 +122,7 @@ Check boxes remain empty until code actually implements that slice and its requi
 - **Proof type:** actual local owning contract/process/provider test as appropriate; synthetic Go/TS/Hermes tests do not certify egress. Independent external provider/economics evidence only through existing change 013.
 - **STOP / rollback:** refuse unsafe unknown/stale/cancelled state; preserve prior verified originals and deny unsupported source/graph/provider operations. If material owner G02/pin or dependent PR integration is not approved, leave I blocked, keep this as provisional planning.
 
-### AR08 — Evidence-led RepoMap recall and AST extraction decision
+### AR08 — Native graph recall and structural provenance
 
 - **Blocked by:** AR02, AR07; external review/G02 additionally applies where material.
 - **Acceptance IDs:** REM-018, REM-019.
@@ -129,7 +133,7 @@ Check boxes remain empty until code actually implements that slice and its requi
 - **Proof type:** actual local owning contract/process/provider test as appropriate; synthetic Go/TS/Hermes tests do not certify egress. Independent external provider/economics evidence only through existing change 013.
 - **STOP / rollback:** refuse unsafe unknown/stale/cancelled state; preserve prior verified originals and deny unsupported source/graph/provider operations. If material owner G02/pin or dependent PR integration is not approved, leave I blocked, keep this as provisional planning.
 
-### AR09 — Bound serial Python embedding-worker timeout
+### AR09 — Bound native session cancellation and recovery
 
 - **Blocked by:** none; external review/G02 additionally applies where material.
 - **Acceptance IDs:** REM-020.
