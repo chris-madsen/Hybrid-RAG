@@ -263,6 +263,9 @@ const main = async (): Promise<void> => {
       if (expected !== undefined && !workspaceManifestEqual(manifest, expected)) {
         return err(domainError('WORKTREE_RACED', 'workspace_manifest', 'workspace changed before native CBM reconciliation'));
       }
+      // Structural reuse is valid only across a still-owned native session.
+      // On transport/generation loss, rebuild even unchanged source outlines.
+      if (!nativePublished || !graph.isIndexed()) latestBuild = undefined;
       // Invalidate candidates before any native index mutation. A failed
       // reindex must not reuse previously certified candidate membership.
       nativePublished = false;
