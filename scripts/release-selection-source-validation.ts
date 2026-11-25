@@ -2,6 +2,7 @@ import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   evaluateRetrievalStrategy,
   evaluateRetrievalQualityPolicy,
+  validateNativeRetrievalRunIdentity,
   type RetrievalHoldout,
   type RetrievalStrategyRun,
   type RetrievalQualityPolicy,
@@ -62,12 +63,12 @@ const validateNativeRetrievalSources = async (
   }
   const source = run.value as RetrievalStrategyRun;
   const requirements = policy.value as RetrievalQualityPolicy;
-  if (source.sourceCommit !== selection.sourceCommit || source.holdoutSha256 !== holdout.sha256
-    || source.strategy !== nativeCodeRetrieval.strategy
-    || source.providerIdentities?.code_graph !== nativeCodeRetrieval.providerIdentities.code_graph
-    || source.providerIdentities?.structural !== nativeCodeRetrieval.providerIdentities.structural
-    || Object.keys(source.providerIdentities ?? {}).length !== 2
+  const identity = typeof selection.sourceCommit === 'string'
+    ? validateNativeRetrievalRunIdentity(holdout.value as RetrievalHoldout, source, selection.sourceCommit)
+    : undefined;
+  if (identity?._tag !== 'Ok' || source.holdoutSha256 !== holdout.sha256
     || !sameJson(source.providerIdentities, selection.providerIdentities)
+    || requirements.selectedStrategy !== nativeCodeRetrieval.strategy
     || requirements.nonInferiority !== undefined) {
     throw new Error('native retrieval run identity mismatch');
   }

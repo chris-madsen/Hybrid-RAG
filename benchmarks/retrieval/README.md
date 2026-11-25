@@ -26,10 +26,13 @@ source ranges, and refuses to overwrite a frozen holdout.
 Use the resulting external holdout with real native CBM projection observations and the generic retrieval evaluator. The release gate accepts only the native_cbm strategy and the pinned native provider identities for the exact ACE source commit. It requires frozen multi-repository labels and an absolute quality policy, not a competing vector strategy or reranker.
 
 ```bash
-npm run gate:retrieval-quality -- <holdout.json> <native-run.json> <absolute-policy.json> <output.json>
+npm run merge:retrieval-runs -- <holdout.json> <external-output-dir> <repo-a-native-run.json> <repo-b-native-run.json>
+npm run gate:retrieval-quality -- <holdout.json> <external-output-dir>/native_cbm.json <absolute-policy.json> <external-output.json>
 ```
 
 Retain the actual request-bound trace and terminal receipts. Do not substitute mock ranks or label a development corpus release-grade. Historical embedding/reranker reports remain immutable evidence at their recorded commits; their executable selection gates were retired.
 
 Harbor four-arm validation receives repository IDs through
 `ACE_HARBOR_REPOSITORY_IDS`, for example `repo-a,repo-b`. Final multi-repository Harbor jobs and task environments belong to the external evidence workspace.
+
+Native run merging requires one exact, complete repository partition per run, the same ACE commit/runner identity, the pinned providers, and explicit non-applicability of retired stages. The gate no longer accepts a competing vector baseline. Keep output outside the checkout; it cannot overwrite prior evidence. These validation commands consume observations from the real projection runner; they do not create measurements or certify provider wire behavior.

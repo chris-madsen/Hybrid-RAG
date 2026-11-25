@@ -5,6 +5,7 @@ import type {
   RetrievalBenchmarkStageStatus,
 } from './retrieval-benchmark.js';
 import { retrievalBenchmarkStages } from './retrieval-benchmark.js';
+import { nativeCodeRetrieval } from './retrieval.js';
 
 export interface RetrievalHoldoutRepository {
   readonly id: string;
@@ -168,6 +169,30 @@ const commitIdentity = (value: string | undefined): boolean => value === undefin
 const providerIdentityMap = (value: Readonly<Record<string, string>> | undefined): boolean => value !== undefined
   && Object.keys(value).length > 0
   && Object.entries(value).every(([key, identity]) => key.trim().length > 0 && identity.trim().length > 0);
+/** Current native release identity; historical report readers stay generic. */
+export const validateNativeRetrievalRunIdentity = (
+  holdout: RetrievalHoldout,
+  run: RetrievalStrategyRun,
+  expectedCommit: string,
+): Result<void, DomainError> => {
+  if (holdout.status !== 'frozen_multi_repository_holdout'
+    || !commitIdentity(expectedCommit) || !expectedCommit
+    || run.sourceCommit !== expectedCommit
+    || typeof run.runnerVersion !== 'string' || run.runnerVersion.trim().length === 0
+    || run.strategy !== nativeCodeRetrieval.strategy
+    || run.providerIdentities?.code_graph !== nativeCodeRetrieval.providerIdentities.code_graph
+    || run.providerIdentities?.structural !== nativeCodeRetrieval.providerIdentities.structural
+    || Object.keys(run.providerIdentities ?? {}).length !== 2
+    || run.observations.some((observation) => retrievalBenchmarkStages.some((stage) =>
+      stage === 'delivered'
+        ? observation.stageStatuses?.[stage] !== 'executed' && observation.stageStatuses?.[stage] !== 'unavailable'
+        : observation.stageStatuses?.[stage] !== 'not_applicable'))) {
+    return err(domainError('INVALID_BENCHMARK', 'native_retrieval.identity',
+      'native acceptance requires pinned providers, exact commit, runner identity, frozen holdout and retired stages marked not applicable'));
+  }
+  return ok(undefined);
+};
+
 const mean = (values: readonly number[]): number =>
   values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
 const optionalMean = (values: readonly (number | undefined)[]): number | undefined => {
@@ -296,7 +321,7 @@ export const evaluateRetrievalStrategy = (
   if (holdout.status === 'frozen_multi_repository_holdout'
     && (!commitIdentity(run.sourceCommit)
       || run.sourceCommit === undefined
-      || run.runnerVersion?.trim().length === 0
+      || typeof run.runnerVersion !== 'string' || run.runnerVersion.trim().length === 0
       || !providerIdentityMap(run.providerIdentities))) {
     return err(domainError(
       'INVALID_BENCHMARK',

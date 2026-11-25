@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
-import { evaluateRetrievalStrategy, evaluateRetrievalQualityPolicy, type RetrievalHoldout, type RetrievalStrategyRun, type RetrievalQualityPolicy } from '../src/domain/retrieval-quality-evaluation.js';
+import { evaluateRetrievalStrategy, evaluateRetrievalQualityPolicy, validateNativeRetrievalRunIdentity, type RetrievalHoldout, type RetrievalStrategyRun, type RetrievalQualityPolicy } from '../src/domain/retrieval-quality-evaluation.js';
 import {
   evaluateSemanticProviderSelection,
   type SemanticProviderReport,
@@ -136,4 +136,22 @@ test('release source validation re-evaluates selection verdicts against retained
     ),
     /does not match retained source reports/u,
   );
+});
+
+test('native release evidence rejects retired stages, foreign provider and missing runner identity', () => {
+  assert.equal(validateNativeRetrievalRunIdentity(holdout, run, revision)._tag, 'Ok');
+  assert.equal(validateNativeRetrievalRunIdentity(holdout, { ...run, strategy: 'hybrid_rrf' }, revision)._tag, 'Err');
+  const { runnerVersion: _removed, ...withoutRunner } = run;
+  assert.equal(validateNativeRetrievalRunIdentity(holdout, withoutRunner, revision)._tag, 'Err');
+  assert.equal(evaluateRetrievalStrategy(holdout, withoutRunner)._tag, 'Err');
+  assert.equal(validateNativeRetrievalRunIdentity(holdout, {
+    ...run,
+    providerIdentities: { ...nativeCodeRetrieval.providerIdentities, embedding: 'retired' },
+  }, revision)._tag, 'Err');
+  assert.equal(validateNativeRetrievalRunIdentity(holdout, {
+    ...run,
+    observations: run.observations.map((item) => ({
+      ...item, stageStatuses: { ...item.stageStatuses!, dense: 'executed' },
+    })),
+  }, revision)._tag, 'Err');
 });
