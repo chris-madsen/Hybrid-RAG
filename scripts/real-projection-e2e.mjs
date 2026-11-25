@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Real ACE projection -> Core -> native CBM or historical vector retrieval E2E.
+// Real ACE projection -> Core -> native CBM retrieval E2E.
 // This deliberately does NOT traverse Bifröst or an LLM provider wire. It proves
 // real retrieval/projection behavior only; G11 provider-wire acceptance is separate.
 import assert from 'node:assert/strict';
@@ -89,11 +89,12 @@ const code = [
   "  throw new Error('retry failed');",
   '}',
 ].join('\n') + '\n';
-const native = process.env.ACE_REAL_PROJECTION_NATIVE_CBM === 'true';
+const native = true;
+assert.notEqual(process.env.ACE_REAL_PROJECTION_NATIVE_CBM, 'false', 'historical vector projection is retired');
 const restart = process.env.ACE_REAL_PROJECTION_NATIVE_RESTART === 'true';
 const deadline = process.env.ACE_REAL_PROJECTION_NATIVE_DEADLINE === 'true';
 const nonGit = process.env.ACE_REAL_PROJECTION_NATIVE_NON_GIT === 'true';
-const filler = Array.from({ length: native ? 8 : 1991 }, (_, i) => 'export const filler_' + i + ' = ' + i + ';').join('\n');
+const filler = Array.from({ length: 8 }, (_, i) => 'export const filler_' + i + ' = ' + i + ';').join('\n');
 const codePath = join(workspace, 'service.ts');
 await writeFile(codePath, code + filler + '\n');
 const git = (...args) => execFileSync('git', ['-C', workspace, ...args], { encoding: 'utf8' });
@@ -102,7 +103,6 @@ if (native && !nonGit) {
   git('add', '.');
   git('-c', 'user.name=ACE Test', '-c', 'user.email=ace@example.invalid', 'commit', '--quiet', '-m', 'native fixture');
 }
-const qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
 const outage = process.env.ACE_REAL_PROJECTION_OUTAGE === 'true' || process.env.ACE_REAL_PROJECTION_HARD_OUTAGE === 'true';
 const race = process.env.ACE_REAL_PROJECTION_RACE === 'true';
 const mutations = process.env.ACE_REAL_PROJECTION_NATIVE_MUTATIONS === 'true';
@@ -133,18 +133,16 @@ const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.e
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
     ...(native ? { ACE_PROVIDER_TRACE_FILE: providerTracePath, HOME: nativeHome, XDG_CACHE_HOME: join(nativeHome, 'cache'), XDG_DATA_HOME: join(nativeHome, 'data') } : {}),
     ACE_WORKSPACE_ID: workspaceId,
-    ACE_CODE_RETRIEVAL_MODE: native ? 'cbm' : '',
-    ACE_ENABLE_EXPERIMENTAL_QDRANT: native ? 'false' : 'true',
+    ACE_CODE_RETRIEVAL_MODE: 'cbm',
+    ACE_ENABLE_EXPERIMENTAL_QDRANT: 'false',
     ...(native ? {
       ACE_RERANKER_MODE: 'disabled',
       ...(outage ? { ACE_CBM_COMMAND: join(directory, 'must-not-start-cbm') } : {}),
     } : {}),
     ACE_ENABLE_GRAPHITI: 'false',
-    ACE_RETRIEVAL_STRATEGY: process.env.ACE_RETRIEVAL_STRATEGY?.trim() || 'dense',
-    ACE_QDRANT_URL: native || outage ? 'http://127.0.0.1:6339' : qdrantUrl,
-    ACE_QDRANT_WRITER_TOPOLOGY: 'single_host',
-    ACE_QDRANT_PUBLICATION_DIR: join(directory, 'qdrant-publication'),
-    ACE_EMBEDDING_WORKER: native ? join(directory, 'must-not-start-embedding') : process.env.ACE_EMBEDDING_WORKER ?? runtime.embeddingWorker,
+    // A dead legacy endpoint and missing worker must never be invoked.
+    ACE_QDRANT_URL: 'http://127.0.0.1:6339',
+    ACE_EMBEDDING_WORKER: join(directory, 'must-not-start-embedding'),
     ACE_CONTEXT_RPC_HOST: '127.0.0.1',
     ACE_CONTEXT_RPC_PORT: String(gatewayPort),
     ACE_CONTEXT_RPC_SHARED_SECRET: 'real-provider-fixture-secret',
@@ -269,9 +267,9 @@ try {
     else assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http',
-      retrieval: native ? 'native_cbm' : 'historical_vector', ...(native ? {} : { qdrant: qdrantUrl }),
+      retrieval: 'native_cbm',
       ...(native ? { nativeProcessNames } : {}),
-      source: native ? (nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture') : '2000-line TypeScript fixture', race,
+      source: nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture', race,
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));

@@ -19,8 +19,6 @@ jobs:
       go: ${{ steps.paths.outputs.go }}
       root_deps: ${{ steps.paths.outputs.root_deps }}
       provider_deps: ${{ steps.paths.outputs.provider_deps }}
-      fast_deps: ${{ steps.paths.outputs.fast_deps }}
-      st_deps: ${{ steps.paths.outputs.st_deps }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,8 +49,6 @@ jobs:
           go=false
           root_deps=false
           provider_deps=false
-          fast_deps=false
-          st_deps=false
           count=0
           while IFS= read -r -d '' path; do
             count=$((count + 1))
@@ -60,17 +56,15 @@ jobs:
             case "${path}" in
               package.json|package-lock.json|knip.jsonc|knip.json|knip.config.*) node=true; root_deps=true ;;
               requirements-provider.txt) node=true; provider_deps=true ;;
-              requirements-embedding-fast.txt) node=true; fast_deps=true ;;
-              requirements-embedding-st.txt) node=true; st_deps=true ;;
               integrations/bifrost/ace-connector/*) go=true ;;
               scripts/build-bifrost-ace-plugin.sh|.github/workflows/ace-contracts.yml)
                 node=true; go=true
                 if [[ "${path}" == ".github/workflows/ace-contracts.yml" ]]; then
-                  root_deps=true; provider_deps=true; fast_deps=true; st_deps=true
+                  root_deps=true; provider_deps=true
                 fi
                 ;;
               scripts/dependency-provider-smoke.py)
-                node=true; root_deps=true; provider_deps=true; fast_deps=true; st_deps=true ;;
+                node=true; root_deps=true; provider_deps=true ;;
               .github/fixtures/contracts/*) node=true; go=true ;;
               src/*|test/*|scripts/*|architecture/*|contracts/*|tsconfig.json|tsconfig.eslint.json|eslint.config.mjs|benchmarks/fixtures/*)
                 node=true ;;
@@ -86,7 +80,7 @@ jobs:
             echo "[scope] BLOCKED: no changed files between PR base and head" >&2
             exit 1
           fi
-          printf 'node=%s\ngo=%s\nroot_deps=%s\nprovider_deps=%s\nfast_deps=%s\nst_deps=%s\n' "${node}" "${go}" "${root_deps}" "${provider_deps}" "${fast_deps}" "${st_deps}" >> "${GITHUB_OUTPUT}"
+          printf 'node=%s\ngo=%s\nroot_deps=%s\nprovider_deps=%s\n' "${node}" "${go}" "${root_deps}" "${provider_deps}" >> "${GITHUB_OUTPUT}"
           echo "[scope] PR node=${node} go=${go} (full runs nightly)"
 
   contracts:
@@ -150,7 +144,7 @@ jobs:
           npx --no-install tsx --test test/codebase-memory-stdio.contracts.test.ts test/codebase-memory-graph.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
           npm run test:real-same-name
       - name: Set up Python for changed dependency environments
-        if: github.event_name == 'pull_request' && (needs.scope.outputs.provider_deps == 'true' || needs.scope.outputs.fast_deps == 'true' || needs.scope.outputs.st_deps == 'true')
+        if: github.event_name == 'pull_request' && needs.scope.outputs.provider_deps == 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
@@ -162,24 +156,6 @@ jobs:
           "$py" -m pip install --disable-pip-version-check -r requirements-provider.txt
           "$py" -m pip check
           "$py" scripts/dependency-provider-smoke.py provider
-      - name: Verify changed FastEmbed dependencies
-        if: github.event_name == 'pull_request' && needs.scope.outputs.fast_deps == 'true'
-        run: |
-          python -m venv "$RUNNER_TEMP/ace-fast"
-          py="$RUNNER_TEMP/ace-fast/bin/python"
-          "$py" -m pip install --disable-pip-version-check -r requirements-embedding-fast.txt
-          "$py" -m pip check
-          "$py" scripts/dependency-provider-smoke.py fast
-      - name: Verify changed Sentence Transformers CPU dependencies
-        if: github.event_name == 'pull_request' && needs.scope.outputs.st_deps == 'true'
-        run: |
-          python -m venv "$RUNNER_TEMP/ace-st"
-          py="$RUNNER_TEMP/ace-st/bin/python"
-          torch_pin="$(grep '^torch==' requirements-embedding-st.txt)"
-          "$py" -m pip install --disable-pip-version-check --no-deps --index-url https://download.pytorch.org/whl/cpu "$torch_pin"
-          "$py" -m pip install --disable-pip-version-check -r requirements-embedding-st.txt
-          "$py" -m pip check
-          HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 "$py" scripts/dependency-provider-smoke.py st
       - name: Full nightly deterministic TypeScript, architecture, build and property suite
         if: github.event_name != 'pull_request'
         env:
@@ -385,78 +361,6 @@ jobs:
           set -euo pipefail
           GO_BIN="$(command -v go)" ./scripts/build-bifrost-ace-plugin.sh
           test -s "$OUTPUT"
-
-  real-qdrant:
-    needs: scope
-    # Real Qdrant service + real FastEmbed model. This is projection/retrieval
-    # evidence only; it deliberately does not certify Bifröst or an LLM wire.
-    # Keep a single shared cache for the composed projection acceptance.
-    if: github.event_name != 'pull_request' || needs.scope.outputs.fast_deps == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 65
-    services:
-      qdrant:
-        image: qdrant/qdrant:v1.19.2
-        ports:
-          - 6333:6333
-    env:
-      ACE_QDRANT_URL: http://127.0.0.1:6333
-      ACE_RETRIEVAL_STRATEGY: dense
-      ACE_EMBEDDING_PYTHON: python
-      PYTHONDONTWRITEBYTECODE: "1"
-      FASTEMBED_CACHE_PATH: /tmp/ace-fastembed-cache
-      HF_HOME: /tmp/ace-huggingface-cache
-    steps:
-      - name: Checkout full clean repository identity
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Node 22
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "22.23.4" # Runtime provenance accepts this exact version
-          cache: npm
-      - name: Python 3.13 for pinned FastEmbed
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.13"
-      - name: Install locked Node and embedding dependencies
-        run: |
-          npm ci --ignore-scripts
-          python -m pip install --disable-pip-version-check -r requirements-embedding-fast.txt
-      - name: Install pinned native structural provider
-        run: | # zizmor: ignore[adhoc-packages] exact upstream v0.12.1 verifies its binary archive
-          npm install --global codebase-memory-mcp@0.12.1
-          codebase-memory-mcp --version
-      - name: Verify live Qdrant server
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in {1..45}; do
-            if curl --fail --silent "http://127.0.0.1:6333/collections" >/dev/null; then
-              echo "[qdrant] service ready on attempt ${attempt}"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "BLOCKED: Qdrant live server unavailable" >&2
-          exit 1
-      - name: Build source-identified production runtime
-        run: npm run build
-      - name: Run live ACE projection through real Qdrant retrieval provider
-        run: |
-          set -o pipefail
-          mkdir -p /tmp/ace-projection-evidence
-          npm run test:real-projection | tee /tmp/ace-projection-evidence/projection.log
-      - name: Retain source-linked real projection reports and traces
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ace-real-qdrant-projection-${{ github.run_id }}
-          path: /tmp/ace-projection-evidence/
-          if-no-files-found: warn
-          retention-days: 14
 
   real-non-ts-lsp:
     # Real rust-analyzer protocol conformance, no fake LSP or fixture server.

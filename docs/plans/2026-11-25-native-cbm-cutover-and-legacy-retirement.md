@@ -170,3 +170,7 @@ A cancelled client wait SHALL not leave unbounded serial provider work or misatt
 - **AND** the cancelled generation cannot publish and stale late output cannot be attributed to the next request
 - **AND** shared upstream jobs or other processes must not invalidate the approved source/generation isolation boundary
 
+
+## CBM-05 executable worker retirement slice (candidate)
+
+The historical Python dense/sparse embedding and cross-encoder worker environments, launchers, provider benchmark runners and process adapters are removed in this candidate. The original evidence reports and pure historical report validators remain, with no claim of current approval. Replace the old nightly Qdrant projection job with the existing native integration workflow; retain memory/HTTP Python dependency verification and independent real LSP checks. REM-020 operational cancellation evidence is supplied by the real CBM child/deadline tests, not by relabeling old Python-worker tests. The Qdrant candidate SDK and shared source-verification provider still require extraction and mixed-contract migration. Release preflight must be reconciled to native identities before final acceptance. This candidate is not merge-ready while source quality and supported deployment topology remain unresolved.

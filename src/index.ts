@@ -43,7 +43,6 @@ export * from './adapters/harbor-task-adapter.js';
 export * from './application/harbor-byte-binding.js';
 export * from './adapters/lsp-semantic.js';
 export * from './adapters/typescript-language-service.js';
-export * from './adapters/process-embedding.js';
 export * from './adapters/codex-session-history.js';
 
 export * from './adapters/codebase-memory-graph.js';
