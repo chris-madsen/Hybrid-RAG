@@ -270,7 +270,7 @@ try {
     'provider trace must prove the native CBM operation that determined the projection result');
   }
   assert.equal(response.status, 200, JSON.stringify(decision));
-  if (decision.kind === 'BLOCK') {
+  if (decision.kind === 'BLOCK' && !scale) {
     assert.ok(outage || race, `normal ready real-provider fixture must not report BLOCK: ${decision.reasonCode}; ${startupLog.slice(-3000)}`);
     assert.equal(typeof decision.reasonCode, 'string');
     assert.ok(decision.reasonCode.length > 0, 'typed denial must specify a reason');
@@ -282,6 +282,7 @@ try {
     }
     console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.reasonCode }));
   } else {
+    if (!scale || decision.kind === 'PREPARED') {
     assert.equal(decision.kind, 'PREPARED', JSON.stringify(decision));
     assert.equal(outage, false, 'outage must fail closed rather than returning PREPARED');
     assert.equal(decision.baseBodySha256, payload.bodySha256);
@@ -290,10 +291,7 @@ try {
     assert.equal(projected.input[1].content, body.input);
     const contextMessage = projected.input.find((item) => item.role === 'developer' && String(item.content).includes('[ACE verified context]'));
     assert.ok(contextMessage, 'real gateway projection must visibly add verified ACE context');
-    if (scale) {
-      assert.ok(contextMessage.content.includes(scaleCases[0].path + ':'));
-      assert.ok(contextMessage.content.includes(scaleCases[0].symbol));
-    } else assert.match(contextMessage.content, /retryAfterTransientFailure/u);
+    if (!scale) assert.match(contextMessage.content, /retryAfterTransientFailure/u);
     if (race) assert.match(contextMessage.content, /-changed/u, 'stale source must not masquerade as current');
     else if (!scale) assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
     console.log(JSON.stringify({
@@ -304,6 +302,7 @@ try {
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
+    }
     if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit || scale) {
       const projectAgain = async (query = payload.query, signal = timeout(maxWait), deadlineMs = maxWait) => {
         const nextBytes = Buffer.from(JSON.stringify({ ...body, input: query }), 'utf8');
@@ -322,6 +321,15 @@ try {
         return outcome;
       };
       if (scale) {
+        const delivered = (result, item) => {
+          if (result.kind !== 'PREPARED') return { hit: false, citedPaths: [], reason: result.reasonCode };
+          const projected = JSON.parse(Buffer.from(result.bodyBase64, 'base64').toString('utf8'));
+          const context = projected.input.find((entry) => entry.role === 'developer' && String(entry.content).includes('[ACE verified context]'));
+          const sections = String(context?.content ?? '').split(/(?=^\[code\] )/mu);
+          const citedPaths = sections.map((section) => /^\[code\] ([^:\n]+):/u.exec(section)?.[1]).filter(Boolean);
+          return { hit: sections.some((section) => section.startsWith('[code] ' + item.path + ':') && section.includes(item.symbol)), citedPaths };
+        };
+        const initial = delivered(decision, scaleCases[0]);
         const measurements = [];
         // Twenty warm observations; retain misses and BLOCK results rather
         // than dropping them. This is a fixed development corpus, not SLO approval.
@@ -329,13 +337,7 @@ try {
           for (const item of scaleCases) {
             const started = performance.now();
             const result = await projectAgain(item.query);
-            let hit = false;
-            if (result.kind === 'PREPARED') {
-              const projected = JSON.parse(Buffer.from(result.bodyBase64, 'base64').toString('utf8'));
-              const context = projected.input.find((entry) => entry.role === 'developer' && String(entry.content).includes('[ACE verified context]'));
-              hit = Boolean(context?.content.includes(item.path + ':') && context.content.includes(item.symbol));
-            }
-            measurements.push({ case: item.symbol, durationMs: Math.round(performance.now() - started), kind: result.kind, hit });
+            measurements.push({ case: item.symbol, durationMs: Math.round(performance.now() - started), kind: result.kind, ...delivered(result, item) });
           }
         }
         const beforeRefresh = performance.now();
@@ -365,11 +367,11 @@ try {
           status: 'native-scale-observed', scope: 'development-source-corpus-not-release-holdout',
           sourceCommit: runtime.sourceCommit, corpusTree, corpusFiles, corpusArchiveBytes: corpusBytes,
           node: process.version, provider: 'codebase-memory-mcp/0.12.1', availableParallelism: availableParallelism(), hostMemoryBytes: totalmem(),
-          startupReadyMs: Math.round(startupReadyMs), coldIndexMs: indexEvents[0].durationMs,
+          startupReadyMs: Math.round(startupReadyMs), coldIndexMs: indexEvents[0].durationMs, initial,
           warmSamples: measurements, warmP50Ms: percentile(0.5), warmP95Ms: percentile(0.95), refreshMs, refreshHit,
           cgroupPeakBytes: peak !== null && /^\d+$/u.test(peak) ? Number(peak) : null,
           cgroupCpuStat: cpu, nativeHomeDiskBytes: disk, providerProcessNames: assertNoExternalRetrievalProcesses(child.pid),
-          failures: measurements.filter((sample) => !sample.hit).length + (refreshHit ? 0 : 1),
+          failures: measurements.filter((sample) => !sample.hit).length + (refreshHit ? 0 : 1) + (initial.hit ? 0 : 1),
           providerWireCertified: false, resourceBudgetApproved: false,
         };
         console.log(JSON.stringify(report));
