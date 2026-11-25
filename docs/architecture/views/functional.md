@@ -2,7 +2,7 @@
 
 **Governing viewpoint:** VP-02 · **Model kinds:** MK-02, MK-03 · **Concerns:** C-01, C-03, C-06, C-08.
 
-**Identity/version:** V-02 v1.1; ACE-AD-001 v1.1; 2026-11-24. **Perspectives:** SP-01, SP-02, SP-04. **Aspects:** AS-02, AS-04. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
+**Identity/version:** V-02 v1.1; ACE-AD-001 v1.2; 2026-11-24. **Perspectives:** SP-01, SP-02, SP-04. **Aspects:** AS-02, AS-04. **Scope:** the entity portion described below, within the [AD boundary](../architecture-description.md).
 
 ## Responsibility model
 

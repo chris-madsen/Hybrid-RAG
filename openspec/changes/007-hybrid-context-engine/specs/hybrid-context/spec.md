@@ -2,34 +2,25 @@
 
 ## ADDED Requirements
 
-### Requirement: Hybrid dense and lexical code retrieval
+### Requirement: Native hybrid code retrieval
 
-The system SHALL support independent dense semantic and sparse lexical retrieval over the same verified structural code chunks and SHALL be able to fuse the candidate lists without requiring a second search database.
+CBM SHALL be the sole code retrieval and structural engine, using its native semantic, BM25 and graph capabilities. ACE SHALL use native returned candidates with exact current-source verification, not an independent dense/sparse pipeline, fusion or reranker.
 
 #### Scenario: Behavior query without identifier
 
 - **WHEN** a query describes behavior without naming a symbol
-- **THEN** dense retrieval contributes relevant candidates to the fused shortlist.
+- **THEN** native semantic discovery returns ranked candidates that ACE verifies against current source.
 
 #### Scenario: Exact identifier or configuration key
 
-- **WHEN** a query contains an exact rare symbol, environment key, UUID/hash-like literal or configuration token
-- **THEN** sparse/lexical retrieval can contribute the matching chunk even when dense similarity is weak.
+- **WHEN** a query contains an exact rare symbol, environment key or configuration token
+- **THEN** native lexical or graph discovery can find relevant candidates without a second index or cloud request.
 
-#### Scenario: Hybrid fusion
+#### Scenario: Native ranking provenance
 
-- **WHEN** dense and sparse branches return overlapping and distinct candidates
-- **THEN** the system fuses them with a documented provider-native algorithm and retains branch/fused provenance.
-
-### Requirement: Evidence-gated reranking
-
-The system MAY rerank a bounded fused shortlist using an approved maintained local reranker and SHALL expose whether reranking actually ran.
-
-#### Scenario: Reranker unavailable
-
-- **WHEN** reranking is optional and the reranker is unavailable
-- **THEN** fused ranking MAY be used with an explicit degraded/omitted reranker status
-- **AND** the response SHALL NOT claim reranker-backed ordering.
+- **WHEN** CBM returns ranked code candidates
+- **THEN** ACE preserves observed native provider identity and does not claim separately executed dense, sparse, fusion or reranker stages.
+- **AND** required unavailable discovery remains explicitly incomplete or unavailable.
 
 ### Requirement: Dynamic working context
 

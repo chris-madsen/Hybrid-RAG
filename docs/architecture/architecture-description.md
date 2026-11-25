@@ -7,7 +7,7 @@
 | Purpose | Explain the architecture, its rationale and the evidence needed to establish safe, correct, effective context delivery |
 | Audience | See [stakeholders and concerns](concerns.md) |
 | Custodian | Repository maintainer; architecture decisions follow the explicit owner/ADR policy |
-| Baseline | main at c5983d008c9353e37182883966ab64eb6601705e, inspected 24 November 2026 |
+| Baseline | Native-only cutover PR #378; previous main baseline c5983d008c9353e37182883966ab64eb6601705e inspected 24 November 2026 |
 | Status | Version 1.2, internally assessed architecture description; implementation and acceptance statuses are separate |
 | Issuing project | Adaptive Context Engine open-source repository, chris-madsen/Hybrid-RAG |
 | Issued / revised | 2026-11-24; v1.0 initial migration; v1.1 normative review and path reconciliation; v1.2 native-only code retrieval |
