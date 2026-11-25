@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Effect } from 'effect';
-import { makeNativeCbmContextProvider, makeQdrantContextProvider, type NativeCbmContextConfig } from '../src/adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider, type NativeCbmContextConfig } from '../src/adapters/native-cbm-context-provider.js';
 import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 import { err, ok } from '../src/domain/result.js';
 import { domainError } from '../src/domain/errors.js';
 import { makeCandidateId, makeCodeCandidate } from '../src/domain/retrieval.js';
 import { makeWorkspaceId, type WorkspaceSnapshot } from '../src/domain/workspace.js';
 import { workspaceManifestFromSnapshot } from '../src/domain/workspace-manifest.js';
-import type { CodeCandidatePort, SemanticAnalysisPort, WorkspaceFilePort } from '../src/application/ports.js';
+import type { SemanticAnalysisPort, WorkspaceFilePort } from '../src/application/ports.js';
 
 const sourcePlan = () => {
   const plan = resolveExplicitSourceRequirements({ required: ['code'] });
@@ -17,7 +17,7 @@ const sourcePlan = () => {
   return plan.value;
 };
 
-test('CBM discovery adds a file missing from Qdrant shortlist without bypassing source verification', async () => {
+test('CBM discovery delivers exact source and preserves independent LSP coverage', async () => {
   const workspace = makeWorkspaceId('cbm-discovery-workspace');
   assert.equal(workspace._tag, 'Ok');
   if (workspace._tag === 'Err') return;
@@ -66,47 +66,12 @@ test('CBM discovery adds a file missing from Qdrant shortlist without bypassing 
       }));
     },
   };
-  const qdrant: CodeCandidatePort = {
-    upsert: () => Effect.succeed(ok(undefined)),
-    search: () => Effect.succeed(ok([{ candidate: known, score: 0.8, freshness: 'unknown' }])),
-  };
   const semantics: SemanticAnalysisPort = {
     definition: () => Effect.succeed(ok([])),
     references: () => Effect.succeed(ok([])),
     typeInfo: () => Effect.succeed(ok(undefined)),
     diagnostics: () => Effect.succeed(ok([])),
   };
-  const provider = makeQdrantContextProvider({
-    workspaceId: workspace.value,
-    rootPath: '/repo',
-    files: filePort,
-    qdrant,
-    semantics,
-    embeddings: { embedMany: () => Effect.succeed(ok([[0.2, 0.8]])) },
-    codeGraph: {
-      search: () => Effect.succeed(ok([{ candidate: related, score: 0.95, freshness: 'unknown' }])),
-    },
-    candidateLimit: 2,
-    newRequestId: () => 'cbm-discovery-request',
-  });
-  const response = await Effect.runPromise(provider.search({
-    workspaceId: workspace.value,
-    query: 'follow related implementation',
-    includeCode: true,
-    includeDocs: false,
-    includeMemory: false,
-    sourceRequirements: sourcePlan(),
-  }));
-  assert.equal(response._tag, 'Ok');
-  if (response._tag === 'Err') return;
-  assert.deepEqual(new Set(reads), new Set(['src/known.ts', 'src/related.ts']));
-  const direct = response.value.evidence.filter((evidence) => evidence.source === 'code');
-  assert.deepEqual(new Set(direct.map((item) => item.citation)), new Set([
-    'src/known.ts:1-1', 'src/related.ts:1-1',
-  ]));
-  assert.ok(direct.every((item) => item.proofClass === 'direct'));
-  assert.ok(direct.some((item) => item.content.includes('function related')));
-  // The new native path must not require any vector/embedding client.
   const native = makeNativeCbmContextProvider({
     mode: 'cbm',
     workspaceId: workspace.value, rootPath: '/repo', files: filePort, semantics,
@@ -133,6 +98,10 @@ test('CBM discovery adds a file missing from Qdrant shortlist without bypassing 
   assert.deepEqual(new Set(reads), new Set(['src/known.ts', 'src/related.ts']));
   assert.equal(nativeResult.value.evidence.filter((item) => item.source === 'code'
     && item.proofClass === 'direct').length, 2);
+
+  const direct = nativeResult.value.evidence.filter((item) => item.source === 'code');
+  assert.deepEqual(new Set(direct.map((item) => item.citation)), new Set(['src/known.ts:1-1', 'src/related.ts:1-1']));
+  assert.ok(direct.some((item) => item.content.includes('function related')));
 
   // Native publication must be recovered even when the exact source manifest
   // is unchanged; an uncited changed file must invalidate the final shortlist.
@@ -227,14 +196,14 @@ test('CBM discovery adds a file missing from Qdrant shortlist without bypassing 
       }]));
     },
   };
-  const lspProvider = makeQdrantContextProvider({
+  const lspProvider = makeNativeCbmContextProvider({
+    mode: 'cbm',
     workspaceId: workspace.value,
     rootPath: '/repo',
-    files: filePort, qdrant,
+    files: filePort,
     semantics: semanticSelection,
-    embeddings: { embedMany: () => Effect.succeed(ok([[0.2, 0.8]])) },
     codeGraph: {
-      search: () => Effect.succeed(ok([{ candidate: related, score: 0.95, freshness: 'unknown' }])),
+      search: () => Effect.succeed(ok([{ candidate: related, score: 0.95, freshness: 'unknown' }, { candidate: known, score: 0.8, freshness: 'unknown' }])),
     },
     candidateLimit: 2,
     newRequestId: () => 'cbm-native-lsp-anchor',

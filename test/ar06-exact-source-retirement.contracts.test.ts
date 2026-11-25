@@ -6,14 +6,14 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { Effect } from 'effect';
 import { makeFileArtifactStore } from '../src/adapters/file-artifact-store.js';
-import { makeQdrantContextProvider } from '../src/adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider } from '../src/adapters/native-cbm-context-provider.js';
 import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
 import { makeCandidateId, makeCodeCandidate } from '../src/domain/retrieval.js';
 import { ok } from '../src/domain/result.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
-import type { CodeCandidatePort, SemanticAnalysisPort, WorkspaceFilePort } from '../src/application/ports.js';
+import type { CodeGraphCandidatePort, SemanticAnalysisPort, WorkspaceFilePort } from '../src/application/ports.js';
 
-test('AR06 N identical verified Qdrant lookups do not persist any private source artifact', async () => {
+test('AR06 N identical verified CBM lookups do not persist any private source artifact', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ace-ar06-retirement-'));
   try {
     const artifactsRoot = join(root, 'legacy-artifacts');
@@ -48,8 +48,7 @@ test('AR06 N identical verified Qdrant lookups do not persist any private source
         return Effect.succeed(ok({ bytes: Buffer.from(source), digest: sourceDigest as never }));
       },
     };
-    const qdrant: CodeCandidatePort = {
-      upsert: () => Effect.succeed(ok(undefined)),
+    const codeGraph: CodeGraphCandidatePort = {
       search: () => Effect.succeed(ok([{ candidate: candidate.value, score: 0.8, freshness: 'current' }])),
     };
     const semantics: SemanticAnalysisPort = {
@@ -61,16 +60,16 @@ test('AR06 N identical verified Qdrant lookups do not persist any private source
     // Deliberate legacy extra property: pre-AR06 Qdrant code writes a new UUID
     // full-file artifact through this port per request; AR06 must ignore it.
     const legacyConfig = {
+      mode: 'cbm' as const,
       workspaceId: workspace.value,
       rootPath: '/repo',
       files,
-      qdrant,
+      codeGraph,
       semantics,
-      embeddings: { embedMany: () => Effect.succeed(ok([[0.3, 0.7]])) },
       newRequestId: () => 'ar06-request',
       artifacts: makeFileArtifactStore(artifactsRoot),
     };
-    const provider = makeQdrantContextProvider(legacyConfig);
+    const provider = makeNativeCbmContextProvider(legacyConfig);
     for (let index = 0; index < 12; index += 1) {
       const result = await Effect.runPromise(provider.search({
         workspaceId: workspace.value,
