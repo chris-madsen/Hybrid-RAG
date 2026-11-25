@@ -88,12 +88,18 @@ const fixtureCase = (repositoryId: string, item: RetrievalHoldout['cases'][numbe
     candidates: stage === 'delivered' ? [candidate] : [], durationMs: stage === 'delivered' ? 1 : 0,
     sourceCommit: revision, runnerVersion: nativeProjectionRunnerVersion, providerIdentities: nativeCodeRetrieval.providerIdentities,
   }));
-  return { events, binding: { requestId: request.requestId, providerRequestId,
-    receiptSha256: sha256(receipt), projectedBodySha256, selectedEvidenceIds },
-    capture: { caseId: id, request, latencyMs: 1, decision: {
-      kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED', baseBodySha256: request.bodySha256,
-      bodyBase64: projected.value, projectedBodySha256, projectionReceipt: receipt,
-    } } };
+  return {
+    events,
+    binding: { requestId: request.requestId, providerRequestId,
+      receiptSha256: sha256(receipt), projectedBodySha256, selectedEvidenceIds },
+    capture: {
+      caseId: id, request, latencyMs: 1,
+      decision: {
+        kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED', baseBodySha256: request.bodySha256,
+        bodyBase64: projected.value, projectedBodySha256, projectionReceipt: receipt,
+      },
+    },
+  };
 };
 const fixtureEvidence = (id: string): NativeProjectionEvidence => {
   const cases = holdout.cases.filter((item) => item.repositoryId === id).map((item) => fixtureCase(id, item));
