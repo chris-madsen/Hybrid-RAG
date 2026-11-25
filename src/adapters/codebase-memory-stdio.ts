@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { resolve } from 'node:path';
+import { accessSync, constants, realpathSync } from 'node:fs';
+import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import {
   createMessageConnection,
   StreamMessageReader,
@@ -104,10 +105,34 @@ export const parseCodebaseMemoryToolResult = (value: unknown): Result<unknown, D
   }
 };
 
+/** The upstream npm shim uses spawnSync and is not the native process owner.
+ * Resolve its documented installed binary directly, without invoking its
+ * on-demand downloader. Ordinary native installs and explicit fixture
+ * executables retain their path. The initialize handshake still pins identity.
+ */
+export const resolveCodebaseMemoryCommand = (command: string): string => {
+  const locations = isAbsolute(command) || command.includes(sep)
+    ? [resolve(command)]
+    : (process.env.PATH ?? '').split(delimiter).filter(Boolean).map((directory) => join(directory, command));
+  for (const location of locations) {
+    try {
+      accessSync(location, constants.X_OK);
+      const actual = realpathSync(location);
+      if (basename(actual) === 'bin.js' && basename(dirname(actual)) === 'codebase-memory-mcp') {
+        // Return the binary path even if missing: spawning must fail closed,
+        // not fall back to the shim's network installer.
+        return join(dirname(actual), 'bin', process.platform === 'win32' ? 'codebase-memory-mcp.exe' : 'codebase-memory-mcp');
+      }
+      return actual;
+    } catch { /* preserve normal PATH lookup on absent candidates */ }
+  }
+  return command;
+};
+
 export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): CodebaseMemoryStdio => {
   const root = resolve(options.rootPath);
   const timeoutMs = options.timeoutMs ?? 120_000;
-  const command = options.command?.trim() || 'codebase-memory-mcp';
+  const command = resolveCodebaseMemoryCommand(options.command?.trim() || 'codebase-memory-mcp');
   let closed = false;
   let suspended = false;
   let retiring = Promise.resolve(true);

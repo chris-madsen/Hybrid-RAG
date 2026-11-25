@@ -47,7 +47,10 @@ jobs:
         # installer verifies release artifact checksums before execution.
         run: | # zizmor: ignore[adhoc-packages] version 0.12.1 pinned; native archive checksum verified upstream
           npm install --global codebase-memory-mcp@0.12.1
-          codebase-memory-mcp --version
+          native="$(npm root -g)/codebase-memory-mcp/bin/codebase-memory-mcp"
+          test -x "$native"
+          "$native" --version
+          printf 'ACE_CBM_COMMAND=%s\n' "$native" >> "$GITHUB_ENV"
       - name: Typecheck and lint
         run: |
           npm run check
