@@ -42,6 +42,7 @@ test('DBC-01 real Gateway remains reachable but blocks projection when required 
       ACE_STATE_DIR: join(root, 'state'),
       ACE_ARTIFACT_DIR: join(root, 'artifacts'),
       ACE_ENABLE_EXPERIMENTAL_QDRANT: 'false',
+      ACE_CBM_COMMAND: join(root, 'missing-native-binary'),
       ACE_ENABLE_GRAPHITI: 'false',
       ACE_CONTEXT_RPC_HOST: '127.0.0.1',
       ACE_CONTEXT_RPC_PORT: String(port),
