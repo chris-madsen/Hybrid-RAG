@@ -1,8 +1,11 @@
+import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
-  evaluateEmbeddingSelection,
-  type EmbeddingComparisonReport,
-  type EmbeddingSelectionPolicy,
-} from '../src/domain/embedding-selection.js';
+  evaluateRetrievalStrategy,
+  evaluateRetrievalQualityPolicy,
+  type RetrievalHoldout,
+  type RetrievalStrategyRun,
+  type RetrievalQualityPolicy,
+} from '../src/domain/retrieval-quality-evaluation.js';
 import {
   evaluateSemanticProviderSelection,
   type SemanticProviderReport,
@@ -18,8 +21,9 @@ export interface RetainedJsonEvidence {
 export type ReadRetainedJson = (path: string) => Promise<RetainedJsonEvidence>;
 
 export interface SelectionSourceEvidence {
-  readonly embedding?: {
-    readonly report: { readonly path: string; readonly sha256: string };
+  readonly nativeRetrieval?: {
+    readonly holdout: { readonly path: string; readonly sha256: string };
+    readonly run: { readonly path: string; readonly sha256: string };
     readonly policy: { readonly path: string; readonly sha256: string };
   };
   readonly semantic?: {
@@ -39,36 +43,43 @@ const nonEmpty = (value: unknown): value is string =>
 const sameJson = (left: unknown, right: unknown): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
 
-const validateEmbeddingSources = async (
+const validateNativeRetrievalSources = async (
   selection: Record<string, unknown>,
   readJson: ReadRetainedJson,
-): Promise<SelectionSourceEvidence['embedding'] | undefined> => {
-  const hasReportPath = 'reportPath' in selection;
-  const hasPolicyPath = 'policyPath' in selection;
-  if (!hasReportPath && !hasPolicyPath) return undefined;
-  if (!nonEmpty(selection.reportPath) || !nonEmpty(selection.policyPath)
-    || !nonEmpty(selection.reportSha256) || !nonEmpty(selection.policySha256)) {
-    throw new Error('embedding selection source identity is incomplete');
+): Promise<SelectionSourceEvidence['nativeRetrieval'] | undefined> => {
+  // Legacy or absent evidence cannot satisfy the v2 domain release gate.
+  if (selection.schemaVersion !== 2) return undefined;
+  if (!nonEmpty(selection.holdoutPath) || !nonEmpty(selection.runPath) || !nonEmpty(selection.policyPath)
+    || !nonEmpty(selection.holdoutSha256) || !nonEmpty(selection.runSha256) || !nonEmpty(selection.policySha256)) {
+    throw new Error('native retrieval source identity is incomplete');
   }
-  const [report, policy] = await Promise.all([
-    readJson(selection.reportPath),
-    readJson(selection.policyPath),
+  const [holdout, run, policy] = await Promise.all([
+    readJson(selection.holdoutPath), readJson(selection.runPath), readJson(selection.policyPath),
   ]);
-  if (report.sha256 !== selection.reportSha256 || policy.sha256 !== selection.policySha256) {
-    throw new Error('embedding selection source digest mismatch');
+  if (holdout.sha256 !== selection.holdoutSha256 || run.sha256 !== selection.runSha256
+    || policy.sha256 !== selection.policySha256) {
+    throw new Error('native retrieval source digest mismatch');
   }
-  const verdict = evaluateEmbeddingSelection(
-    report.value as EmbeddingComparisonReport,
-    policy.value as EmbeddingSelectionPolicy,
-  );
-  if (verdict._tag === 'Err') {
-    throw new Error(`embedding selection source evaluator rejected evidence: ${verdict.error.message}`);
+  const source = run.value as RetrievalStrategyRun;
+  const requirements = policy.value as RetrievalQualityPolicy;
+  if (source.sourceCommit !== selection.sourceCommit || source.holdoutSha256 !== holdout.sha256
+    || source.strategy !== nativeCodeRetrieval.strategy
+    || source.providerIdentities?.code_graph !== nativeCodeRetrieval.providerIdentities.code_graph
+    || source.providerIdentities?.structural !== nativeCodeRetrieval.providerIdentities.structural
+    || Object.keys(source.providerIdentities ?? {}).length !== 2
+    || !sameJson(source.providerIdentities, selection.providerIdentities)
+    || requirements.nonInferiority !== undefined) {
+    throw new Error('native retrieval run identity mismatch');
   }
-  if (!sameJson(verdict.value, selection.verdict)) {
-    throw new Error('embedding selection verdict does not match retained source reports');
+  const metrics = evaluateRetrievalStrategy(holdout.value as RetrievalHoldout, source);
+  if (metrics._tag === 'Err') throw new Error('native retrieval source evaluator rejected run');
+  const verdict = evaluateRetrievalQualityPolicy(metrics.value, holdout.sha256, requirements);
+  if (verdict._tag === 'Err' || !sameJson(verdict.value, selection.verdict)) {
+    throw new Error('native retrieval verdict does not match retained source reports');
   }
   return {
-    report: { path: report.path, sha256: report.sha256 },
+    holdout: { path: holdout.path, sha256: holdout.sha256 },
+    run: { path: run.path, sha256: run.sha256 },
     policy: { path: policy.path, sha256: policy.sha256 },
   };
 };
@@ -116,16 +127,16 @@ const validateSemanticSources = async (
 };
 
 export const validateReleaseSelectionSources = async (
-  embeddingSelection: unknown,
+  retrievalQuality: unknown,
   semanticSelection: unknown,
   readJson: ReadRetainedJson,
 ): Promise<SelectionSourceEvidence> => {
-  const embedding = record(embeddingSelection);
+  const retrieval = record(retrievalQuality);
   const semantic = record(semanticSelection);
-  const embeddingSources = embedding === undefined ? undefined : await validateEmbeddingSources(embedding, readJson);
+  const retrievalSources = retrieval === undefined ? undefined : await validateNativeRetrievalSources(retrieval, readJson);
   const semanticSources = semantic === undefined ? undefined : await validateSemanticSources(semantic, readJson);
   return {
-    ...(embeddingSources === undefined ? {} : { embedding: embeddingSources }),
+    ...(retrievalSources === undefined ? {} : { nativeRetrieval: retrievalSources }),
     ...(semanticSources === undefined ? {} : { semantic: semanticSources }),
   };
 };

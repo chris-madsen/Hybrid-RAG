@@ -14,6 +14,7 @@ import {
 import { validateReleaseExternalEvidenceDocument } from './release-external-evidence.js';
 import { validateResourceBudgetEvidenceDocument } from './resource-budget-evidence.js';
 import { validateRuntimeConfigEvidenceDocument } from './runtime-config-evidence.js';
+import { nativeCodeRetrieval } from './retrieval.js';
 import { validateReleaseAcceptanceArtifacts } from './release-artifact-validation.js';
 
 export type CodeReleaseDeployment = 'host' | 'k3s';
@@ -29,8 +30,6 @@ export interface CodeReleasePreflightInput {
   readonly currentCommit: string;
   readonly deployment: CodeReleaseDeployment;
   readonly dbc: unknown;
-  readonly embeddingSelection: unknown;
-  readonly semanticSelection: unknown;
   readonly retrievalQuality: unknown;
   readonly harborThreeArm: unknown;
   readonly resourceBudget: unknown;
@@ -127,24 +126,14 @@ export const evaluateCodeReleasePreflight = (
   }
 
   const failures: string[] = [...codeDbcFailures(input.dbc, input.currentCommit)];
-  failures.push(...validateReleaseAcceptanceArtifacts(input, input.currentCommit));
+  failures.push(...validateReleaseAcceptanceArtifacts(input, input.currentCommit, false));
   failures.push(...validateOwnerApproval(input.ownerApproval, input.currentCommit, input.ownerApprovalTrustRoot));
   failures.push(...validateOwnerApprovalProviderScope(
     input.ownerApproval,
-    input.embeddingSelection,
-    input.semanticSelection,
   ));
 
-  if (nested(input.embeddingSelection, 'verdict', 'productionApproved') !== true
-    || nested(input.embeddingSelection, 'verdict', 'status') !== 'PRODUCTION_APPROVED') {
-    failures.push('embedding_not_production_approved');
-  }
-  if (nested(input.semanticSelection, 'verdict', 'productionApproved') !== true
-    || nested(input.semanticSelection, 'verdict', 'status') !== 'PRODUCTION_APPROVED') {
-    failures.push('semantic_provider_not_production_approved');
-  }
   if (nested(input.retrievalQuality, 'verdict', 'measurementAccepted') !== true
-    || nested(input.retrievalQuality, 'verdict', 'metrics', 'holdoutStatus') !== 'frozen_holdout') {
+    || nested(input.retrievalQuality, 'verdict', 'metrics', 'holdoutStatus') !== 'frozen_multi_repository_holdout') {
     failures.push('retrieval_quality_not_accepted_on_frozen_holdout');
   }
 
@@ -175,13 +164,9 @@ export const evaluateCodeReleasePreflight = (
   if (runtimeConfig._tag === 'Err') {
     failures.push('runtime_config_not_accepted');
   } else {
-    const selectedEmbedding = nested(input.embeddingSelection, 'verdict', 'selectedProvider');
-    const selectedSemantic = nested(input.semanticSelection, 'verdict', 'selectedProvider');
-    if (runtimeConfig.value.embeddingProvider !== selectedEmbedding) {
-      failures.push('runtime_embedding_provider_mismatch');
-    }
-    if (runtimeConfig.value.semanticProvider !== selectedSemantic) {
-      failures.push('runtime_semantic_provider_mismatch');
+    if (runtimeConfig.value.codeProviderIdentity !== nativeCodeRetrieval.providerIdentities.code_graph
+      || runtimeConfig.value.semanticProvider !== 'not_configured') {
+      failures.push('runtime_native_provider_mismatch');
     }
   }
 

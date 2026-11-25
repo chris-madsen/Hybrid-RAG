@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   evaluateRetrievalQualityPolicy,
   evaluateRetrievalStrategy,
@@ -24,6 +25,18 @@ const holdoutSha256 = createHash('sha256').update(holdoutBytes).digest('hex');
 const holdout = JSON.parse(holdoutBytes.toString('utf8')) as RetrievalHoldout;
 const run = JSON.parse(runBytes.toString('utf8')) as RetrievalStrategyRun;
 const policy = JSON.parse(policyBytes.toString('utf8')) as RetrievalQualityPolicy;
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const native = run.strategy === nativeCodeRetrieval.strategy;
+if (native && (run.sourceCommit !== sourceCommit
+  || (process.env.ACE_EVIDENCE_SOURCE_COMMIT?.trim() || sourceCommit) !== sourceCommit
+  || run.providerIdentities?.code_graph !== nativeCodeRetrieval.providerIdentities.code_graph
+  || run.providerIdentities?.structural !== nativeCodeRetrieval.providerIdentities.structural
+  || Object.keys(run.providerIdentities ?? {}).length !== 2
+  || holdout.status !== 'frozen_multi_repository_holdout'
+  || policy.selectedStrategy !== nativeCodeRetrieval.strategy
+  || policy.nonInferiority !== undefined || baselineBytes !== undefined)) {
+  throw new Error('native retrieval acceptance requires exact commit, pinned identities, frozen multi-repository holdout and absolute quality policy');
+}
 if (run.holdoutSha256 !== holdoutSha256) throw new Error('run holdout SHA-256 does not match actual holdout');
 const metrics = evaluateRetrievalStrategy(holdout, run);
 if (metrics._tag === 'Err') throw new Error(`${metrics.error.code}: ${metrics.error.message}`);
@@ -45,9 +58,12 @@ const verdict = evaluateRetrievalQualityPolicy(
 );
 if (verdict._tag === 'Err') throw new Error(`${verdict.error.code}: ${verdict.error.message}`);
 await writeFile(resolve(outputArg as string), JSON.stringify({
-  schemaVersion: 1,
-  sourceCommit: process.env.ACE_EVIDENCE_SOURCE_COMMIT?.trim()
-    || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  schemaVersion: native ? 2 : 1,
+  sourceCommit: native ? sourceCommit : (process.env.ACE_EVIDENCE_SOURCE_COMMIT?.trim() || sourceCommit),
+  ...(native ? {
+    holdoutPath: holdoutArg, runPath: runArg, policyPath: policyArg,
+    providerIdentities: run.providerIdentities,
+  } : {}),
   holdoutSha256,
   runSha256: createHash('sha256').update(runBytes).digest('hex'),
   policySha256: createHash('sha256').update(policyBytes).digest('hex'),

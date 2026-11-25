@@ -8,6 +8,7 @@ import {
 import { validateReleaseExternalEvidenceDocument } from './release-external-evidence.js';
 import { validateResourceBudgetEvidenceDocument } from './resource-budget-evidence.js';
 import { validateRuntimeConfigEvidenceDocument } from './runtime-config-evidence.js';
+import { nativeCodeRetrieval } from './retrieval.js';
 import { validateReleaseAcceptanceArtifacts } from './release-artifact-validation.js';
 
 export type ReleaseCapability = 'code' | 'documentation' | 'memory';
@@ -60,7 +61,6 @@ export interface ReleaseEvidenceBinding {
 export interface ReleasePreflightInput {
   readonly currentCommit: string;
   readonly dbc: unknown;
-  readonly embeddingSelection: unknown;
   readonly semanticSelection: unknown;
   readonly retrievalQuality: unknown;
   readonly harborThreeArm: unknown;
@@ -109,18 +109,14 @@ export const ownerApprovalPayload = (approval: ReleaseOwnerApproval): string => 
   signingKeyId: approval.signingKeyId ?? null,
 });
 
-const selectedProviderIdentities = (
-  embeddingSelection: unknown,
-  semanticSelection: unknown,
-): readonly string[] => [
-  nested(embeddingSelection, 'verdict', 'selectedProviderIdentity'),
+const selectedProviderIdentities = (semanticSelection?: unknown): readonly string[] => [
+  ...Object.values(nativeCodeRetrieval.providerIdentities),
   nested(semanticSelection, 'verdict', 'selectedProviderIdentity'),
 ].filter((value): value is string => typeof value === 'string' && nonEmpty(value));
 
 export const validateOwnerApprovalProviderScope = (
   approval: ReleaseOwnerApproval,
-  embeddingSelection: unknown,
-  semanticSelection: unknown,
+  semanticSelection?: unknown,
 ): readonly string[] => {
   if (!Array.isArray(approval.approvedProviderIdentities)
     || approval.approvedProviderIdentities.length === 0
@@ -129,7 +125,7 @@ export const validateOwnerApprovalProviderScope = (
     return ['owner_approval_provider_scope_invalid'];
   }
   const approved = [...approval.approvedProviderIdentities].sort();
-  const selected = [...selectedProviderIdentities(embeddingSelection, semanticSelection)].sort();
+  const selected = [...selectedProviderIdentities(semanticSelection)].sort();
   return approved.length === selected.length
     && approved.every((identity, index) => identity === selected[index])
     ? []
@@ -177,7 +173,6 @@ export const validateOwnerApproval = (
 const evidenceBindingFailures = (
   binding: ReleaseEvidenceBinding | undefined,
   currentCommit: string,
-  embeddingSelection: unknown,
   semanticSelection: unknown,
 ): readonly string[] => {
   if (binding === undefined) return ['evidence_binding_missing'];
@@ -185,7 +180,8 @@ const evidenceBindingFailures = (
   const failures: string[] = [];
   if (binding.schemaVersion !== 1
     || binding.sourceCommit !== currentCommit
-    || artifacts.length < 7
+    || !['dbc', 'semanticSelection', 'retrievalQuality', 'harborThreeArm', 'resourceBudget', 'runtimeConfig']
+      .every((name) => artifacts.some((artifact) => artifact.name === name))
     || artifacts.some((artifact) => !nonEmpty(artifact.name) || !nonEmpty(artifact.path) || !sha256(artifact.sha256))
     || new Set(artifacts.map((artifact) => artifact.name)).size !== artifacts.length
     || !sha256(binding.reportIdentitySha256)
@@ -195,10 +191,9 @@ const evidenceBindingFailures = (
     failures.push('evidence_binding_invalid');
     return failures;
   }
-  const selectedEmbedding = nested(embeddingSelection, 'verdict', 'selectedProvider');
   const selectedSemantic = nested(semanticSelection, 'verdict', 'selectedProvider');
-  if (typeof selectedEmbedding !== 'string' || !binding.providerIdentities.includes(selectedEmbedding)) {
-    failures.push('evidence_binding_embedding_provider_missing');
+  if (!Object.values(nativeCodeRetrieval.providerIdentities).every((identity) => binding.providerIdentities.includes(identity))) {
+    failures.push('evidence_binding_native_provider_missing');
   }
   if (typeof selectedSemantic !== 'string' || !binding.providerIdentities.includes(selectedSemantic)) {
     failures.push('evidence_binding_semantic_provider_missing');
@@ -256,26 +251,20 @@ export const evaluateReleasePreflight = (
   failures.push(...evidenceBindingFailures(
     input.evidenceBinding,
     input.currentCommit,
-    input.embeddingSelection,
     input.semanticSelection,
   ));
   failures.push(...validateOwnerApproval(input.ownerApproval, input.currentCommit, input.ownerApprovalTrustRoot));
   failures.push(...validateOwnerApprovalProviderScope(
     input.ownerApproval,
-    input.embeddingSelection,
     input.semanticSelection,
   ));
 
-  if (nested(input.embeddingSelection, 'verdict', 'productionApproved') !== true
-    || nested(input.embeddingSelection, 'verdict', 'status') !== 'PRODUCTION_APPROVED') {
-    failures.push('embedding_not_production_approved');
-  }
   if (nested(input.semanticSelection, 'verdict', 'productionApproved') !== true
     || nested(input.semanticSelection, 'verdict', 'status') !== 'PRODUCTION_APPROVED') {
     failures.push('semantic_provider_not_production_approved');
   }
   if (nested(input.retrievalQuality, 'verdict', 'measurementAccepted') !== true
-    || nested(input.retrievalQuality, 'verdict', 'metrics', 'holdoutStatus') !== 'frozen_holdout') {
+    || nested(input.retrievalQuality, 'verdict', 'metrics', 'holdoutStatus') !== 'frozen_multi_repository_holdout') {
     failures.push('retrieval_quality_not_accepted_on_frozen_holdout');
   }
 
@@ -306,10 +295,9 @@ export const evaluateReleasePreflight = (
   if (runtimeConfig._tag === 'Err') {
     failures.push('runtime_config_not_accepted');
   } else {
-    const selectedEmbedding = nested(input.embeddingSelection, 'verdict', 'selectedProvider');
     const selectedSemantic = nested(input.semanticSelection, 'verdict', 'selectedProvider');
-    if (runtimeConfig.value.embeddingProvider !== selectedEmbedding) {
-      failures.push('runtime_embedding_provider_mismatch');
+    if (runtimeConfig.value.codeProviderIdentity !== nativeCodeRetrieval.providerIdentities.code_graph) {
+      failures.push('runtime_native_provider_mismatch');
     }
     if (runtimeConfig.value.semanticProvider !== selectedSemantic) {
       failures.push('runtime_semantic_provider_mismatch');
