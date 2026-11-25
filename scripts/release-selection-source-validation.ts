@@ -133,10 +133,11 @@ export const validateReleaseSelectionSources = async (
   retrievalQuality: unknown,
   semanticSelection: unknown,
   readJson: ReadRetainedJson,
+  readNativeJson: ReadRetainedJson = readJson,
 ): Promise<SelectionSourceEvidence> => {
   const retrieval = record(retrievalQuality);
   const semantic = record(semanticSelection);
-  const retrievalSources = retrieval === undefined ? undefined : await validateNativeRetrievalSources(retrieval, readJson);
+  const retrievalSources = retrieval === undefined ? undefined : await validateNativeRetrievalSources(retrieval, readNativeJson);
   const semanticSources = semantic === undefined ? undefined : await validateSemanticSources(semantic, readJson);
   return {
     ...(retrievalSources === undefined ? {} : { nativeRetrieval: retrievalSources }),

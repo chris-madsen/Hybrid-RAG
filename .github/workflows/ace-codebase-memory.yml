@@ -31,6 +31,8 @@ on:
       - 'scripts/run-native-retrieval-holdout.ts'
       - 'scripts/native-projection-evidence.ts'
       - 'scripts/native-holdout-runner-smoke.mjs'
+      - 'scripts/native-release-evidence-reader.ts'
+      - 'test/native-release-evidence-reader.contracts.test.ts'
       - 'scripts/merge-retrieval-runs.ts'
       - 'scripts/retrieval-quality-gate.ts'
       - 'scripts/release-selection-source-validation.ts'
