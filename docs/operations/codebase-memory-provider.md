@@ -4,14 +4,14 @@
 tested in CI; a real Hermes/Bifröst task and token savings still require
 independent, provider-measured acceptance.
 
-See [current runtime ownership and readiness](current-architecture.md). **CBM-only code retrieval is not an active runtime mode yet**: the production candidate is currently composed behind `ACE_ENABLE_EXPERIMENTAL_QDRANT=true`. This document explains the live integration, not a final recommendation to retain Qdrant.
+See [current runtime ownership and readiness](current-architecture.md). **CBM-only code retrieval is available as an explicit migration mode** (`ACE_CODE_RETRIEVAL_MODE=cbm`, PR #366), with local-workspace real integration evidence. The historical composition remains behind `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` pending cutover. This document explains the live integration, not a final recommendation to retain Qdrant.
 
 ## Architecture
 
 - CBM is the ONLY **currently wired native** code-structure/graph engine, not a certified production provider. The adapter invokes `index_repository` with `persistence: false`. Upstream defines this flag as disabling the optional repo-local `.codebase-memory/graph.db.zst` export, **not** the normal local SQLite index. ACE never infers current-source freshness solely from that cache.
   Native operations: index_repository, get_file_outline, search_graph,
   trace_path, query_graph and detect_changes.
-- Qdrant **currently** owns a second code-retrieval index (dense/sparse vectors and publication semantics). CBM **also** provides native semantic/BM25 search; independent matched CBM-only vs CBM+Qdrant testing is required before either declaring Qdrant necessary or removing it.
+- Qdrant **currently** owns a second code-retrieval index (dense/sparse vectors and publication semantics). CBM **also** provides native semantic/BM25 search; the owner selected native CBM-only on 2026-11-24 (#363). Verify required behavior and independent consumers before removing legacy components; a comparative Qdrant competition is not an acceptance gate.
 - An external LSP currently provides exact document-symbol selection ranges and definition validation; its incremental value versus CBM Hybrid LSP remains an open evaluation question.
 - ACE owns original-source reads, source policy, SHA-256, exact byte spans,
   Qdrant generations and model-bound context verification.
@@ -88,8 +88,8 @@ delivery outside Qdrant top-K.
 ## Required real Hermes acceptance — not yet inferred
 
 Run the repository's existing Harbor/Hermes feedback workflow on a
-trusted host with Hermes model credentials and Bifröst + Qdrant + ACE.
-Use a nontrivial multi-file coding task with independent verifier, same
+trusted host with Hermes subscription credentials and the accepted Bifröst + ACE runtime, using native CBM after cutover.
+After native cutover, use a nontrivial multi-file coding task with independent verifier, same
 task/root SHA, Hermes version, reasoning, tools, cache/compression and
 timeouts in native-vs-ACE arms. Record:
 
@@ -104,8 +104,10 @@ A passing CBM tool smoke is NOT a Hermes agent E2E test. Without actual
 Hermes OAuth/runtime and provider-bound usage there is no measured token
 saving: mark the acceptance BLOCKED, not PASS.
 
-The Python structural and LSP-server-framework dependencies left over from the retired provider path are removed from the direct provider manifest. The ast-grep CLI is development-only; the current RepoBench-R mapping adapter uses CBM outlines and compares the working bytes to the frozen Git source before and after extraction. Do not treat old AST-based benchmark identities as interchangeable with newly mapped CBM candidates. Comparative work: [#363](https://github.com/chris-madsen/Hybrid-RAG/issues/363) (Qdrant/embedding redundancy) and [#364](https://github.com/chris-madsen/Hybrid-RAG/issues/364) (external LSP).
+The Python structural and LSP-server-framework dependencies left over from the retired provider path are removed from the direct provider manifest. The ast-grep CLI is development-only; the current RepoBench-R mapping adapter uses CBM outlines and compares the working bytes to the frozen Git source before and after extraction. Do not treat old AST-based benchmark identities as interchangeable with newly mapped CBM candidates. Retirement work: [#363](https://github.com/chris-madsen/Hybrid-RAG/issues/363) (Qdrant/embedding redundancy) and [#364](https://github.com/chris-madsen/Hybrid-RAG/issues/364) (external LSP).
 
 ## Native retrieval cutover — first implementation slice
 
 The owner has selected native CBM as the code retrieval target (#363). The native context-provider constructor reuses the existing source verification and source-plan pipeline with CBM's ranked candidates directly: no vector client, embedding workers, fusion or ACE reranker are required by this constructor. The explicit migration-only runtime setting `ACE_CODE_RETRIEVAL_MODE=cbm` composes this path for an ACE-local workspace; omit `ACE_ENABLE_EXPERIMENTAL_QDRANT` and external reranker configuration. No vector/embedding processes are started. The legacy default remains unchanged pending native integration acceptance and deletion of the old stack. Unmapped native top-k, provider outage and foreign-workspace candidates fail closed. The existing external language-server contract remains unchanged: line-only CBM outlines do not yet prove exact identifier selection columns (#364). The new composition uses existing verified workspace snapshots and serialized reconciliation; actual integration/latency/restart coverage and removal of retired infrastructure remain acceptance work. The cutover path does not claim independent external LSP coverage and does not yet support a remote worktree helper.
+
+Execution plan: [native CBM cutover and legacy retirement](../plans/2026-11-25-native-cbm-cutover-and-legacy-retirement.md). The dated acceptance reports remain historical evidence; the merge of #366 accepted only the migration slice, not production readiness or completion of #363/#364.
