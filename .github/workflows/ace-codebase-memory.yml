@@ -123,10 +123,17 @@ jobs:
         run: | # zizmor: ignore[adhoc-packages] pinned v0.12.1 verifies native archive checksum
           npm install --global codebase-memory-mcp@0.12.1
           codebase-memory-mcp --version
-      - name: Inventory legacy references for retirement review
-        # Temporary migration evidence. No source bodies or credentials in logs.
+      - name: Enforce retirement of separate vector runtime dependencies
         run: |
-          git grep -l -E '(@qdrant/js-client-rest|qdrant-context-provider|qdrant-publication-authority|qdrant-sdk-adapter|process-embedding|process-sparse-embedding|process-reranker|fastembed|onnxruntime|ACE_ENABLE_EXPERIMENTAL_QDRANT|ACE_QDRANT_)' -- src scripts test infra .github package.json Makefile Dockerfile.ace '*.toml' '*.txt' || test "$?" = 1
+          set -eu
+          # Test assertions and retired flag rejection are not active providers.
+          if git grep -n -E '(@qdrant/js-client-rest|qdrant-context-provider|qdrant-publication-authority|qdrant-sdk-adapter|process-embedding|process-sparse-embedding|process-reranker)' -- src scripts infra package.json package-lock.json Dockerfile.ace; then
+            echo 'Retired runtime provider reference found'
+            exit 1
+          else
+            test "$?" = 1
+          fi
+          test ! -e infra/k8s/ace-local/qdrant-values.yaml
       - name: Run complete source contracts, build, architecture and nightly property suite
         run: npm run verify:full
 

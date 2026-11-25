@@ -1,4 +1,4 @@
-**Active testing strategy** for the [current CBM + Qdrant runtime](current-architecture.md). Older historical runbooks are not executable gates unless their scripts still exist in `package.json`.
+**Active testing strategy** for the [current native-only CBM runtime](current-architecture.md). Older historical runbooks are not executable gates unless their scripts still exist in `package.json`.
 
 # ACE testing strategy
 
@@ -75,7 +75,7 @@ Real-provider and acceptance commands are not part of the edit-by-edit loop. Run
 Typical mapping:
 
 - Native CBM structural/search/graph: run the pinned real-binary tests in `.github/workflows/ace-codebase-memory.yml` (set `ACE_TEST_REAL_CBM=true` locally with CBM v0.12.1 installed).
-- Current local Qdrant + embeddings + source/failure integration: `npm run test:real-projection`, `test:real-projection-race`, `test:real-projection-outage`, and `test:real-projection-hard-outage` when local infrastructure permits; `npm run probe:retrieval-rank -- ...` against frozen holdout.
+- Local CBM projection and source/failure integration: `npm run test:real-projection`, `npm run test:real-projection-outage` and the native mutation, recovery, cancellation, worktree, deadline and restart scenarios in the dedicated CBM workflow.
 - Exact external LSP verification: `npm run test:real-same-name` and `npm run test:real-non-ts-lsp` if supported language servers are available.
 - Gateway local/container runtime: `npm run test:ace-container-runtime -- ...` and TypeSpec/native Responses Go/TS contract tests. These do **not** certify a physical provider send.
 - Graphiti / retained memory / outbox: `test:real-graphiti-lifecycle`, `test:real-graphiti-crash`.
@@ -86,7 +86,7 @@ Several expensive commands against unchanged source should reuse the same emitte
 
 ## Independent benchmark evidence (separate from deterministic regression)
 
-Use upstream Agent Retrieval Bench and ContextBench to score *real retrieval outputs*, CodeGraph Bench to evaluate native graph quality, and Harbor's supported Hermes adapter for end-to-end coding tasks. Freeze task sets, source SHA, model, context budget and agent configuration; report all failures and complete provider usage. Compare CBM-only vs CBM+Qdrant only through matched independent evaluation. Do not invent a custom scorer, report a mock as E2E, or claim 5× without verified accepted-task economics. Provider-wire trials remain gated by OpenSpec 013 C03–C08. See [current architecture](current-architecture.md).
+Use upstream Agent Retrieval Bench and ContextBench to score *real retrieval outputs*, CodeGraph Bench to evaluate native graph quality, and Harbor's supported Hermes adapter for end-to-end coding tasks. Freeze task sets, source SHA, model, context budget and agent configuration; report all failures and complete provider usage. Measure absolute native retrieval quality; no competing vector-provider comparison is required. Do not invent a custom scorer, report a mock as E2E, or claim 5× without verified accepted-task economics. Provider-wire trials remain gated by OpenSpec 013 C03–C08. See [current architecture](current-architecture.md).
 
 ## CI policy
 
@@ -99,12 +99,12 @@ There are **two automatic execution scopes**, with optional manual full verifica
 3. Source/test/toolchain: `npm ci --ignore-scripts` **once**, `ACE_TEST_BASE=<PR base SHA> npm run verify:pr`: typecheck, affected TS tests and a bounded smoke set for broad config changes, lint, architecture and preflight.
 4. Go/Bifröst changes: only Go `test`/`vet` on changed Go scope. Hermes plugin changes: only its Python tests. Shared public-contract fixture changes trigger all three applicable language gates.
 5. Keep scoped secret scanning and actionlint/zizmor on changed workflows. These security checks are fast and independent; do not disable them to save minutes.
-6. No full Qdrant/FastEmbed, non-TS rust-analyzer, Harbor, TypeScript-wide `npm test`, Knip or OSV scans on an ordinary PR unless an applicable dependency scope explicitly triggers the checks below. A green fast PR is **not** a provider/release/whole-repo certification.
+6. No unrelated full native-provider, non-TS rust-analyzer, Harbor, TypeScript-wide `npm test`, Knip or OSV scans on an ordinary PR unless an applicable dependency scope explicitly triggers the checks below. A green fast PR is **not** a provider/release/whole-repo certification.
 
 **Nightly full** (`schedule`, plus manual `workflow_dispatch`):
 
 1. `npm run verify:full` for all deterministic TS/Hermes tests, build/provenance, architecture, preflight and Gateway property checks.
-2. Real Qdrant provider/restart/two-writer/crash and real rust-analyzer conformance with retained logs.
+2. Real CBM provider/restart/cancellation and applicable daemon/cache coordination and real rust-analyzer conformance with retained logs.
 3. Go/Bifröst tests and vet; Knip and OSV via the separate scheduled dependency workflow.
 4. Failures stay failures. Do not rerun or weaken expensive oracles merely to get a green status; report sources, provider identity, source/tested SHA and any environment-induced uncertainty.
 
@@ -145,6 +145,6 @@ The flat `eslint.config.mjs` replaces the archived Airbnb TypeScript preset with
 
 ## Dependency changes: scoped verification
 
-Root npm manifest/lock changes execute the Knip report and actual native CBM/TypeScript LSP checks in the existing required focused job; the dedicated native CBM workflow also runs its existing full regression. Python manifest changes select the relevant isolated Python 3.13 dependency install, pip check and offline smoke test; FastEmbed changes additionally trigger the existing real Qdrant projection job. Inspect that job before merging an embedding update. Sentence Transformers smoke checks imports and CPU execution only; model behavior and quality comparisons remain a separate acceptance requirement. Python 3.11/3.12 marker compatibility remains a separate check for changes affecting those environments. Knip findings remain advisory; no findings are suppressed by this change. Major migrations and related dependency PRs must be reviewed against their actual integration contracts and refreshed against main after each merge. No CI result certifies real agent/provider acceptance.
+Root npm manifest/lock changes execute the Knip report and actual native CBM/TypeScript LSP checks in the existing required focused job; the dedicated native CBM workflow also runs its existing full regression. Python manifest changes select the relevant isolated Python 3.13 dependency install, pip check and offline smoke test; Independent Python tooling does not provide a separate code embedding runtime. Python 3.11/3.12 marker compatibility remains a separate check for changes affecting those environments. Knip findings remain advisory; no findings are suppressed by this change. Major migrations and related dependency PRs must be reviewed against their actual integration contracts and refreshed against main after each merge. No CI result certifies real agent/provider acceptance.
 
 The Python provider smoke now covers the retained HTTP/Graphiti dependencies, not retired Python parsers. Native CBM contract and integration tests own structural verification. The ast-grep CLI is a development dependency and its architecture-rule fixtures remain mandatory. The historical Codex benchmark configurations/task images are retained as historical identities; do not use them as current provider setup. See [current architecture](current-architecture.md) and [#363](https://github.com/chris-madsen/Hybrid-RAG/issues/363).

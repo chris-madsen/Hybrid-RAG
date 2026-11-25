@@ -23,41 +23,13 @@ source specification. The freezer records deterministic path, size and
 SHA-256 entries, derives canonical candidate IDs from repository identity and
 source ranges, and refuses to overwrite a frozen holdout.
 
-Use the resulting external holdout path with the generic retrieval evaluator,
-ablation gate and reranker gate. Do not copy repository source, repository
-task definitions or generated manifests into ACE.
-
-The reranker freezer accepts a frozen retrieval holdout as its overlap
-exclusion set and writes a separate external artifact:
+Use the resulting external holdout with real native CBM projection observations and the generic retrieval evaluator. The release gate accepts only the native_cbm strategy and the pinned native provider identities for the exact ACE source commit. It requires frozen multi-repository labels and an absolute quality policy, not a competing vector strategy or reranker.
 
 ```bash
-npm run freeze:reranker-holdout -- \
-  <external-evidence>/reranker-source-spec.json \
-  <external-evidence>/reranker/frozen/holdout.json \
-  <external-evidence>/reranker/manifests \
-  <external-evidence>/retrieval/frozen/holdout.json \
-  ace=<external-ace-checkout> \
-  chess=<external-chess-checkout>
+npm run gate:retrieval-quality -- <holdout.json> <native-run.json> <absolute-policy.json> <output.json>
 ```
 
-For a real hybrid-without-reranker reference, convert that source-bound
-reranker holdout to a retrieval holdout, run `hybrid_rrf` through the generic
-retired optional tool-call protocol runner, and bind the resulting run with:
-
-```bash
-npm run convert:reranker-holdout -- <reranker-holdout.json> <retrieval-holdout.json>
-npm run baseline:reranker -- \
-  <reranker-holdout.json> <retrieval-holdout.json> \
-  <hybrid-rrf-run.json> <hybrid-baseline-report.json>
-```
-
-Reranker candidates are limited to the fixed model list in
-`src/domain/reranker-evaluation.ts`. A frozen candidate report must include
-the model revision, artifact digest, license evidence, startup time and RSS;
-missing evidence is not a selection pass.
+Retain the actual request-bound trace and terminal receipts. Do not substitute mock ranks or label a development corpus release-grade. Historical embedding/reranker reports remain immutable evidence at their recorded commits; their executable selection gates were retired.
 
 Harbor four-arm validation receives repository IDs through
-`ACE_HARBOR_REPOSITORY_IDS`, for example `repo-a,repo-b`. The ACE checkout
-contains only the generic gate and ACE-local development tasks; final
-multi-repository Harbor jobs and their task environments belong to the
-external evidence workspace.
+`ACE_HARBOR_REPOSITORY_IDS`, for example `repo-a,repo-b`. Final multi-repository Harbor jobs and task environments belong to the external evidence workspace.

@@ -159,13 +159,6 @@ export interface RetrievalQualityVerdict {
   readonly metrics: RetrievalQualityMetrics;
 }
 
-export interface RetrievalStrategySelection {
-  readonly selectedStrategy: string;
-  readonly qualityGatePassed: boolean;
-  readonly fallbackToDense: boolean;
-  readonly rejectedStrategies: readonly string[];
-}
-
 const sha256 = (value: string): boolean => /^[a-f0-9]{64}$/u.test(value);
 const unit = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
 const nonNegative = (value: number): boolean => Number.isFinite(value) && value >= 0;
@@ -533,34 +526,3 @@ export const evaluateRetrievalQualityPolicy = (
  * dense reference. Compactness and latency are tie-breakers, never a way to
  * compensate for a quality regression.
  */
-export const selectRetrievalStrategy = (
-  metrics: readonly RetrievalQualityMetrics[],
-  baselineStrategy = 'dense',
-): Result<RetrievalStrategySelection, DomainError> => {
-  const baseline = metrics.find((item) => item.strategy === baselineStrategy);
-  if (baseline === undefined) {
-    return err(domainError('INVALID_BENCHMARK', 'retrieval_selection', 'dense-only reference metrics are required'));
-  }
-  const compatible = metrics.filter((item) => item.holdoutStatus === baseline.holdoutStatus
-    && item.cases === baseline.cases
-    && item.repositoryCount === baseline.repositoryCount);
-  const eligible = compatible.filter((item) => item.criticalRecallAt5 >= baseline.criticalRecallAt5
-    && item.mrr >= baseline.mrr
-    && item.ndcgAt5 >= baseline.ndcgAt5);
-  const ranked = [...eligible].sort((left, right) =>
-    right.criticalRecallAt5 - left.criticalRecallAt5
-      || right.mrr - left.mrr
-      || right.ndcgAt5 - left.ndcgAt5
-      || (left.payloadBytesMean ?? left.payloadCharactersMean) - (right.payloadBytesMean ?? right.payloadCharactersMean)
-      || left.latencyP95Ms - right.latencyP95Ms
-      || left.strategy.localeCompare(right.strategy));
-  const selected = ranked[0] ?? baseline;
-  return ok({
-    selectedStrategy: selected.strategy,
-    qualityGatePassed: ranked.length > 0,
-    fallbackToDense: ranked.length === 0 || selected.strategy === baselineStrategy,
-    rejectedStrategies: metrics
-      .filter((item) => item.strategy !== selected.strategy && !eligible.includes(item))
-      .map((item) => item.strategy),
-  });
-};

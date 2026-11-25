@@ -157,15 +157,10 @@ const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.e
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
     ...(native ? { ACE_PROVIDER_TRACE_FILE: providerTracePath, HOME: nativeHome, XDG_CACHE_HOME: join(nativeHome, 'cache'), XDG_DATA_HOME: join(nativeHome, 'data') } : {}),
     ACE_WORKSPACE_ID: workspaceId,
-    ACE_CODE_RETRIEVAL_MODE: 'cbm',
-    ACE_ENABLE_EXPERIMENTAL_QDRANT: 'false',
     ...(native ? {
-      ACE_RERANKER_MODE: 'disabled',
       ...(outage ? { ACE_CBM_COMMAND: join(directory, 'must-not-start-cbm') } : {}),
     } : {}),
     ACE_ENABLE_GRAPHITI: 'false',
-    ACE_QDRANT_URL: 'http://127.0.0.1:6339',
-    ACE_EMBEDDING_WORKER: join(directory, 'must-not-start-embedding'),
     ACE_CONTEXT_RPC_HOST: '127.0.0.1',
     ACE_CONTEXT_RPC_PORT: String(gatewayPort),
     ACE_CONTEXT_RPC_SHARED_SECRET: 'real-provider-fixture-secret',
@@ -173,7 +168,6 @@ const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.e
     ACE_CONTEXT_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
     ACE_CONTEXT_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: '{"mock":["test-model"]}',
     ACE_CONTEXT_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source"]',
-    ...(race ? { ACE_ENABLE_TEST_FAILPOINTS: 'true', ACE_EMBEDDING_DELAY_MS: '1000' } : {}),
   },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
@@ -204,8 +198,8 @@ const waitForStartup = async () => {
 try {
   await waitForStartup();
   const startupReadyMs = performance.now() - startupAt;
-  if (native && !outage) assert.match(startupLog, /native CBM code retrieval initialized/u);
-  if (native && outage) assert.match(startupLog, /native CBM index failed/u);
+  if (!outage) assert.match(startupLog, /native CBM code retrieval initialized/u);
+  if (outage) assert.match(startupLog, /native CBM index failed/u);
   let nativeProcessNames = [];
   if (native) {
     assert.match(startupLog, /provider identities codebase_memory=codebase-memory-mcp\/0\.12\.1/u);
@@ -249,12 +243,7 @@ try {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
     body: JSON.stringify(payload), signal: timeout(maxWait),
   });
-  if (race) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    await writeFile(codePath, code.replace('return value;', "return value + '-changed';") + filler + '\n');
-  }
-  const response = await responsePromise;
-  const decision = await response.json();
+
   if (native) {
     nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
     const traceEvents = await readProviderTrace(providerTracePath);
@@ -268,7 +257,7 @@ try {
   }
   assert.equal(response.status, 200, JSON.stringify(decision));
   if (decision.kind === 'BLOCK' && !scale) {
-    assert.ok(outage || race, `normal ready real-provider fixture must not report BLOCK: ${decision.reasonCode}; ${startupLog.slice(-3000)}`);
+    assert.ok(outage, `normal ready real-provider fixture must not report BLOCK: ${decision.reasonCode}; ${startupLog.slice(-3000)}`);
     assert.equal(typeof decision.reasonCode, 'string');
     assert.ok(decision.reasonCode.length > 0, 'typed denial must specify a reason');
     assert.equal(decision.baseBodySha256, payload.bodySha256);
@@ -277,7 +266,7 @@ try {
       assert.equal(decision.projectionReceipt, undefined);
       assert.equal(decision.bodyBase64, undefined);
     }
-    console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.reasonCode }));
+    console.log(JSON.stringify({ status: 'projection-honest-block', outage, reason: decision.reasonCode }));
   } else {
     if (!scale || decision.kind === 'PREPARED') {
     assert.equal(decision.kind, 'PREPARED', JSON.stringify(decision));
@@ -289,13 +278,12 @@ try {
     const contextMessage = projected.input.find((item) => item.role === 'developer' && String(item.content).includes('[ACE verified context]'));
     assert.ok(contextMessage, 'real gateway projection must visibly add verified ACE context');
     if (!scale) assert.match(contextMessage.content, /retryAfterTransientFailure/u);
-    if (race) assert.match(contextMessage.content, /-changed/u, 'stale source must not masquerade as current');
     else if (!scale) assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http',
       retrieval: 'native_cbm',
       ...(native ? { nativeProcessNames } : {}),
-      source: scale ? 'frozen ACE source subtree' : nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture', race,
+      source: scale ? 'frozen ACE source subtree' : nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture',
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
