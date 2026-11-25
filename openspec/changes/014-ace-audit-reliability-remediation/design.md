@@ -2,7 +2,18 @@
 
 **Stage:** A / T2 / provisional architecture artifact, not owner G02 acceptance with an ordinary reviewable GitHub PR. **Source of facts:** Astra audit PR #290 on §main@bd170d197dcafc5cd30d0b8d6220ba6eca4fde5b§ and its 20 November engineering supplement. **Inherited S:** OpenSpec 014 proposal + five capability specs from PR #292 (S-stage source commit §a4d8192f65bcf3b5706c24053725288d8b8b0655§). **Conflicts:** #291 and #288 remain separate unmerged candidates; before I, compare current HEAD, do not double-implement. Exact product line numbers are in the original audit, not re-proven here.
 
-## Architecture and boundaries — AS-IS versus TO-BE
+## Native-only superseding design (2026-11-25, owner decision #363; implementation PR #378)
+
+The original audit findings below explain the retired design, not work to restore it. Current ownership is CBM v0.12.1 for graph/AST/semantic/BM25, upstream per-account daemon/cache admission and supervised indexing workers; ACE for registered workspace, exact bytes, digest/range checks, required coverage, source-plan and publication of verified candidate membership. No external vector SDK, embedding worker, reranker, writer lock or alternate parser is required. Independent LSP remains separately scoped (#364). No remote helper or full-unified readiness is implied.
+
+- REM-005/006: use upstream canonical cache coordination and ACE observation/generation checks; verify real stale/current interleavings, incompatible roots and daemon/worker loss without a new lock service.
+- REM-015/016/017: native ranking is opaque; optional context disambiguation must preserve source truth; trace final verified delivery and actual provider identity. Retired stages are not applicable.
+- REM-018/019: absolute frozen multi-repository quality and source coverage, pinned CBM outlines, no alternate parser. Line spans are not independent LSP byte-column evidence.
+- REM-020: bounded session cancellation and restart with actual upstream daemon/worker behavior; no stale reply or false publication. A frontend exit is not proof of daemon exit.
+
+Existing source delivery, archive, provider-wire and economics invariants remain unchanged. Current phase briefs and specs supersede the old provider-specific implementation proposals below. All unproved acceptance remains open. The architecture choice is owner-directed; no independent G02 review or test PASS is inferred.
+
+## Historical audit architecture and boundaries — AS-IS versus original TO-BE
 
 | Context / existing ownership | AS-IS finding on audited main | TO-BE minimal change (provisional) |
 |---|---|---|
