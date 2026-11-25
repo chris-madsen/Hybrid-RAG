@@ -3,6 +3,7 @@ import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
   retrievalBenchmarkStages,
+  type BenchmarkProjectionBinding,
   type RetrievalBenchmarkStage,
   type RetrievalBenchmarkStageStatus,
   type RetrievalBenchmarkTerminalReceipt,
@@ -55,6 +56,7 @@ export const makeFileRetrievalBenchmarkTrace = async (
   let queue: Promise<void> = Promise.resolve();
   let closePromise: Promise<void> | undefined;
   const requests = new Map<string, Map<RetrievalBenchmarkStage, RetrievalBenchmarkStageStatus>>();
+  const projections = new Map<string, BenchmarkProjectionBinding>();
 
   const markFailed = (): void => {
     state = 'failed';
@@ -81,6 +83,7 @@ export const makeFileRetrievalBenchmarkTrace = async (
       persistedEventCount: persistedEvents,
       requests: stagesFor(requests),
       traceDigest: terminalDigest,
+      ...(projections.size === 0 ? {} : { projections: [...projections.values()] }),
       flushStatus,
       closeStatus,
       ...(failureCode === undefined ? {} : { failureCode }),
@@ -150,6 +153,10 @@ export const makeFileRetrievalBenchmarkTrace = async (
         markFailed();
         process.stderr.write('ace benchmark trace append failed\n');
       });
+    },
+    recordProjection: (binding): void => {
+      if (state !== 'open' || projections.has(binding.requestId)) throw safeTraceFailure();
+      projections.set(binding.requestId, { ...binding, selectedEvidenceIds: [...binding.selectedEvidenceIds] });
     },
     flush,
     close,

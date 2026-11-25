@@ -463,7 +463,7 @@ const main = async (): Promise<void> => {
   };
   const contextProvider = contextBridge ?? unavailableContext;
   try {
-    const projection = makeResponsesProjectionService(contextProvider, gatewaySecurity);
+    const projection = makeResponsesProjectionService(contextProvider, gatewaySecurity, benchmarkTrace?.recordProjection);
     const attemptAuthorization = makeGatewayAttemptAuthorizationService(gatewaySecurity);
     await runContextRpcHttp({
       projectResponses: projection.projectResponses,
