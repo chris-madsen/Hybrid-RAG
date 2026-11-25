@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { Effect } from 'effect';
 import { makeVertexRagRetrievalPort } from '../src/adapters/vertex-rag.js';
-import { makeQdrantCodeGraphCandidatePort } from '../src/adapters/http-provider-boundaries.js';
 import { makeFileArtifactStore } from '../src/adapters/file-artifact-store.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
 import { makeNativeCbmContextProvider } from '../src/adapters/native-cbm-context-provider.js';
