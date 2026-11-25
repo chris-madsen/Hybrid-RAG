@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { makeProjectionReceiptClaims, signProjectionReceipt } from '../src/application/projection-receipt.js';
+import { addVerifiedContextToResponses } from '../src/domain/responses-projection.js';
+import { canonicalBenchmarkCandidateId, retrievalBenchmarkStages, sha256, type RetrievalBenchmarkTraceEvent } from '../src/domain/retrieval-benchmark.js';
+import { deriveNativeProjectionObservations, nativeProjectionRunnerVersion, validateNativeProjectionRunEvidence, type NativeProjectionEvidence } from '../scripts/native-projection-evidence.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import { evaluateRetrievalStrategy, evaluateRetrievalQualityPolicy, validateNativeRetrievalRunIdentity, type RetrievalHoldout, type RetrievalStrategyRun, type RetrievalQualityPolicy } from '../src/domain/retrieval-quality-evaluation.js';
 import {
@@ -22,25 +26,96 @@ const retained = (path: string, value: unknown): RetainedJsonEvidence => {
   };
 };
 
+const text = 'export const answer = 1;';
+const repoPath = 'src/example.ts';
+const range = { startLine: 1, endLine: 1, startColumn: 1, endColumn: text.length + 1 };
+const sourceDigest = sha256(text);
+const ids = ['a', 'b'];
+const manifestFor = (id: string): Buffer => Buffer.from(JSON.stringify({
+  schemaVersion: 1, repositoryId: id, revision,
+  entries: [{ path: repoPath, sizeBytes: Buffer.byteLength(text), sha256: sourceDigest }],
+}));
 const holdout: RetrievalHoldout = {
   schemaVersion: 1,
   status: 'frozen_multi_repository_holdout',
-  repositories: ['a', 'b'].map((id) => ({ id, revision, sourceManifestSha256: digest })),
-  cases: ['a', 'b'].map((id) => ({ id, repositoryId: id, query: 'fixture query', relevantCandidateIds: [id], critical: true })),
+  repositories: ids.map((id) => ({ id, revision, sourceManifestSha256: sha256(manifestFor(id)) })),
+  cases: ids.map((id) => ({
+    id, repositoryId: id, query: 'fixture query',
+    relevantCandidateIds: [canonicalBenchmarkCandidateId(id, repoPath, sourceDigest, range)], critical: true,
+  })),
 };
 const holdoutFile = retained('holdout.json', holdout);
+const fixtureEvidence = (id: string): NativeProjectionEvidence => {
+  const body = { model: 'test-model', store: false, input: 'fixture query' };
+  const raw = Buffer.from(JSON.stringify(body), 'utf8');
+  const request = {
+    schemaVersion: 'ace.context.v3', protocol: 'openai.responses', requestId: 'request-' + id,
+    attemptGroupId: 'turn-' + id, agentSessionId: 'session-' + id, workspaceId: 'workspace-' + id,
+    dataClass: 'private', provider: 'mock', model: 'test-model',
+    bodyBase64: raw.toString('base64'), bodySha256: sha256(raw), query: 'fixture query',
+    projectionMode: 'bifrost_hook', deadlineEpochMs: 2_000_000_000_000,
+    attestation: {
+      hostBuildDigest: digest, sessionId: 'session-' + id, activeEngineId: 'bifrost-visible-request-only',
+      effectiveCompressionControlsDigest: digest, durableActiveTranscriptRevision: 'rev1',
+      durableActiveTranscriptDigest: digest, hostCompactionEpoch: 'unknown', attestorId: 'fixture',
+      providerManagedHistoryCapability: 'visible', hostTranscriptAttested: false, compactionEnabled: false,
+    },
+  };
+  const contextText = '[code] ' + repoPath + ':1-1\n' + text;
+  const projected = addVerifiedContextToResponses(body, contextText);
+  assert.equal(projected._tag, 'Ok');
+  const projectedBodySha256 = sha256(Buffer.from(projected.value, 'base64'));
+  const selectedEvidenceIds = ['code-' + id];
+  const receipt = signProjectionReceipt(makeProjectionReceiptClaims({
+    requestId: request.requestId, attemptGroupId: request.attemptGroupId,
+    agentSessionId: request.agentSessionId, workspaceId: request.workspaceId,
+    dataClass: 'private_source', provider: request.provider, model: request.model,
+    baseBodySha256: request.bodySha256, projectedBodySha256, selectedEvidenceIds, contextText,
+    policyVersion: 1, deadlineEpochMs: request.deadlineEpochMs,
+  }), 'fixture-only-signing-key');
+  const providerRequestId = 'provider-' + id;
+  const candidate = {
+    runtimeCandidateId: 'runtime-' + id, canonicalCandidateId: canonicalBenchmarkCandidateId(id, repoPath, sourceDigest, range),
+    repoPath, sourceDigest, range, evidenceId: selectedEvidenceIds[0]!,
+    sourceTextSha256: sha256(text), sourceTextCharacters: text.length,
+  };
+  const events: RetrievalBenchmarkTraceEvent[] = retrievalBenchmarkStages.map((stage) => ({
+    stage, requestId: providerRequestId, status: stage === 'delivered' ? 'executed' : 'not_applicable',
+    candidates: stage === 'delivered' ? [candidate] : [], durationMs: stage === 'delivered' ? 1 : 0,
+    sourceCommit: revision, runnerVersion: nativeProjectionRunnerVersion, providerIdentities: nativeCodeRetrieval.providerIdentities,
+  }));
+  const trace = events.map((event) => JSON.stringify(event) + '\n').join('');
+  return {
+    schemaVersion: 1, holdoutSha256: holdoutFile.sha256, sourceCommit: revision,
+    runnerVersion: nativeProjectionRunnerVersion, repositoryId: id, manifestBase64: manifestFor(id).toString('base64'),
+    trace, terminal: {
+      schemaVersion: 1, sourceCommit: revision, runnerVersion: nativeProjectionRunnerVersion,
+      eventCount: events.length, persistedEventCount: events.length, traceDigest: sha256(trace),
+      flushStatus: 'ok', closeStatus: 'ok',
+      requests: [{ requestId: providerRequestId, complete: true, stages: {
+        dense: 'not_applicable', sparse: 'not_applicable', fused: 'not_applicable',
+        working_context: 'not_applicable', reranked: 'not_applicable', delivered: 'executed',
+      } }],
+      projections: [{ requestId: request.requestId, providerRequestId,
+        receiptSha256: sha256(receipt), projectedBodySha256, selectedEvidenceIds }],
+    },
+    captures: [{ caseId: id, request, latencyMs: 1, decision: {
+      kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED', baseBodySha256: request.bodySha256,
+      bodyBase64: projected.value, projectedBodySha256, projectionReceipt: receipt,
+    } }],
+  };
+};
+const captures = ids.map((id) => retained('projection-' + id + '.json', fixtureEvidence(id)));
 const run: RetrievalStrategyRun = {
   strategy: nativeCodeRetrieval.strategy,
   sourceCommit: revision,
-  runnerVersion: 'fixture/v1',
+  runnerVersion: nativeProjectionRunnerVersion,
   holdoutSha256: holdoutFile.sha256,
   providerIdentities: nativeCodeRetrieval.providerIdentities,
-  observations: ['a', 'b'].map((id) => ({
-    caseId: id, retrievedCandidateIds: [id], payloadCharacters: 10, duplicateSourceHits: 0,
-    expansionCalls: 0, nativeReadDuplicates: 0, latencyMs: 1,
-    stageRanks: { dense: [], sparse: [], fused: [], workingContext: [], reranked: [], delivered: [id] },
-    stageStatuses: { dense: 'not_applicable', sparse: 'not_applicable', fused: 'not_applicable', working_context: 'not_applicable', reranked: 'not_applicable', delivered: 'executed' },
-  })),
+  observations: captures.flatMap((capture) => deriveNativeProjectionObservations(
+    holdout, capture.value as NativeProjectionEvidence, holdoutFile.sha256, revision,
+  )),
+  projectionEvidence: captures.map((capture) => ({ path: capture.path, sha256: capture.sha256 })),
 };
 const policy: RetrievalQualityPolicy = {
   selectedStrategy: nativeCodeRetrieval.strategy,
@@ -89,6 +164,7 @@ test('release source validation re-evaluates selection verdicts against retained
     ['holdout.json', holdoutFile],
     ['run.json', retained('run.json', run)],
     ['policy.json', retained('policy.json', policy)],
+    ...captures.map((capture) => [capture.path, capture] as const),
     ['semantic-policy.json', retained('semantic-policy.json', semanticPolicy)],
     ...semanticReports.map((report, index) => {
       const path = `semantic-report-${index}.json`;
@@ -142,7 +218,7 @@ test('native release evidence rejects retired stages, foreign provider and missi
   assert.equal(validateNativeRetrievalRunIdentity(holdout, run, revision)._tag, 'Ok');
   assert.equal(validateNativeRetrievalRunIdentity(holdout, { ...run, strategy: 'hybrid_rrf' }, revision)._tag, 'Err');
   const { runnerVersion: removedRunnerVersion, ...withoutRunner } = run;
-  assert.equal(removedRunnerVersion, 'fixture/v1');
+  assert.equal(removedRunnerVersion, nativeProjectionRunnerVersion);
   assert.equal(validateNativeRetrievalRunIdentity(holdout, withoutRunner, revision)._tag, 'Err');
   assert.equal(evaluateRetrievalStrategy(holdout, withoutRunner)._tag, 'Err');
   assert.equal(validateNativeRetrievalRunIdentity(holdout, {
@@ -155,4 +231,40 @@ test('native release evidence rejects retired stages, foreign provider and missi
       ...item, stageStatuses: { ...item.stageStatuses!, dense: 'executed' },
     })),
   }, revision)._tag, 'Err');
+});
+
+test('native gate rejects fabricated ranks and a missing capture even with a valid identity', async () => {
+  const reader = async (path: string): Promise<RetainedJsonEvidence> => {
+    const capture = captures.find((item) => item.path === path);
+    assert.ok(capture);
+    return capture;
+  };
+  await validateNativeProjectionRunEvidence(holdout, run, reader);
+  await assert.rejects(validateNativeProjectionRunEvidence(holdout, {
+    ...run, observations: run.observations.map((item) => ({ ...item, retrievedCandidateIds: ['forged-rank'] })),
+  }, reader), /do not match actual projection evidence/u);
+  const { projectionEvidence: removed, ...withoutCapture } = run;
+  assert.equal(removed?.length, 2);
+  await assert.rejects(validateNativeProjectionRunEvidence(holdout, withoutCapture, reader), /captures required/u);
+});
+
+test('actual prepared body and runtime receipt binding cannot be substituted', () => {
+  const evidence = fixtureEvidence('a');
+  const capture = evidence.captures[0]!;
+  const decision = capture.decision as Record<string, unknown>;
+  assert.throws(() => deriveNativeProjectionObservations(holdout, {
+    ...evidence, captures: [{ ...capture, decision: { ...decision, bodyBase64: Buffer.from('tampered').toString('base64') } }],
+  }, holdoutFile.sha256, revision), /projected body digest mismatch/u);
+  assert.throws(() => deriveNativeProjectionObservations(holdout, {
+    ...evidence, terminal: { ...evidence.terminal, projections: [] },
+  }, holdoutFile.sha256, revision), /missing actual prepared receipt binding/u);
+  const block = {
+    kind: 'BLOCK', reasonCode: 'SECRET_DETECTED', baseBodySha256: decision.baseBodySha256,
+  };
+  const blocked = deriveNativeProjectionObservations(holdout, {
+    ...evidence, terminal: { ...evidence.terminal, projections: [] },
+    captures: [{ ...capture, decision: block }],
+  }, holdoutFile.sha256, revision);
+  assert.deepEqual(blocked[0]?.retrievedCandidateIds, []);
+  assert.equal(blocked[0]?.stageStatuses?.delivered, 'unavailable');
 });
