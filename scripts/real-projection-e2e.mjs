@@ -565,6 +565,42 @@ try {
           }
           assertCurrent(await projectAgain(), 'newer-generation');
           assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'newer-generation');
+          // ABA: first runtime observes A and queues a real search while its
+          // frontend is stopped. Another runtime publishes B; restore A with
+          // the same size and mtime before the first search resumes. This
+          // exercises stale shared graph hints, not merely two source scans.
+          const searchCount = async () => (await readProviderTrace(providerTracePath)).filter((event) =>
+            event.operation === 'search_graph_request_queued').length;
+          const searchQueued = await searchCount();
+          process.kill(nativeChild.pid, 'SIGSTOP');
+          paused = true;
+          inFlight = projectAgain();
+          void inFlight.catch(() => {});
+          const searchUntil = Date.now() + 10000;
+          while (await searchCount() <= searchQueued) {
+            assert.ok(Date.now() < searchUntil, 'first runtime must queue a native search before ABA mutation');
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          const intermediate = changed('other-generation');
+          assert.equal(Buffer.byteLength(intermediate), Buffer.byteLength(newer));
+          await writeSource(intermediate);
+          await sourceHandle.utimes(metadata.atime, metadata.mtime);
+          assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'other-generation');
+          await writeSource(newer);
+          await sourceHandle.utimes(metadata.atime, metadata.mtime);
+          process.kill(nativeChild.pid, 'SIGCONT');
+          paused = false;
+          const abaAttempt = await inFlight;
+          if (abaAttempt.kind === 'PREPARED') {
+            assertCurrent(abaAttempt, 'newer-generation');
+            assert.ok(!context(abaAttempt).includes('other-generation'), 'intermediate ABA source must never be delivered');
+          } else {
+            assert.equal(abaAttempt.kind, 'BLOCK');
+            assert.equal(abaAttempt.projectionReceipt, undefined);
+            assert.equal(abaAttempt.bodyBase64, undefined);
+          }
+          assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'newer-generation');
+          assertCurrent(await projectAgain(), 'newer-generation');
           // Reuse the daemon/cache from a different registered root. A common
           // symbol and relative path must never substitute a foreign source.
           await stopRealProviderProcess(other);

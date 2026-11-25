@@ -280,7 +280,9 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
       });
       // Local dispatch observation, not a successful native tool result.
       // The separate terminal event remains the only provider-result evidence.
-      if (tool === 'index_repository') trace('success', undefined, 'index_repository_request_queued');
+      if (tool === 'index_repository' || tool === 'search_graph') {
+        trace('success', undefined, tool + '_request_queued');
+      }
       const raw: unknown = await deadline(response, timeoutMs);
       if (current.dead || closed || suspended || session !== current) throw new Error('Codebase Memory session lost during request');
       const result = parseCodebaseMemoryToolResult(raw);
