@@ -6,9 +6,10 @@ Date: 2026-11-25
 `f08fc8b5d79c00d96096c49b3cd4cca27bab820f`.
 
 **Result:** The current Bifröst/ACE code-only projection has no external-LSP
-requirement or invocation in native CBM mode. The legacy Qdrant composition
-still has a real external-LSP consumer for exact symbol selection and
-definition validation. Accepted PRD/OpenSpec text still describes broader
+requirement or invocation in native CBM mode. The legacy Qdrant composition still initializes external LSP sessions and
+contains conditional exact-symbol validation code, but initialization is not
+proof of live invocation: the current Context RPC requests code only, and the
+routed semantic facade does not expose documentSymbols. Accepted PRD/OpenSpec text still describes broader
 semantic navigation as a capability, so this audit does not authorize removal
 of the provider, dependency, tests, or normative requirement.
 
@@ -18,7 +19,7 @@ of the provider, dependency, tests, or normative requirement.
 |---|---|---|---|
 | Native Bifröst projection | `responses-projection-service.ts` calls the context transform with `sourceObligations: { required: ['code'] }`. It accepts only `code` evidence. `context-v3.tsp` has no LSP or semantic-source field. | Verify and deliver current source evidence for the code-only request. There is no LSP result, coverage, or readiness requirement in this wire contract. | Active target path; no external LSP invocation. |
 | Native CBM runtime | `ace-runtime.ts` selects `ACE_CODE_RETRIEVAL_MODE=cbm`, supplies `makeRoutedLspSession([])`, and reports `semantic_lsp` as `not_ready`. It does not acquire a server from the LSP registry in this branch. | CBM supplies candidate discovery; ACE verifies the cited source independently. The Gateway requires code coverage only. | Active migration path; external LSP is not started or required. |
-| Legacy Qdrant runtime | Under `ACE_ENABLE_EXPERIMENTAL_QDRANT=true`, `ace-runtime.ts` discovers/acquires maintained language servers and composes `makeRoutedLspSession`. `qdrant-context-provider.ts` calls `documentSymbols` when a candidate has no semantic anchor, then calls `definition` to confirm the exact source range. | Exact identifier selection columns and definition coordinates. Missing or conflicting evidence is recorded as LSP partial/failure; it is never synthesized from CBM line ranges. | Real runtime consumer, but only inside the legacy Qdrant composition slated for cutover. |
+| Legacy Qdrant runtime | `ace-runtime.ts:902–937` discovers/acquires LSP leases and composes `makeRoutedLspSession`. `qdrant-context-provider.ts:966,1378–1423` contains conditional document-symbol/definition checks, gated on `useLsp`. However, `routed-semantic.ts` does not forward `documentSymbols`, and the CBM structural adapter supplies line spans rather than identifier selection anchors. The current explicit code-only transform sets LSP to not_requested. | Exact identifier selection and definition validation would be required by a requested semantic source contract; missing evidence must remain unavailable. | Legacy initialization and conditional implementation observed; no actual independent semantic request in the supported Context RPC. Do not infer real calls or successful verification from process startup. |
 | Semantic port methods beyond selection/definition | `SemanticAnalysisPort` also exposes references, type information, and diagnostics. Runtime composition has no agent-facing call site for these methods; provider evaluation/conformance scripts and tests exercise them. | No demonstrated production request in the current Gateway route. | Test/evaluation capability, not evidence of a live Gateway consumer. |
 | Context command schema | `context-commands.ts` accepts required/optional `lsp` in its local `context_query` schema. `makeContextCommands` has no call site in `src/` or `test/` at this baseline and is not composed by `ace-runtime.ts`. | Potential source-obligation model only; this audit found no active runtime transport using it. | Dormant application code; not a versioned or agent-facing contract. |
 | Semantic snapshot and server registry | `semantic-snapshot.ts`, the LSP registry, discovery, and external server adapter are composed from the legacy Qdrant setup. The native CBM route does not build a semantic snapshot or acquire a server. | Bind external LSP queries to the indexed source snapshot and manage process lifetime. | Legacy-runtime support. |
@@ -55,9 +56,13 @@ LSP evidence, and ACE still validates the selected original source bytes.
 ## Disposition
 
 The source audit found no independent external-LSP consumer in the current
-agent-facing code-only Context RPC. It did find one real runtime consumer in
-the still-reachable legacy Qdrant composition, plus an unresolved normative
-semantic-navigation requirement in PRD/OpenSpec. That requirement cannot be
+agent-facing code-only Context RPC, whether the native or historical vector
+composition is selected. Legacy startup still acquires language-server leases;
+conditional semantic validation is implemented, but the routed facade lacks
+`documentSymbols`, so the CBM line-only candidate cannot obtain an exact
+selection through that route. This is a static reachability finding, not a
+runtime trace. The unresolved normative semantic-navigation requirement in
+PRD/OpenSpec remains. That requirement cannot be
 classified as historical from call-site evidence alone.
 
 Before CBM-06 removes the external server and its contracts, the owner needs to
@@ -75,6 +80,8 @@ choose one of these scopes:
    discovery and retain fail-closed source/freshness guarantees. Then retire
    the legacy-only LSP runtime, dependencies, and redundant tests in CBM-06.
 
+Do not repair the unused routed document-symbol path solely to preserve a historical capability before deciding FR-03 scope. If the owner retains it, treat missing forwarding as a separate defect and test the actual composed runtime, not just injected adapter mocks.
+
 This review does not edit normative OpenSpec/ADR artifacts or choose between
 those scopes. It does not claim CBM Hybrid LSP parity, provider approval,
 agent-E2E acceptance, or production readiness. It does not block CBM-01/02/03
@@ -88,6 +95,10 @@ CBM-05.
   `src/application/context-transform-service.ts`,
   `src/application/responses-projection-service.ts`,
   `src/application/context-commands.ts`, `src/application/ports.ts`,
+  `src/domain/source-coverage.ts` (explicit source obligations),
+  `src/adapters/codebase-memory-structural.ts` (line-only spans),
+  `src/adapters/local-code-index.ts` (conditional semantic anchors),
+  `src/application/lsp/routed-semantic.ts` (no documentSymbols forwarding),
   `src/application/lsp/*`, `src/application/semantic-snapshot.ts`, and
   `typespec/context-v3.tsp`.
 - Normative and retained evidence: OpenSpec 003 semantic-verification,
