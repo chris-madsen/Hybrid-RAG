@@ -2,6 +2,10 @@
 
 Date: 2026-11-25. Owner decision: retire overlapping code retrieval infrastructure, reuse CBM v0.12.1, no competing vector stack. Issues [#363](https://github.com/chris-madsen/Hybrid-RAG/issues/363) and [#364](https://github.com/chris-madsen/Hybrid-RAG/issues/364) own delivery. This is an execution plan, not a second canonical acceptance ledger or a certification. Before each slice refresh main, AGENTS.md, accepted ADRs, OpenSpec and CI. Use T2/G02 for material changes beyond the owner-approved direction; use existing SDLC stages and reviewable PRs. Record requirements in the applicable OpenSpec change, including supersession of obsolete REM-005/006, REM-018/019 and REM-020 mechanisms without erasing their underlying safety obligations. All repository prose in English.
 
+## Owner scope clarification (2026-11-25)
+
+Separate external LSP requires further research (#364). Keep FR-03 and the existing semantic-navigation OpenSpec, adapters, dependencies and tests. CBM-04 static audit is evidence, not final scope disposition; CBM-06 is deferred. Continue CBM-01/02/03/05 without requiring external LSP parity; CBM-07 accepts the vector-only cutover with the independent LSP research explicitly open. Native code-only Context RPC must neither start an unnecessary external server nor claim exact LSP coverage. Preserve the independent implementation and test seams during vector retirement. CBM-08 remains separately gated.
+
 ## Baseline and evidence
 
 - Main after merge of PR #366: `f08fc8b5d79c00d96096c49b3cd4cca27bab820f`. Tested PR head `7964a0c1afa8cbc736b80dc0f2b33a046077e9a6`; local rerun source `1db95a2512c55791d70f87a098996e5326009694`.
@@ -24,7 +28,7 @@ CBM owns parsing, graph, semantic/BM25 retrieval and its native index/cache. ACE
 | CBM-04 LSP independent contract review | merged #366 | actual consumer matrix and owner decision for remaining capability |
 | CBM-05 vector retirement | CBM-01/02/03 | one supported native code runtime, no live vector path, dependency or deployment consumer |
 | CBM-06 LSP retirement | CBM-04, CBM-05 where shared | remove external servers only if contract withdrawn or satisfied |
-| CBM-07 final evidence and closure | CBM-05/06 or approved narrow retained LSP | full regression, actual deployment, architecture and dependency checks |
+| CBM-07 final vector-cutover evidence | CBM-05; CBM-06 deferred by owner | full regression, actual deployment, architecture and dependency checks |
 | CBM-08 agent economics (separate) | CBM-07 and G11 approvals | #171 paired accepted tasks, no competing search stack |
 
 Parallelize CBM-04 with CBM-01/02/03; do not let the historical external LSP range requirement block vector retirement if no mandatory independent consumer depends on it. Report each slice as PASS/FAIL/BLOCKED/SKIPPED with exact SHA, commands, exit status, artifacts and provider identity. No claim based on skipped tests, fake telemetry or a random BLOCK. Each slice stops at a reviewable PR after its acceptance; do not change protected main directly.
@@ -63,7 +67,7 @@ After CBM-04 decision remove redundant LSP discovery/registry, routed and extern
 
 On final cleaned SHA with Node 22.23.4 and actual CBM v0.12.1, run npm ci, npm run verify:full, ACE_TEST_REAL_CBM=true npm test, focused real CBM suite, and adapted compiled projection/mutation/outage/recovery/race/deployment tests. Commands currently on main: ACE_REAL_PROJECTION_NATIVE_CBM=true npm run test:real-projection; ACE_REAL_PROJECTION_NATIVE_CBM=true ACE_REAL_PROJECTION_NATIVE_MUTATIONS=true node scripts/real-projection-e2e.mjs; ACE_REAL_PROJECTION_NATIVE_CBM=true ACE_REAL_PROJECTION_OUTAGE=true node scripts/real-projection-e2e.mjs. Update invocation after removing temporary mode flag. The historical embedding-delay race is invalid for native CBM. Verify real CI, CodeQL, critical mutation, dependency advisory/Knip and architecture checks. Keep per-physical-send authorization, exact-source proof, receipt/replay protections, store:false and fail-closed behavior. No live provider calls.
 
-Reconcile AGENTS, accepted ADR rationale/supersession, OpenSpec canonical acceptance, architecture description views (runtime, deployment, functional, information, security, quality), concerns, component/model versions, decisions, correspondences and ISO 42010 conformance evidence. Reconcile current architecture, provider/readiness matrix, operations, Harbor setup and README. Do not overwrite immutable historical reports. Review changes to AR03/AR07/AR08/AR09 requirements so removed mechanism is superseded with retained observable guarantees. Record remaining risks, unsupported topology and independent retained components explicitly. Close #363/#364 only with evidence and approved disposition. No independent ISO certification claim.
+Reconcile AGENTS, accepted ADR rationale/supersession, OpenSpec canonical acceptance, architecture description views (runtime, deployment, functional, information, security, quality), concerns, component/model versions, decisions, correspondences and ISO 42010 conformance evidence. Reconcile current architecture, provider/readiness matrix, operations, Harbor setup and README. Do not overwrite immutable historical reports. Review changes to AR03/AR07/AR08/AR09 requirements so removed mechanism is superseded with retained observable guarantees. Record remaining risks, unsupported topology and independent retained components explicitly. Close #363 only with vector-retirement evidence; keep #364 open for separate research until explicit owner disposition. No independent ISO certification claim.
 
 ## CBM-08 — separate downstream acceptance
 
