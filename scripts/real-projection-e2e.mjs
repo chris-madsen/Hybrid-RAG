@@ -90,11 +90,14 @@ const code = [
   '}',
 ].join('\n') + '\n';
 const native = process.env.ACE_REAL_PROJECTION_NATIVE_CBM === 'true';
+const restart = process.env.ACE_REAL_PROJECTION_NATIVE_RESTART === 'true';
+const deadline = process.env.ACE_REAL_PROJECTION_NATIVE_DEADLINE === 'true';
+const nonGit = process.env.ACE_REAL_PROJECTION_NATIVE_NON_GIT === 'true';
 const filler = Array.from({ length: native ? 8 : 1991 }, (_, i) => 'export const filler_' + i + ' = ' + i + ';').join('\n');
 const codePath = join(workspace, 'service.ts');
 await writeFile(codePath, code + filler + '\n');
 const git = (...args) => execFileSync('git', ['-C', workspace, ...args], { encoding: 'utf8' });
-if (native) {
+if (native && !nonGit) {
   git('init', '--quiet');
   git('add', '.');
   git('-c', 'user.name=ACE Test', '-c', 'user.email=ace@example.invalid', 'commit', '--quiet', '-m', 'native fixture');
@@ -110,12 +113,16 @@ assert.ok(!cancellation || (native && !outage && !race && !mutations && !recover
 assert.ok(!worktree || (native && !outage && !race && !mutations && !recovery), 'native worktree evidence requires a healthy standalone fixture');
 assert.ok(!recovery || (native && !outage && !race && !mutations), 'native recovery requires a healthy standalone native fixture');
 assert.ok(!mutations || (native && !outage && !race), 'native mutation test requires a healthy native-only fixture');
+assert.ok(!(restart || deadline || nonGit) || (native && !outage && !race && !mutations && !recovery && !worktree && !cancellation), 'new native scenarios require standalone healthy fixture');
+assert.ok([restart, deadline, nonGit].filter(Boolean).length <= 1);
 assert.ok(!(native && race), 'historical embedding delay is not a native CBM race oracle');
 const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
 assert.ok(Number.isSafeInteger(maxWait) && maxWait >= 10000 && maxWait <= 600000);
 const gatewayPort = await port();
 const providerTracePath = join(directory, 'provider-trace.jsonl');
-const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
+const nativeHome = join(directory, 'native-home');
+await mkdir(nativeHome);
+const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.executable], {
   cwd: runtime.runtimeRoot,
   env: {
     ...process.env,
@@ -124,7 +131,7 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_ALLOWED_ROOTS: directory,
     ACE_STATE_DIR: join(directory, 'state'),
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
-    ...(native ? { ACE_PROVIDER_TRACE_FILE: providerTracePath } : {}),
+    ...(native ? { ACE_PROVIDER_TRACE_FILE: providerTracePath, HOME: nativeHome, XDG_CACHE_HOME: join(nativeHome, 'cache'), XDG_DATA_HOME: join(nativeHome, 'data') } : {}),
     ACE_WORKSPACE_ID: workspaceId,
     ACE_CODE_RETRIEVAL_MODE: native ? 'cbm' : '',
     ACE_ENABLE_EXPERIMENTAL_QDRANT: native ? 'false' : 'true',
@@ -149,10 +156,12 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
   },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
+let child = spawnRuntime();
 let startupLog = '';
 const endpoint = `http://127.0.0.1:${gatewayPort}/internal/ace-context/v3`;
 const timeout = (ms) => AbortSignal.timeout(ms);
-try {
+const waitForStartup = async () => {
+  startupLog = '';
   await new Promise((resolve, reject) => {
     let done = false;
     const settle = (error) => {
@@ -169,6 +178,9 @@ try {
     child.once('exit', (code) => settle(new Error('Gateway exited before listening: ' + code + ': ' + startupLog.slice(-3000))));
     child.once('error', settle);
   });
+};
+try {
+  await waitForStartup();
   if (native && !outage) assert.match(startupLog, /native CBM code retrieval initialized/u);
   if (native && outage) assert.match(startupLog, /native CBM index failed/u);
   let nativeProcessNames = [];
@@ -259,17 +271,17 @@ try {
       status: 'projection-pass', transport: 'ace-internal-projection-http',
       retrieval: native ? 'native_cbm' : 'historical_vector', ...(native ? {} : { qdrant: qdrantUrl }),
       ...(native ? { nativeProcessNames } : {}),
-      source: native ? 'Git-backed native CBM fixture' : '2000-line TypeScript fixture', race,
+      source: native ? (nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture') : '2000-line TypeScript fixture', race,
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
-    if (mutations || recovery || worktree || cancellation) {
-      const projectAgain = async (query = payload.query, signal = timeout(maxWait)) => {
+    if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit) {
+      const projectAgain = async (query = payload.query, signal = timeout(maxWait), deadlineMs = maxWait) => {
         const nextBytes = Buffer.from(JSON.stringify({ ...body, input: query }), 'utf8');
         const next = {
           ...payload, query, bodyBase64: nextBytes.toString('base64'), bodySha256: digest(nextBytes),
           requestId: 'responses-projection-' + randomUUID(),
-          attemptGroupId: randomUUID(), deadlineEpochMs: Date.now() + maxWait,
+          attemptGroupId: randomUUID(), deadlineEpochMs: Date.now() + deadlineMs,
         };
         const result = await fetch(endpoint + '/project', {
           method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
@@ -311,6 +323,72 @@ try {
         assert.equal(indexesAfter, indexesBefore + 1, 'parallel requests must share exactly one recovered publication');
         assertNoExternalRetrievalProcesses(child.pid);
         console.log(JSON.stringify({ status: 'native-recovery-pass', providerWireCertified: false }));
+      }
+      if (restart) {
+        const oldPid = (await actualNativeChild(child.pid)).pid;
+        await stopRealProviderProcess(child);
+        assert.throws(() => process.kill(oldPid, 0), { code: 'ESRCH' }, 'old native child must exit with runtime');
+        // Reopen the same workspace identity, ACE state and isolated native
+        // home. Current upstream invocation is persistence:false: this tests
+        // cold recovery, not a claimed persisted native index cache hit.
+        await writeFile(codePath, code.replace('return value;', "return value + '-after-restart';") + filler + '\n');
+        child = spawnRuntime();
+        await waitForStartup();
+        const outcome = await projectAgain();
+        assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+        const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+        assert.match(projected.input[0].content, /-after-restart/u);
+        assert.notEqual((await actualNativeChild(child.pid)).pid, oldPid);
+        assertNoExternalRetrievalProcesses(child.pid);
+        console.log(JSON.stringify({ status: 'native-restart-pass', persistence: false, providerWireCertified: false }));
+      }
+      if (nonGit) {
+        const changed = code.replace('return value;', "return value + '-non-git';") + filler + '\n';
+        await writeFile(codePath, changed);
+        const outcome = await projectAgain();
+        assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+        const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+        assert.match(projected.input[0].content, /-non-git/u);
+        await rm(codePath);
+        const removed = await projectAgain();
+        assert.equal(removed.kind, 'BLOCK');
+        assert.equal(removed.projectionReceipt, undefined);
+        console.log(JSON.stringify({ status: 'native-non-git-pass', providerWireCertified: false }));
+      }
+      if (deadline) {
+        const old = await actualNativeChild(child.pid);
+        const count = (events) => events.filter((event) => event.operation === 'index_repository_request_queued').length;
+        const before = count(await readProviderTrace(providerTracePath));
+        await writeFile(codePath, code.replace('return value;', "return value + '-expired';") + filler + '\n');
+        process.kill(old.pid, 'SIGSTOP');
+        const started = Date.now();
+        const request = projectAgain(payload.query, timeout(15000), 3000);
+        try {
+          const until = Date.now() + 2500;
+          while (count(await readProviderTrace(providerTracePath)) === before) {
+            assert.ok(Date.now() < until, 'real reindex must be dispatched before deadline');
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          const expired = await request;
+          assert.equal(expired.kind, 'BLOCK');
+          assert.equal(expired.reasonCode, 'DEADLINE_EXCEEDED');
+          assert.equal(expired.projectionReceipt, undefined);
+          assert.ok(Date.now() - started < 10000, 'deadline must not wait for provider timeout');
+          assert.throws(() => process.kill(old.pid, 0), { code: 'ESRCH' });
+          await writeFile(codePath, code.replace('return value;', "return value + '-after-deadline';") + filler + '\n');
+          const outcome = await projectAgain();
+          assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+          const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+          assert.match(projected.input[0].content, /-after-deadline/u);
+          assert.doesNotMatch(projected.input[0].content, /-expired/u);
+          await actualNativeChild(child.pid);
+          console.log(JSON.stringify({ status: 'native-deadline-pass', elapsedMs: Date.now() - started, providerWireCertified: false }));
+        } finally {
+          if (processDescendants(child.pid).some((entry) => entry.pid === old.pid)) {
+            try { process.kill(old.pid, 'SIGCONT'); } catch { /* retired */ }
+          }
+          await request;
+        }
       }
       if (cancellation) {
         const nativeChild = await actualNativeChild(child.pid);
