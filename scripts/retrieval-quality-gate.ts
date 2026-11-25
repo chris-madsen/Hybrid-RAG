@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { validateNativeProjectionRunEvidence } from './native-projection-evidence.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   evaluateRetrievalQualityPolicy,
@@ -40,6 +41,10 @@ if ((process.env.ACE_EVIDENCE_SOURCE_COMMIT?.trim() || sourceCommit) !== sourceC
   throw new Error('native retrieval acceptance requires an absolute policy and exact ACE source commit');
 }
 if (run.holdoutSha256 !== holdoutSha256) throw new Error('run holdout SHA-256 does not match actual holdout');
+await validateNativeProjectionRunEvidence(holdout, run, async (path) => {
+  const raw = await readFile(resolve(path));
+  return { sha256: createHash('sha256').update(raw).digest('hex'), value: JSON.parse(raw.toString('utf8')) as unknown };
+});
 const metrics = evaluateRetrievalStrategy(holdout, run);
 if (metrics._tag === 'Err') throw new Error(`${metrics.error.code}: ${metrics.error.message}`);
 const verdict = evaluateRetrievalQualityPolicy(metrics.value, holdoutSha256, policy);

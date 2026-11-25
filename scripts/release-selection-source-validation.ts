@@ -1,3 +1,4 @@
+import { validateNativeProjectionRunEvidence } from './native-projection-evidence.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   evaluateRetrievalStrategy,
@@ -72,6 +73,7 @@ const validateNativeRetrievalSources = async (
     || requirements.nonInferiority !== undefined) {
     throw new Error('native retrieval run identity mismatch');
   }
+  await validateNativeProjectionRunEvidence(holdout.value as RetrievalHoldout, source, readJson);
   const metrics = evaluateRetrievalStrategy(holdout.value as RetrievalHoldout, source);
   if (metrics._tag === 'Err') throw new Error('native retrieval source evaluator rejected run');
   const verdict = evaluateRetrievalQualityPolicy(metrics.value, holdout.sha256, requirements);
