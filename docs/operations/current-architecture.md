@@ -1,6 +1,6 @@
 # ACE current runtime architecture and verification boundary
 
-**Source baseline:** main `26c67704d5725d2035adc7776a7d017eb0fb7de3` (#367–377), 25 November 2026. Native Harbor bundle and three isolated task-image checks are merged (#376). Real local projection evidence is not real Hermes or provider-wire certification.
+**Source baseline:** native-only cutover PR #378, 25 November 2026; earlier main `26c67704d5725d2035adc7776a7d017eb0fb7de3` (#367–377) is historical. Native Harbor bundle and three isolated task-image checks are merged (#376). Real local projection evidence is not real Hermes or provider-wire certification.
 
 ## Runtime composition (implemented vs certified)
 
