@@ -128,10 +128,9 @@ test('Docker runtime uses the pinned embedding versions from the Harbor bundle c
   for (const path of taskDockerfiles) {
     const taskDockerfile = await readFile(path, 'utf8');
     assert.match(taskDockerfile, /sys\.version_info < \(3, 11\)/u, `${path} must reject Python 3.10`);
-    for (const pin of ['fastembed==0.9.1', 'pillow==13.0.0', 'onnxruntime==1.23.2', 'numpy==2.2.6']) {
-      assert.ok(taskDockerfile.includes(pin), `${path} is missing ${pin}`);
-    }
-    assert.doesNotMatch(taskDockerfile, /fastembed==0\.7\.4|pillow==11\.3\.0|onnxruntime==1\.31\.0/u);
+    assert.match(taskDockerfile, /^FROM node:22\.23\.4-bookworm$/mu);
+    assert.doesNotMatch(taskDockerfile, /fastembed|onnxruntime|sentence-transformers|pillow==|huggingface-hub|tree-sitter/u);
+    assert.match(taskDockerfile, /python3-venv/u, 'retain agent Python installation support');
   }
 });
 

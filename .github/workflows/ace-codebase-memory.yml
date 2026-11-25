@@ -5,6 +5,8 @@ on:
     paths:
       - 'Dockerfile.ace'
       - 'test/k3s-ace-runtime.contracts.test.ts'
+      - 'benchmarks/harbor/**/environment/Dockerfile'
+      - 'benchmarks/harbor/**/task.toml'
       - 'scripts/build-harbor-ace-runtime.mjs'
       - 'scripts/ace-container-runtime-smoke.mjs'
       - 'src/domain/ace-runtime-bundle.ts'
@@ -181,10 +183,20 @@ jobs:
               -e "$scenario=true" \
               --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
           done
-      - name: Build byte-bound native Harbor runtime and verify isolated projection
+      - name: Build native-compatible Harbor task images and run byte-bound projection
         run: |
-          set -eu
-          image="ace-native-ci@$(docker image inspect --format '{{.Id}}' ace-native-ci)"
+          set -euo pipefail
           bundle="$(mktemp -d)/bundle"
-          node scripts/build-harbor-ace-runtime.mjs --source-root "$PWD" --output "$bundle" --task-image "$image"
-          node scripts/ace-container-runtime-smoke.mjs --image "$image" --bundle "$bundle"
+          images=()
+          task_args=()
+          for task in ace-retrieval-impact ace-cloud-policy-impact ace-shared-archive-impact; do
+            docker build -t "$task-ci" "benchmarks/harbor/$task/environment"
+            image="$task-ci@$(docker image inspect --format '{{.Id}}' "$task-ci")"
+            images+=("$image")
+            task_args+=(--task-image "$image")
+            docker run --rm --network none --entrypoint python3 "$task-ci" -c 'import importlib.util as u; assert all(u.find_spec(n) is None for n in ("fastembed", "onnxruntime", "sentence_transformers", "tree_sitter"))'
+          done
+          node scripts/build-harbor-ace-runtime.mjs --source-root "$PWD" --output "$bundle" "${task_args[@]}"
+          for image in "${images[@]}"; do
+            node scripts/ace-container-runtime-smoke.mjs --image "$image" --bundle "$bundle"
+          done
