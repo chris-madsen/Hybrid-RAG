@@ -33,6 +33,9 @@ export interface CodebaseMemoryGraph extends CodeGraphCandidatePort {
   readonly reindex: () => Effect.Effect<Result<void, DomainError>>;
   /** False after transport loss, during index mutation or after shutdown. */
   readonly isIndexed: () => boolean;
+  /** Cancel native I/O; the caller owns the surrounding transaction fence. */
+  readonly suspend: () => Promise<void>;
+  readonly resume: () => void;
   /** Upstream file declaration inventory; parser stays entirely in native CBM. */
   readonly outline: (filePath: RepoPath) => Effect.Effect<Result<readonly NativeOutlineRow[], DomainError>>;
   readonly trace: (qualifiedName: string) => Effect.Effect<Result<unknown, DomainError>>;
@@ -536,6 +539,11 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
   return {
     reindex, search, outline, trace, queryGraph, detectChanges,
     isIndexed: () => !closed && project !== undefined && reindexing === undefined,
+    suspend: async () => {
+      project = undefined;
+      await transport.suspend();
+    },
+    resume: transport.resume,
     close: async () => {
       closed = true;
       project = undefined;
