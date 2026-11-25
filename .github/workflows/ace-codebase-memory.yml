@@ -187,6 +187,19 @@ jobs:
               -e "$scenario=true" \
               --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
           done
+      - name: Native CBM real source corpus and resource observations
+        run: |
+          docker run --rm --init --network none \
+            -v "$PWD:/evidence:ro" \
+            -e GIT_OPTIONAL_LOCKS=0 \
+            -e GIT_CONFIG_COUNT=1 \
+            -e GIT_CONFIG_KEY_0=safe.directory \
+            -e GIT_CONFIG_VALUE_0=/evidence \
+            -e ACE_SOURCE_ROOT=/evidence \
+            -e ACE_RUNTIME_ROOT=/opt/ace \
+            -e ACE_REAL_PROJECTION_NATIVE_CBM=true \
+            -e ACE_REAL_PROJECTION_NATIVE_SCALE=true \
+            --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
       - name: Build native-compatible Harbor task images and run byte-bound projection
         run: |
           set -euo pipefail

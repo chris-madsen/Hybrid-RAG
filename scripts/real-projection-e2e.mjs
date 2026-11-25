@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { mkdtemp, mkdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import { basename, join } from 'node:path';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
@@ -91,12 +91,35 @@ const code = [
 ].join('\n') + '\n';
 const native = true;
 assert.notEqual(process.env.ACE_REAL_PROJECTION_NATIVE_CBM, 'false', 'historical vector projection is retired');
+const scale = process.env.ACE_REAL_PROJECTION_NATIVE_SCALE === 'true';
+// Frozen development corpus: actual source from the exact built ACE commit,
+// not generated filler or a release-grade external holdout.
+const scaleCases = [
+  { query: 'Find makeResponsesProjectionService in src/application/responses-projection-service.ts.', path: 'src/application/responses-projection-service.ts', symbol: 'makeResponsesProjectionService' },
+  { query: 'Find workspaceManifestEqual in src/domain/workspace-manifest.ts.', path: 'src/domain/workspace-manifest.ts', symbol: 'workspaceManifestEqual' },
+  { query: 'Find validateNativeResponsesStreamingRoutes in src/application/gateway-security-contract.ts.', path: 'src/application/gateway-security-contract.ts', symbol: 'validateNativeResponsesStreamingRoutes' },
+  { query: 'Where does ACE read and verify the current semantic snapshot? Find readVerifiedSemanticSnapshot.', path: 'src/application/semantic-snapshot.ts', symbol: 'readVerifiedSemanticSnapshot' },
+];
+const initialQuery = scale ? scaleCases[0].query : 'Find retryAfterTransientFailure and its definition.';
+let corpusTree;
+let corpusFiles;
+let corpusBytes;
 const restart = process.env.ACE_REAL_PROJECTION_NATIVE_RESTART === 'true';
 const deadline = process.env.ACE_REAL_PROJECTION_NATIVE_DEADLINE === 'true';
 const nonGit = process.env.ACE_REAL_PROJECTION_NATIVE_NON_GIT === 'true';
 const filler = Array.from({ length: 8 }, (_, i) => 'export const filler_' + i + ' = ' + i + ';').join('\n');
 const codePath = join(workspace, 'service.ts');
-await writeFile(codePath, code + filler + '\n');
+if (scale) {
+  assert.ok(native, 'scale uses native mode only');
+  const archive = execFileSync('git', ['-C', runtime.runnerRoot, 'archive', runtime.sourceCommit, 'src'], { maxBuffer: 128 * 1024 * 1024 });
+  execFileSync('tar', ['-xf', '-', '-C', workspace], { input: archive });
+  corpusTree = execFileSync('git', ['-C', runtime.runnerRoot, 'rev-parse', `${runtime.sourceCommit}:src`], { encoding: 'utf8' }).trim();
+  corpusFiles = execFileSync('git', ['-C', runtime.runnerRoot, 'ls-tree', '-r', '--name-only', `${runtime.sourceCommit}:src`], { encoding: 'utf8' }).trim().split('\n').length;
+  corpusBytes = archive.byteLength;
+  for (const item of scaleCases) assert.ok((await readFile(join(workspace, item.path), 'utf8')).includes(item.symbol));
+} else {
+  await writeFile(codePath, code + filler + '\n');
+}
 const git = (...args) => execFileSync('git', ['-C', workspace, ...args], { encoding: 'utf8' });
 if (native && !nonGit) {
   git('init', '--quiet');
@@ -114,7 +137,8 @@ assert.ok(!worktree || (native && !outage && !race && !mutations && !recovery), 
 assert.ok(!recovery || (native && !outage && !race && !mutations), 'native recovery requires a healthy standalone native fixture');
 assert.ok(!mutations || (native && !outage && !race), 'native mutation test requires a healthy native-only fixture');
 assert.ok(!(restart || deadline || nonGit) || (native && !outage && !race && !mutations && !recovery && !worktree && !cancellation), 'new native scenarios require standalone healthy fixture');
-assert.ok([restart, deadline, nonGit].filter(Boolean).length <= 1);
+assert.ok([restart, deadline, nonGit, scale].filter(Boolean).length <= 1);
+assert.ok(!scale || (native && !outage && !race && !mutations && !recovery && !worktree && !cancellation));
 assert.ok(!(native && race), 'historical embedding delay is not a native CBM race oracle');
 const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
 assert.ok(Number.isSafeInteger(maxWait) && maxWait >= 10000 && maxWait <= 600000);
@@ -140,7 +164,6 @@ const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.e
       ...(outage ? { ACE_CBM_COMMAND: join(directory, 'must-not-start-cbm') } : {}),
     } : {}),
     ACE_ENABLE_GRAPHITI: 'false',
-    // A dead legacy endpoint and missing worker must never be invoked.
     ACE_QDRANT_URL: 'http://127.0.0.1:6339',
     ACE_EMBEDDING_WORKER: join(directory, 'must-not-start-embedding'),
     ACE_CONTEXT_RPC_HOST: '127.0.0.1',
@@ -154,6 +177,7 @@ const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.e
   },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
+const startupAt = performance.now();
 let child = spawnRuntime();
 let startupLog = '';
 const endpoint = `http://127.0.0.1:${gatewayPort}/internal/ace-context/v3`;
@@ -179,6 +203,7 @@ const waitForStartup = async () => {
 };
 try {
   await waitForStartup();
+  const startupReadyMs = performance.now() - startupAt;
   if (native && !outage) assert.match(startupLog, /native CBM code retrieval initialized/u);
   if (native && outage) assert.match(startupLog, /native CBM index failed/u);
   let nativeProcessNames = [];
@@ -199,7 +224,7 @@ try {
 
   const body = {
     model: 'test-model', store: false,
-    input: 'Find retryAfterTransientFailure and its definition.',
+    input: initialQuery,
     extra_field: { preserve: true },
   };
   const bodyBytes = Buffer.from(JSON.stringify(body), 'utf8');
@@ -210,7 +235,7 @@ try {
     attemptGroupId: 'turn-1', agentSessionId: sessionId, workspaceId,
     dataClass: 'private', provider: 'mock', model: 'test-model',
     bodyBase64, bodySha256: digest(bodyBytes),
-    query: 'Find retryAfterTransientFailure and its definition.',
+    query: initialQuery,
     projectionMode: 'bifrost_hook', deadlineEpochMs: Date.now() + maxWait,
     attestation: {
       hostBuildDigest: digest('host'), sessionId, activeEngineId: 'bifrost-visible-request-only',
@@ -242,7 +267,7 @@ try {
     'provider trace must prove the native CBM operation that determined the projection result');
   }
   assert.equal(response.status, 200, JSON.stringify(decision));
-  if (decision.kind === 'BLOCK') {
+  if (decision.kind === 'BLOCK' && !scale) {
     assert.ok(outage || race, `normal ready real-provider fixture must not report BLOCK: ${decision.reasonCode}; ${startupLog.slice(-3000)}`);
     assert.equal(typeof decision.reasonCode, 'string');
     assert.ok(decision.reasonCode.length > 0, 'typed denial must specify a reason');
@@ -254,6 +279,7 @@ try {
     }
     console.log(JSON.stringify({ status: 'projection-honest-block', outage, race, reason: decision.reasonCode }));
   } else {
+    if (!scale || decision.kind === 'PREPARED') {
     assert.equal(decision.kind, 'PREPARED', JSON.stringify(decision));
     assert.equal(outage, false, 'outage must fail closed rather than returning PREPARED');
     assert.equal(decision.baseBodySha256, payload.bodySha256);
@@ -262,18 +288,19 @@ try {
     assert.equal(projected.input[1].content, body.input);
     const contextMessage = projected.input.find((item) => item.role === 'developer' && String(item.content).includes('[ACE verified context]'));
     assert.ok(contextMessage, 'real gateway projection must visibly add verified ACE context');
-    assert.match(contextMessage.content, /retryAfterTransientFailure/u);
+    if (!scale) assert.match(contextMessage.content, /retryAfterTransientFailure/u);
     if (race) assert.match(contextMessage.content, /-changed/u, 'stale source must not masquerade as current');
-    else assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
+    else if (!scale) assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http',
       retrieval: 'native_cbm',
       ...(native ? { nativeProcessNames } : {}),
-      source: nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture', race,
+      source: scale ? 'frozen ACE source subtree' : nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture', race,
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
-    if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit) {
+    }
+    if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit || scale) {
       const projectAgain = async (query = payload.query, signal = timeout(maxWait), deadlineMs = maxWait) => {
         const nextBytes = Buffer.from(JSON.stringify({ ...body, input: query }), 'utf8');
         const next = {
@@ -290,6 +317,63 @@ try {
         assert.equal(outcome.baseBodySha256, next.bodySha256);
         return outcome;
       };
+      if (scale) {
+        const delivered = (result, item) => {
+          if (result.kind !== 'PREPARED') return { hit: false, citedPaths: [], reason: result.reasonCode };
+          const projected = JSON.parse(Buffer.from(result.bodyBase64, 'base64').toString('utf8'));
+          const context = projected.input.find((entry) => entry.role === 'developer' && String(entry.content).includes('[ACE verified context]'));
+          const sections = String(context?.content ?? '').split(/(?=^\[code\] )/mu);
+          const citedPaths = sections.map((section) => /^\[code\] ([^:\n]+):/u.exec(section)?.[1]).filter(Boolean);
+          return { hit: sections.some((section) => section.startsWith('[code] ' + item.path + ':') && section.includes(item.symbol)), citedPaths };
+        };
+        const initial = delivered(decision, scaleCases[0]);
+        const measurements = [];
+        // Twenty warm observations; retain misses and BLOCK results rather
+        // than dropping them. This is a fixed development corpus, not SLO approval.
+        for (let iteration = 0; iteration < 5; iteration += 1) {
+          for (const item of scaleCases) {
+            const started = performance.now();
+            const result = await projectAgain(item.query);
+            measurements.push({ case: item.symbol, durationMs: Math.round(performance.now() - started), kind: result.kind, ...delivered(result, item) });
+          }
+        }
+        const beforeRefresh = performance.now();
+        const refreshPath = join(workspace, 'src/domain/workspace-manifest.ts');
+        const original = await readFile(refreshPath, 'utf8');
+        const symbol = 'nativeScaleRefreshMarker';
+        await writeFile(refreshPath, original + '\nexport const nativeScaleRefreshMarker = 913;\n');
+        const refreshed = await projectAgain('Find nativeScaleRefreshMarker in src/domain/workspace-manifest.ts.');
+        const refreshMs = Math.round(performance.now() - beforeRefresh);
+        // Inspect only the verified developer evidence, never the original
+        // query (which already contains the symbol and would fake a hit).
+        const refreshedInput = refreshed.kind === 'PREPARED'
+          ? JSON.parse(Buffer.from(refreshed.bodyBase64, 'base64').toString('utf8')).input : [];
+        const refreshedEvidence = refreshedInput.find((entry) => entry.role === 'developer' && String(entry.content).includes('[ACE verified context]'));
+        const refreshHit = Boolean(refreshedEvidence?.content.includes('src/domain/workspace-manifest.ts:')
+          && refreshedEvidence.content.includes('export const ' + symbol + ' = 913;'));
+        const events = await readProviderTrace(providerTracePath);
+        const indexEvents = events.filter((event) => event.provider === 'codebase_memory' && event.operation === 'index_repository' && event.status === 'success');
+        assert.ok(indexEvents.length >= 2, 'cold and refresh must actually index');
+        const durations = measurements.map((sample) => sample.durationMs).sort((a, b) => a - b);
+        const percentile = (p) => durations[Math.ceil(p * durations.length) - 1];
+        const readCounter = async (name) => { try { return (await readFile('/sys/fs/cgroup/' + name, 'utf8')).trim(); } catch { return null; } };
+        const peak = await readCounter('memory.peak');
+        const cpu = await readCounter('cpu.stat');
+        const disk = Number(execFileSync('du', ['-sb', nativeHome], { encoding: 'utf8' }).trim().split(/\s+/u)[0]);
+        const report = {
+          status: 'native-scale-observed', scope: 'development-source-corpus-not-release-holdout',
+          sourceCommit: runtime.sourceCommit, corpusTree, corpusFiles, corpusArchiveBytes: corpusBytes,
+          node: process.version, provider: 'codebase-memory-mcp/0.12.1', availableParallelism: availableParallelism(), hostMemoryBytes: totalmem(),
+          startupReadyMs: Math.round(startupReadyMs), coldIndexMs: indexEvents[0].durationMs, initial,
+          warmSamples: measurements, warmP50Ms: percentile(0.5), warmP95Ms: percentile(0.95), refreshMs, refreshHit,
+          cgroupPeakBytes: peak !== null && /^\d+$/u.test(peak) ? Number(peak) : null,
+          cgroupCpuStat: cpu, nativeHomeDiskBytes: disk, providerProcessNames: assertNoExternalRetrievalProcesses(child.pid),
+          failures: measurements.filter((sample) => !sample.hit).length + (refreshHit ? 0 : 1) + (initial.hit ? 0 : 1),
+          providerWireCertified: false, resourceBudgetApproved: false,
+        };
+        console.log(JSON.stringify(report));
+        assert.equal(report.failures, 0, 'development corpus misses are not silently discarded');
+      }
       if (recovery) {
         // Kill the actual stdio child, not the ACE runtime or a fake provider.
         // Observe its disappearance before requesting unchanged source again.
