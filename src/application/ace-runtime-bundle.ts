@@ -72,8 +72,11 @@ const bundleEntries = async (root: string): Promise<readonly BundleEntry[]> => {
   }
 };
 
+const digestEntries = (entries: readonly BundleEntry[]): string =>
+  sha256(Buffer.from(JSON.stringify(entries, null, 2) + '\n', 'utf8'));
+
 export const computeAceRuntimeBundleDigest = async (runtimeRoot: string): Promise<string> =>
-  sha256(Buffer.from(JSON.stringify(await bundleEntries(resolve(runtimeRoot)), null, 2) + '\n', 'utf8'));
+  digestEntries(await bundleEntries(resolve(runtimeRoot)));
 
 export interface AceBundleVerification {
   readonly status: 'ready' | 'not_ready';
@@ -94,7 +97,10 @@ export const verifyAceRuntimeBundle = async (
     if (failures.length > 0) return { status: 'not_ready', reason: `ACE runtime manifest invalid: ${failures.join(',')}` };
     const binary = join(root, 'runtime/native/codebase-memory-mcp');
     await access(binary, constants.X_OK);
-    if (sha256(await readFile(binary)) !== manifest.nativeBinarySha256) {
+    // Reuse the same descriptor-bound inventory for binary and bundle proof.
+    // Never follow an untrusted executable symlink just to compute its digest.
+    const entries = await bundleEntries(root);
+    if (entries.find((entry) => entry.path === 'runtime/native/codebase-memory-mcp')?.sha256 !== manifest.nativeBinarySha256) {
       return { status: 'not_ready', reason: 'ACE native binary digest differs from manifest' };
     }
     if (existsSync(join(root, 'runtime/python')) || existsSync(join(root, 'runtime/model-cache'))) {
@@ -104,7 +110,7 @@ export const verifyAceRuntimeBundle = async (
     if (expectedDigest !== undefined && expectedDigest !== declared) {
       return { status: 'not_ready', reason: 'ACE runtime bundle digest differs from expected digest' };
     }
-    const actual = await computeAceRuntimeBundleDigest(root);
+    const actual = digestEntries(entries);
     if (actual !== declared) {
       return { status: 'not_ready', reason: 'ACE runtime bundle bytes do not match manifest bundleSha256' };
     }

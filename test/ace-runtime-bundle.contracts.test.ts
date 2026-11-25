@@ -77,6 +77,18 @@ test('verifies bundle bytes rather than accepting an unverified manifest digest'
   assert.equal(wrongBinary.status, 'not_ready');
   assert.match(wrongBinary.reason, /native binary digest/u);
   await writeFile(binary, 'original');
+  if (process.platform !== 'win32') {
+    const target = join(root, 'outside-native');
+    await writeFile(target, 'original');
+    await chmod(target, 0o755);
+    await rm(binary);
+    await symlink(target, binary);
+    assert.equal((await verifyAceRuntimeBundle(root, bundleSha256)).status, 'not_ready');
+    await rm(binary);
+    await rm(target);
+    await writeFile(binary, 'original');
+    await chmod(binary, 0o755);
+  }
   await mkdir(join(root, 'runtime/model-cache'), { recursive: true });
   assert.equal((await verifyAceRuntimeBundle(root, bundleSha256)).status, 'not_ready');
   await rm(join(root, 'runtime/model-cache'), { recursive: true });
