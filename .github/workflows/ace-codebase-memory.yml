@@ -5,6 +5,11 @@ on:
     paths:
       - 'Dockerfile.ace'
       - 'test/k3s-ace-runtime.contracts.test.ts'
+      - 'scripts/build-harbor-ace-runtime.mjs'
+      - 'scripts/ace-container-runtime-smoke.mjs'
+      - 'src/domain/ace-runtime-bundle.ts'
+      - 'src/application/ace-runtime-bundle.ts'
+      - 'test/ace-runtime-bundle.contracts.test.ts'
       - 'package.json'
       - 'package-lock.json'
       - 'src/adapters/codebase-memory-graph.ts'
@@ -176,3 +181,10 @@ jobs:
               -e "$scenario=true" \
               --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
           done
+      - name: Build byte-bound native Harbor runtime and verify isolated projection
+        run: |
+          set -eu
+          image="ace-native-ci@$(docker image inspect --format '{{.Id}}' ace-native-ci)"
+          bundle="$(mktemp -d)/bundle"
+          node scripts/build-harbor-ace-runtime.mjs --source-root "$PWD" --output "$bundle" --task-image "$image"
+          node scripts/ace-container-runtime-smoke.mjs --image "$image" --bundle "$bundle"

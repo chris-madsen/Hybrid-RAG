@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -11,29 +12,19 @@ import {
 } from '../src/domain/ace-runtime-bundle.js';
 
 const validManifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   runtimeId: 'ace-harbor-runtime-v1',
+  retrieval: 'native_cbm',
   sourceCommit: 'a'.repeat(40),
   bundleSha256: 'b'.repeat(64),
   taskImages: [{ reference: 'example/task:1', digest: `sha256:${'c'.repeat(64)}` }],
-  pythonVersions: ['3.11'],
-  pillow: '13.0.0',
-  fastembed: '0.9.1',
-  onnxruntime: '1.23.2',
-  numpy: '2.2.6',
-  huggingfaceHub: '1.33.0',
-  embeddingModelRevision: 'd'.repeat(40),
-  embeddingArtifactRevision: 'e'.repeat(40),
-  embeddingArtifactDigest: 'f'.repeat(64),
+  codebaseMemoryVersion: '0.12.1',
+  nativeBinarySha256: createHash('sha256').update('original').digest('hex'),
 };
 
-test('validates a pinned runtime bundle manifest', () => {
+test('validates a pinned native runtime bundle manifest', () => {
   assert.deepEqual(validateAceRuntimeBundleManifest(validManifest), []);
-});
-
-test('rejects Python 3.10 runtimes after the reviewed Pillow baseline change', () => {
-  const failures = validateAceRuntimeBundleManifest({ ...validManifest, pythonVersions: ['3.10'] });
-  assert.ok(failures.includes('python_versions_invalid'));
+  assert.ok(validateAceRuntimeBundleManifest({ ...validManifest, schemaVersion: 1 }).includes('manifest_schema_invalid'));
 });
 
 test('rejects non-Git source commit identities in bundle manifests', () => {
@@ -45,14 +36,14 @@ test('rejects a bundle manifest with missing image or provider pins', () => {
   const failures = validateAceRuntimeBundleManifest({
     ...validManifest,
     taskImages: [],
-    pillow: 'latest',
-    fastembed: 'latest',
-    embeddingArtifactDigest: 'unverified',
+    retrieval: 'historical_vector',
+    codebaseMemoryVersion: 'latest',
+    nativeBinarySha256: 'unverified',
   });
   assert.ok(failures.includes('task_images_missing'));
-  assert.ok(failures.includes('pillow_pin_invalid'));
-  assert.ok(failures.includes('fastembed_pin_invalid'));
-  assert.ok(failures.includes('embeddingArtifactDigest_invalid'));
+  assert.ok(failures.includes('retrieval_mode_invalid'));
+  assert.ok(failures.includes('codebase_memory_pin_invalid'));
+  assert.ok(failures.includes('native_binary_digest_invalid'));
 });
 
 test('reports missing runtime bundle paths instead of treating an incomplete mount as ready', async () => {
@@ -69,20 +60,11 @@ test('verifies bundle bytes rather than accepting an unverified manifest digest'
   const root = await mkdtemp(join(tmpdir(), 'ace-bundle-digest-'));
   for (const required of requiredAceRuntimeBundlePaths) {
     const target = join(root, required);
-    if (required === 'runtime/model-cache') {
-      await mkdir(target, { recursive: true });
-    } else {
-      await mkdir(join(target, '..'), { recursive: true });
-      await writeFile(target, 'original');
-    }
+    await mkdir(join(target, '..'), { recursive: true });
+    await writeFile(target, 'original');
   }
-  for (const version of validManifest.pythonVersions) {
-    for (const packageName of ['PIL', 'fastembed', 'onnxruntime']) {
-      const target = join(root, 'runtime/python', version, 'site-packages', packageName, '__init__.py');
-      await mkdir(join(target, '..'), { recursive: true });
-      await writeFile(target, 'original');
-    }
-  }
+  const binary = join(root, 'runtime/native/codebase-memory-mcp');
+  await chmod(binary, 0o755);
   const bundleSha256 = await computeAceRuntimeBundleDigest(root);
   await writeFile(join(root, 'runtime-manifest.json'), JSON.stringify({ ...validManifest, bundleSha256 }));
   await writeFile(join(root, 'dist/runtime-provenance.json'), JSON.stringify({
@@ -90,18 +72,14 @@ test('verifies bundle bytes rather than accepting an unverified manifest digest'
     sourceCommit: validManifest.sourceCommit,
   }));
   assert.equal((await verifyAceRuntimeBundle(root, bundleSha256)).status, 'ready');
-  const missingPythonFile = join(root, 'runtime/python/3.11/site-packages/onnxruntime/__init__.py');
-  await rm(missingPythonFile);
-  const missingPython = await verifyAceRuntimeBundle(root, bundleSha256);
-  assert.equal(missingPython.status, 'not_ready');
-  assert.match(missingPython.reason, /missing Python packages/u);
-  await writeFile(missingPythonFile, 'original');
-  const missingPillowFile = join(root, 'runtime/python/3.11/site-packages/PIL/__init__.py');
-  await rm(missingPillowFile);
-  const missingPillow = await verifyAceRuntimeBundle(root, bundleSha256);
-  assert.equal(missingPillow.status, 'not_ready');
-  assert.match(missingPillow.reason, /missing Python packages/u);
-  await writeFile(missingPillowFile, 'original');
+  await writeFile(binary, 'tampered native executable');
+  const wrongBinary = await verifyAceRuntimeBundle(root, bundleSha256);
+  assert.equal(wrongBinary.status, 'not_ready');
+  assert.match(wrongBinary.reason, /native binary digest/u);
+  await writeFile(binary, 'original');
+  await mkdir(join(root, 'runtime/model-cache'), { recursive: true });
+  assert.equal((await verifyAceRuntimeBundle(root, bundleSha256)).status, 'not_ready');
+  await rm(join(root, 'runtime/model-cache'), { recursive: true });
   await writeFile(join(root, 'dist/bin/ace-runtime.js'), 'modified');
   const tampered = await verifyAceRuntimeBundle(root, bundleSha256);
   assert.equal(tampered.status, 'not_ready');
@@ -179,8 +157,8 @@ test('pinned Harbor builder and Gateway container probe remain explicit', async 
   const probe = await readFile('scripts/ace-container-runtime-smoke.mjs', 'utf8');
   assert.match(builder, /const executionImage = \(image\)/u);
   assert.match(builder, /localId === image\.digest \? localId :/u);
-  assert.match(builder, /const prefetchImage = executionImage\(imageRefs\[0\]\)/u);
-  assert.match(probe, /context-rpc-http\.js/u);
+  assert.match(builder, /computeAceRuntimeBundleDigest/u);
+  assert.match(probe, /real-projection-e2e\.mjs/u);
   assert.match(probe, /gatewayHttpLiveness: true/u);
   assert.match(probe, /providerWireCertified: false/u);
 });
@@ -193,14 +171,11 @@ test('Harbor runtime builder bootstraps missing source dependencies before TypeS
   assert.match(builder, /chmod -R a\+rwX \/ace/u);
 });
 
-test('Harbor runtime builder validates exact embedding pins and native Python imports', async () => {
+test('Harbor runtime builder installs pinned native binary and rejects retired runtime', async () => {
   const builder = await readFile('scripts/build-harbor-ace-runtime.mjs', 'utf8');
-  assert.match(builder, /must be exactly \$\{length\} lowercase hexadecimal characters/u);
-  assert.match(builder, /pinnedHex\('ACE_EMBEDDING_ARTIFACT_DIGEST'/u);
-  assert.match(builder, /const FASTEMBED = '0\.9\.1'/u);
-  assert.match(builder, /const PILLOW = '13\.0\.0'/u);
-  assert.match(builder, /pythonVersion !== '3\.11'/u);
-  assert.match(builder, /pillow==\$\{PILLOW\}/u);
-  assert.match(builder, /from PIL import Image; import PIL, fastembed, onnxruntime/u);
+  assert.match(builder, /const CBM_VERSION = '0\.12\.1'/u);
+  assert.match(builder, /codebase-memory-mcp@/u);
+  assert.match(builder, /--bin-links=false/u);
+  assert.match(builder, /--network', 'none'/u);
+  assert.doesNotMatch(builder, /fastembed|onnxruntime|runtime\/model-cache/u);
 });
-
