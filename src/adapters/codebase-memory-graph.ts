@@ -413,6 +413,29 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     }
     const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()), input.requestId);
     if (native._tag === 'Err') return native;
+    // A natural-language semantic vector alone can miss explicitly named
+    // declarations. Ask the upstream graph for exact names, not an ACE
+    // lexical index. Only bounded identifier-shaped literals enter Cypher.
+    const identifiers = [...new Set(input.query.match(/[A-Za-z_][A-Za-z0-9_]{2,}/gu) ?? [])]
+      .filter((name) => /[a-z][A-Z]|_|^[A-Z][A-Z0-9]+$/u.test(name)).slice(0, 8);
+    const explicit: NativeGraphRow[] = [];
+    if (identifiers.length > 0) {
+      const predicate = identifiers.map((name) => "n.name = '" + name + "'").join(' OR ');
+      const found = await Effect.runPromise(queryGraph('MATCH (n) WHERE ' + predicate
+        + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 50'));
+      if (found._tag === 'Ok') {
+        for (const target of nativeQueryGraphTargets(root, found.value) ?? []) {
+          if (target.qn !== undefined && candidatesByFile.has(target.file)) {
+            explicit.push({ file: target.file, qn: target.qn, score: 1 });
+          }
+        }
+      }
+    }
+    // Explicit file references disambiguate only graph-returned candidates.
+    // Never treat a path mentioned in the prompt as authorized source proof.
+    const exact = [...explicit.filter((hit) => input.query.includes(hit.file)),
+      ...explicit.filter((hit) => !input.query.includes(hit.file))];
+    const nativeHits = [...exact, ...native.value];
     const outlineCache = new Map<RepoPath, readonly NativeOutlineRow[] | undefined>();
     const sourceCandidateFor = async (target: NativeGraphTarget): Promise<CodeCandidate | undefined> => {
       const candidates = candidatesByFile.get(target.file) ?? [];
@@ -447,7 +470,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     };
     const direct: RankedCandidate[] = [];
     const seen = new Set<string>();
-    for (const hit of native.value) {
+    for (const hit of nativeHits) {
       const candidate = await sourceCandidateFor({ file: hit.file, qn: hit.qn });
       if (candidate === undefined || seen.has(candidate.candidateId)) continue;
       seen.add(candidate.candidateId);
@@ -457,7 +480,8 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
 
     // All call graph traversal is delegated to CBM. ACE only decodes explicit
     // qualified names and requests their source locations from native Cypher.
-    const seeds = native.value.filter((hit) => candidatesByFile.has(hit.file)).slice(0, 3);
+    const seeds = [...new Map(nativeHits.filter((hit) => candidatesByFile.has(hit.file))
+      .map((hit) => [hit.qn, hit])).values()].slice(0, 3);
     const relatedNames: string[] = [];
     for (const seed of seeds) {
       const traced = await Effect.runPromise(trace(seed.qn));

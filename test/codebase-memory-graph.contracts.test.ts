@@ -204,6 +204,16 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     ));
     assert.equal(built._tag, 'Ok', JSON.stringify(built._tag === 'Err' ? built.error : 'ok'));
     if (built._tag === 'Ok') {
+      // Full candidate inventory in the selected subset: the exact-name
+      // path must find the declaration even when unrelated candidates exist.
+      const actual = makeCodebaseMemoryGraph({ rootPath: root, candidates: () => built.value.index.candidates, timeoutMs: 165_000 });
+      try {
+        assert.equal((await Effect.runPromise(actual.reindex()))._tag, 'Ok');
+        const named = await Effect.runPromise(actual.search({ query: 'Find makeQdrantContextProvider in src/adapters/qdrant-context-provider.ts.', limit: 6 }));
+        assert.equal(named._tag, 'Ok');
+        if (named._tag === 'Ok') assert.ok(named.value.some((item) => item.candidate.repoPath === path
+          && item.candidate.symbolName === 'makeQdrantContextProvider'));
+      } finally { await actual.close(); }
       assert.ok(built.value.index.candidates.length > 30,
         'native CBM must supply useful real ACE code candidates');
       assert.ok(built.value.index.candidates.some((item) =>
