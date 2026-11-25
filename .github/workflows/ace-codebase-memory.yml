@@ -18,7 +18,7 @@ on:
       - 'src/adapters/codebase-memory-stdio.ts'
       - 'test/codebase-memory-stdio.contracts.test.ts'
       - 'test/fixtures/cbm-stdio-fixture.mjs'
-      - 'src/adapters/qdrant-context-provider.ts'
+      - 'src/adapters/native-cbm-context-provider.ts'
       - 'src/application/ports.ts'
       - 'src/application/workspace-sync.ts'
       - 'src/application/responses-projection-service.ts'

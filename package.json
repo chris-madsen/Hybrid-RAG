@@ -102,7 +102,6 @@
     "test:ace-plan-refinement": "node --test test/ace-plan-refinement.test.mjs"
   },
   "dependencies": {
-    "@qdrant/js-client-rest": "1.20.0",
     "effect": "3.22.5",
     "typescript": "5.9.3",
     "typescript-language-server": "6.1.0",
@@ -122,9 +121,6 @@
     "tsx": "4.23.15"
   },
   "overrides": {
-    "@qdrant/js-client-rest": {
-      "undici": "7.30.2"
-    },
     "@typescript-eslint/typescript-estree": {
       "minimatch": "11.0.1"
     }

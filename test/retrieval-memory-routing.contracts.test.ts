@@ -24,15 +24,12 @@ import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
 import { makeLocalContextProvider } from '../src/adapters/local-context-provider.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
 import { cbmOutlineToAnalysis } from '../src/adapters/codebase-memory-structural.js';
-import type { QdrantClient } from '@qdrant/js-client-rest';
 import {
   makeGraphitiProjectionPort,
-  makeQdrantCodeCandidatePort,
   makeVertexDocumentationPort,
 } from '../src/adapters/http-provider-boundaries.js';
 import { makeHarborRunner, makeNodeCommandPort, type CommandPort } from '../src/adapters/harbor-runner.js';
 import { selectJevRouteOverHttp } from '../src/adapters/jev-route-provider.js';
-import { makeQdrantSdkTestPort } from './helpers/qdrant-sdk-test-double.js';
 import {
   beginProjection,
   decisionStateAt,
@@ -326,32 +323,6 @@ test('MVC-04 projection replay is idempotent by episode and extractor version', 
   assert.equal(replay.key, first.key);
   assert.equal(finishProjection(first, 'projected').attempts, 1);
   assert.equal(unsupportedMemoryImporter('Codex export contract is not verified')._tag, 'Err');
-});
-
-test('EXT-01 Qdrant boundary maps valid points but never claims freshness', async () => {
-  const port = makeQdrantCodeCandidatePort({
-    collection: 'code',
-    sdk: makeQdrantSdkTestPort({
-      query: async () => ({
-        points: [{
-          score: 0.91,
-          payload: {
-            candidate_id: 'qdrant-candidate',
-            workspace_id: workspaceId,
-            repo_path: 'src/save.ts',
-            source_digest: 'a'.repeat(64),
-            text: 'export function save() {}',
-            start_line: 1,
-            end_line: 1,
-            generation: 2,
-          },
-        }],
-      }),
-    } as unknown as QdrantClient),
-  });
-  const result = mustOk(await Effect.runPromise(port.search({ workspaceId, vector: [0.1, 0.2], limit: 3 })));
-  assert.equal(result[0]?.freshness, 'unknown');
-  assert.equal(mustErr(await Effect.runPromise(port.search({ workspaceId, vector: [], limit: 0 }))).code, 'INVALID_INPUT');
 });
 
 test('EXT-02 Vertex and Graphiti boundaries deny before HTTP without policy/token approval', async () => {
