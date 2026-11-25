@@ -228,6 +228,7 @@ export const validateNativeProjectionRunEvidence = async (
       observed.set(item.caseId, item);
     }
   }
-  assert.ok(observed.size === run.observations.length && run.observations.every((item) => same(item, observed.get(item.caseId))),
+  assert.ok(new Set(run.observations.map((item) => item.caseId)).size === run.observations.length
+    && observed.size === run.observations.length && run.observations.every((item) => same(item, observed.get(item.caseId))),
     'caller supplied ranks or telemetry do not match actual projection evidence');
 };
