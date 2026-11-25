@@ -1,5 +1,6 @@
 import { domainError, type DomainError } from './errors.js';
 import type { DataClass, Destination } from './policy.js';
+import { nativeCodeRetrieval } from './retrieval.js';
 import { err, ok, type Result } from './result.js';
 
 export type RuntimeReleaseScope = 'code-only' | 'full-unified';
@@ -11,7 +12,7 @@ export interface RuntimeCloudPermission {
 }
 
 export interface RuntimeConfigEvidenceInput {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly scope: RuntimeReleaseScope;
   readonly deployment: RuntimeDeployment;
   readonly sourceCommit: string;
@@ -20,10 +21,8 @@ export interface RuntimeConfigEvidenceInput {
   readonly workspaceIdHash: string;
   readonly codeRetrieval: {
     readonly enabled: boolean;
-    readonly qdrantEnabled: boolean;
-    readonly pinnedEmbeddingRequired: boolean;
     readonly localFallbackAllowed: boolean;
-    readonly embeddingProvider: string;
+    readonly codeProviderIdentity: string;
     readonly semanticProvider: string;
   };
   readonly documentation: {
@@ -46,7 +45,7 @@ export interface RuntimeConfigEvidenceVerdict {
   readonly scope: RuntimeReleaseScope;
   readonly deployment: RuntimeDeployment;
   readonly sourceCommit: string;
-  readonly embeddingProvider: string;
+  readonly codeProviderIdentity: string;
   readonly semanticProvider: string;
   readonly failures: readonly string[];
 }
@@ -99,13 +98,13 @@ export const evaluateRuntimeConfigEvidence = (
   input: RuntimeConfigEvidenceInput,
   currentCommit: string,
 ): Result<RuntimeConfigEvidenceVerdict, DomainError> => {
-  if (input.schemaVersion !== 1
+  if (input.schemaVersion !== 2
     || !commitSha(input.sourceCommit)
     || !commitSha(currentCommit)
     || Number.isNaN(Date.parse(input.generatedAt))
     || !safeText(input.captureReference)
     || !sha256(input.workspaceIdHash)
-    || !safeText(input.codeRetrieval.embeddingProvider)
+    || !safeText(input.codeRetrieval.codeProviderIdentity)
     || !safeText(input.codeRetrieval.semanticProvider)) {
     return err(domainError(
       'INVALID_BENCHMARK',
@@ -115,8 +114,6 @@ export const evaluateRuntimeConfigEvidence = (
   }
   const booleanFlags = [
     input.codeRetrieval.enabled,
-    input.codeRetrieval.qdrantEnabled,
-    input.codeRetrieval.pinnedEmbeddingRequired,
     input.codeRetrieval.localFallbackAllowed,
     input.documentation.enabled,
     input.documentation.cloudDocsOptIn,
@@ -145,14 +142,14 @@ export const evaluateRuntimeConfigEvidence = (
   const failures: string[] = [];
   if (input.sourceCommit !== currentCommit) failures.push('source_commit_mismatch');
   if (!input.codeRetrieval.enabled) failures.push('code_retrieval_disabled');
-  if (!input.codeRetrieval.qdrantEnabled) failures.push('qdrant_disabled');
-  if (!input.codeRetrieval.pinnedEmbeddingRequired) failures.push('embedding_not_pinned');
+  if (input.codeRetrieval.codeProviderIdentity !== nativeCodeRetrieval.providerIdentities.code_graph) failures.push('native_provider_identity_mismatch');
+  if (input.codeRetrieval.semanticProvider !== 'not_configured') failures.push('independent_lsp_not_configured');
   if (input.codeRetrieval.localFallbackAllowed) failures.push('local_fallback_enabled');
 
-  if (input.deployment === 'k3s') {
-    if (!input.worktree.hostHelperEnabled) failures.push('k3s_host_helper_disabled');
-    if (!input.worktree.mtlsRequired) failures.push('k3s_host_helper_mtls_not_required');
-  }
+  // Only ACE-local host retrieval is currently implemented. Do not certify
+  // a remote host helper or a full deployment based on legacy evidence.
+  if (input.worktree.hostHelperEnabled) failures.push('remote_worktree_not_supported');
+  if (input.deployment === 'k3s') failures.push('native_k3s_topology_not_accepted');
 
   if (input.scope === 'code-only') {
     if (input.documentation.enabled) failures.push('documentation_enabled_outside_scope');
@@ -161,6 +158,7 @@ export const evaluateRuntimeConfigEvidence = (
     if (!input.memory.localOnly) failures.push('memory_local_only_not_enforced');
     if (permissions.value.size !== 0) failures.push('cloud_permissions_present_outside_scope');
   } else {
+    failures.push('full_unified_native_runtime_not_implemented');
     if (input.deployment !== 'k3s') failures.push('full_unified_requires_k3s_profile');
     if (!input.documentation.enabled) failures.push('documentation_disabled');
     if (!input.documentation.cloudDocsOptIn) failures.push('cloud_docs_opt_in_missing');
@@ -189,7 +187,7 @@ export const evaluateRuntimeConfigEvidence = (
     scope: input.scope,
     deployment: input.deployment,
     sourceCommit: input.sourceCommit,
-    embeddingProvider: input.codeRetrieval.embeddingProvider,
+    codeProviderIdentity: input.codeRetrieval.codeProviderIdentity,
     semanticProvider: input.codeRetrieval.semanticProvider,
     failures: [...new Set(failures)],
   });
@@ -213,7 +211,7 @@ export const validateRuntimeConfigEvidenceDocument = (
   const memory = record(root?.memory);
   const worktree = record(root?.worktree);
   if (root === undefined
-    || root.schemaVersion !== 1
+    || root.schemaVersion !== 2
     || root.evidence !== 'runtime-config-accepted'
     || root.scope !== expectedScope
     || root.sourceCommit !== currentCommit
@@ -249,7 +247,7 @@ export const validateRuntimeConfigEvidenceDocument = (
   }
 
   const rechecked = evaluateRuntimeConfigEvidence({
-    schemaVersion: 1,
+    schemaVersion: 2,
     scope: expectedScope,
     deployment: root.deployment as RuntimeDeployment,
     sourceCommit: currentCommit,
@@ -264,7 +262,7 @@ export const validateRuntimeConfigEvidenceDocument = (
   }, currentCommit);
   if (rechecked._tag === 'Err'
     || rechecked.value.evidence !== 'runtime-config-accepted'
-    || rechecked.value.embeddingProvider !== verdict.embeddingProvider
+    || rechecked.value.codeProviderIdentity !== verdict.codeProviderIdentity
     || rechecked.value.semanticProvider !== verdict.semanticProvider) {
     return rechecked._tag === 'Err'
       ? rechecked

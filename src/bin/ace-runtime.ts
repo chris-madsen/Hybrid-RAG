@@ -21,7 +21,7 @@ import { makeVertexRagRetrievalPort } from '../adapters/vertex-rag.js';
 import { makeFileWorkspaceStore } from '../adapters/file-workspace-store.js';
 import { defaultLocalPolicy, type DataClass } from '../domain/policy.js';
 import { workingContextFromSnapshot, type WorkspaceId, type WorkspaceSnapshot } from '../domain/workspace.js';
-import type { CodeCandidate } from '../domain/retrieval.js';
+import { nativeCodeRetrieval, type CodeCandidate } from '../domain/retrieval.js';
 import type { RetrievalBenchmarkTraceSink } from '../domain/retrieval-benchmark.js';
 import {
   workspaceManifestFromSnapshot,
@@ -229,7 +229,7 @@ const main = async (): Promise<void> => {
   // Provider provenance follows committed workspace publication, not an
   // unobserved default LS from process configuration.
   let activeContextProviderIdentities: Readonly<Record<string, string>> | undefined;
-  const cbmStructuralIdentity = 'codebase-memory/v0.12.1:outline:v1';
+  const cbmStructuralIdentity = nativeCodeRetrieval.providerIdentities.structural;
   {
     const candidateLimit = Number(process.env.ACE_CONTEXT_CANDIDATE_LIMIT ?? '6');
     if (!Number.isSafeInteger(candidateLimit) || candidateLimit < 1 || candidateLimit > 20) {
@@ -253,10 +253,7 @@ const main = async (): Promise<void> => {
     // selection/definition contract remains open (#364); do not claim that
     // native line-based outlines provide independent LSP confirmation.
     const semantics = makeRoutedLspSession([]);
-    const nativeIdentities = {
-      structural: cbmStructuralIdentity,
-      code_graph: 'codebase-memory/v0.12.1',
-    };
+    const nativeIdentities = nativeCodeRetrieval.providerIdentities;
     const rebuildNative = async (expected?: WorkspaceManifest, sourceSnapshot?: WorkspaceSnapshot): Promise<Result<NativeCbmContextConfig, DomainError>> => {
       const before = sourceSnapshot === undefined
         ? await Effect.runPromise(files.snapshot(registered.value.rootPath, Date.now()))

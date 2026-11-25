@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   evaluateRuntimeConfigEvidence,
   type RuntimeCloudPermission,
@@ -47,7 +48,7 @@ const cloudPermissions: RuntimeCloudPermission[] = vertexEnabled && cloudDocsOpt
 
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim().toLowerCase();
 const input = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   scope,
   deployment,
   sourceCommit,
@@ -55,17 +56,13 @@ const input = {
   captureReference: captureReferenceArg,
   workspaceIdHash: createHash('sha256').update(workspaceId, 'utf8').digest('hex'),
   codeRetrieval: {
-    enabled: enabled('ACE_ENABLE_EXPERIMENTAL_QDRANT'),
-    qdrantEnabled: enabled('ACE_ENABLE_EXPERIMENTAL_QDRANT'),
-    pinnedEmbeddingRequired: enabled('ACE_REQUIRE_PINNED_EMBEDDING'),
-    // The production composition has no lexical fallback branch. Keep the
-    // field for evidence schema compatibility and make the invariant explicit.
+    // This describes configuration, not an observed binary or wire result.
+    enabled: (process.env.ACE_CODE_RETRIEVAL_MODE?.trim() || 'cbm') === 'cbm'
+      && (process.env.ACE_ENABLE_EXPERIMENTAL_QDRANT?.trim() || 'false') === 'false'
+      && (process.env.ACE_RERANKER_MODE?.trim() || 'disabled') === 'disabled',
     localFallbackAllowed: false,
-    embeddingProvider: process.env.ACE_EMBEDDING_PROVIDER?.trim() || 'fastembed/onnx',
-    // The current production runtime constructs the direct TS Language Service.
-    // If owner selection chooses Serena, release preflight must block until the
-    // runtime itself is changed rather than relabeling this evidence.
-    semanticProvider: 'typescript-language-service',
+    codeProviderIdentity: nativeCodeRetrieval.providerIdentities.code_graph,
+    semanticProvider: 'not_configured',
   },
   documentation: {
     enabled: vertexEnabled,
