@@ -35,24 +35,28 @@ const manifestFor = (id: string): Buffer => Buffer.from(JSON.stringify({
   schemaVersion: 1, repositoryId: id, revision,
   entries: [{ path: repoPath, sizeBytes: Buffer.byteLength(text), sha256: sourceDigest }],
 }));
+const kinds = ['behavior_without_name', 'exact_symbol_or_config', 'rare_literal', 'same_name_distractor',
+  'multilingual', 'working_context', 'compactness', 'partial_coverage'] as const;
 const holdout: RetrievalHoldout = {
   schemaVersion: 1,
   status: 'frozen_multi_repository_holdout',
   repositories: ids.map((id) => ({ id, revision, sourceManifestSha256: sha256(manifestFor(id)) })),
-  cases: ids.map((id) => ({
-    id, repositoryId: id, query: 'fixture query',
-    relevantCandidateIds: [canonicalBenchmarkCandidateId(id, repoPath, sourceDigest, range)], critical: true,
-  })),
+  cases: ids.flatMap((repositoryId) => Array.from({ length: 12 }, (_, index) => ({
+    id: repositoryId + '-' + index, repositoryId, query: 'fixture query ' + index,
+    relevantCandidateIds: [canonicalBenchmarkCandidateId(repositoryId, repoPath, sourceDigest, range)],
+    critical: index < 2, kind: kinds[index % kinds.length]!,
+  }))),
 };
 const holdoutFile = retained('holdout.json', holdout);
-const fixtureEvidence = (id: string): NativeProjectionEvidence => {
-  const body = { model: 'test-model', store: false, input: 'fixture query' };
+const fixtureCase = (repositoryId: string, item: RetrievalHoldout['cases'][number]) => {
+  const id = item.id;
+  const body = { model: 'test-model', store: false, input: item.query };
   const raw = Buffer.from(JSON.stringify(body), 'utf8');
   const request = {
     schemaVersion: 'ace.context.v3', protocol: 'openai.responses', requestId: 'request-' + id,
-    attemptGroupId: 'turn-' + id, agentSessionId: 'session-' + id, workspaceId: 'workspace-' + id,
+    attemptGroupId: 'turn-' + id, agentSessionId: 'session-' + id, workspaceId: 'workspace-' + repositoryId,
     dataClass: 'private', provider: 'mock', model: 'test-model',
-    bodyBase64: raw.toString('base64'), bodySha256: sha256(raw), query: 'fixture query',
+    bodyBase64: raw.toString('base64'), bodySha256: sha256(raw), query: item.query,
     projectionMode: 'bifrost_hook', deadlineEpochMs: 2_000_000_000_000,
     attestation: {
       hostBuildDigest: digest, sessionId: 'session-' + id, activeEngineId: 'bifrost-visible-request-only',
@@ -75,7 +79,7 @@ const fixtureEvidence = (id: string): NativeProjectionEvidence => {
   }), 'fixture-only-signing-key');
   const providerRequestId = 'provider-' + id;
   const candidate = {
-    runtimeCandidateId: 'runtime-' + id, canonicalCandidateId: canonicalBenchmarkCandidateId(id, repoPath, sourceDigest, range),
+    runtimeCandidateId: 'runtime-' + id, canonicalCandidateId: canonicalBenchmarkCandidateId(repositoryId, repoPath, sourceDigest, range),
     repoPath, sourceDigest, range, evidenceId: selectedEvidenceIds[0]!,
     sourceTextSha256: sha256(text), sourceTextCharacters: text.length,
   };
@@ -84,6 +88,16 @@ const fixtureEvidence = (id: string): NativeProjectionEvidence => {
     candidates: stage === 'delivered' ? [candidate] : [], durationMs: stage === 'delivered' ? 1 : 0,
     sourceCommit: revision, runnerVersion: nativeProjectionRunnerVersion, providerIdentities: nativeCodeRetrieval.providerIdentities,
   }));
+  return { events, binding: { requestId: request.requestId, providerRequestId,
+    receiptSha256: sha256(receipt), projectedBodySha256, selectedEvidenceIds },
+    capture: { caseId: id, request, latencyMs: 1, decision: {
+      kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED', baseBodySha256: request.bodySha256,
+      bodyBase64: projected.value, projectedBodySha256, projectionReceipt: receipt,
+    } } };
+};
+const fixtureEvidence = (id: string): NativeProjectionEvidence => {
+  const cases = holdout.cases.filter((item) => item.repositoryId === id).map((item) => fixtureCase(id, item));
+  const events = cases.flatMap((item) => item.events);
   const trace = events.map((event) => JSON.stringify(event) + '\n').join('');
   return {
     schemaVersion: 1, holdoutSha256: holdoutFile.sha256, sourceCommit: revision,
@@ -92,17 +106,13 @@ const fixtureEvidence = (id: string): NativeProjectionEvidence => {
       schemaVersion: 1, sourceCommit: revision, runnerVersion: nativeProjectionRunnerVersion,
       eventCount: events.length, persistedEventCount: events.length, traceDigest: sha256(trace),
       flushStatus: 'ok', closeStatus: 'ok',
-      requests: [{ requestId: providerRequestId, complete: true, stages: {
+      requests: cases.map((item) => ({ requestId: item.binding.providerRequestId, complete: true, stages: {
         dense: 'not_applicable', sparse: 'not_applicable', fused: 'not_applicable',
         working_context: 'not_applicable', reranked: 'not_applicable', delivered: 'executed',
-      } }],
-      projections: [{ requestId: request.requestId, providerRequestId,
-        receiptSha256: sha256(receipt), projectedBodySha256, selectedEvidenceIds }],
+      } })),
+      projections: cases.map((item) => item.binding),
     },
-    captures: [{ caseId: id, request, latencyMs: 1, decision: {
-      kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED', baseBodySha256: request.bodySha256,
-      bodyBase64: projected.value, projectedBodySha256, projectionReceipt: receipt,
-    } }],
+    captures: cases.map((item) => item.capture),
   };
 };
 const captures = ids.map((id) => retained('projection-' + id + '.json', fixtureEvidence(id)));
@@ -240,6 +250,7 @@ test('native gate rejects fabricated ranks and a missing capture even with a val
     return capture;
   };
   await validateNativeProjectionRunEvidence(holdout, run, reader);
+  await assert.rejects(validateNativeProjectionRunEvidence({ ...holdout, cases: holdout.cases.slice(0, 2) }, run, reader), /24 cases/u);
   await assert.rejects(validateNativeProjectionRunEvidence(holdout, {
     ...run, observations: run.observations.map((item) => ({ ...item, retrievedCandidateIds: ['forged-rank'] })),
   }, reader), /do not match actual projection evidence/u);
@@ -253,7 +264,7 @@ test('actual prepared body and runtime receipt binding cannot be substituted', (
   const capture = evidence.captures[0]!;
   const decision = capture.decision as Record<string, unknown>;
   assert.throws(() => deriveNativeProjectionObservations(holdout, {
-    ...evidence, captures: [{ ...capture, decision: { ...decision, bodyBase64: Buffer.from('tampered').toString('base64') } }],
+    ...evidence, captures: [{ ...capture, decision: { ...decision, bodyBase64: Buffer.from('tampered').toString('base64') } }, ...evidence.captures.slice(1)],
   }, holdoutFile.sha256, revision), /projected body digest mismatch/u);
   assert.throws(() => deriveNativeProjectionObservations(holdout, {
     ...evidence, terminal: { ...evidence.terminal, projections: [] },
@@ -262,8 +273,8 @@ test('actual prepared body and runtime receipt binding cannot be substituted', (
     kind: 'BLOCK', reasonCode: 'SECRET_DETECTED', baseBodySha256: decision.baseBodySha256,
   };
   const blocked = deriveNativeProjectionObservations(holdout, {
-    ...evidence, terminal: { ...evidence.terminal, projections: [] },
-    captures: [{ ...capture, decision: block }],
+    ...evidence, terminal: { ...evidence.terminal, projections: evidence.terminal.projections!.slice(1) },
+    captures: [{ ...capture, decision: block }, ...evidence.captures.slice(1)],
   }, holdoutFile.sha256, revision);
   assert.deepEqual(blocked[0]?.retrievedCandidateIds, []);
   assert.equal(blocked[0]?.stageStatuses?.delivered, 'unavailable');

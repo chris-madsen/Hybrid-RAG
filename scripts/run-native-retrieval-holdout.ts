@@ -11,7 +11,7 @@ import { ingestRepoPath } from '../src/domain/workspace.js';
 import { sha256, type RetrievalBenchmarkTraceEvent, type RetrievalBenchmarkTerminalReceipt } from '../src/domain/retrieval-benchmark.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import type { RetrievalHoldout, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
-import { checkedFrozenManifest, deriveNativeProjectionObservations, nativeProjectionRunnerVersion,
+import { assertNativeReleaseHoldout, checkedFrozenManifest, deriveNativeProjectionObservations, nativeProjectionRunnerVersion,
   type NativeProjectionCapture, type NativeProjectionEvidence } from './native-projection-evidence.js';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
@@ -27,13 +27,11 @@ const command = process.env.ACE_CBM_COMMAND;
 assert.ok(command && isAbsolute(command), 'ACE_CBM_COMMAND must point to the pinned native executable');
 const holdoutBytes = await readFile(resolve(holdoutArg));
 const holdout = JSON.parse(holdoutBytes.toString('utf8')) as RetrievalHoldout;
-assert.ok(holdout.status === 'frozen_multi_repository_holdout' && holdout.repositories!.length >= 2
-  && holdout.cases.length >= 24, 'release holdout must contain at least two repositories and 24 cases');
+assertNativeReleaseHoldout(holdout);
 const holdoutSha256 = sha256(holdoutBytes);
 const manifestBytes = await readFile(resolve(manifestArg));
 const manifest = checkedFrozenManifest(holdout, repositoryId, manifestBytes);
 const cases = holdout.cases.filter((item) => item.repositoryId === repositoryId);
-assert.ok(cases.length >= 12 && cases.filter((item) => item.critical === true).length >= 2, 'incomplete frozen repository partition');
 
 const workspace = await realpath(checkoutArg);
 const output = join(await realpath(dirname(resolve(outputArg))), resolve(outputArg).split(sep).at(-1)!);

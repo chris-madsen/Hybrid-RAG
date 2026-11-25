@@ -5,10 +5,39 @@ import { addVerifiedContextToResponses, decodeNativeResponsesBody, validateRespo
 import { canonicalBenchmarkCandidateId, retrievalBenchmarkStages, sha256, validateRetrievalBenchmarkTraceArtifact,
   type RetrievalBenchmarkTraceEvent, type RetrievalBenchmarkTerminalReceipt } from '../src/domain/retrieval-benchmark.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
-import type { RetrievalHoldout, RetrievalObservation, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
+import type { RetrievalHoldout, RetrievalHoldoutCase, RetrievalObservation, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
 import { ingestRepoPath } from '../src/domain/workspace.js';
 
 export const nativeProjectionRunnerVersion = 'native-projection-holdout/v1';
+
+/** The release collector, merge, gate and preflight must admit the same
+ * frozen corpus shape. Historical/dev evaluators remain independent. */
+export const assertNativeReleaseHoldout = (holdout: RetrievalHoldout): void => {
+  const repositories = holdout.repositories ?? [];
+  assert.ok(holdout.schemaVersion === 1 && holdout.status === 'frozen_multi_repository_holdout'
+    && repositories.length >= 2 && holdout.cases.length >= 24, 'native release holdout requires at least two repositories and 24 cases');
+  const ids = new Set(repositories.map((item) => item.id));
+  assert.ok(ids.size === repositories.length && repositories.every((item) =>
+    /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(item.id) && /^[a-f0-9]{40,64}$/u.test(item.revision)
+    && /^[a-f0-9]{64}$/u.test(item.sourceManifestSha256)), 'invalid frozen repository identities');
+  assert.ok(new Set(holdout.cases.map((item) => item.id)).size === holdout.cases.length
+    && holdout.cases.every((item) => item.id.trim().length > 0 && item.query.trim().length > 0
+      && item.repositoryId !== undefined && ids.has(item.repositoryId)
+      && item.relevantCandidateIds.length > 0
+      && new Set(item.relevantCandidateIds).size === item.relevantCandidateIds.length
+      && item.relevantCandidateIds.every((id) => id.trim().length > 0)), 'invalid frozen case identities or labels');
+  const kinds = new Set(holdout.cases.map((item) => item.kind));
+  const requiredKinds: readonly NonNullable<RetrievalHoldoutCase['kind']>[] = [
+    'behavior_without_name', 'exact_symbol_or_config', 'rare_literal', 'same_name_distractor',
+    'multilingual', 'working_context', 'compactness', 'partial_coverage',
+  ];
+  for (const kind of requiredKinds) assert.ok(kinds.has(kind), 'holdout is missing required case kind ' + kind);
+  for (const repository of repositories) {
+    const cases = holdout.cases.filter((item) => item.repositoryId === repository.id);
+    assert.ok(cases.length >= 12 && cases.filter((item) => item.critical === true).length >= 2,
+      'incomplete frozen repository partition');
+  }
+};
 
 export interface FrozenSourceManifest {
   readonly schemaVersion: 1;
@@ -103,6 +132,8 @@ export const deriveNativeProjectionObservations = (
   assert.ok(cases.length > 0 && evidence.captures.length === cases.length
     && new Set(evidence.captures.map((item) => item.caseId)).size === cases.length, 'incomplete repository capture');
   const requestIds = new Set<string>();
+  const sessionIds = new Set<string>();
+  let workspaceId: string | undefined;
   const observations = cases.map((item): RetrievalObservation => {
     const capture = evidence.captures.find((entry) => entry.caseId === item.id);
     assert.ok(capture && Number.isFinite(capture.latencyMs) && capture.latencyMs >= 0, 'missing native case capture');
@@ -112,8 +143,12 @@ export const deriveNativeProjectionObservations = (
     const base = decodeNativeResponsesBody(request);
     assert.ok(base._tag === 'Ok' && base.value.input === item.query && request.query === item.query
       && request.provider === 'mock' && request.model === 'test-model' && request.dataClass === 'private'
-      && !requestIds.has(request.requestId), 'case/request identity mismatch');
+      && Object.keys(base.value).length === 3
+      && !requestIds.has(request.requestId) && !sessionIds.has(request.agentSessionId)
+      && (workspaceId === undefined || workspaceId === request.workspaceId), 'case/request identity mismatch');
     requestIds.add(request.requestId);
+    sessionIds.add(request.agentSessionId);
+    workspaceId = request.workspaceId;
     const decision = record(capture.decision);
     assert.ok(decision.baseBodySha256 === request.bodySha256, 'base body digest mismatch');
     const binding = bindings.find((entry) => entry.requestId === request.requestId);
@@ -212,6 +247,7 @@ export const validateNativeProjectionRunEvidence = async (
   holdout: RetrievalHoldout, run: RetrievalStrategyRun,
   readJson: (path: string) => Promise<{ readonly sha256: string; readonly value: unknown }>,
 ): Promise<void> => {
+  assertNativeReleaseHoldout(holdout);
   assert.ok(run.sourceCommit && run.runnerVersion === nativeProjectionRunnerVersion
     && Array.isArray(run.projectionEvidence) && run.projectionEvidence.length > 0, 'native projection captures required');
   const observed = new Map<string, RetrievalObservation>();
