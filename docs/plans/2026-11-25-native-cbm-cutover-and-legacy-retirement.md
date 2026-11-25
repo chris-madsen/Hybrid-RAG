@@ -76,3 +76,97 @@ Continue #275 and #323/G11 on exact native Responses subscription path under exi
 ## Local reproducibility
 
 Use a clean worktree, exact main/PR SHA, Node 22.23.4 and pinned CBM. Keep log artifacts with digest and source SHA; upload reproducible redacted results, not secrets or source outside authorized policy. Actual real-provider integration can require Linux/WSL with Unix sockets; container EPERM is BLOCKED, not product failure or PASS. Fix actual failures, rerun owning contracts and final gate, and record remaining gaps; do not weaken acceptance or invent new infrastructure.
+
+## Pending requirement supersession — CBM-05 candidate, not accepted
+
+The previous attempt to modify the active 014 specifications invalidated the dependent phase input fingerprints. Preserve the active requirements and executable phase records until an actual S/A/P/X replan is reviewed. The owner decision selects CBM but does not certify all replacement behavior. This is a proposal, not a new acceptance tracker. Before promotion, reconcile REM-005/006, REM-018/019 and REM-020 in the canonical OpenSpec; review the affected architecture and phase responsibilities and regenerate exact fingerprints only after substantive review. FR-03 remains deferred, not withdrawn.
+
+### Proposed replacement requirements and scenarios (for review)
+
+#### Proposed workspace-snapshot-correctness
+
+
+
+##### Requirement: Verified freshness for complete source search
+
+A successful complete retrieval SHALL require a trustworthy source observation. Non-Git size/mtime hints alone SHALL NOT prove freshness.
+
+###### Scenario: REM-001 — Same-metadata non-Git mutation
+- **WHEN** source bytes change without a size/mtime change, or watcher events are dropped
+- **THEN** reconciliation detects the change or represents source coverage as incomplete
+- **AND** no empty search is declared verified-current before reconciliation
+
+###### Scenario: REM-002 — Truthful empty Native Responses pass-through
+- **WHEN** an authorized request yields a truly complete, fresh, successful empty retrieval
+- **THEN** the already approved verified-no-addition response preserves native input bytes exactly
+- **AND** stale, denied, partial, failed or unknown results never enter that success path
+
+##### Requirement: Concurrent source publishers cannot roll back newer source
+
+The publisher SHALL preserve workspace-scoped authority that prevents stale writers from erasing or activating older generations. For the owner-selected native CBM cutover, reuse upstream coordination and ACE exact source/generation verification rather than rebuilding the retired vector publication mechanism. A process-local semaphore alone SHALL NOT be treated as cross-process authority. Supported concurrent topology must be proven, or an explicit approved constraint must prevent unsupported publishers from sharing mutable index state.
+
+###### Scenario: REM-005 — Stale writer after newer publication
+- **WHEN** process A observes v1, pauses, and process B publishes v2 before A continues
+- **THEN** A neither deletes v2 membership nor promotes v1 over v2
+- **AND** readers see a complete current generation or an explicit typed unavailable result
+
+###### Scenario: REM-006 — Failed/restarted publication
+- **WHEN** publication fails, a writer crashes/restarts or competing writers have the same claimed generation
+- **THEN** the system cannot expose a partial or rolled-back snapshot as complete
+- **AND** verified newer membership survives restart/cleanup and is not lost by stale pruning
+- **AND** index/cache atomicity alone is never mistaken for verified source-generation ownership
+- **AND** restart or provider loss requires a fresh verified publication before any result can be declared complete
+
+
+#### Proposed retrieval-quality-provenance
+
+
+
+##### Requirement: Working-context priors preserve documented ranking semantics
+
+Positive working-context preferences SHALL not demote candidates merely because cosine scores can be negative.
+
+###### Scenario: REM-015 — Prior applied to negative/zero/positive score
+- **WHEN** Qdrant returns negative, zero or positive ranked scores and a relevant candidate receives a preference
+- **THEN** the prior never decreases its intended relative rank under the documented strategy
+- **AND** held-out retrieval quality and latency are measured before promotion
+
+##### Requirement: Delivered evidence and provider provenance are accurate
+
+Retrieval metrics SHALL distinguish shortlist from final verified model-visible evidence; provider identities SHALL describe the actual active implementation.
+
+###### Scenario: REM-016 — Stale shortlisted hit excluded from delivered stage
+- **WHEN** a hit fails source verification, final reread, dedup or actual delivery
+- **THEN** it is recorded as shortlisted/rejected rather than delivered verified evidence
+- **AND** delivered recall cannot count its missing code body
+
+###### Scenario: REM-017 — Selected runtime provider identity
+- **WHEN** Rust/Go/Python/custom LSP or embedding runtime supplies evidence
+- **THEN** trace and receipt carry effective resolved identities where observed
+- **AND** unavailable providers never inherit hard-coded TypeScript defaults
+
+##### Requirement: Maintained native structural and ranking provider has measured task quality
+
+Native CBM SHALL own discovery and structural hints in the selected code retrieval architecture. Unobserved paths SHALL NOT count as recall and native outline ranges SHALL NOT be promoted to exact identifier coordinates. Provider identity, corpus quality, source scope and license provenance SHALL be established before acceptance; no independent LSP contract is withdrawn.
+
+###### Scenario: REM-018 — Multi-file path outside native top-K
+- **WHEN** a relevant path falls outside initial candidate shortlist on a multi-file coding task
+- **THEN** the strategy measures and reports that bound or uses proven provider-native diversity/overfetch
+- **AND** no unverified RepoMap text substitutes for exact cited source
+
+###### Scenario: REM-019 — Native structural evidence remains source-bound
+- **WHEN** a native CBM outline, graph result or unsupported language supplies incomplete, ambiguous or inconsistent structural evidence
+- **THEN** ACE rereads and verifies exact current UTF-8 source ranges or reports typed partial/unavailable
+- **AND** corpus quality, provider identity and license provenance are recorded independently
+- **AND** no line hint claims exact independent LSP identifier coordinates; FR-03 remains open for separate research
+
+##### Requirement: Timed-out native provider work cannot monopolize the transaction indefinitely
+
+A cancelled client wait SHALL not leave unbounded serial provider work or misattribute stale responses.
+
+###### Scenario: REM-020 — Native CBM timeout and next request
+- **WHEN** native indexing or retrieval stalls, is cancelled or times out before a queued healthy request
+- **THEN** cancellation/recovery and transaction fencing let the healthy request complete or return typed bounded unavailability
+- **AND** the cancelled generation cannot publish and stale late output cannot be attributed to the next request
+- **AND** shared upstream jobs or other processes must not invalidate the approved source/generation isolation boundary
+

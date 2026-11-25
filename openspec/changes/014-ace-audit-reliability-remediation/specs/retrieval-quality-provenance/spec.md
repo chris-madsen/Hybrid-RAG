@@ -25,27 +25,25 @@ Retrieval metrics SHALL distinguish shortlist from final verified model-visible 
 - **THEN** trace and receipt carry effective resolved identities where observed
 - **AND** unavailable providers never inherit hard-coded TypeScript defaults
 
-### Requirement: Maintained native structural and ranking provider has measured task quality
+### Requirement: Optional structural/ranking providers improve measured task quality
 
-Native CBM SHALL own discovery and structural hints in the selected code retrieval architecture. Unobserved paths SHALL NOT count as recall and native outline ranges SHALL NOT be promoted to exact identifier coordinates. Provider identity, corpus quality, source scope and license provenance SHALL be established before acceptance; no independent LSP contract is withdrawn.
+RepoMap SHALL NOT claim source recall for paths it never received; an AST extractor SHALL NOT replace the canonical CLI until corpus and task parity have been demonstrated.
 
-#### Scenario: REM-018 — Multi-file path outside native top-K
+#### Scenario: REM-018 — Multi-file path outside Qdrant top-K
 - **WHEN** a relevant path falls outside initial candidate shortlist on a multi-file coding task
 - **THEN** the strategy measures and reports that bound or uses proven provider-native diversity/overfetch
 - **AND** no unverified RepoMap text substitutes for exact cited source
 
-#### Scenario: REM-019 — Native structural evidence remains source-bound
-- **WHEN** a native CBM outline, graph result or unsupported language supplies incomplete, ambiguous or inconsistent structural evidence
-- **THEN** ACE rereads and verifies exact current UTF-8 source ranges or reports typed partial/unavailable
-- **AND** corpus quality, provider identity and license provenance are recorded independently
-- **AND** no line hint claims exact independent LSP identifier coordinates; FR-03 remains open for separate research
+#### Scenario: REM-019 — Canonical ast-grep extractor not silently replaced
+- **WHEN** the alternative N-API and canonical CLI disagree on current repository corpus
+- **THEN** the CLI remains authoritative unless language/task parity and license provenance are demonstrated
+- **AND** an unproved alternate path cannot claim equivalent source spans
 
-### Requirement: Timed-out native provider work cannot monopolize the transaction indefinitely
+### Requirement: Timed-out Python provider work cannot monopolize the worker indefinitely
 
 A cancelled client wait SHALL not leave unbounded serial provider work or misattribute stale responses.
 
-#### Scenario: REM-020 — Native CBM timeout and next request
-- **WHEN** native indexing or retrieval stalls, is cancelled or times out before a queued healthy request
-- **THEN** cancellation/recovery and transaction fencing let the healthy request complete or return typed bounded unavailability
-- **AND** the cancelled generation cannot publish and stale late output cannot be attributed to the next request
-- **AND** shared upstream jobs or other processes must not invalidate the approved source/generation isolation boundary
+#### Scenario: REM-020 — Python worker timeout and next request
+- **WHEN** an embedding task stalls, is cancelled or times out before a queued healthy request
+- **THEN** worker recovery/backpressure lets the healthy request complete or return typed bounded unavailability
+- **AND** stale late output cannot be attributed to the next request
