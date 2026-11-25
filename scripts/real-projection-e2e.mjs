@@ -492,7 +492,8 @@ try {
           const status = await execFileAsync(command, ['daemon', 'status'], {
             env: nativeEnvironment, encoding: 'utf8', timeout: 10000,
           });
-          const match = /daemon: active \\(session-managed\\)[^]*?PID:\\s*(\\d+)/iu.exec(status.stdout);
+          assert.match(status.stdout, /daemon: active \(session-managed\)/u);
+          const match = /^\s*pid: (\d+)\s*$/mu.exec(status.stdout);
           assert.ok(match, 'session-managed native daemon must be visible');
           return Number(match[1]);
         };
@@ -593,12 +594,12 @@ try {
           for (const entry of await readdir(path, { withFileTypes: true })) {
             const full = join(path, entry.name);
             if (entry.isDirectory()) await visit(full);
-            else if (entry.isFile() && /\\.db$|\\.sqlite3?$/u.test(entry.name)) {
+            else if (entry.isFile() && /\.db$|\.sqlite3?$/u.test(entry.name)) {
               const file = await open(full, 'r');
               try {
                 const magic = Buffer.alloc(16);
                 const read = await file.read(magic, 0, magic.length, 0);
-                if (read.bytesRead === 16 && magic.toString('utf8') === 'SQLite format 3\\0') sqliteFiles.push(full);
+                if (read.bytesRead === 16 && magic.toString('utf8') === 'SQLite format 3\0') sqliteFiles.push(full);
               } finally { await file.close(); }
             }
           }
