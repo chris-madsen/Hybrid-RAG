@@ -1,10 +1,10 @@
 # ACE local provider dependencies
 
-This directory retains the **Qdrant** and **FalkorDB** local-provider manifests used for development. It does **not** provide a production-approved ACE context extension or Bifröst deployment.
+This directory retains the **FalkorDB** local-provider manifest for development. Native code retrieval uses the pinned Codebase Memory executable in the ACE runtime image, with no separate vector database service. It does **not** provide a production-approved ACE context extension or Bifröst deployment.
 
-## Qdrant
+## Native code retrieval
 
-Install the official pinned Qdrant chart with the documented pinned version, keeping the service private to the `ace` namespace.
+Use the native image and a local, registered workspace accessible to ACE. The previous remote host-helper code retrieval topology is not accepted by this runtime. Do not create a public source mount or relax the loopback RPC boundary. Use a dedicated service identity for ACE; do not share mutable CBM indexes with unrelated code retrieval clients. Upstream CBM owns its cache coordination. Cross-runtime/remote workspace acceptance remains a separate requirement.
 
 ## FalkorDB
 
@@ -14,6 +14,6 @@ Apply `falkordb.yaml` for local graph storage only. The legacy Graphiti tool-ser
 
 The only agent-facing ACE route is **Bifröst → ACE context extension Projection HTTP**. The projection service listens on **loopback only** (`127.0.0.1:8765` by default), so a future Bifröst+ACE deployment must share a network namespace (for example, an accepted sidecar layout), or use an explicitly reviewed secure transport. The retired standalone stdio deployment is intentionally removed rather than relabeled.
 
-Do not open ACE context extension on an external IP or invent a service/CIDR: the existing loopback-only policy must remain authoritative. No Kubernetes release is certified until a real signed container, shared namespace, startup/runtime provenance, host-helper egress policy and real final-provider wire test have passed. An operator must not treat the presence of Qdrant/FalkorDB as Gateway readiness.
+Do not open ACE context extension on an external IP or invent a service/CIDR: the existing loopback-only policy must remain authoritative. No Kubernetes release is certified until a real signed container, shared namespace, startup/runtime provenance, host-helper egress policy and real final-provider wire test have passed. An operator must not treat the presence of FalkorDB as Gateway readiness.
 
 The prior local provider egress rules, state volume, signed image placeholder and mTLS host-helper requirements remain source considerations for a future approved deployment, not an executable rollout in this directory.

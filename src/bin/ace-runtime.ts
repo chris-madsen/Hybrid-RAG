@@ -165,7 +165,7 @@ const main = async (): Promise<void> => {
     const provenance = await verifyCompiledRuntimeProvenance(runtimeRoot, fileURLToPath(import.meta.url));
     if (provenance._tag === 'Err') throw new Error(`${provenance.error.code}: ${provenance.error.message}`);
     process.stderr.write(`ace-runtime runtime provenance runtime_id=${provenance.value.runtimeId} source_commit=${provenance.value.sourceCommit} source_manifest_sha256=${provenance.value.sourceManifestSha256} executable_sha256=${provenance.value.executableSha256} runtime_root=${runtimeRoot} node=${process.version} build_node=${provenance.value.buildRuntime.node}\n`);
-    process.stderr.write('ace-runtime provider identities codebase_memory=codebase-memory-mcp/0.12.1 qdrant=disabled embedding=disabled sparse_embedding=disabled lsp=not_configured reranker=disabled\n');
+    process.stderr.write('ace-runtime provider identities codebase_memory=codebase-memory-mcp/0.12.1 lsp=not_configured\n');
   }
   // Transitional false/disabled values are allowed for existing native deployments;
   // any attempted legacy mode or remote helper is rejected before source access.

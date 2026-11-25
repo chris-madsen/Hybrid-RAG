@@ -30,8 +30,7 @@ ENV ACE_STATE_DIR=/var/lib/ace/state \
     ACE_ARTIFACT_DIR=/var/lib/ace/artifacts \
     TMPDIR=/tmp
 
-# Candidate single native target. Historical adapter dependencies are removed
-# in subsequent CBM-05 slices; no Python embedding runtime is installed.
+# Native code retrieval only; no separate vector service or Python workers.
 FROM ace-base AS native-cbm
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git procps \
@@ -44,10 +43,7 @@ RUN apt-get update \
   && ln -s /opt/ace-native/codebase-memory-mcp /usr/local/bin/codebase-memory-mcp \
   && mkdir -p /var/lib/ace/native-home \
   && chown node:node /var/lib/ace/native-home
-ENV HOME=/var/lib/ace/native-home \
-    ACE_CODE_RETRIEVAL_MODE=cbm \
-    ACE_ENABLE_EXPERIMENTAL_QDRANT=false \
-    ACE_RERANKER_MODE=disabled
+ENV HOME=/var/lib/ace/native-home
 USER node
 CMD ["node", "/opt/ace/dist/bin/ace-runtime.js"]
 
