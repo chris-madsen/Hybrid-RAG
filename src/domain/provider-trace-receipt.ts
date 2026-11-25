@@ -28,6 +28,7 @@ const providerNames: readonly ProviderTraceName[] = [
   'sparse_embedding',
   'reranker',
   'qdrant',
+  'codebase_memory',
   'ast_grep',
   'lsp',
   'vertex_rag',
@@ -88,10 +89,15 @@ export const validateSafeProviderTraceEvent = (
   return ok(value as unknown as ProviderTraceEvent);
 };
 
-const queryProvidersFor = (source: ContextSource): readonly ProviderTraceName[] => {
+const queryProvidersFor = (
+  source: ContextSource,
+  nativeCodeRetrieval: boolean,
+): readonly ProviderTraceName[] => {
   switch (source) {
     case 'code':
-      return ['embedding', 'qdrant', 'source_verification'];
+      return nativeCodeRetrieval
+        ? ['codebase_memory', 'source_verification']
+        : ['embedding', 'qdrant', 'source_verification'];
     case 'structural':
       return ['ast_grep'];
     case 'lsp':
@@ -128,9 +134,10 @@ export const evaluateProviderTraceReceipt = (
     if (checked._tag === 'Err') return checked;
     if (checked.value.requestId === requestId) events.push(checked.value);
   }
+  const nativeCodeRetrieval = events.some((event) => event.provider === 'codebase_memory');
 
   const branches: ProviderTraceBranchReceipt[] = required.map((coverage) => {
-    const requiredProviders = queryProvidersFor(coverage.source);
+    const requiredProviders = queryProvidersFor(coverage.source, nativeCodeRetrieval);
     const matching = events.filter((event) => requiredProviders.includes(event.provider));
     const observedProviders = [...new Set(matching.map((event) => event.provider))]
       .sort() as ProviderTraceName[];

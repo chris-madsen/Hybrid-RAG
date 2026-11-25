@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
 import type { CodeCandidate, RankedCandidate } from '../domain/retrieval.js';
-import type { CodeGraphCandidatePort } from '../application/ports.js';
+import type { CodeGraphCandidatePort, ProviderTraceSink } from '../application/ports.js';
 import type { RepoPath } from '../domain/workspace.js';
 import { makeCodebaseMemoryStdio } from './codebase-memory-stdio.js';
 
@@ -23,6 +23,7 @@ export interface CodebaseMemoryOptions {
   /** Optional native-server arguments (for contract fixtures). */
   readonly args?: readonly string[];
   readonly timeoutMs?: number;
+  readonly trace?: ProviderTraceSink;
   /** Immutable, digest-verified ACE candidates from the last published index. */
   readonly candidates: () => readonly CodeCandidate[];
 }
@@ -242,6 +243,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     ...(options.command === undefined ? {} : { command: options.command }),
     ...(options.args === undefined ? {} : { args: options.args }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.trace === undefined ? {} : { trace: options.trace }),
     // A restarted transport must never serve graph hints from the prior
     // provider generation. Explicit reindex is required after reconnection.
     onLost: () => { project = undefined; },
@@ -318,18 +320,18 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       : invoke('detect_changes', { project, ...(since ? { since } : {}), scope: 'impact',
         direction: 'both', depth: 2, format: 'json' }));
 
-  const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
+  const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>, requestId?: string): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
     }
-    const response = await invoke('search_graph', {
+    const response = await transport.invoke('search_graph', {
       project,
       semantic_query: [query],
       semantic_limit: Math.min(100, limit),
       limit: 1,
       format: 'json',
       max_output_tokens: 8192,
-    });
+    }, requestId);
     if (response._tag === 'Err') return response;
     const hits = semanticRows(root, response.value);
     if (hits === undefined) {
@@ -339,13 +341,13 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     // candidate inventory, use CBM's OWN SQLite FTS5/BM25 query. This is
     // upstream-supported discovery, not an ACE lexical search implementation.
     if (hits.some((hit) => candidatePaths.has(hit.file))) return ok(hits);
-    const lexical = await invoke('search_graph', {
+    const lexical = await transport.invoke('search_graph', {
       project,
       query,
       limit: Math.min(100, limit),
       format: 'json',
       max_output_tokens: 8192,
-    });
+    }, requestId);
     if (lexical._tag === 'Err') return lexical;
     const fallback = lexicalRows(root, lexical.value);
     return fallback === undefined
@@ -401,7 +403,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       list.push(candidate);
       candidatesByFile.set(candidate.repoPath, list);
     }
-    const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()));
+    const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()), input.requestId);
     if (native._tag === 'Err') return native;
     const outlineCache = new Map<RepoPath, readonly NativeOutlineRow[] | undefined>();
     const sourceCandidateFor = async (target: NativeGraphTarget): Promise<CodeCandidate | undefined> => {

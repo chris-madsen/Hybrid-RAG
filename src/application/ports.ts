@@ -98,6 +98,8 @@ export interface CodeGraphCandidatePort {
   readonly search: (input: {
     readonly query: string;
     readonly limit: number;
+    /** Correlates native graph retrieval with one ACE ContextBundle. */
+    readonly requestId?: string;
     /** Dirty/changed paths trigger native detect_changes impact assessment. */
     readonly changedPaths?: readonly RepoPath[];
   }) => Effect.Effect<Result<readonly RankedCandidate[], DomainError>>;

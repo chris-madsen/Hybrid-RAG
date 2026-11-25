@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Effect } from 'effect';
-import { makeQdrantContextProvider } from '../src/adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider, makeQdrantContextProvider } from '../src/adapters/qdrant-context-provider.js';
 import { resolveExplicitSourceRequirements } from '../src/domain/source-coverage.js';
-import { ok } from '../src/domain/result.js';
+import { err, ok } from '../src/domain/result.js';
+import { domainError } from '../src/domain/errors.js';
 import { makeCandidateId, makeCodeCandidate } from '../src/domain/retrieval.js';
 import { makeWorkspaceId } from '../src/domain/workspace.js';
 import type { CodeCandidatePort, SemanticAnalysisPort, WorkspaceFilePort } from '../src/application/ports.js';
@@ -104,6 +105,59 @@ test('CBM discovery adds a file missing from Qdrant shortlist without bypassing 
   ]));
   assert.ok(direct.every((item) => item.proofClass === 'direct'));
   assert.ok(direct.some((item) => item.content.includes('function related')));
+  // The new native path must not require any vector/embedding client.
+  const native = makeNativeCbmContextProvider({
+    mode: 'cbm',
+    workspaceId: workspace.value, rootPath: '/repo', files: filePort, semantics,
+    codeGraph: {
+      search: () => Effect.succeed(ok([
+        { candidate: related, score: 0.95, freshness: 'unknown' },
+        { candidate: known, score: 0.8, freshness: 'unknown' },
+      ])),
+    },
+    candidateLimit: 2,
+    newRequestId: () => 'native-cbm-discovery-request',
+  });
+  reads.length = 0;
+  const nativeInput = {
+    workspaceId: workspace.value,
+    query: 'follow related implementation',
+    includeCode: true, includeDocs: false, includeMemory: false,
+    sourceRequirements: sourcePlan(),
+  };
+  const nativeResult = await Effect.runPromise(native.search(nativeInput));
+  assert.equal(nativeResult._tag, 'Ok');
+  if (nativeResult._tag === 'Err') return;
+  assert.equal(nativeResult.value.complete, true);
+  assert.deepEqual(new Set(reads), new Set(['src/known.ts', 'src/related.ts']));
+  assert.equal(nativeResult.value.evidence.filter((item) => item.source === 'code'
+    && item.proofClass === 'direct').length, 2);
+
+  const nativeFailure = makeNativeCbmContextProvider({
+    mode: 'cbm',
+    workspaceId: workspace.value, rootPath: '/repo', files: filePort, semantics,
+    codeGraph: { search: () => Effect.succeed(err(domainError('NOT_READY', 'cbm', 'provider lost'))) },
+    newRequestId: () => 'native-cbm-unavailable-request',
+  });
+  reads.length = 0;
+  const blocked = await Effect.runPromise(nativeFailure.search(nativeInput));
+  assert.equal(blocked._tag, 'Ok');
+  if (blocked._tag === 'Err') return;
+  assert.equal(blocked.value.complete, false);
+  assert.equal(blocked.value.evidence.length, 0);
+  assert.equal(reads.length, 0);
+
+  const unmapped = makeNativeCbmContextProvider({
+    mode: 'cbm',
+    workspaceId: workspace.value, rootPath: '/repo', files: filePort, semantics,
+    codeGraph: { search: () => Effect.succeed(ok([])) },
+    newRequestId: () => 'native-cbm-no-hints-request',
+  });
+  const emptyResult = await Effect.runPromise(unmapped.search(nativeInput));
+  assert.equal(emptyResult._tag, 'Ok');
+  if (emptyResult._tag === 'Err') return;
+  assert.equal(emptyResult.value.complete, false, 'unmapped top-k is not a verified empty result');
+
   const documentSymbolsLookups: string[] = [];
   const definitionsLookups: string[] = [];
   const semanticSelection: SemanticAnalysisPort = {

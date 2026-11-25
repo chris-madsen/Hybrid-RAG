@@ -8,6 +8,7 @@ import {
 } from 'vscode-jsonrpc/node';
 import { domainError, type DomainError } from '../domain/errors.js';
 import { err, ok, type Result } from '../domain/result.js';
+import type { ProviderTraceSink } from '../application/ports.js';
 
 /**
  * Application-owned, long-lived Codebase Memory stdio session.
@@ -24,12 +25,14 @@ export interface CodebaseMemoryStdioOptions {
   readonly command?: string;
   readonly args?: readonly string[];
   readonly timeoutMs?: number;
+  /** Optional safe provider evidence; never receives tool arguments or results. */
+  readonly trace?: ProviderTraceSink;
   /** Invalidate ACE's published graph identity on transport loss. */
   readonly onLost?: () => void;
 }
 
 export interface CodebaseMemoryStdio {
-  readonly invoke: (tool: string, args: Readonly<Record<string, unknown>>) => Promise<Result<unknown, DomainError>>;
+  readonly invoke: (tool: string, args: Readonly<Record<string, unknown>>, requestId?: string) => Promise<Result<unknown, DomainError>>;
   readonly close: () => Promise<void>;
 }
 
@@ -186,11 +189,28 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     return attempt;
   };
 
-  const invoke: CodebaseMemoryStdio['invoke'] = async (tool, args) => {
+  const invoke: CodebaseMemoryStdio['invoke'] = async (tool, args, requestId) => {
     if (!permitted.has(tool)) {
       return err(domainError('INVALID_INPUT', 'codebase_memory.tool', 'tool is not authorized for ACE internal retrieval'));
     }
     if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native provider session is closed'));
+    const startedAtMs = Date.now();
+    const trace = (status: 'success' | 'failure', errorCode?: string): void => {
+      try {
+        options.trace?.record({
+          timestampMs: Date.now(),
+          provider: 'codebase_memory',
+          providerVersion: `codebase-memory-mcp/${expectedVersion}`,
+          operation: tool,
+          status,
+          durationMs: Math.max(0, Date.now() - startedAtMs),
+          ...(requestId === undefined ? {} : { requestId }),
+          ...(errorCode === undefined ? {} : { errorCode }),
+        });
+      } catch {
+        // Trace persistence must not change the provider result or fail open.
+      }
+    };
     let current: Session | undefined;
     try {
       current = await getSession();
@@ -199,9 +219,12 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
         name: tool, arguments: args,
       }), timeoutMs);
       if (current.dead || closed) throw new Error('Codebase Memory session lost during request');
-      return parseCodebaseMemoryToolResult(raw);
+      const result = parseCodebaseMemoryToolResult(raw);
+      trace(result._tag === 'Ok' ? 'success' : 'failure', result._tag === 'Err' ? result.error.code : undefined);
+      return result;
     } catch {
       if (current !== undefined) discard(current);
+      trace('failure', 'NOT_READY');
       return err(domainError('NOT_READY', 'codebase_memory', 'native stdio provider unavailable or timed out'));
     }
   };

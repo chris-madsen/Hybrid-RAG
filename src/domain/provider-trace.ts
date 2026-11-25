@@ -5,6 +5,7 @@ export type ProviderTraceName =
   | 'sparse_embedding'
   | 'reranker'
   | 'qdrant'
+  | 'codebase_memory'
   | 'ast_grep'
   | 'lsp'
   | 'vertex_rag'

@@ -12,6 +12,7 @@ on:
       - 'src/adapters/qdrant-context-provider.ts'
       - 'src/application/ports.ts'
       - 'src/bin/ace-runtime.ts'
+      - 'scripts/real-projection-e2e.mjs'
       - 'test/codebase-memory-graph.contracts.test.ts'
       - '.github/workflows/ace-codebase-memory.yml'
   workflow_dispatch:
@@ -31,7 +32,7 @@ jobs:
           fetch-depth: 3
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '22.23.4'
           cache: npm
       - name: Install ACE dependencies
         run: npm ci
@@ -50,6 +51,20 @@ jobs:
           ACE_TEST_REAL_CBM: 'true'
         run: npx tsx --test test/codebase-memory-stdio.contracts.test.ts test/codebase-memory-graph.contracts.test.ts test/codebase-memory-structural.contracts.test.ts test/cbm-graph-delivery.contracts.test.ts
 
+      - name: Native CBM-only compiled Context RPC projection
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+        run: npm run test:real-projection
+      - name: Native CBM source modification, rename and deletion
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+          ACE_REAL_PROJECTION_NATIVE_MUTATIONS: 'true'
+        run: node scripts/real-projection-e2e.mjs
+      - name: Native CBM startup outage must block projection
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+        run: ACE_REAL_PROJECTION_OUTAGE=true node scripts/real-projection-e2e.mjs
+
   full-regression:
     name: Full ACE regression after native CBM migration
     runs-on: ubuntu-latest
@@ -60,7 +75,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '22.23.4'
           cache: npm
       - name: Install ACE pinned dependencies
         run: npm ci
