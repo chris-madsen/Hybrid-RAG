@@ -4,6 +4,7 @@ import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
+import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   codeOnlyRequiredDbcs,
   evaluateCodeReleasePreflight,
@@ -29,7 +30,7 @@ const ownerTrustRoot: ReleaseOwnerApprovalTrustRoot = {
 };
 const signedApproval = (
   approvedCapabilities: readonly ('code' | 'documentation' | 'memory')[],
-  approvedProviderIdentities: readonly string[] = ['embedding-fixture-identity', 'semantic-fixture-identity'],
+  approvedProviderIdentities: readonly string[] = Object.values(nativeCodeRetrieval.providerIdentities),
 ): ReleaseOwnerApproval => {
   const unsigned: ReleaseOwnerApproval = {
     schemaVersion: 1,
@@ -155,7 +156,7 @@ const resourceBudget = {
 };
 
 const runtimeConfig = (deployment: 'host' | 'k3s' = 'host') => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-10-20T00:00:00.000Z',
   evidence: 'runtime-config-accepted',
   scope: 'code-only',
@@ -166,11 +167,9 @@ const runtimeConfig = (deployment: 'host' | 'k3s' = 'host') => ({
   workspaceIdHash: digest,
   codeRetrieval: {
     enabled: true,
-    qdrantEnabled: true,
-    pinnedEmbeddingRequired: true,
     localFallbackAllowed: false,
-    embeddingProvider: 'fastembed/onnx',
-    semanticProvider: 'typescript-language-service',
+    codeProviderIdentity: nativeCodeRetrieval.providerIdentities.code_graph,
+    semanticProvider: 'not_configured',
   },
   documentation: { enabled: false, cloudDocsOptIn: false },
   memory: { enabled: false, localOnly: true },
@@ -184,8 +183,8 @@ const runtimeConfig = (deployment: 'host' | 'k3s' = 'host') => ({
     scope: 'code-only',
     deployment,
     sourceCommit: commit,
-    embeddingProvider: 'fastembed/onnx',
-    semanticProvider: 'typescript-language-service',
+    codeProviderIdentity: nativeCodeRetrieval.providerIdentities.code_graph,
+    semanticProvider: 'not_configured',
     failures: [],
   },
 });
@@ -198,57 +197,24 @@ const baseInput = () => ({
     generatedAt: '2026-10-20T00:00:00.000Z',
     records: dbcRecords(),
   },
-  embeddingSelection: {
-    schemaVersion: 1,
-    sourceCommit: commit,
-    reportPath: 'artifacts/embedding-comparison.json',
-    policyPath: 'benchmarks/policies/embedding-selection.json',
-    reportSha256: digest,
-    policySha256: digest,
-    evidenceStage: 'frozen_holdout',
-    dataset: 'release-fixture',
-    datasetSha256: digest,
-    verdict: {
-      status: 'PRODUCTION_APPROVED',
-      productionApproved: true,
-      measurementAccepted: true,
-      selectedProvider: 'fastembed/onnx',
-      selectedProviderIdentity: 'embedding-fixture-identity',
-      failures: [],
-    },
-  },
-  semanticSelection: {
-    schemaVersion: 1,
-    sourceCommit: commit,
-    policyPath: 'benchmarks/policies/semantic-provider-selection.json',
-    policySha256: digest,
-    fixtureSha256: digest,
-    oracleSha256: digest,
-    reports: [{ path: 'semantic-a.json', sha256: digest }, { path: 'semantic-b.json', sha256: digest }],
-    providerIds: ['serena', 'typescript-language-service'],
-    verdict: {
-      status: 'PRODUCTION_APPROVED',
-      productionApproved: true,
-      measurementAccepted: true,
-      matchedComparison: true,
-      selectedProvider: 'typescript-language-service',
-      selectedProviderIdentity: 'semantic-fixture-identity',
-      failures: [],
-    },
-  },
   retrievalQuality: {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    holdoutPath: 'artifacts/holdout.json',
+    runPath: 'artifacts/native-run.json',
+    policyPath: 'artifacts/native-policy.json',
+    providerIdentities: nativeCodeRetrieval.providerIdentities,
     sourceCommit: commit,
     holdoutSha256: digest,
     runSha256: digest,
     policySha256: digest,
     verdict: {
       measurementAccepted: true,
-      selectedStrategy: 'hybrid',
+      selectedStrategy: nativeCodeRetrieval.strategy,
       failures: [],
       metrics: {
-        holdoutStatus: 'frozen_holdout',
-        strategy: 'hybrid',
+        holdoutStatus: 'frozen_multi_repository_holdout',
+        repositoryCount: 2,
+        strategy: nativeCodeRetrieval.strategy,
         cases: 3,
         recallAt1: 1,
         recallAt3: 1,
@@ -365,7 +331,7 @@ test('code-only owner approval binds the selected provider identities', () => {
   const input = baseInput();
   const result = evaluateCodeReleasePreflight({
     ...input,
-    ownerApproval: signedApproval(['code'], ['embedding-fixture-identity', 'serena-identity']),
+    ownerApproval: signedApproval(['code'], ['retired-provider-identity', 'serena-identity']),
   });
   assert.equal(result._tag, 'Ok');
   if (result._tag === 'Ok') {
@@ -374,7 +340,7 @@ test('code-only owner approval binds the selected provider identities', () => {
   }
 });
 
-test('k3s code-only deployment requires real k3s worktree evidence while host deployment does not', () => {
+test('k3s code-only deployment cannot be approved by legacy worktree evidence', () => {
   const input = baseInput();
   const missingK3s = evaluateCodeReleasePreflight({
     ...input,
@@ -397,16 +363,16 @@ test('k3s code-only deployment requires real k3s worktree evidence while host de
     ],
   });
   assert.equal(withK3s._tag, 'Ok');
-  if (withK3s._tag === 'Ok') assert.equal(withK3s.value.status, 'READY_CODE_ONLY');
+  if (withK3s._tag === 'Ok') {
+    assert.equal(withK3s.value.status, 'BLOCKED');
+    assert.ok(withK3s.value.failures.includes('runtime_config_not_accepted'));
+  }
 });
 
 test('code-only release still requires provider approval, frozen quality and natural-use Harbor evidence', () => {
   const input = baseInput();
   const result = evaluateCodeReleasePreflight({
     ...input,
-    embeddingSelection: {
-      verdict: { status: 'MEASUREMENT_PASS_APPROVAL_PENDING', productionApproved: false },
-    },
     retrievalQuality: {
       verdict: {
         measurementAccepted: true,
@@ -427,7 +393,7 @@ test('code-only release still requires provider approval, frozen quality and nat
   if (result._tag === 'Err') throw new Error(result.error.message);
   assert.equal(result.value.status, 'BLOCKED');
   for (const failure of [
-    'embedding_not_production_approved',
+    'retrieval_evidence_identity_invalid',
     'retrieval_quality_not_accepted_on_frozen_holdout',
     'harbor_natural_use_acceptance_incomplete',
   ]) assert.ok(result.value.failures.includes(failure), failure);
@@ -483,14 +449,14 @@ test('code-only release blocks docs/memory/cloud scope or provider drift in runt
     ...input,
     runtimeConfig: {
       ...runtimeConfig(),
-      codeRetrieval: { ...runtimeConfig().codeRetrieval, embeddingProvider: 'sentence-transformers/pytorch' },
-      verdict: { ...runtimeConfig().verdict, embeddingProvider: 'sentence-transformers/pytorch' },
+      codeRetrieval: { ...runtimeConfig().codeRetrieval, codeProviderIdentity: 'retired-provider' },
+      verdict: { ...runtimeConfig().verdict, codeProviderIdentity: 'retired-provider' },
     },
   });
   assert.equal(providerMismatch._tag, 'Ok');
   if (providerMismatch._tag === 'Ok') {
     assert.equal(providerMismatch.value.status, 'BLOCKED');
-    assert.ok(providerMismatch.value.failures.includes('runtime_embedding_provider_mismatch'));
+    assert.ok(providerMismatch.value.failures.includes('runtime_config_not_accepted'));
   }
 });
 
@@ -506,15 +472,13 @@ test('code-only release also hashes binary DBC artifacts without JSON parsing', 
     const policyPath = join(root, 'policy.json');
     const outputPath = join(root, 'output.json');
     await writeFile(policyPath, JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       scope: 'code-only',
       deployment: 'host',
       ownerApproval: { status: 'pending', releaseCommit: current, reference: 'test-only', approvedCapabilities: [] },
       ownerApprovalTrustRoot: { signingKeyId: 'test', publicKeySha256: digest, publicKeyPem: 'test-key' },
       artifacts: {
         dbc: join(root, 'dbc.json'),
-        embeddingSelection: emptyPath,
-        semanticSelection: emptyPath,
         retrievalQuality: emptyPath,
         harborThreeArm: emptyPath,
         resourceBudget: emptyPath,

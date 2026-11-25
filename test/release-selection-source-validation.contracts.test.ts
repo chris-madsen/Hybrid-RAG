@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import {
-  evaluateEmbeddingSelection,
-  type EmbeddingComparisonReport,
-  type EmbeddingSelectionPolicy,
-} from '../src/domain/embedding-selection.js';
+import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
+import { evaluateRetrievalStrategy, evaluateRetrievalQualityPolicy, type RetrievalHoldout, type RetrievalStrategyRun, type RetrievalQualityPolicy } from '../src/domain/retrieval-quality-evaluation.js';
 import {
   evaluateSemanticProviderSelection,
   type SemanticProviderReport,
@@ -25,47 +22,32 @@ const retained = (path: string, value: unknown): RetainedJsonEvidence => {
   };
 };
 
-const embeddingReport: EmbeddingComparisonReport = {
-  status: 'comparison-complete',
-  evidence_stage: 'frozen_holdout',
-  production_approved: false,
-  dataset: 'holdout-v1',
-  dataset_sha256: digest,
-  candidates: ['fastembed/onnx', 'alternate/provider'].map((provider) => ({
-    provider,
-    model: 'model-v1',
-    revision,
-    status: 'success' as const,
-    dimensions: 3,
-    dataset_sha256: digest,
-    preprocessing: 'lowercase-utf8',
-    recall_at_1: 1,
-    recall_at_3: 1,
-    recall_at_5: 1,
-    mrr: 1,
-    ndcg_at_5: 1,
-    query_ms_p95: 1,
-    model_load_ms: 1,
-    max_rss_bytes: 1,
-    artifact: { revision, tree_sha256: digest },
-    runtime: { node: 'test' },
+const holdout: RetrievalHoldout = {
+  schemaVersion: 1,
+  status: 'frozen_multi_repository_holdout',
+  repositories: ['a', 'b'].map((id) => ({ id, revision, sourceManifestSha256: digest })),
+  cases: ['a', 'b'].map((id) => ({ id, repositoryId: id, query: 'fixture query', relevantCandidateIds: [id], critical: true })),
+};
+const holdoutFile = retained('holdout.json', holdout);
+const run: RetrievalStrategyRun = {
+  strategy: nativeCodeRetrieval.strategy,
+  sourceCommit: revision,
+  runnerVersion: 'fixture/v1',
+  holdoutSha256: holdoutFile.sha256,
+  providerIdentities: nativeCodeRetrieval.providerIdentities,
+  observations: ['a', 'b'].map((id) => ({
+    caseId: id, retrievedCandidateIds: [id], payloadCharacters: 10, duplicateSourceHits: 0,
+    expansionCalls: 0, nativeReadDuplicates: 0, latencyMs: 1,
+    stageRanks: { dense: [], sparse: [], fused: [], workingContext: [], reranked: [], delivered: [id] },
+    stageStatuses: { dense: 'not_applicable', sparse: 'not_applicable', fused: 'not_applicable', working_context: 'not_applicable', reranked: 'not_applicable', delivered: 'executed' },
   })),
 };
-
-const embeddingPolicy: EmbeddingSelectionPolicy = {
-  selectedProvider: 'fastembed/onnx',
-  requiredDatasetSha256: digest,
-  thresholds: {
-    minRecallAt1: 0,
-    minRecallAt3: 0,
-    minRecallAt5: 0,
-    minMrr: 0,
-    minNdcgAt5: 0,
-  },
-  licenses: {
-    'fastembed/onnx': { spdxId: 'Apache-2.0', evidence: 'test', verified: true },
-  },
-  ownerApproval: { status: 'approved', provider: 'fastembed/onnx' },
+const policy: RetrievalQualityPolicy = {
+  selectedStrategy: nativeCodeRetrieval.strategy,
+  requiredHoldoutSha256: holdoutFile.sha256,
+  requiredHoldoutStatus: 'frozen_multi_repository_holdout',
+  minRepositoryCount: 2,
+  minRecallAt1: 1, minRecallAt3: 1, minRecallAt5: 1, minCriticalRecallAt5: 1, minMrr: 1, minNdcgAt5: 1,
 };
 
 const semanticReports: readonly SemanticProviderReport[] = [
@@ -95,27 +77,35 @@ const semanticPolicy: SemanticSelectionPolicy = {
 };
 
 test('release source validation re-evaluates selection verdicts against retained bytes', async () => {
-  const embeddingVerdict = evaluateEmbeddingSelection(embeddingReport, embeddingPolicy);
+  const metrics = evaluateRetrievalStrategy(holdout, run);
+  if (metrics._tag === 'Err') throw new Error('fixture metrics rejected');
+  const retrievalVerdict = evaluateRetrievalQualityPolicy(metrics.value, holdoutFile.sha256, policy);
   const semanticVerdict = evaluateSemanticProviderSelection(semanticReports, semanticPolicy);
-  assert.equal(embeddingVerdict._tag, 'Ok');
+  assert.equal(retrievalVerdict._tag, 'Ok');
   assert.equal(semanticVerdict._tag, 'Ok');
-  if (embeddingVerdict._tag === 'Err' || semanticVerdict._tag === 'Err') return;
+  if (retrievalVerdict._tag === 'Err' || semanticVerdict._tag === 'Err') return;
 
   const files = new Map<string, RetainedJsonEvidence>([
-    ['embedding-report.json', retained('embedding-report.json', embeddingReport)],
-    ['embedding-policy.json', retained('embedding-policy.json', embeddingPolicy)],
+    ['holdout.json', holdoutFile],
+    ['run.json', retained('run.json', run)],
+    ['policy.json', retained('policy.json', policy)],
     ['semantic-policy.json', retained('semantic-policy.json', semanticPolicy)],
     ...semanticReports.map((report, index) => {
       const path = `semantic-report-${index}.json`;
       return [path, retained(path, report)] as const;
     }),
   ]);
-  const embeddingSelection = {
-    reportPath: 'embedding-report.json',
-    policyPath: 'embedding-policy.json',
-    reportSha256: files.get('embedding-report.json')!.sha256,
-    policySha256: files.get('embedding-policy.json')!.sha256,
-    verdict: embeddingVerdict.value,
+  const retrievalSelection = {
+    schemaVersion: 2,
+    sourceCommit: revision,
+    providerIdentities: nativeCodeRetrieval.providerIdentities,
+    holdoutPath: 'holdout.json',
+    runPath: 'run.json',
+    policyPath: 'policy.json',
+    holdoutSha256: holdoutFile.sha256,
+    runSha256: files.get('run.json')!.sha256,
+    policySha256: files.get('policy.json')!.sha256,
+    verdict: retrievalVerdict.value,
   };
   const semanticSelection = {
     policyPath: 'semantic-policy.json',
@@ -132,13 +122,15 @@ test('release source validation re-evaluates selection verdicts against retained
     return evidence;
   };
 
-  const validated = await validateReleaseSelectionSources(embeddingSelection, semanticSelection, readJson);
-  assert.equal(validated.embedding?.report.sha256, embeddingSelection.reportSha256);
+  const validated = await validateReleaseSelectionSources(retrievalSelection, semanticSelection, readJson);
+  assert.equal(validated.nativeRetrieval?.run.sha256, retrievalSelection.runSha256);
+  await assert.rejects(validateReleaseSelectionSources({ ...retrievalSelection, runSha256: digest }, semanticSelection, readJson), /source digest mismatch/u);
+  await assert.rejects(validateReleaseSelectionSources({ ...retrievalSelection, verdict: { ...retrievalSelection.verdict, measurementAccepted: false } }, semanticSelection, readJson), /does not match retained source reports/u);
   assert.equal(validated.semantic?.reports.length, 2);
 
   await assert.rejects(
     validateReleaseSelectionSources(
-      embeddingSelection,
+      retrievalSelection,
       { ...semanticSelection, verdict: { ...semanticSelection.verdict, selectedProvider: 'forged/provider' } },
       readJson,
     ),
