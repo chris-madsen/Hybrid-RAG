@@ -1,23 +1,12 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { chmod, cp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 
-const FASTEMBED = '0.9.1';
-const ONNXRUNTIME = '1.23.2';
-const NUMPY = '2.2.6';
-const HUGGINGFACE_HUB = '1.33.0';
-const PILLOW = '13.0.0';
-const pinnedHex = (name, value, length) => {
-  if (!new RegExp(`^[a-f0-9]{${length}}$`, 'u').test(value)) {
-    throw new Error(`BLOCKED: ${name} must be exactly ${length} lowercase hexadecimal characters`);
-  }
-  return value;
-};
-const embeddingModelRevision = pinnedHex('ACE_EMBEDDING_MODEL_REVISION', process.env.ACE_EMBEDDING_MODEL_REVISION || 'e8f8c211226b894fcb81acc59f3b34ba3efd5f42', 40);
-const embeddingArtifactRevision = pinnedHex('ACE_EMBEDDING_ARTIFACT_REVISION', process.env.ACE_EMBEDDING_ARTIFACT_REVISION || 'faf4aa4225822f3bc6376869cb1164e8e3feedd0', 40);
-const embeddingArtifactDigest = pinnedHex('ACE_EMBEDDING_ARTIFACT_DIGEST', process.env.ACE_EMBEDDING_ARTIFACT_DIGEST || '4bb74885d054d77b15c33520114d7edc19c31699bdab813d893e4f58c3afb4a1', 64);
+const CBM_VERSION = '0.12.1';
 
 const usage = () => {
   process.stdout.write('Usage: node scripts/build-harbor-ace-runtime.mjs --source-root <clean-checkout> --output <bundle-dir> --task-image <reference>@sha256:<64hex> [--task-image ...]\n');
@@ -99,7 +88,6 @@ const executionImage = (image) => {
 };
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fileDigest = async (path) => digest(await readFile(path));
-const shellQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 
 const sourceStatus = run('git', ['-C', sourceRoot, 'status', '--porcelain=v1', '--untracked-files=all']).trim();
 if (sourceStatus.length > 0) throw new Error('BLOCKED: ACE source checkout is dirty');
@@ -126,77 +114,45 @@ await mkdir(output, { recursive: true });
 for (const path of ['dist', 'src', 'scripts', 'package.json', 'package-lock.json', 'tsconfig.json']) {
   await cp(join(sourceRoot, path), join(output, path), { recursive: true });
 }
-for (const path of ['scripts/fastembed-worker.sh', 'scripts/fastembed-sparse-worker.sh']) {
-  await chmod(join(output, path), 0o755);
+// Runtime-only bundle. Keep the independent TypeScript LSP package, but
+// omit npm launcher symlinks from the no-follow byte manifest.
+run('npm', ['ci', '--omit=dev', '--ignore-scripts', '--bin-links=false'], { cwd: output, stdio: 'inherit' });
+const nativeDir = join(output, 'runtime/native');
+await mkdir(nativeDir, { recursive: true });
+const binary = join(nativeDir, 'codebase-memory-mcp');
+const installRoot = await mkdtemp(join(tmpdir(), 'ace-pinned-cbm-'));
+try {
+  // The pinned upstream installer verifies the native release checksum.
+  run('npm', ['install', '--prefix', installRoot, '--no-save', '--package-lock=false', 'codebase-memory-mcp@' + CBM_VERSION], { stdio: 'inherit' });
+  await cp(join(installRoot, 'node_modules/codebase-memory-mcp/bin/codebase-memory-mcp'), binary);
+  await chmod(binary, 0o755);
+} finally {
+  await rm(installRoot, { recursive: true, force: true });
 }
-await mkdir(join(output, 'runtime/python'), { recursive: true });
-await mkdir(join(output, 'runtime/model-cache'), { recursive: true });
-run('npm', ['ci', '--omit=dev', '--ignore-scripts'], { cwd: output, stdio: 'inherit' });
-
-const pythonVersions = new Set();
+const assertNativeVersion = (value) => {
+  if (!/(?:^|\s)0\.12\.1(?:\s|$)/u.test(value)) throw new Error('BLOCKED: unexpected native CBM version');
+};
+assertNativeVersion(run(binary, ['--version']));
 for (const image of imageRefs) {
   const pinnedImage = executionImage(image);
-  const pythonVersion = run('docker', ['run', '--rm', '--entrypoint', 'python3', pinnedImage, '-c', 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")']).trim();
-  if (pythonVersion !== '3.11') {
-    throw new Error(`BLOCKED: unsupported task-image Python ${pythonVersion} in ${pinnedImage}`);
-  }
-  pythonVersions.add(pythonVersion);
-  const target = `/ace/runtime/python/${pythonVersion}/site-packages`;
-  await mkdir(join(output, 'runtime/python', pythonVersion, 'site-packages'), { recursive: true });
-  run('docker', ['run', '--rm', '--entrypoint', 'sh', '-v', `${output}:/ace`, pinnedImage, '-lc',
-    `python3 -m pip install --disable-pip-version-check --no-input --target ${shellQuote(target)} pillow==${PILLOW} fastembed==${FASTEMBED} onnxruntime==${ONNXRUNTIME} numpy==${NUMPY} huggingface-hub==${HUGGINGFACE_HUB}`], { stdio: 'inherit' });
-  run('docker', ['run', '--rm', '--entrypoint', 'sh', '-v', `${output}:/ace:ro`, pinnedImage, '-lc', [
-    `export PYTHONPATH=${target}:/ace/scripts`,
-    `python3 -c ${shellQuote('from PIL import Image; import PIL, fastembed, onnxruntime; print(f"pillow={PIL.__version__} fastembed={fastembed.__version__} onnxruntime={onnxruntime.__version__}")')}`,
-  ].join(' && ')], { stdio: 'inherit' });
+  assertNativeVersion(run('docker', ['run', '--rm', '--network', 'none', '--entrypoint', '/ace/runtime/native/codebase-memory-mcp', '-v', `${output}:/ace:ro`, pinnedImage, '--version']));
 }
-
-const prefetchImage = executionImage(imageRefs[0]);
-const prefetchPython = [...pythonVersions][0];
-const prefetchTarget = `/ace/runtime/python/${prefetchPython}/site-packages`;
-run('docker', ['run', '--rm', '--entrypoint', 'sh', '-v', `${output}:/ace`, prefetchImage, '-lc', [
-  `export PYTHONPATH=${prefetchTarget}:/ace/scripts`,
-  'export FASTEMBED_CACHE_PATH=/ace/runtime/model-cache',
-  `python3 -c ${shellQuote('from fastembed import TextEmbedding, SparseTextEmbedding; TextEmbedding(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"); SparseTextEmbedding(model_name="Qdrant/bm25"); print("models_ready")')}`,
-].join(' && ')], { stdio: 'inherit' });
-run('docker', ['run', '--rm', '--entrypoint', 'sh', '-v', `${output}:/ace`, prefetchImage, '-lc', 'chmod -R a+rX /ace/runtime'], { stdio: 'inherit' });
-
-const walk = async (root, current = root) => {
-  const entries = [];
-  for (const name of (await readdir(current)).sort()) {
-    const path = join(current, name);
-    const info = await stat(path);
-    if (info.isDirectory()) {
-      // Include installed production dependencies: a package-lock pin is not proof
-      // that the mounted node_modules content has not changed after npm ci.
-      entries.push(...await walk(root, path));
-    } else if (info.isFile() && relative(root, path) !== 'runtime-manifest.json' && relative(root, path) !== 'dist/runtime-provenance.json') {
-      entries.push({ path: relative(root, path).split('\\').join('/'), sha256: await fileDigest(path), sizeBytes: info.size });
-    }
-  }
-  return entries;
-};
-const bundleEntries = await walk(output);
-const bundleSha256 = digest(Buffer.from(JSON.stringify(bundleEntries, null, 2) + '\n', 'utf8'));
+const nativeBinarySha256 = await fileDigest(binary);
+const { computeAceRuntimeBundleDigest } = await import(pathToFileURL(join(sourceRoot, 'dist/application/ace-runtime-bundle.js')).href);
+const bundleSha256 = await computeAceRuntimeBundleDigest(output);
 const provenancePath = join(output, 'dist/runtime-provenance.json');
 const provenance = JSON.parse(await readFile(provenancePath, 'utf8'));
 provenance.bundleManifestSha256 = bundleSha256;
 await writeFile(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`, 'utf8');
 const runtimeManifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   runtimeId: 'ace-harbor-runtime-v1',
+  retrieval: 'native_cbm',
   sourceCommit,
   bundleSha256,
   taskImages: imageRefs,
-  pythonVersions: [...pythonVersions].sort(),
-  pillow: PILLOW,
-  fastembed: FASTEMBED,
-  onnxruntime: ONNXRUNTIME,
-  numpy: NUMPY,
-  huggingfaceHub: HUGGINGFACE_HUB,
-  embeddingModelRevision,
-  embeddingArtifactRevision,
-  embeddingArtifactDigest,
+  codebaseMemoryVersion: CBM_VERSION,
+  nativeBinarySha256,
 };
 await writeFile(join(output, 'runtime-manifest.json'), `${JSON.stringify(runtimeManifest, null, 2)}\n`, 'utf8');
-process.stdout.write(`${JSON.stringify({ status: 'READY', output, sourceCommit, bundleSha256, taskImages: imageRefs, pythonVersions: [...pythonVersions].sort() })}\n`);
+process.stdout.write(`${JSON.stringify({ status: 'READY', output, sourceCommit, bundleSha256, taskImages: imageRefs, codebaseMemoryVersion: CBM_VERSION })}\n`);

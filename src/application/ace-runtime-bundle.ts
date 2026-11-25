@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { constants, existsSync } from 'node:fs';
-import { open, readFile, readdir, type FileHandle } from 'node:fs/promises';
+import { access, open, readFile, readdir, type FileHandle } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { requiredAceRuntimeBundlePaths, validateAceRuntimeBundleManifest } from '../domain/ace-runtime-bundle.js';
 
@@ -92,13 +92,13 @@ export const verifyAceRuntimeBundle = async (
     const manifest = JSON.parse(await readFile(join(root, 'runtime-manifest.json'), 'utf8')) as Record<string, unknown>;
     const failures = validateAceRuntimeBundleManifest(manifest);
     if (failures.length > 0) return { status: 'not_ready', reason: `ACE runtime manifest invalid: ${failures.join(',')}` };
-    const missingPythonPackages = (manifest.pythonVersions as string[]).flatMap((version) => [
-      `runtime/python/${version}/site-packages/PIL/__init__.py`,
-      `runtime/python/${version}/site-packages/fastembed/__init__.py`,
-      `runtime/python/${version}/site-packages/onnxruntime/__init__.py`,
-    ].filter((path) => !existsSync(join(root, path))));
-    if (missingPythonPackages.length > 0) {
-      return { status: 'not_ready', reason: `ACE runtime bundle is missing Python packages: ${missingPythonPackages.join(',')}` };
+    const binary = join(root, 'runtime/native/codebase-memory-mcp');
+    await access(binary, constants.X_OK);
+    if (sha256(await readFile(binary)) !== manifest.nativeBinarySha256) {
+      return { status: 'not_ready', reason: 'ACE native binary digest differs from manifest' };
+    }
+    if (existsSync(join(root, 'runtime/python')) || existsSync(join(root, 'runtime/model-cache'))) {
+      return { status: 'not_ready', reason: 'ACE native bundle contains retired embedding runtime' };
     }
     const declared = manifest.bundleSha256 as string;
     if (expectedDigest !== undefined && expectedDigest !== declared) {
