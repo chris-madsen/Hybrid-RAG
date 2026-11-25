@@ -70,6 +70,45 @@ const aceRuntimeBundle = async (
   return verifyAceRuntimeBundle(bundlePath, expectedDigest);
 };
 
+// Local no-egress evidence cannot certify the Hermes executable,
+// Bifröst post-auth hook or a physical provider send.
+const nativeTaskProjection = (
+  bundlePath: string | undefined,
+  expectedBundleDigest: string | undefined,
+  taskImages: readonly { readonly reference: string; readonly digest: string }[] | undefined,
+  prerequisites: readonly PreflightCheck[],
+): PreflightCheck => {
+  if (bundlePath === undefined || expectedBundleDigest === undefined || !taskImages?.length
+    || prerequisites.some((check) => check.status !== 'ready')) {
+    return { status: 'not_ready', reason: 'native task projection requires a clean checkout, verified bundle and pinned local task images' };
+  }
+  for (const image of taskImages) {
+    const result = spawnSync(process.execPath, [
+      resolve('scripts/ace-container-runtime-smoke.mjs'),
+      '--image', `${image.reference}@${image.digest}`,
+      '--bundle', bundlePath,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 });
+    if (result.error !== undefined || result.status !== 0) {
+      return { status: 'not_ready', reason: 'native task-image zero-egress projection failed or timed out' };
+    }
+    try {
+      const lastLine = result.stdout.trim().split(/\\r?\\n/u).at(-1);
+      const receipt = JSON.parse(lastLine ?? '') as Record<string, unknown>;
+      if (receipt.status !== 'READY' || receipt.nativeProjection !== true
+        || receipt.providerWireCertified !== false || receipt.bundleSha256 !== expectedBundleDigest) {
+        return { status: 'not_ready', reason: 'native task-image projection receipt does not match the frozen bundle' };
+      }
+    } catch {
+      return { status: 'not_ready', reason: 'native task-image projection receipt is malformed' };
+    }
+  }
+  return {
+    status: 'ready',
+    reason: 'compiled native Context RPC projection and mutation passed in every pinned task image without network; provider wire remains uncertified',
+    identity: expectedBundleDigest,
+  };
+};
+
 const taskRuntimeProbe = (
   bundlePath: string | undefined,
   taskImages: readonly { readonly reference: string; readonly digest: string }[] | undefined,
@@ -420,6 +459,10 @@ const main = async (): Promise<void> => {
     aceRuntimeBundle: await aceRuntimeBundle(args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256),
     taskRuntimeProbe: taskRuntimeProbe(args.aceRuntimeBundlePath, manifestTaskImages),
   };
+  checks.nativeTaskProjection = nativeTaskProjection(
+    args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256, manifestTaskImages,
+    [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest],
+  );
   const harborVersion = checks.harbor.identity;
   if (experimentManifest === undefined) {
     checks.experimentBinding = { status: 'not_ready', reason: 'experiment manifest is required for exact-current feedback preflight' };
@@ -448,7 +491,7 @@ const main = async (): Promise<void> => {
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
     'harbor', 'harborRun', 'harborDatasetPinned',
-    'hermesCodexAuth', 'bifrostEndpoint', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
+    'hermesCodexAuth', 'bifrostEndpoint', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'nativeTaskProjection', 'taskRuntimeProbe', 'experimentBinding',
     'taskVerifier',
   ];
   const blocked = required.filter((name) => !['ready', 'not_required'].includes(checks[name]?.status ?? 'not_ready'));
