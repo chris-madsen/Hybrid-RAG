@@ -53,7 +53,7 @@ import { makeVertexRagRetrievalPort } from '../adapters/vertex-rag.js';
 import { makeFileWorkspaceStore } from '../adapters/file-workspace-store.js';
 import type { WorkspaceFilePort } from '../application/ports.js';
 import { defaultLocalPolicy, type DataClass } from '../domain/policy.js';
-import { makeWorkspaceId, type RepoPath, type WorkspaceId } from '../domain/workspace.js';
+import { makeWorkspaceId, workingContextFromSnapshot, type RepoPath, type WorkspaceId, type WorkspaceSnapshot } from '../domain/workspace.js';
 import { isSensitiveSourcePath } from '../domain/sensitive-path.js';
 import { structuralLanguageForPath } from '../domain/structural-language.js';
 import type { CodeCandidate } from '../domain/retrieval.js';
@@ -72,6 +72,7 @@ import {
   makeWorkspaceSync,
   observeWorkspaceManifest,
   type WorkspaceSync,
+  type WorkspaceSyncState,
 } from '../application/workspace-sync.js';
 import { verifyCompiledRuntimeProvenance } from '../application/runtime-provenance.js';
 import { makeContextTransformService } from '../application/context-transform-service.js';
@@ -411,8 +412,10 @@ const main = async (): Promise<void> => {
       structural: cbmStructuralIdentity,
       code_graph: 'codebase-memory/v0.12.1',
     };
-    const rebuildNative = async (expected?: WorkspaceManifest): Promise<Result<NativeCbmContextConfig, DomainError>> => {
-      const before = await Effect.runPromise(files.snapshot(registered.value.rootPath, Date.now()));
+    const rebuildNative = async (expected?: WorkspaceManifest, sourceSnapshot?: WorkspaceSnapshot): Promise<Result<NativeCbmContextConfig, DomainError>> => {
+      const before = sourceSnapshot === undefined
+        ? await Effect.runPromise(files.snapshot(registered.value.rootPath, Date.now()))
+        : ok(sourceSnapshot);
       if (before._tag === 'Err') return before;
       const manifest = workspaceManifestFromSnapshot(before.value, scopeFingerprint);
       if (expected !== undefined && !workspaceManifestEqual(manifest, expected)) {
@@ -458,7 +461,6 @@ const main = async (): Promise<void> => {
         workspaceManifest: built.value.workspaceManifest,
         scopeFingerprint,
         isPublished: () => nativePublished && graph.isIndexed(),
-        reconcile: (currentManifest) => Effect.promise(() => rebuildNative(currentManifest)),
         trace: providerTrace,
         ...(benchmarkTrace === undefined ? {} : { benchmarkTrace }),
         ...(benchmarkRepositoryId === undefined ? {} : { benchmarkRepositoryId }),
@@ -473,7 +475,51 @@ const main = async (): Promise<void> => {
       readiness.unified_context = { state: 'not_ready', reason: 'native_cbm_index_failed' };
       process.stderr.write(`ace-runtime context NOT_READY: native CBM index failed (${native.error.code})\n`);
     } else {
-      const provider = makeNativeCbmContextProvider(native.value);
+      let published = native.value;
+      const syncState = (config: NativeCbmContextConfig): WorkspaceSyncState => ({
+        workspaceId: config.workspaceId,
+        workspaceManifest: config.workspaceManifest!,
+        generation: config.generation!,
+        indexKey: config.indexKey!,
+        candidateIdsByPath: candidateMembershipByPath(candidates.map((candidate) => ({
+          candidate, score: 0, freshness: 'unknown',
+        }))),
+      });
+      const sync = makeWorkspaceSync({
+        initial: syncState(published),
+        isPublished: () => nativePublished && graph.isIndexed(),
+        // Git-diff hints alone do not establish full source membership on
+        // reverted dirty files, ignored paths or trust-index flags. Keep exact
+        // observation; only changed paths need new structural extraction.
+        observeChanges: (current) => Effect.gen(function* () {
+          const snapshot = yield* files.snapshot(registered.value.rootPath, Date.now());
+          if (snapshot._tag === 'Err') return snapshot;
+          const manifest = workspaceManifestFromSnapshot(snapshot.value, scopeFingerprint);
+          return ok({
+            changed: !workspaceManifestEqual(current.workspaceManifest, manifest)
+              || current.workspaceManifest.headRevision !== manifest.headRevision,
+            manifest, sourceSnapshot: snapshot.value,
+            workingContext: workingContextFromSnapshot(snapshot.value),
+          });
+        }),
+        rebuild: ({ nextManifest, sourceSnapshot }) => Effect.promise(async () => {
+          if (sourceSnapshot === undefined) {
+            return err(domainError('NOT_READY', 'workspace_sync', 'native rebuild requires an exact observed snapshot'));
+          }
+          const rebuilt = await rebuildNative(nextManifest, sourceSnapshot);
+          if (rebuilt._tag === 'Err') return rebuilt;
+          published = rebuilt.value;
+          return ok(syncState(published));
+        }),
+      });
+      const reconcileNative: NonNullable<NativeCbmContextConfig['reconcile']> = (manifest) => Effect.sync(() => {
+        if (!nativePublished || !graph.isIndexed() || published.workspaceManifest === undefined
+          || !workspaceManifestEqual(published.workspaceManifest, manifest)) {
+          return err(domainError('NOT_READY', 'workspace_sync', 'native publication does not match synchronized source'));
+        }
+        return ok({ ...published, workspaceSync: sync, reconcile: reconcileNative });
+      });
+      const provider = makeNativeCbmContextProvider({ ...published, workspaceSync: sync, reconcile: reconcileNative });
       // Serialize the complete search/reconciliation transaction; no query
       // may read a candidate list while another query mutates the native index.
       const semaphore = await Effect.runPromise(Effect.makeSemaphore(1));
