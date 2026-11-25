@@ -12,7 +12,7 @@ import { makeCodebaseMemoryStdio } from './codebase-memory-stdio.js';
  *
  * CBM, not ACE, owns parsing, indexing, semantic retrieval and graph edges.
  * ACE consumes only file/symbol names returned by CBM. The evidence bytes and
- * digests still come from ACE's independently verified Qdrant source snapshot.
+ * digests still come from ACE's independently verified workspace snapshot.
  * In particular, these hints are NEVER accepted as direct source evidence.
  *
  * Upstream: DeusData / Codebase Memory, pinned native v0.12.1.
@@ -31,6 +31,8 @@ export interface CodebaseMemoryOptions {
 export interface CodebaseMemoryGraph extends CodeGraphCandidatePort {
   /** Must complete after source changes and before this graph can be exposed. */
   readonly reindex: () => Effect.Effect<Result<void, DomainError>>;
+  /** False after transport loss, during index mutation or after shutdown. */
+  readonly isIndexed: () => boolean;
   /** Upstream file declaration inventory; parser stays entirely in native CBM. */
   readonly outline: (filePath: RepoPath) => Effect.Effect<Result<readonly NativeOutlineRow[], DomainError>>;
   readonly trace: (qualifiedName: string) => Effect.Effect<Result<unknown, DomainError>>;
@@ -237,6 +239,7 @@ const matchesName = (qualifiedName: string, name: string): boolean =>
 export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): CodebaseMemoryGraph => {
   const root = resolve(options.rootPath);
   let project: string | undefined;
+  let closed = false;
   let reindexing: Promise<Result<void, DomainError>> | undefined;
   const transport = makeCodebaseMemoryStdio({
     rootPath: root,
@@ -251,6 +254,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
   const invoke = transport.invoke;
 
   const reindex = (): Effect.Effect<Result<void, DomainError>> => Effect.promise(async () => {
+    if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native graph is closed'));
     if (reindexing !== undefined) return reindexing;
     // Do not expose the previous project's graph while an updated ACE snapshot
     // is being published. CBM indexes locally and handles incremental changes.
@@ -267,6 +271,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       if (typeof name !== 'string' || name.length === 0 || record?.status !== 'indexed') {
         return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory did not confirm a completed index'));
       }
+      if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native graph closed during indexing'));
       project = name;
       return ok(undefined);
     })();
@@ -528,5 +533,13 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
   });
 
-  return { reindex, search, outline, trace, queryGraph, detectChanges, close: transport.close };
+  return {
+    reindex, search, outline, trace, queryGraph, detectChanges,
+    isIndexed: () => !closed && project !== undefined && reindexing === undefined,
+    close: async () => {
+      closed = true;
+      project = undefined;
+      await transport.close();
+    },
+  };
 };

@@ -393,6 +393,7 @@ const main = async (): Promise<void> => {
     let candidates: readonly CodeCandidate[] = [];
     let latestBuild: LocalCodeIndexBuild | undefined;
     let nativeGeneration = observationEpoch;
+    let nativePublished = false;
     const graph = makeCodebaseMemoryGraph({
       rootPath: registered.value.rootPath,
       ...(process.env.ACE_CBM_COMMAND?.trim() ? { command: process.env.ACE_CBM_COMMAND.trim() } : {}),
@@ -419,6 +420,7 @@ const main = async (): Promise<void> => {
       }
       // Invalidate candidates before any native index mutation. A failed
       // reindex must not reuse previously certified candidate membership.
+      nativePublished = false;
       candidates = [];
       const indexed = await Effect.runPromise(graph.reindex());
       if (indexed._tag === 'Err') return indexed;
@@ -438,8 +440,12 @@ const main = async (): Promise<void> => {
         workspaceManifestFromSnapshot(after.value, scopeFingerprint))) {
         return err(domainError('WORKTREE_RACED', 'workspace_manifest', 'workspace changed during native CBM indexing'));
       }
+      if (!graph.isIndexed()) {
+        return err(domainError('NOT_READY', 'codebase_memory', 'native session lost before publication'));
+      }
       latestBuild = built.value;
       candidates = built.value.index.candidates;
+      nativePublished = true;
       return ok({
         mode: 'cbm',
         workspaceId: registered.value.workspaceId,
@@ -451,6 +457,7 @@ const main = async (): Promise<void> => {
         coverage: built.value.coverage,
         workspaceManifest: built.value.workspaceManifest,
         scopeFingerprint,
+        isPublished: () => nativePublished && graph.isIndexed(),
         reconcile: (currentManifest) => Effect.promise(() => rebuildNative(currentManifest)),
         trace: providerTrace,
         ...(benchmarkTrace === undefined ? {} : { benchmarkTrace }),
@@ -471,7 +478,12 @@ const main = async (): Promise<void> => {
       // may read a candidate list while another query mutates the native index.
       const semaphore = await Effect.runPromise(Effect.makeSemaphore(1));
       context = {
-        search: (input) => semaphore.withPermits(1)(provider.search(input)),
+        // The upstream stdio and nested snapshot/build promises are not
+        // cancellable. Once a permit is acquired, retain it until the native
+        // transaction settles; an interrupted caller cannot release a writer
+        // while it still mutates graph/candidate publication. Waiting for the
+        // permit remains interruptible. Provider operations have deadlines.
+        search: (input) => semaphore.withPermits(1)(Effect.uninterruptible(provider.search(input))),
       };
       activeContextProviderIdentities = nativeIdentities;
       readiness.semantic_lsp = { state: 'not_ready', reason: 'native_exact_identifier_contract_pending' };

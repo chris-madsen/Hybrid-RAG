@@ -132,6 +132,8 @@ export interface NativeCbmContextConfig extends Omit<QdrantContextConfig,
   | 'codeGraph' | 'reconcile'> {
   readonly mode: 'cbm';
   readonly codeGraph: CodeGraphCandidatePort;
+  /** Runtime-owned publication fence, including native session identity loss. */
+  readonly isPublished?: () => boolean;
   readonly reconcile?: (
     currentManifest: WorkspaceManifest,
     delta: WorkspaceManifestDelta,
@@ -919,7 +921,8 @@ const makeVerifiedContextProvider = (config: ContextConfig) => {
             currentSnapshot.value,
             activeConfig.scopeFingerprint ?? activeConfig.workspaceManifest.scopeFingerprint,
           );
-          if (!workspaceManifestEqual(activeConfig.workspaceManifest, currentManifest)) {
+          if (!workspaceManifestEqual(activeConfig.workspaceManifest, currentManifest)
+            || (activeConfig.mode === 'cbm' && activeConfig.isPublished?.() === false)) {
             const delta = diffWorkspaceManifests(activeConfig.workspaceManifest, currentManifest);
             if (activeConfig.reconcile === undefined) {
               return err(domainError(
@@ -1654,6 +1657,21 @@ const makeVerifiedContextProvider = (config: ContextConfig) => {
             activeConfig = reconciled.value;
             return yield* search(input, 1);
           }
+        }
+      }
+      // Native ranking depends on the whole graph, not only the returned files.
+      // Re-observe even nonempty results: an uncited changed/deleted/new path can
+      // invalidate the shortlist. This fence does not certify an ABA-free snapshot.
+      if (includeCode && activeConfig.mode === 'cbm' && sourceAtSearchStart !== undefined) {
+        const finalSnapshot = yield* activeConfig.files.snapshot(activeConfig.rootPath, Date.now());
+        if (finalSnapshot._tag === 'Err') return finalSnapshot;
+        const finalManifest = workspaceManifestFromSnapshot(
+          finalSnapshot.value, activeConfig.scopeFingerprint ?? sourceAtSearchStart.scopeFingerprint,
+        );
+        if (activeConfig.isPublished?.() === false || activeConfig.indexKey !== indexKeyAtSearchStart
+          || !workspaceManifestEqual(finalManifest, sourceAtSearchStart)) {
+          return err(domainError('WORKTREE_RACED', 'workspace_manifest',
+            'native graph publication or authoritative source changed during retrieval'));
         }
       }
       const merged = mergeEvidence(requestId.value, input.query, evidence, warnings, failed);

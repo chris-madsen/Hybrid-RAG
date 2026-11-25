@@ -91,6 +91,8 @@ const qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
 const outage = process.env.ACE_REAL_PROJECTION_OUTAGE === 'true' || process.env.ACE_REAL_PROJECTION_HARD_OUTAGE === 'true';
 const race = process.env.ACE_REAL_PROJECTION_RACE === 'true';
 const mutations = process.env.ACE_REAL_PROJECTION_NATIVE_MUTATIONS === 'true';
+const recovery = process.env.ACE_REAL_PROJECTION_NATIVE_RECOVERY === 'true';
+assert.ok(!recovery || (native && !outage && !race && !mutations), 'native recovery requires a healthy standalone native fixture');
 assert.ok(!mutations || (native && !outage && !race), 'native mutation test requires a healthy native-only fixture');
 assert.ok(!(native && race), 'historical embedding delay is not a native CBM race oracle');
 const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
@@ -244,9 +246,7 @@ try {
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
-    if (mutations) {
-      // Use sequential source changes, not timing guesses or the retired
-      // embedding delay. Every healthy edit/rename must project new bytes.
+    if (mutations || recovery) {
       const projectAgain = async () => {
         const next = {
           ...payload, requestId: 'responses-projection-' + randomUUID(),
@@ -261,6 +261,41 @@ try {
         assert.equal(outcome.baseBodySha256, next.bodySha256);
         return outcome;
       };
+      if (recovery) {
+        // Kill the actual stdio child, not the ACE runtime or a fake provider.
+        // Observe its disappearance before requesting unchanged source again.
+        const nativeChild = processDescendants(child.pid).find((entry) =>
+          entry.parentPid === child.pid && /codebase-memory-mcp/u.test(entry.command));
+        assert.ok(nativeChild, 'actual native stdio child must be present');
+        const traceBefore = await readProviderTrace(providerTracePath);
+        const indexesBefore = traceBefore.filter((event) => event.provider === 'codebase_memory'
+          && event.operation === 'index_repository' && event.status === 'success').length;
+        process.kill(nativeChild.pid, 'SIGKILL');
+        const until = Date.now() + 10000;
+        while (processDescendants(child.pid).some((entry) => entry.pid === nativeChild.pid)) {
+          assert.ok(Date.now() < until, 'native stdio child did not exit');
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        const recovered = await Promise.all([projectAgain(), projectAgain()]);
+        for (const outcome of recovered) {
+          assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+          const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+          const context = projected.input.find((item) => item.role === 'developer'
+            && String(item.content).includes('[ACE verified context]'));
+          assert.ok(context);
+          assert.match(context.content, /retryAfterTransientFailure/u);
+          assert.match(context.content, /service\.ts:/u);
+        }
+        assert.equal(await readFile(codePath, 'utf8'), code + filler + '\n', 'no artificial source mutation may trigger recovery');
+        const traceAfter = await readProviderTrace(providerTracePath);
+        const indexesAfter = traceAfter.filter((event) => event.provider === 'codebase_memory'
+          && event.operation === 'index_repository' && event.status === 'success').length;
+        assert.equal(indexesAfter, indexesBefore + 1, 'parallel requests must share exactly one recovered publication');
+        assertNoExternalRetrievalProcesses(child.pid);
+        console.log(JSON.stringify({ status: 'native-recovery-pass', providerWireCertified: false }));
+      }
+      if (mutations) {
+      // Every healthy edit/rename must project new bytes.
       const assertCurrent = (outcome, citation) => {
         assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
         const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
@@ -284,6 +319,7 @@ try {
       assert.equal(removed.projectionReceipt, undefined);
       nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
       console.log(JSON.stringify({ status: 'native-mutations-pass', edits: ['modify', 'rename', 'delete'], providerWireCertified: false }));
+      }
     }
   }
 } finally {
