@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdtemp, mkdir, open, readdir, readFile, readlink, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, open, readdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -516,7 +516,14 @@ try {
           return body.input.find((entry) => entry.role === 'developer' && String(entry.content).includes('[ACE verified context]')).content;
         };
         const before = await readFile(codePath, 'utf8');
-        const metadata = await stat(codePath);
+        const sourceHandle = await open(codePath, 'r+');
+        const metadata = await sourceHandle.stat();
+        const writeSource = async (value) => {
+          const bytes = Buffer.from(value, 'utf8');
+          await sourceHandle.truncate(0);
+          const written = await sourceHandle.write(bytes, 0, bytes.length, 0);
+          assert.equal(written.bytesWritten, bytes.length);
+        };
         const changed = (marker) => before.replace('return value;', "return value + '" + marker + "';");
         const assertCurrent = (outcome, marker) => {
           const delivered = context(outcome);
@@ -531,7 +538,7 @@ try {
           const count = async () => (await readProviderTrace(providerTracePath)).filter((event) =>
             event.operation === 'index_repository_request_queued').length;
           const queued = await count();
-          await writeFile(codePath, changed('older-generation'));
+          await writeSource(changed('older-generation'));
           process.kill(nativeChild.pid, 'SIGSTOP');
           paused = true;
           inFlight = projectAgain();
@@ -544,8 +551,8 @@ try {
           }
           const newer = changed('newer-generation');
           assert.equal(Buffer.byteLength(newer), Buffer.byteLength(changed('older-generation')));
-          await writeFile(codePath, newer);
-          await utimes(codePath, metadata.atime, metadata.mtime);
+          await writeSource(newer);
+          await sourceHandle.utimes(metadata.atime, metadata.mtime);
           assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'newer-generation');
           process.kill(nativeChild.pid, 'SIGCONT');
           paused = false;
@@ -584,6 +591,7 @@ try {
         } finally {
           if (paused) { try { process.kill(nativeChild.pid, 'SIGCONT'); } catch {} }
           if (inFlight) await inFlight.catch(() => {});
+          await sourceHandle.close();
           await stopRealProviderProcess(other);
         }
         // All frontends are now closed before reopening the same cache. The

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { open, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import type { ReadRetainedJson } from './release-selection-source-validation.js';
 
@@ -24,11 +24,16 @@ export const nativeReleaseEvidenceReader = async (
     const absolute = resolve(repo, path);
     const canonical = await realpath(absolute);
     if (inside(repo, absolute) && inside(repo, canonical)) return readRepositoryJson(path);
-    if (external === undefined || !inside(external, absolute) || !inside(external, canonical)
-      || !(await stat(canonical)).isFile()) {
+    if (external === undefined || !inside(external, absolute) || !inside(external, canonical)) {
       throw new Error('native retrieval evidence path escapes the authorized evidence root');
     }
-    const bytes = await readFile(canonical);
+    const handle = await open(canonical, 'r');
+    const bytes = await (async () => {
+      try {
+        if (!(await handle.stat()).isFile()) throw new Error('native retrieval evidence must be a regular file');
+        return await handle.readFile();
+      } finally { await handle.close(); }
+    })();
     return { path: canonical, sha256: createHash('sha256').update(bytes).digest('hex'),
       value: JSON.parse(bytes.toString('utf8')) as unknown };
   };
