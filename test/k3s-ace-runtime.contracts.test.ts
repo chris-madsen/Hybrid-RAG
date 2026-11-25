@@ -13,6 +13,13 @@ test('ACE image requires an operator-supplied pinned base and contains pinned lo
   assert.equal(manifest.dependencies['@ast-grep/cli'], undefined);
   assert.match(manifest.devDependencies['@ast-grep/cli'] ?? '', /^\d+\.\d+\.\d+$/u);
   assert.match(dockerfile, /fastembed==0\.9\.1 onnxruntime==1\.23\.2/u);
+  const native = dockerfile.split('FROM ace-base AS native-cbm')[1]?.split('FROM ace-base AS historical-vector')[0];
+  assert.ok(native, 'native target must be independently buildable');
+  assert.match(native, /npm install --global codebase-memory-mcp@0\.12\.1/u);
+  assert.match(native, /ACE_CODE_RETRIEVAL_MODE=cbm/u);
+  assert.match(native, /ACE_ENABLE_EXPERIMENTAL_QDRANT=false/u);
+  assert.match(native, /USER node/u);
+  assert.doesNotMatch(native, /python3|pip install|fastembed==|onnxruntime==/u);
   assert.match(dockerfile, /npm ci --ignore-scripts/u);
   assert.match(dockerfile, /npm prune --omit=dev --ignore-scripts/u);
   assert.match(dockerfile, /USER node/u);

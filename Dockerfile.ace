@@ -3,14 +3,13 @@
 # No mutable/default base is accepted for a release image. Supply an exact
 # digest, e.g. --build-arg ACE_NODE_IMAGE=node:22-bookworm-slim@sha256:<verified>.
 ARG ACE_NODE_IMAGE
-FROM ${ACE_NODE_IMAGE}
+FROM ${ACE_NODE_IMAGE} AS ace-base
 
 WORKDIR /opt/ace
 
 USER root
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates python3 python3-pip python3-venv \
-  && python3 -c 'import sys; sys.exit("ACE runtime requires Python 3.11+") if sys.version_info < (3, 11) else None' \
+  && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json tsconfig.json ./
@@ -24,6 +23,37 @@ COPY integrations ./integrations
 COPY dist ./dist
 RUN npm prune --omit=dev --ignore-scripts \
   && node --input-type=module -e 'import { verifyCompiledRuntimeProvenance } from "./dist/application/runtime-provenance.js"; const root = process.cwd(); const verified = await verifyCompiledRuntimeProvenance(root, `${root}/dist/bin/ace-runtime.js`); if (verified._tag !== "Ok") throw new Error(verified.error.message);' \
+  && mkdir -p /var/lib/ace/state /var/lib/ace/artifacts /tmp/ace \
+  && chown -R node:node /var/lib/ace /tmp/ace
+
+ENV ACE_STATE_DIR=/var/lib/ace/state \
+    ACE_ARTIFACT_DIR=/var/lib/ace/artifacts \
+    TMPDIR=/tmp
+
+# Opt-in migration target. The shared TS package still contains legacy vector
+# dependencies until CBM-05; no Python embedding/model runtime is installed here.
+FROM ace-base AS native-cbm
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git procps \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install --global codebase-memory-mcp@0.12.1 \
+  && codebase-memory-mcp --version \
+  && mkdir -p /var/lib/ace/native-home \
+  && chown node:node /var/lib/ace/native-home
+ENV HOME=/var/lib/ace/native-home \
+    ACE_CODE_RETRIEVAL_MODE=cbm \
+    ACE_ENABLE_EXPERIMENTAL_QDRANT=false \
+    ACE_RERANKER_MODE=disabled
+USER node
+CMD ["node", "/opt/ace/dist/bin/ace-runtime.js"]
+
+# Keep the currently deployed default until the physical vector cutover.
+# This stage is transitional, not an additional supported target architecture.
+FROM ace-base AS historical-vector
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-pip python3-venv \
+  && python3 -c 'import sys; sys.exit("ACE runtime requires Python 3.11+") if sys.version_info < (3, 11) else None' \
+  && rm -rf /var/lib/apt/lists/* \
   && python3 -m venv /opt/ace/.venv-embedding-fast \
   && /opt/ace/.venv-embedding-fast/bin/pip install --no-cache-dir \
        pillow==13.0.0 fastembed==0.9.1 onnxruntime==1.23.2 numpy==2.2.6 huggingface-hub==1.33.0 \

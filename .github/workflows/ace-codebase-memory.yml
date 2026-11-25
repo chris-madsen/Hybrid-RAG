@@ -3,6 +3,8 @@ name: ACE Codebase Memory native integration
 on:
   pull_request:
     paths:
+      - 'Dockerfile.ace'
+      - 'test/k3s-ace-runtime.contracts.test.ts'
       - 'package.json'
       - 'package-lock.json'
       - 'src/adapters/codebase-memory-graph.ts'
@@ -100,3 +102,61 @@ jobs:
           codebase-memory-mcp --version
       - name: Run complete source contracts, build, architecture and nightly property suite
         run: npm run verify:full
+
+  native-container:
+    name: Native CBM container zero-egress integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.23.4'
+          cache: npm
+      - name: Build source-bound runtime
+        run: |
+          npm ci
+          npm run build
+      - name: Resolve the exact CI base digest and build native image
+        # This is integration evidence, not a signed release image approval.
+        run: |
+          set -eu
+          docker pull node:22.23.4-bookworm-slim
+          base="$(docker image inspect --format '{{index .RepoDigests 0}}' node:22.23.4-bookworm-slim)"
+          printf '%s\n' "$base" | grep -Eq '@sha256:[a-f0-9]{64}$'
+          docker build --target native-cbm --build-arg "ACE_NODE_IMAGE=$base" -f Dockerfile.ace -t ace-native-ci .
+          docker image inspect --format 'image={{.Id}} size={{.Size}}' ace-native-ci
+          printf 'base=%s\n' "$base"
+      - name: Inspect pinned native runtime without network
+        run: |
+          docker run --rm --network none --entrypoint sh ace-native-ci -ec '
+            test "$(id -u)" != 0
+            test "$ACE_CODE_RETRIEVAL_MODE" = cbm
+            test "$ACE_ENABLE_EXPERIMENTAL_QDRANT" = false
+            test ! -d /opt/ace/.venv-embedding-fast
+            test ! -d /var/lib/ace/model-cache
+            codebase-memory-mcp --version
+            node --version
+          '
+      - name: Reuse real compiled projection and mutation checks inside image
+        # The read-only checkout is used only for the existing source-SHA
+        # evidence runner. The actual source fixture is created inside the
+        # isolated container; no operator worktree or credentials are mounted.
+        run: |
+          set -eu
+          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION; do
+            docker run --rm --init --network none \
+              -v "$PWD:/evidence:ro" \
+              -e GIT_OPTIONAL_LOCKS=0 \
+              -e GIT_CONFIG_COUNT=1 \
+              -e GIT_CONFIG_KEY_0=safe.directory \
+              -e GIT_CONFIG_VALUE_0=/evidence \
+              -e ACE_SOURCE_ROOT=/evidence \
+              -e ACE_RUNTIME_ROOT=/opt/ace \
+              -e ACE_REAL_PROJECTION_NATIVE_CBM=true \
+              -e "$scenario=true" \
+              --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
+          done
