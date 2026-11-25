@@ -209,7 +209,7 @@ try {
   let nativeProcessNames = [];
   if (native) {
     assert.match(startupLog, /provider identities codebase_memory=codebase-memory-mcp\/0\.12\.1/u);
-    assert.match(startupLog, /qdrant=disabled.*embedding=disabled.*sparse_embedding=disabled.*lsp=not_configured/u);
+    assert.match(startupLog, /provider identities codebase_memory=codebase-memory-mcp\/0\.12\.1 lsp=not_configured/u);
     assert.doesNotMatch(startupLog, /embedding=fastembed\/onnx|qdrant=qdrant\/|lsp=typescript-language-server/u,
       'runtime provenance must list only providers active in native mode');
     nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
