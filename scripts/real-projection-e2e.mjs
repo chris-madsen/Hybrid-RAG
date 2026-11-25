@@ -3,7 +3,7 @@
 // This deliberately does NOT traverse Bifröst or an LLM provider wire. It proves
 // real retrieval/projection behavior only; G11 provider-wire acceptance is separate.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { mkdtemp, mkdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
@@ -132,6 +132,10 @@ const mutations = process.env.ACE_REAL_PROJECTION_NATIVE_MUTATIONS === 'true';
 const recovery = process.env.ACE_REAL_PROJECTION_NATIVE_RECOVERY === 'true';
 const worktree = process.env.ACE_REAL_PROJECTION_NATIVE_WORKTREE === 'true';
 const cancellation = process.env.ACE_REAL_PROJECTION_NATIVE_CANCELLATION === 'true';
+const daemonRecovery = process.env.ACE_REAL_PROJECTION_NATIVE_DAEMON_RECOVERY === 'true';
+assert.ok(!daemonRecovery || (process.env.ACE_REAL_PROJECTION_ISOLATED_CONTAINER === 'true'
+  && process.platform === 'linux' && !outage && !race && !mutations && !recovery && !worktree
+  && !cancellation && !restart && !deadline && !nonGit && !scale), 'daemon fault injection is restricted to the isolated container fixture');
 assert.ok(!cancellation || (native && !outage && !race && !mutations && !recovery && !worktree), 'native cancellation requires a healthy standalone fixture');
 assert.ok(!worktree || (native && !outage && !race && !mutations && !recovery), 'native worktree evidence requires a healthy standalone fixture');
 assert.ok(!recovery || (native && !outage && !race && !mutations), 'native recovery requires a healthy standalone native fixture');
@@ -146,6 +150,15 @@ const gatewayPort = await port();
 const providerTracePath = join(directory, 'provider-trace.jsonl');
 const nativeHome = join(directory, 'native-home');
 await mkdir(nativeHome);
+const nativeCache = join(nativeHome, 'cbm-cache');
+const nativeEnvironment = {
+  ...process.env,
+  HOME: nativeHome,
+  XDG_CACHE_HOME: join(nativeHome, 'cache'),
+  XDG_DATA_HOME: join(nativeHome, 'data'),
+  CBM_CACHE_DIR: nativeCache,
+  CBM_ALLOWED_ROOT: workspace,
+};
 const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.executable], {
   cwd: runtime.runtimeRoot,
   env: {
@@ -155,7 +168,8 @@ const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.e
     ACE_ALLOWED_ROOTS: directory,
     ACE_STATE_DIR: join(directory, 'state'),
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
-    ...(native ? { ACE_PROVIDER_TRACE_FILE: providerTracePath, HOME: nativeHome, XDG_CACHE_HOME: join(nativeHome, 'cache'), XDG_DATA_HOME: join(nativeHome, 'data') } : {}),
+    ...nativeEnvironment,
+    ACE_PROVIDER_TRACE_FILE: providerTracePath,
     ACE_WORKSPACE_ID: workspaceId,
     ...(native ? {
       ...(outage ? { ACE_CBM_COMMAND: join(directory, 'must-not-start-cbm') } : {}),
@@ -289,7 +303,7 @@ try {
       providerWireCertified: false,
     }));
     }
-    if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit || scale) {
+    if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit || scale || daemonRecovery) {
       const projectAgain = async (query = payload.query, signal = timeout(maxWait), deadlineMs = maxWait) => {
         const nextBytes = Buffer.from(JSON.stringify({ ...body, input: query }), 'utf8');
         const next = {
@@ -362,6 +376,57 @@ try {
         };
         console.log(JSON.stringify(report));
         assert.equal(report.failures, 0, 'development corpus misses are not silently discarded');
+      }
+      if (daemonRecovery) {
+        // Reuse the pinned upstream daemon control interface. Never search for
+        // or kill a process by name: verify fixture-owned cache and home first.
+        const frontend = await actualNativeChild(child.pid);
+        const command = await readlink('/proc/' + frontend.pid + '/exe');
+        const daemonPid = () => {
+          const status = execFileSync(command, ['daemon', 'status'], {
+            env: nativeEnvironment, encoding: 'utf8', timeout: 10000,
+          });
+          assert.match(status, /daemon: active \(session-managed\)/u);
+          const match = /^\s*pid: (\d+)\s*$/mu.exec(status);
+          assert.ok(match, 'upstream daemon status must identify its actual PID');
+          return Number(match[1]);
+        };
+        const oldDaemon = daemonPid();
+        assert.ok(oldDaemon > 1 && oldDaemon !== child.pid && oldDaemon !== frontend.pid);
+        assert.equal(await readlink('/proc/' + oldDaemon + '/exe'), command);
+        const daemonEnv = (await readFile('/proc/' + oldDaemon + '/environ', 'utf8')).split('\0');
+        assert.ok(daemonEnv.includes('HOME=' + nativeHome) && daemonEnv.includes('CBM_CACHE_DIR=' + nativeCache),
+          'refuse fault injection unless daemon is bound to the disposable fixture');
+        const conflicting = spawnSync(command, ['cli', 'list_projects', '--format', 'json'], {
+          env: { ...nativeEnvironment, CBM_CACHE_DIR: join(nativeHome, 'conflicting-cache') },
+          encoding: 'utf8', timeout: 15000,
+        });
+        assert.equal(conflicting.error, undefined, 'a timeout is not proof of upstream cache admission refusal');
+        assert.ok(typeof conflicting.status === 'number' && conflicting.status !== 0,
+          'a second canonical cache root must not join the active account daemon');
+        assert.equal(daemonPid(), oldDaemon, 'conflicting cache must not replace the active daemon');
+        process.kill(oldDaemon, 'SIGKILL');
+        // A request racing the loss may be explicitly unavailable. Never credit
+        // an unverified response, and require actual recovery on unchanged source.
+        let recovered;
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const result = await projectAgain();
+          if (result.kind === 'PREPARED') { recovered = result; break; }
+          assert.equal(result.kind, 'BLOCK');
+          assert.equal(result.reasonCode, 'NOT_READY');
+          assert.equal(result.projectionReceipt, undefined);
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        assert.ok(recovered, 'actual daemon loss must recover without source edits');
+        const projected = JSON.parse(Buffer.from(recovered.bodyBase64, 'base64').toString('utf8'));
+        const context = projected.input.find((item) => item.role === 'developer'
+          && String(item.content).includes('[ACE verified context]'));
+        assert.ok(context);
+        assert.match(context.content, /retryAfterTransientFailure/u);
+        assert.match(context.content, /service\.ts:/u);
+        assert.equal(await readFile(codePath, 'utf8'), code + filler + '\n');
+        assert.notEqual(daemonPid(), oldDaemon, 'recovery must use a new upstream daemon');
+        console.log(JSON.stringify({ status: 'native-daemon-recovery-pass', cacheConflictRejected: true, providerWireCertified: false }));
       }
       if (recovery) {
         // Kill the actual stdio child, not the ACE runtime or a fake provider.

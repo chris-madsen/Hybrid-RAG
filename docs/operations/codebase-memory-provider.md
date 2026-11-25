@@ -117,3 +117,5 @@ The native adapter supplements semantic search for bounded, explicitly named ide
 ## Native daemon boundary
 
 The [pinned upstream implementation](https://github.com/DeusData/codebase-memory-mcp/tree/v0.12.1) owns the SQLite cache, detached daemon and indexing workers. ACE supervises its stdio frontend, not the entire daemon. Use a dedicated service identity and a canonical cache root; do not assume frontend termination shuts down detached workers. Shared-cache ownership and cancellation must be validated rather than reimplemented or presumed safe.
+
+The isolated container E2E includes an actual upstream `daemon status` identity check, conflicting canonical-cache admission and fixture-owned daemon termination/recovery. The scenario does not kill a daemon outside its disposable fixture and does not establish cross-host, all worker-failure or shared-tenant acceptance. Run it through the dedicated workflow; its observed result, not the presence of the test, determines evidence status.

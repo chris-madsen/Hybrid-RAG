@@ -182,7 +182,7 @@ jobs:
         # isolated container; no operator worktree or credentials are mounted.
         run: |
           set -eu
-          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT; do
+          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT ACE_REAL_PROJECTION_NATIVE_DAEMON_RECOVERY; do
             docker run --rm --init --network none \
               -v "$PWD:/evidence:ro" \
               -e GIT_OPTIONAL_LOCKS=0 \
@@ -192,6 +192,7 @@ jobs:
               -e ACE_SOURCE_ROOT=/evidence \
               -e ACE_RUNTIME_ROOT=/opt/ace \
               -e ACE_REAL_PROJECTION_NATIVE_CBM=true \
+              -e ACE_REAL_PROJECTION_ISOLATED_CONTAINER=true \
               -e "$scenario=true" \
               --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
           done

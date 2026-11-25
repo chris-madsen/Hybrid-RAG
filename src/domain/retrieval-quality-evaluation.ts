@@ -521,8 +521,3 @@ export const evaluateRetrievalQualityPolicy = (
   });
 };
 
-/**
- * Selects only among candidates that are non-inferior to the same-holdout
- * dense reference. Compactness and latency are tie-breakers, never a way to
- * compensate for a quality regression.
- */
