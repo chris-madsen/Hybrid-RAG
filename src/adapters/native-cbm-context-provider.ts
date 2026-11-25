@@ -655,7 +655,10 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
         const finalManifest = workspaceManifestFromSnapshot(
           finalSnapshot.value, activeConfig.scopeFingerprint ?? sourceAtSearchStart.scopeFingerprint,
         );
-        if (activeConfig.isPublished?.() === false || activeConfig.indexKey !== indexKeyAtSearchStart
+        if (activeConfig.isPublished?.() === false) {
+          return err(domainError('NOT_READY', 'codebase_memory', 'native graph publication was invalidated during retrieval'));
+        }
+        if (activeConfig.indexKey !== indexKeyAtSearchStart
           || !workspaceManifestEqual(finalManifest, sourceAtSearchStart)) {
           return err(domainError('WORKTREE_RACED', 'workspace_manifest',
             'native graph publication or authoritative source changed during retrieval'));

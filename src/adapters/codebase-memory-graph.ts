@@ -242,7 +242,9 @@ const matchesName = (qualifiedName: string, name: string): boolean =>
 export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): CodebaseMemoryGraph => {
   const root = resolve(options.rootPath);
   let project: string | undefined;
+  let generation = 0;
   let closed = false;
+  const invalidate = (): void => { project = undefined; generation += 1; };
   let reindexing: Promise<Result<void, DomainError>> | undefined;
   const transport = makeCodebaseMemoryStdio({
     rootPath: root,
@@ -252,7 +254,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     ...(options.trace === undefined ? {} : { trace: options.trace }),
     // A restarted transport must never serve graph hints from the prior
     // provider generation. Explicit reindex is required after reconnection.
-    onLost: () => { project = undefined; },
+    onLost: invalidate,
   });
   const invoke = transport.invoke;
 
@@ -261,7 +263,8 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     if (reindexing !== undefined) return reindexing;
     // Do not expose the previous project's graph while an updated ACE snapshot
     // is being published. CBM indexes locally and handles incremental changes.
-    project = undefined;
+    invalidate();
+    const indexingGeneration = generation;
     reindexing = (async () => {
       const indexed = await invoke('index_repository', {
         repo_path: root,
@@ -274,7 +277,9 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       if (typeof name !== 'string' || name.length === 0 || record?.status !== 'indexed') {
         return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory did not confirm a completed index'));
       }
-      if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native graph closed during indexing'));
+      if (closed || generation !== indexingGeneration) {
+        return err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during indexing'));
+      }
       project = name;
       return ok(undefined);
     })();
@@ -405,6 +410,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 100) {
       return err(domainError('INVALID_INPUT', 'limit', 'Codebase Memory search limit must be between 1 and 100'));
     }
+    const searchGeneration = generation;
     const candidatesByFile = new Map<RepoPath, CodeCandidate[]>();
     for (const candidate of options.candidates()) {
       const list = candidatesByFile.get(candidate.repoPath) ?? [];
@@ -555,6 +561,9 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       linked.push({ candidate, score: 1, freshness: 'unknown' });
       if (linked.length >= input.limit) break;
     }
+    if (closed || project === undefined || generation !== searchGeneration) {
+      return err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during retrieval'));
+    }
     if (linked.length === 0) return ok(direct.slice(0, input.limit));
     const directSlots = Math.max(1, Math.ceil(input.limit * 0.6));
     return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
@@ -564,13 +573,13 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     reindex, search, outline, trace, queryGraph, detectChanges,
     isIndexed: () => !closed && project !== undefined && reindexing === undefined,
     suspend: async () => {
-      project = undefined;
+      invalidate();
       await transport.suspend();
     },
     resume: transport.resume,
     close: async () => {
       closed = true;
-      project = undefined;
+      invalidate();
       await transport.close();
     },
   };

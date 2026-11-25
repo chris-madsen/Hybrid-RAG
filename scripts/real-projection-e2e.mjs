@@ -638,6 +638,16 @@ try {
       }
     }
   }
+} catch (error) {
+  if (daemonRecovery) {
+    // Fixed diagnostic categories only: do not expose native stderr, source
+    // paths, private payloads or credentials in the test log.
+    console.error(JSON.stringify({ status: 'native-daemon-recovery-failed',
+      runtimeExitCode: child.exitCode, runtimeSignal: child.signalCode,
+      brokenPipeObserved: /EPIPE|ERR_STREAM_DESTROYED/u.test(startupLog),
+      unhandledErrorObserved: /Unhandled|uncaughtException/u.test(startupLog) }));
+  }
+  throw error;
 } finally {
   await stopRealProviderProcess(child);
   await rm(directory, { recursive: true, force: true });

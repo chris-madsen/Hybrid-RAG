@@ -34,6 +34,15 @@ connection.onRequest('tools/call', (input) => {
     process.exit(19);
   }
   if (input.name === 'search_graph'
+    && input.arguments?.semantic_query?.[0] === 'close-input-provider') {
+    // Deliberately leave the child alive with its input closed; a subsequent
+    // parent write races JSON-RPC disposal rather than normal process exit.
+    process.stdin.once('close', () => log({ method: 'stdin-closed' }));
+    process.stdin.destroy();
+    setInterval(() => undefined, 1000);
+    return new Promise(() => undefined);
+  }
+  if (input.name === 'search_graph'
     && input.arguments?.semantic_query?.[0] === 'hang-provider') {
     if (process.argv.includes('--ignore-termination')) {
       process.on('SIGTERM', () => undefined);
