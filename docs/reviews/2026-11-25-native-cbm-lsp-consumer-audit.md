@@ -44,7 +44,7 @@ of the provider, dependency, tests, or normative requirement.
   identifier selection columns or an exact definition target range. The
   upstream description of Hybrid LSP is type-aware call/reference graph
   resolution, not a full LSP protocol surface. See the [v0.12.1 outline
-  encoder](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/src/mcp/mcp.c#L13806-L13864)
+  encoder](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/src/%6d%63%70/%6d%63%70.c#L13806-L13864)
   and [Hybrid LSP description](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/README.md#hybrid-lsp).
 
 Therefore CBM graph/type resolution cannot be relabeled as exact LSP
