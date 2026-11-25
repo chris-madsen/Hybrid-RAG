@@ -7,12 +7,10 @@
 | Source / mode | Runtime configuration | What may truthfully be claimed |
 | --- | --- | --- |
 | Code retrieval off | Neither native mode nor historical vector enablement configured | Required code retrieval not_ready |
-| Native code retrieval | `ACE_CODE_RETRIEVAL_MODE=cbm`, vector flag false, reranker disabled, pinned local CBM | Real local native retrieval, exact source proof and recovery tested; no provider-wire certification |
-| Historical vector retrieval (transitional) | `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` + local Qdrant + embedding workers + pinned CBM + maintained LSP | CBM structural/graph/semantic/BM25 discovery **and** Qdrant dense/sparse retrieval; ready only with verified current indexed source, not merely environment variables |
+| Native code retrieval | Pinned local CBM, authorized ACE-local workspace | Sole code runtime; exact source proof required; no provider-wire certification |
 | Codebase Memory unavailable | Pinned native stdio server missing, protocol identity incompatible, session lost or index incomplete | Required native graph/source discovery is not_ready; a new session requires explicit reindex, never fallback to ast-grep runtime parser |
-| Qdrant / embedding unavailable | Search, worker or publication failed | Required code retrieval not_ready; no silent mode fallback |
 | LSP unavailable or not supported for language | No trustworthy native symbol/definition evidence | Do not claim LSP verification; exact source bytes may still be independently checked |
-| Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Vertex AI RAG for authorized `project_document`, not a Qdrant documentation corpus |
+| Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Vertex AI RAG for authorized `project_document`, not a code retrieval corpus |
 | Temporal memory | `ACE_ENABLE_GRAPHITI=true` | **UNSUPPORTED / startup error**: `ace-runtime.ts` refuses the retired tool-server adapter; Gateway-native Graphiti is not configured. Archive CLI/reconciliation code exists separately, but full unified temporal retrieval is NOT_READY |
 | Host worktree helper | Registered workspace + mTLS where required | Historical path only; native mode rejects remote helper. Topology decision and real containment tests remain open |
 | Release | Exact source SHA + real provider, agent, privacy, quality and owner evidence | No unconditional READY from configuration flags |
@@ -23,7 +21,7 @@ A missing/unavailable/stale/partial/denied provider is not a successful empty so
 
 Invalid trust configuration, snapshot/source identity or mTLS may be fatal; transient provider failures can leave the process alive with `not_ready`/`degraded`. The current executable and receipts determine the precise failure state, **not** historical model-invoked `ace_workspace_status` documentation.
 
-For code results ACE must reconcile the workspace manifest, including non-Git files and dirty worktree, and reread exact UTF-8 source bytes with SHA-256/range verification. CBM graph, Qdrant vectors and LSP claims never override current original bytes. An explicit source obligation must not force an unapproved Vertex document egress.
+For code results ACE must reconcile the workspace manifest, including non-Git files and dirty worktree, and reread exact UTF-8 source bytes with SHA-256/range verification. CBM graph and LSP claims never override current original bytes. An explicit source obligation must not force an unapproved Vertex document egress.
 
 ## Code retrieval — current native Responses path
 
@@ -37,20 +35,17 @@ Hermes subscription native Responses -> Bifröst /chatgpt_passthrough -> ACE int
       -> separate Bifröst final physical-send authorization (NOT CERTIFIED)
 ```
 
-Native CBM is the selected code search owner; the historical vector path is transitional. External LSP remains a separate research question (#364). Native local configuration (also provide the RPC secret and workspace identity):
+Native CBM is the sole code search owner. External LSP remains a separate research question (#364). Native local configuration (also provide the RPC secret and workspace identity):
 
 ```bash
 ACE_WORKSPACE_ROOT=/absolute/repo
 ACE_ALLOWED_ROOTS=/absolute/allowed-parent
 ACE_STATE_DIR=/absolute/state
 ACE_WORKSPACE_ID=<registered-workspace>
-ACE_CODE_RETRIEVAL_MODE=cbm
-ACE_ENABLE_EXPERIMENTAL_QDRANT=false
-ACE_RERANKER_MODE=disabled
 # Install codebase-memory-mcp@0.12.1; optionally ACE_CBM_COMMAND points to native executable.
 ```
 
-Native mode rejects external reranking and remote helper configuration. Historical vector flags, embedding identity and writer topology remain transitional; see [historical writer authority](qdrant-single-writer-authority.md) only for that mode. Do not infer native shared-cache or multi-host acceptance from Qdrant tests.
+Legacy provider enablement is rejected; disabled legacy flags may be removed from existing configurations. The remote helper is not supported by native code retrieval. Use a dedicated native service identity, avoid unverified shared-cache topology, and keep the RPC loopback-only.
 
 ## Documentation / Vertex
 
@@ -108,11 +103,9 @@ Agent-loop evidence has only `NOT_RUN`, `BLOCKED` or `CANDIDATE` states. A signa
 
 ## Selection and release gates
 
-These commands prepare or evaluate evidence; none should be replaced by an assertion in documentation. Historical embedding-selection and alternative-arm gates remain implemented pending retirement; they are not prerequisites for native local integration. The full release gate is not yet migrated.
+These commands prepare or evaluate evidence. Native code-only release requires schema-v2 runtime configuration and absolute frozen multi-repository retrieval-quality evidence with retained source artifacts. Independent semantic-provider research is separate; the full-unified gate remains blocked until the actual full runtime and topology are accepted.
 
 ```bash
-npm run compare:embeddings
-npm run gate:embedding-selection -- ...
 npm run compare:semantic-tsls
 npm run test:real-non-ts-lsp
 npm run gate:semantic-selection -- ...
@@ -131,6 +124,6 @@ The release preflight is fail-closed. For a hard release check:
 ACE_REQUIRE_RELEASE_READY=true npm run release:preflight -- <policy.json> <evidence.json>
 ```
 
-Full unified production readiness requires the exact release commit, all 14 DBCs, approved embedding and semantic choices, frozen retrieval quality evidence, natural-use Harbor evidence with complete cost telemetry, exact-commit runtime configuration and resource-budget evidence, real Graphiti/Vertex/k3s/operations/supply-chain evidence, and an owner-signed approval artifact verified against the configured trust-root public-key hash. A JSON field containing only `status: approved` is insufficient.
+Full unified production readiness requires the exact release commit, all 14 DBCs, native provider identities, independent semantic acceptance for the full scope, absolute frozen multi-repository retrieval quality evidence, natural-use Harbor evidence with complete cost telemetry, exact-commit runtime configuration and resource-budget evidence, real Graphiti/Vertex/k3s/operations/supply-chain evidence, and an owner-signed approval artifact verified against the configured trust-root public-key hash. A JSON field containing only `status: approved` is insufficient.
 
 The historical 5× token-reduction target remains a product hypothesis. It is never inferred from a green preflight and is never backfilled from character counts or incomplete cost telemetry.

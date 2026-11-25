@@ -8,9 +8,9 @@
 | Audience | See [stakeholders and concerns](concerns.md) |
 | Custodian | Repository maintainer; architecture decisions follow the explicit owner/ADR policy |
 | Baseline | main at c5983d008c9353e37182883966ab64eb6601705e, inspected 24 November 2026 |
-| Status | Version 1.1, internally assessed architecture description; implementation and acceptance statuses are separate |
+| Status | Version 1.2, internally assessed architecture description; implementation and acceptance statuses are separate |
 | Issuing project | Adaptive Context Engine open-source repository, chris-madsen/Hybrid-RAG |
-| Issued / revised | 2026-11-24; v1.0 initial migration; v1.1 normative review and path reconciliation |
+| Issued / revised | 2026-11-24; v1.0 initial migration; v1.1 normative review and path reconciliation; v1.2 native-only code retrieval |
 | Author / review | AI-assisted repository contribution; author-side review; maintainer approval remains the PR decision |
 | Configuration | Git-versioned Markdown; view, component and convention versions recorded in the architecture catalog |
 | Standard reference | [ISO/IEC/IEEE 42010:2022](https://www.iso.org/standard/74393.html) |
@@ -23,7 +23,7 @@ ACE is an internal context engine, not an agent scheduler, identity provider, bi
 
 ## Environment and boundaries
 
-Inside the architectural scope: the TypeScript/Effect modular monolith, domain and application ports, selected adapters, internal RPC contract and Go connector. External dependencies include Hermes, Bifröst runtime, ChatGPT/Codex provider, Codebase Memory, Qdrant, embedding workers, language servers, Vertex, the selected future Graphiti/FalkorDB path, the workspace and Harbor evaluators. Ownership and trust do not automatically follow process placement: the [context view](views/system-context.md) and [security view](views/security.md) define their relationships.
+Inside the architectural scope: the TypeScript/Effect modular monolith, domain and application ports, selected adapters, internal RPC contract and Go connector. External dependencies include Hermes, Bifröst runtime, ChatGPT/Codex provider, Codebase Memory, independent language servers, Vertex, the selected future Graphiti/FalkorDB path, the workspace and Harbor evaluators. Ownership and trust do not automatically follow process placement: the [context view](views/system-context.md) and [security view](views/security.md) define their relationships.
 
 ## Architectural principles
 
@@ -45,7 +45,7 @@ The views distinguish three kinds of statement:
 - **Target / planned:** a selected future capability or unresolved design option; it does not become a working feature by documentation.
 - **Evidence:** an observed result tied to its original source/configuration, with separate release and owner decisions.
 
-The current architecture comprises Bifröst native subscription passthrough, internal ACE context RPC v3, native CBM local migration mode (historical vector composition remains until retirement; independent LSP research deferred), policy-gated Vertex document search, archive and evaluation mechanisms. Live Graphiti-based temporal recall is a target, not an active runtime feature. Full provider-wire, agent E2E, paired economics and unified production acceptance remain subject to the [canonical acceptance tracker](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md). Reliability remediation is separately tracked by [OpenSpec 014](../../openspec/changes/014-ace-audit-reliability-remediation/tasks.md).
+The current architecture comprises Bifröst native subscription passthrough, internal ACE context RPC v3, native CBM as sole local code retrieval engine (independent LSP research deferred), policy-gated Vertex document search, archive and evaluation mechanisms. Live Graphiti-based temporal recall is a target, not an active runtime feature. Full provider-wire, agent E2E, paired economics and unified production acceptance remain subject to the [canonical acceptance tracker](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md). Reliability remediation is separately tracked by [OpenSpec 014](../../openspec/changes/014-ace-audit-reliability-remediation/tasks.md).
 
 ## Architecture decisions and change control
 
