@@ -66,8 +66,9 @@ const dataClasses: readonly Exclude<DataClass, 'secret'>[] = [
 
 const commitSha = (value: string): boolean => /^[a-f0-9]{40,64}$/u.test(value);
 const sha256 = (value: string): boolean => /^[a-f0-9]{64}$/u.test(value);
-const safeText = (value: string): boolean =>
-  value.trim().length > 0
+const safeText = (value: unknown): value is string =>
+  typeof value === 'string'
+  && value.trim().length > 0
   && value.length <= 240
   && !/(?:authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|password|private[_-]?key)\s*[:=]\s*\S+/iu.test(value)
   && !/-----BEGIN [A-Z ]*PRIVATE KEY-----/u.test(value);

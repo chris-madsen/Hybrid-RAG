@@ -1,12 +1,10 @@
 # ACE runtime configuration release evidence
 
-This evidence binds a release claim to the **actual safe runtime flags** used by ACE on the exact Git commit. It records no tokens, certificates, raw workspace paths, queries, source bytes or private dialogue.
+Schema v2 binds safe runtime flags and declared native provider identities to the exact Git commit and release scope. It records no tokens, certificates, raw workspace paths, queries, source bytes or private dialogue. Schema v1 is historical and cannot authorize the native-only runtime.
 
 ## Capture
 
-Run in the same environment that will launch ACE.
-
-Code-only host example:
+Run in the environment that launches ACE:
 
 ```bash
 npm run evidence:runtime-config -- \
@@ -15,61 +13,17 @@ npm run evidence:runtime-config -- \
   artifacts/release/runtime-config.json
 ```
 
-Code-only k3s example (run inside the configured ACE pod/container environment):
-
-```bash
-npm run evidence:runtime-config -- \
-  code-only k3s \
-  code-only-k3s-release-capture \
-  artifacts/release/runtime-config.json
-```
-
-Full unified release:
-
-```bash
-npm run evidence:runtime-config -- \
-  full-unified k3s \
-  unified-release-capture \
-  artifacts/release/runtime-config.json
-```
-
-For a hard gate:
-
-```bash
-ACE_REQUIRE_RUNTIME_CONFIG_ACCEPTED=true npm run evidence:runtime-config -- ...
-```
+For a hard gate, set `ACE_REQUIRE_RUNTIME_CONFIG_ACCEPTED=true`.
 
 ## Code-only acceptance
 
-The capture is accepted only when:
+- Native CBM is the sole configured code provider, pinned to `codebase-memory/v0.12.1`.
+- No local fallback or independent LSP is configured in this runtime. The separate LSP contracts remain for research.
+- Documentation, cloud-doc opt-in, memory and external data permissions are disabled.
+- The workspace is ACE-local; remote host helper and unaccepted k3s topology fail closed.
 
-- real Qdrant code retrieval is enabled;
-- pinned embedding is required;
-- local lexical fallback is disabled;
-- documentation/Vertex is disabled;
-- cloud docs opt-in is disabled;
-- Graphiti/memory is disabled;
-- there are no external cloud data permissions;
-- for k3s, the host helper and all three mTLS file settings are present.
-
-## Full-unified acceptance
-
-**Current executable limitation (source-inspected 2026-11-21):** These are configuration-evidence *schema* conditions, not proof the full-unified runtime can start. `src/bin/ace-runtime.ts` currently throws when `ACE_ENABLE_GRAPHITI=true` because its Gateway-native memory provider is not configured. A `runtime-config-accepted` artifact cannot override this startup block or be reported as full-unified provider readiness. This remains BLOCKED pending implemented and tested Gateway-native memory integration plus real lifecycle/Harbor/provider acceptance.
-
-The capture is accepted only when:
-
-- deployment profile is k3s;
-- real Qdrant code retrieval is enabled;
-- pinned embedding is required;
-- local lexical fallback is disabled;
-- Vertex documentation and explicit cloud-doc opt-in are enabled;
-- Graphiti memory is enabled and remains local-only;
-- worktree access uses the authenticated host helper with mTLS;
-- the only cloud permission is `vertex -> project_document`;
-- private source/private conversation cloud egress is absent.
-
-The capture reports the current runtime embedding provider and the current direct semantic provider. Release preflight cross-checks those identities against the production-approved embedding and semantic selection artifacts. A provider can therefore not be “approved on paper” while a different provider is actually configured.
+The full-unified and k3s profiles remain blocked until their actual runtime and topology are implemented and accepted. Historical artifacts cannot certify them.
 
 ## Claim boundary
 
-`runtime-config-accepted` proves only that the safe configuration flags and declared provider identities match the requested release scope for this commit. It does not prove provider availability, retrieval quality, k3s containment, Harbor value or owner approval.
+The configuration verdict is not provider availability, retrieval quality, daemon isolation, Harbor value or release approval. Code-only release additionally requires absolute frozen multi-repository quality evidence, all scoped DBCs, resource budget, natural-use Harbor evidence, supply-chain evidence and owner-signed approval bound to the native provider identities. See [configuration matrix](ace-configuration-and-readiness-matrix.md).

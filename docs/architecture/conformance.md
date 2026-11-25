@@ -1,6 +1,6 @@
 # ISO/IEC/IEEE 42010:2022 — internal conformance assessment
 
-**Subject:** ACE-AD-001 v1.1, the architecture description. This is not a claim about the runtime, a separate architecture description framework (ADF), architecture description language (ADL) or management system.
+**Subject:** ACE-AD-001 v1.2, the architecture description. This is not a claim about the runtime, a separate architecture description framework (ADF), architecture description language (ADL) or management system.
 
 **Reference and review basis:** [official publication](https://www.iso.org/standard/74393.html), [publisher preview](https://cdn.standards.iteh.ai/samples/74393/fc7b7f103d8446a4b87a3261e31370d3/ISO-IEC-IEEE-42010-2022.pdf), and [accessible text of the 2022 edition](https://www.scribd.com/document/924046638/Bs-Iso-Iec-Ieee-42010-2022), clauses 6.1–6.10.2 (printed pages 19–25) and 8.1–8.3 (pages 27–28), inspected 2026-11-24. The latter is an accessible reproduction, not an independently authenticated licensed master. The assessment below is original project documentation. Under clause 4(1), clause 6 governs AD conformance and clause 6.6 calls for the relevant clause 8 viewpoint specifications. No independent ADF/ADL claim is made.
 
@@ -17,7 +17,7 @@
 | 6.5 | [AS-01–AS-08](concerns.md): aspects and related concerns | ADDRESSED |
 | 6.6 | [VP-01–VP-08 v1.1](viewpoints.md): concern/perspective coverage, conventions and clause 8 specifications | ADDRESSED |
 | 6.7 | [Eight V-01–V-08 views](README.md): identity, version, viewpoint, perspectives/aspects/concerns, components and known issues | ADDRESSED |
-| 6.8 | Each view's identified component table, VC-01A through VC-08B v1.1, governing MK and conventions/legend | ADDRESSED |
+| 6.8 | Each view's identified component table, VC-01A through VC-08B, versions in each view, governing MK and conventions/legend | ADDRESSED |
 | 6.9.1 | [Inconsistency register](correspondences.md), INC-01–INC-08 and CO method results | ADDRESSED; open architecture and evidence gaps disclosed |
 | 6.9.2 | [CO-01–CO-09](correspondences.md): participating AD, elements and applicable method | ADDRESSED |
 | 6.9.3 | [CR-01–CR-09](correspondences.md): method definitions and explicit outcomes | ADDRESSED; multiple operational methods remain unsatisfied |
@@ -31,7 +31,7 @@ Clause 7 concerns independent ADF/ADL specifications and is outside the stated c
 
 ## Findings, limitations and assessment result
 
-Version 1.0 omitted explicit component/view versions, viewpoint-to-perspective relationships and evaluated correspondence results. Version 1.1 records those items, prior evaluation treatment, known issues and essential decision rationales. Unsatisfied architecture correspondence methods remain visible; they must not be marked satisfied without the applicable evidence.
+Version 1.0 omitted explicit component/view versions, viewpoint-to-perspective relationships and evaluated correspondence results. Version 1.1 records those items, prior evaluation treatment, known issues and essential decision rationales. Version 1.2 reconciles the native-only code retrieval boundary and its still-unaccepted deployment and lifecycle constraints. Unsatisfied architecture correspondence methods remain visible; they must not be marked satisfied without the applicable evidence.
 
 All reviewed mandatory AD element categories have corresponding documentary evidence in the matrix. This is an internal author-side conformance assessment candidate; maintainer review and verification of the accessible normative text against an authenticated copy remain necessary before an unqualified claim. No independent certification, live provider/agent result, regulatory compliance or production readiness is asserted. Resource limitations and open architecture issues are recorded in [concerns](concerns.md), [correspondences](correspondences.md) and the views.
 
