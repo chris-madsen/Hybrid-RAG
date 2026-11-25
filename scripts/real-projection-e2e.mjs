@@ -243,7 +243,8 @@ try {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
     body: JSON.stringify(payload), signal: timeout(maxWait),
   });
-
+  const response = await responsePromise;
+  const decision = await response.json();
   if (native) {
     nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
     const traceEvents = await readProviderTrace(providerTracePath);
@@ -278,7 +279,7 @@ try {
     const contextMessage = projected.input.find((item) => item.role === 'developer' && String(item.content).includes('[ACE verified context]'));
     assert.ok(contextMessage, 'real gateway projection must visibly add verified ACE context');
     if (!scale) assert.match(contextMessage.content, /retryAfterTransientFailure/u);
-    else if (!scale) assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
+    if (!scale) assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http',
       retrieval: 'native_cbm',
