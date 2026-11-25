@@ -1,19 +1,20 @@
 # ACE configuration and readiness matrix
 
-**Active runtime reference, source-inspected at `main@8591adc9da77f8eb395df43ea7a51eea16e78062`.** Read [current architecture](current-architecture.md). This does not certify any live provider. A process starting or a unit test passing cannot authorize model egress or imply accepted-task token savings.
+**Active runtime reference:** main `49feabfe190cb5f3ab197cedad91a0fa1305278d` (#367–375). See [current architecture](current-architecture.md). Local native tests do not certify live provider traffic or token savings.
 
 ## Actual configured capability boundaries
 
 | Source / mode | Runtime configuration | What may truthfully be claimed |
 | --- | --- | --- |
-| Code retrieval off | `ACE_ENABLE_EXPERIMENTAL_QDRANT` absent/false | No real code-retrieval runtime; **CBM-only is not an active production fallback** |
-| Code retrieval on | `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` + local Qdrant + embedding workers + pinned CBM + maintained LSP | CBM structural/graph/semantic/BM25 discovery **and** Qdrant dense/sparse retrieval; ready only with verified current indexed source, not merely environment variables |
+| Code retrieval off | Neither native mode nor historical vector enablement configured | Required code retrieval not_ready |
+| Native code retrieval | `ACE_CODE_RETRIEVAL_MODE=cbm`, vector flag false, reranker disabled, pinned local CBM | Real local native retrieval, exact source proof and recovery tested; no provider-wire certification |
+| Historical vector retrieval (transitional) | `ACE_ENABLE_EXPERIMENTAL_QDRANT=true` + local Qdrant + embedding workers + pinned CBM + maintained LSP | CBM structural/graph/semantic/BM25 discovery **and** Qdrant dense/sparse retrieval; ready only with verified current indexed source, not merely environment variables |
 | Codebase Memory unavailable | Pinned native stdio server missing, protocol identity incompatible, session lost or index incomplete | Required native graph/source discovery is not_ready; a new session requires explicit reindex, never fallback to ast-grep runtime parser |
-| Qdrant / embedding unavailable | Search, worker or publication failed | Required code retrieval not_ready; no undocumented CBM-only production fallback |
+| Qdrant / embedding unavailable | Search, worker or publication failed | Required code retrieval not_ready; no silent mode fallback |
 | LSP unavailable or not supported for language | No trustworthy native symbol/definition evidence | Do not claim LSP verification; exact source bytes may still be independently checked |
 | Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Vertex AI RAG for authorized `project_document`, not a Qdrant documentation corpus |
 | Temporal memory | `ACE_ENABLE_GRAPHITI=true` | **UNSUPPORTED / startup error**: `ace-runtime.ts` refuses the retired tool-server adapter; Gateway-native Graphiti is not configured. Archive CLI/reconciliation code exists separately, but full unified temporal retrieval is NOT_READY |
-| Host worktree helper | Registered workspace + mTLS where required | Read-only scoped source evidence, separately gated k3s containment |
+| Host worktree helper | Registered workspace + mTLS where required | Historical path only; native mode rejects remote helper. Topology decision and real containment tests remain open |
 | Release | Exact source SHA + real provider, agent, privacy, quality and owner evidence | No unconditional READY from configuration flags |
 
 A missing/unavailable/stale/partial/denied provider is not a successful empty source. Required-source coverage must be verified. `PREPARED` is not physical send authorization.
@@ -27,45 +28,29 @@ For code results ACE must reconcile the workspace manifest, including non-Git fi
 ## Code retrieval — current native Responses path
 
 ```text
-Hermes subscription native Responses -> Bifröst /chatgpt_passthrough -> ACE internal context projection v2
+Hermes subscription native Responses -> Bifröst /chatgpt_passthrough -> ACE internal context projection v3
       -> CBM index_repository/get_file_outline (Tree-sitter AST)
       -> CBM search_graph: semantic_query + BM25 + native graph edges/trace
-      -> Qdrant SDK dense/sparse hybrid candidate search (also active)
-      -> ACE bounded candidate combination + current workspace reread
-      -> optional external LSP documentSymbols/definition confirmation
+      -> WorkspaceSync + ACE exact source verification and current manifest fence
+      -> native code-only source plan (no external LSP evidence requested)
       -> verified source evidence + projection receipt
       -> separate Bifröst final physical-send authorization (NOT CERTIFIED)
 ```
 
-CBM's own semantic/BM25 code search **overlaps** with the Qdrant index. Qdrant is not the source for documentation (Vertex AI RAG) or project memory (Graphiti/archive). CBM-only vs CBM+Qdrant and external-LSP necessity require independent matched retrieval/real-agent benchmarks before an architectural removal.
-
-Minimal local configuration, subject to separate policy/identity prerequisites:
+Native CBM is the selected code search owner; the historical vector path is transitional. External LSP remains a separate research question (#364). Native local configuration (also provide the RPC secret and workspace identity):
 
 ```bash
 ACE_WORKSPACE_ROOT=/absolute/repo
 ACE_ALLOWED_ROOTS=/absolute/allowed-parent
 ACE_STATE_DIR=/absolute/state
 ACE_WORKSPACE_ID=<registered-workspace>
-ACE_ENABLE_EXPERIMENTAL_QDRANT=true
-ACE_QDRANT_URL=http://127.0.0.1:6333
-ACE_EMBEDDING_WORKER=$PWD/scripts/fastembed-worker.sh
-ACE_SPARSE_EMBEDDING_WORKER=$PWD/scripts/fastembed-sparse-worker.sh
-# Install codebase-memory-mcp@0.12.1; optional:
-# ACE_CBM_COMMAND=/absolute/path/to/codebase-memory-mcp
-# Optional maintained language server override (default TypeScript):
-ACE_LSP_COMMAND=$PWD/node_modules/.bin/typescript-language-server
-ACE_LSP_ARGS='["--stdio"]'
-ACE_LSP_SERVER=typescript-language-server
-# Stable collection, coordinated single-host writer fencing:
-ACE_QDRANT_WRITER_TOPOLOGY=single_host
-ACE_QDRANT_PUBLICATION_DIR=/var/lib/ace/qdrant-publication
+ACE_CODE_RETRIEVAL_MODE=cbm
+ACE_ENABLE_EXPERIMENTAL_QDRANT=false
+ACE_RERANKER_MODE=disabled
+# Install codebase-memory-mcp@0.12.1; optionally ACE_CBM_COMMAND points to native executable.
 ```
 
-Invalid JSON for `ACE_LSP_ARGS` / `ACE_LSP_LANGUAGE_IDS`, bad effective provider identity, missing current source or invalid authorization fail closed. For release-quality studies `ACE_REQUIRE_PINNED_EMBEDDING=true` requires an effective pinned embedding identity, not a claimed environment label.
-
-### Current Qdrant publication — stable collection
-
-[AR03 single-host authority](qdrant-single-writer-authority.md) describes durable epoch reservations, shared `flock` state and complete SDK membership verification. The **old** content-addressed collection / `..._current` atomic-alias switching procedure is retired in current runtime. Multi-host writers without coordinated fencing are unsupported. Real local cross-process Qdrant acceptance is **not** inferred from deterministic crash tests.
+Native mode rejects external reranking and remote helper configuration. Historical vector flags, embedding identity and writer topology remain transitional; see [historical writer authority](qdrant-single-writer-authority.md) only for that mode. Do not infer native shared-cache or multi-host acceptance from Qdrant tests.
 
 ## Documentation / Vertex
 
@@ -115,7 +100,7 @@ The host owns `workspace_id -> canonical root`; callers never supply an absolute
 
 The Harbor Hermes adapter uses Hermes's native `openai-codex` **subscription OAuth** Responses provider. For an ACE trial, it must receive an explicit `HERMES_CODEX_BASE_URL` pointing at the existing Bifröst **`/chatgpt_passthrough` base endpoint** (NOT `/v1/responses`, a direct ChatGPT endpoint, or ACE's local context RPC) and a `bifrost_endpoint_sha256` that matches the frozen experiment's `bifrostEndpointSha256`. The digest covers the trimmed endpoint after trailing slashes are removed. The URL is passed through Hermes's supported Codex endpoint override. Default permitted hosts are local `localhost`, `127.0.0.1`, `::1`, `host.docker.internal`, `bifrost`, and `bifrost-gateway`; remote deployments need an explicit comma-separated `ACE_HERMES_ALLOWED_BIFROST_HOSTS` operator allowlist in the preflight and adapter environments. Direct `*.openai.com` and `*.chatgpt.com` hosts remain prohibited even if allowlisted. The digest pins configuration identity only: it does not prove the endpoint is Bifröst or authorize provider egress.
 
-Both paired Harbor jobs must pin the same Bifröst subscriber endpoint digest, model, Hermes version and reasoning effort. `npm run preflight:feedback-loop` checks those bindings, but its full readiness also probes task verifier, Harbor registry and Qdrant. **The owner already authorized limited C03–C05 provider probes** using the actual native subscription route, exact request/receipt and source data permission; do not invent a second OAuth validation/provenance gate. C06 real streaming, C07 real agent and C08 Harbor acceptance require their own evidence. A missing provider-native token counter or context-window value is **UNKNOWN telemetry**, not an ACE admission blocker or reason to invent a token limit. Verify actual Bifröst/ACE path before any release claim.
+Both paired Harbor jobs must pin the same Bifröst subscriber endpoint digest, model, Hermes version and reasoning effort. `npm run preflight:feedback-loop` checks those bindings, but its full readiness still requires task verifier, registry and real task runtime evidence. PR #376 replaces historical vector preflight probes with native bundle verification; use its commands only after merge. **The owner already authorized limited C03–C05 provider probes** using the actual native subscription route, exact request/receipt and source data permission; do not invent a second OAuth validation/provenance gate. C06 real streaming, C07 real agent and C08 Harbor acceptance require their own evidence. A missing provider-native token counter or context-window value is **UNKNOWN telemetry**, not an ACE admission blocker or reason to invent a token limit. Verify actual Bifröst/ACE path before any release claim.
 
 The Harbor trial's original `agent/hermes-session.jsonl` and `agent/hermes.txt` are private transcript artifacts and must remain outside the repository. The collector refuses a session export located inside the repository, hashes the original bytes, and excludes the raw session export, Hermes text log, projection body, context receipts and final-wire envelope from copied output. `agent-loop-evidence.json` retains only the digest, redacted event counts, tool-call/result ID hashes, Gateway request IDs and signature-checked receipt summaries. Caller session IDs are correlation only; when a same-session correlation is not observed, agent-loop evidence remains `NOT_RUN`. Hermes export alone cannot attest durable host history or compaction, and retrieval provider traces are not final LLM egress receipts.
 
@@ -123,7 +108,7 @@ Agent-loop evidence has only `NOT_RUN`, `BLOCKED` or `CANDIDATE` states. A signa
 
 ## Selection and release gates
 
-These commands prepare or evaluate evidence; none should be replaced by an assertion in documentation:
+These commands prepare or evaluate evidence; none should be replaced by an assertion in documentation. Historical embedding-selection and alternative-arm gates remain implemented pending retirement; they are not prerequisites for native local integration. The full release gate is not yet migrated.
 
 ```bash
 npm run compare:embeddings

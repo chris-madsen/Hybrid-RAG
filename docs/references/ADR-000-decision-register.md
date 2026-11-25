@@ -1,4 +1,4 @@
-> **Current decisions versus historical table (2026-11-21):** The October choices below remain historical owner decisions. Later Gateway-only/Responses-only owner decisions (ADR-020 / OpenSpec 013) retired model-invoked ACE tools and native Hermes delivery. PR #316 made Codebase Memory the actual structural/graph/search engine; the earlier Qdrant selection is now under matched CBM-only vs CBM+Qdrant re-evaluation, not silently reversed or proved. [Current implementation](../operations/current-architecture.md).
+> **Superseding owner decision (2026-11-24/25):** native CBM is selected for local code retrieval (#363); Qdrant remains only during migration, not a competing architecture. External LSP and FR-03 remain for deferred independent research (#364). Preserve the original decision below as historical evidence. [Current architecture](../operations/current-architecture.md).
 
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 

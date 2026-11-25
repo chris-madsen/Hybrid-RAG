@@ -11,7 +11,7 @@ ACE is one TypeScript/Effect modular monolith. Logical responsibilities do not i
 | Responsibility | Core behavior / ownership |
 | --- | --- |
 | Workspace truth | Workspace registration, path containment, tracked/untracked/removed source observations, revision-aware reads |
-| Retrieval and semantic intelligence | Query planning, candidate discovery, structural spans, independent symbol validation and ranking |
+| Retrieval and semantic intelligence | CBM native discovery/ranking and structural hints; ACE exact verification; independent LSP research retained |
 | Context orchestration | Assemble source-grounded evidence, preserve required coverage, handle lossless expansion, produce an additive projection |
 | Policy and authorization | Data-class and destination policy, request identity, signed projection receipt and single-use send authorization |
 | Retained memory | Immutable originals, archive lifecycle, tombstones and reconciliation; future temporal retrieval separate |
