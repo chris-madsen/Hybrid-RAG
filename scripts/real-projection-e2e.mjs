@@ -81,8 +81,8 @@ const native = process.env.ACE_REAL_PROJECTION_NATIVE_CBM === 'true';
 const filler = Array.from({ length: native ? 8 : 1991 }, (_, i) => 'export const filler_' + i + ' = ' + i + ';').join('\n');
 const codePath = join(workspace, 'service.ts');
 await writeFile(codePath, code + filler + '\n');
+const git = (...args) => execFileSync('git', ['-C', workspace, ...args], { encoding: 'utf8' });
 if (native) {
-  const git = (...args) => execFileSync('git', ['-C', workspace, ...args], { stdio: 'ignore' });
   git('init', '--quiet');
   git('add', '.');
   git('-c', 'user.name=ACE Test', '-c', 'user.email=ace@example.invalid', 'commit', '--quiet', '-m', 'native fixture');
@@ -92,6 +92,8 @@ const outage = process.env.ACE_REAL_PROJECTION_OUTAGE === 'true' || process.env.
 const race = process.env.ACE_REAL_PROJECTION_RACE === 'true';
 const mutations = process.env.ACE_REAL_PROJECTION_NATIVE_MUTATIONS === 'true';
 const recovery = process.env.ACE_REAL_PROJECTION_NATIVE_RECOVERY === 'true';
+const worktree = process.env.ACE_REAL_PROJECTION_NATIVE_WORKTREE === 'true';
+assert.ok(!worktree || (native && !outage && !race && !mutations && !recovery), 'native worktree evidence requires a healthy standalone fixture');
 assert.ok(!recovery || (native && !outage && !race && !mutations), 'native recovery requires a healthy standalone native fixture');
 assert.ok(!mutations || (native && !outage && !race), 'native mutation test requires a healthy native-only fixture');
 assert.ok(!(native && race), 'historical embedding delay is not a native CBM race oracle');
@@ -246,10 +248,12 @@ try {
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
-    if (mutations || recovery) {
-      const projectAgain = async () => {
+    if (mutations || recovery || worktree) {
+      const projectAgain = async (query = payload.query) => {
+        const nextBytes = Buffer.from(JSON.stringify({ ...body, input: query }), 'utf8');
         const next = {
-          ...payload, requestId: 'responses-projection-' + randomUUID(),
+          ...payload, query, bodyBase64: nextBytes.toString('base64'), bodySha256: digest(nextBytes),
+          requestId: 'responses-projection-' + randomUUID(),
           attemptGroupId: randomUUID(), deadlineEpochMs: Date.now() + maxWait,
         };
         const result = await fetch(endpoint + '/project', {
@@ -293,6 +297,45 @@ try {
         assert.equal(indexesAfter, indexesBefore + 1, 'parallel requests must share exactly one recovered publication');
         assertNoExternalRetrievalProcesses(child.pid);
         console.log(JSON.stringify({ status: 'native-recovery-pass', providerWireCertified: false }));
+      }
+      if (worktree) {
+        const initialBranch = git('branch', '--show-current').trim();
+        assert.ok(initialBranch);
+        const addedPath = join(workspace, 'worktree-feature.ts');
+        const symbol = 'resolveWorktreePublicationMarker';
+        const query = `Find ${symbol} and its implementation in worktree-feature.ts.`;
+        const addedCode = (marker) => `export function ${symbol}() {\n  return '${marker}';\n}\n`;
+        const verifyAdded = async (marker, forbidden) => {
+          const outcome = await projectAgain(query);
+          assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+          const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+          const context = projected.input.find((item) => item.role === 'developer'
+            && String(item.content).includes('[ACE verified context]'));
+          assert.ok(context);
+          assert.ok(context.content.includes('worktree-feature.ts:'), 'new source must be cited');
+          assert.ok(context.content.includes(symbol));
+          assert.ok(context.content.includes(marker), 'exact current worktree bytes required');
+          if (forbidden) assert.ok(!context.content.includes(forbidden), 'stale branch bytes must not appear');
+        };
+        await writeFile(addedPath, addedCode('native-worktree-untracked'));
+        await verifyAdded('native-worktree-untracked');
+        git('add', 'worktree-feature.ts');
+        await verifyAdded('native-worktree-untracked');
+        git('reset', '--quiet', 'HEAD', '--', 'worktree-feature.ts');
+        await verifyAdded('native-worktree-untracked');
+        git('add', 'worktree-feature.ts');
+        git('-c', 'user.name=ACE Test', '-c', 'user.email=ace@example.invalid', 'commit', '--quiet', '-m', 'add worktree feature');
+        await verifyAdded('native-worktree-untracked');
+        git('switch', '--quiet', '-c', 'alternate-worktree');
+        await writeFile(addedPath, addedCode('native-worktree-alternate'));
+        await verifyAdded('native-worktree-alternate', 'native-worktree-untracked');
+        git('add', 'worktree-feature.ts');
+        git('-c', 'user.name=ACE Test', '-c', 'user.email=ace@example.invalid', 'commit', '--quiet', '-m', 'alternate feature');
+        await verifyAdded('native-worktree-alternate', 'native-worktree-untracked');
+        git('switch', '--quiet', initialBranch);
+        await verifyAdded('native-worktree-untracked', 'native-worktree-alternate');
+        assertNoExternalRetrievalProcesses(child.pid);
+        console.log(JSON.stringify({ status: 'native-worktree-pass', transitions: ['add-untracked', 'stage', 'unstage', 'commit', 'edit', 'branch-commit', 'branch-switch'], providerWireCertified: false }));
       }
       if (mutations) {
       // Every healthy edit/rename must project new bytes.

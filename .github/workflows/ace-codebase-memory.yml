@@ -65,6 +65,11 @@ jobs:
           ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
           ACE_REAL_PROJECTION_NATIVE_RECOVERY: 'true'
         run: node scripts/real-projection-e2e.mjs
+      - name: Native CBM Git worktree add, stage, unstage and branch transitions
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+          ACE_REAL_PROJECTION_NATIVE_WORKTREE: 'true'
+        run: node scripts/real-projection-e2e.mjs
       - name: Native CBM startup outage must block projection
         env:
           ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
