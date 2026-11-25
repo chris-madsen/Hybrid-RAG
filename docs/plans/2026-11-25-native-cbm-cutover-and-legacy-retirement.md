@@ -187,3 +187,5 @@ The historical Python dense/sparse embedding and cross-encoder worker environmen
 ### CBM-02 native projection evidence slice
 
 The native holdout producer and replay verifier use the existing frozen manifest, Context RPC, native trace and signed projection receipt. They require the actual prepared body and ordered, exact-source candidate bindings; BLOCK is a miss. Acceptance remains open until the frozen independent partitions run and the predeclared absolute policy passes. No new benchmark result is committed. Owner excludes Windows-specific optimization; Linux/colocated scope is the current target. Cross-process/cache and agent boundary remain separate obligations.
+
+The isolated Linux shared-cache scenario uses two real ACE runtimes with separate ACE state, one upstream session-managed CBM daemon, a stopped native frontend with observed queued indexing, a newer same-size source update, a foreign registered root and retained SQLite cache on restart. It does not certify all multiprocess schedules or an independent worker/ABA proof. No custom shared-cache lock or remote deployment support is introduced.
