@@ -433,9 +433,9 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     }
     // Explicit file references disambiguate only graph-returned candidates.
     // Never treat a path mentioned in the prompt as authorized source proof.
-    const exact = [...explicit.filter((hit) => input.query.includes(hit.file)),
+    const explicitHits = [...explicit.filter((hit) => input.query.includes(hit.file)),
       ...explicit.filter((hit) => !input.query.includes(hit.file))];
-    const nativeHits = [...exact, ...native.value];
+    const nativeHits = [...explicitHits, ...native.value];
     const outlineCache = new Map<RepoPath, readonly NativeOutlineRow[] | undefined>();
     const sourceCandidateFor = async (target: NativeGraphTarget): Promise<CodeCandidate | undefined> => {
       const candidates = candidatesByFile.get(target.file) ?? [];
