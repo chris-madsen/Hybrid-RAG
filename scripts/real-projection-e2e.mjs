@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
@@ -52,6 +52,18 @@ const assertNoExternalRetrievalProcesses = (rootPid) => {
     /qdrant|fastembed|onnxruntime|sentence-transformers|typescript-language-server|reranker-worker|embedding-worker/iu.test(entry.command));
   assert.deepEqual(forbidden, [], 'native CBM mode must not start legacy vector, embedding, reranker or external LSP processes');
   return [...new Set(descendants.map((entry) => basename(entry.command.trim().split(/\s+/u)[0] ?? 'unknown')))].sort();
+};
+const actualNativeChild = async (rootPid) => {
+  const matches = [];
+  for (const entry of processDescendants(rootPid)) {
+    try {
+      const executable = basename(await readlink(`/proc/${entry.pid}/exe`));
+      if (executable === 'codebase-memory-mcp') matches.push(entry);
+    } catch { /* process exited between observations */ }
+  }
+  assert.equal(matches.length, 1, 'exactly one actual native CBM executable must be running');
+  assert.equal(matches[0].parentPid, rootPid, 'ACE must own the native child directly, not an npm shim');
+  return matches[0];
 };
 const readProviderTrace = async (path) => {
   try {
@@ -166,6 +178,7 @@ try {
     assert.doesNotMatch(startupLog, /embedding=fastembed\/onnx|qdrant=qdrant\/|lsp=typescript-language-server/u,
       'runtime provenance must list only providers active in native mode');
     nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
+    if (!outage) await actualNativeChild(child.pid);
   }
   const health = await fetch(endpoint + '/health', {
     headers: { authorization: 'Bearer real-provider-fixture-secret' }, signal: timeout(10000),
@@ -270,8 +283,7 @@ try {
       if (recovery) {
         // Kill the actual stdio child, not the ACE runtime or a fake provider.
         // Observe its disappearance before requesting unchanged source again.
-        const nativeChild = processDescendants(child.pid).find((entry) =>
-          entry.parentPid === child.pid && /codebase-memory-mcp/u.test(entry.command));
+        const nativeChild = await actualNativeChild(child.pid);
         assert.ok(nativeChild, 'actual native stdio child must be present');
         const traceBefore = await readProviderTrace(providerTracePath);
         const indexesBefore = traceBefore.filter((event) => event.provider === 'codebase_memory'
@@ -301,8 +313,7 @@ try {
         console.log(JSON.stringify({ status: 'native-recovery-pass', providerWireCertified: false }));
       }
       if (cancellation) {
-        const nativeChild = processDescendants(child.pid).find((entry) =>
-          entry.parentPid === child.pid && /codebase-memory-mcp/u.test(entry.command));
+        const nativeChild = await actualNativeChild(child.pid);
         assert.ok(nativeChild);
         const indexQueued = (events) => events.filter((event) => event.provider === 'codebase_memory'
           && event.operation === 'index_repository_request_queued').length;

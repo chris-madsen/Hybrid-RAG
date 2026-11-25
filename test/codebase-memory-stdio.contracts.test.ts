@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Effect } from 'effect';
 import {
-  makeCodebaseMemoryStdio, parseCodebaseMemoryToolResult,
+  makeCodebaseMemoryStdio, parseCodebaseMemoryToolResult, resolveCodebaseMemoryCommand,
 } from '../src/adapters/codebase-memory-stdio.js';
 import { makeCodebaseMemoryGraph } from '../src/adapters/codebase-memory-graph.js';
 import type { ProviderTraceEvent } from '../src/domain/provider-trace.js';
@@ -18,6 +18,24 @@ const readLog = (path: string): { pid: number; method: string; tool?: string }[]
       .filter(Boolean).map((line) => JSON.parse(line) as { pid: number; method: string; tool?: string });
   } catch { return []; }
 };
+
+test('upstream npm launcher resolves directly to the native executable, never its downloader', { skip: process.platform === 'win32' }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-shim-'));
+  try {
+    const pkg = join(dir, 'codebase-memory-mcp');
+    mkdirSync(join(pkg, 'bin'), { recursive: true });
+    const shim = join(pkg, 'bin.js');
+    writeFileSync(shim, '#!/usr/bin/env node\nthrow Error("do not execute shim");\n');
+    chmodSync(shim, 0o755);
+    const launcher = join(dir, 'launcher');
+    symlinkSync(shim, launcher);
+    const binary = join(pkg, 'bin', 'codebase-memory-mcp');
+    assert.equal(resolveCodebaseMemoryCommand(launcher), binary, 'missing native binary must not invoke downloader');
+    writeFileSync(binary, 'fixture');
+    chmodSync(binary, 0o755);
+    assert.equal(resolveCodebaseMemoryCommand(launcher), binary);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 
 test('native stdio session reuses one process across indexing, outlines and graph requests', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-stdio-'));

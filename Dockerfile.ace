@@ -37,7 +37,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends git procps \
   && rm -rf /var/lib/apt/lists/* \
   && npm install --global codebase-memory-mcp@0.12.1 \
-  && codebase-memory-mcp --version \
+  && mkdir -p /opt/ace-native \
+  && install -m 0755 "$(npm root -g)/codebase-memory-mcp/bin/codebase-memory-mcp" /opt/ace-native/codebase-memory-mcp \
+  && /opt/ace-native/codebase-memory-mcp --version \
+  && npm uninstall --global codebase-memory-mcp \
+  && ln -s /opt/ace-native/codebase-memory-mcp /usr/local/bin/codebase-memory-mcp \
   && mkdir -p /var/lib/ace/native-home \
   && chown node:node /var/lib/ace/native-home
 ENV HOME=/var/lib/ace/native-home \
