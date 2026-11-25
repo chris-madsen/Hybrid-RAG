@@ -14,7 +14,7 @@ import { buildLocalCodeIndex, type LocalCodeIndexBuild } from '../adapters/local
 import { makeNodeWorkspacePort } from '../adapters/node-workspace-port.js';
 import { makeFileProviderTrace } from '../adapters/provider-trace.js';
 import { makeFileRetrievalBenchmarkTrace } from '../adapters/retrieval-benchmark-trace.js';
-import { makeNativeCbmContextProvider, type NativeCbmContextConfig } from '../adapters/qdrant-context-provider.js';
+import { makeNativeCbmContextProvider, type NativeCbmContextConfig } from '../adapters/native-cbm-context-provider.js';
 import { makeCodebaseMemoryStructuralPort } from '../adapters/codebase-memory-structural.js';
 import { makeCodebaseMemoryGraph } from '../adapters/codebase-memory-graph.js';
 import { makeVertexRagRetrievalPort } from '../adapters/vertex-rag.js';
