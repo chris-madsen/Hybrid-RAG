@@ -33,6 +33,18 @@ try {
   }
   const spec = join(root, 'spec.json');
   await writeFile(spec, JSON.stringify({ schemaVersion: 1, status: 'frozen_multi_repository_holdout', repositories, cases }));
+  const invalidSpec = join(root, 'invalid-spec.json');
+  const invalidCases = cases.map((item, index) => index === 0
+    ? { ...item, relevantSpans: [{ ...item.relevantSpans[0], endColumn: 999 }] } : item);
+  await writeFile(invalidSpec, JSON.stringify({ schemaVersion: 1, status: 'frozen_multi_repository_holdout',
+    repositories, cases: invalidCases }));
+  const invalidHoldout = join(root, 'invalid-holdout.json');
+  const invalidManifests = join(root, 'invalid-manifests');
+  assert.throws(() => run('freeze-retrieval-holdout.ts', [invalidSpec, invalidHoldout, invalidManifests,
+    ...repositories.map((repo) => repo.id + '=' + join(root, repo.id))]),
+  (error) => String(error.stderr).includes('invalid range'));
+  await assert.rejects(readFile(invalidHoldout), { code: 'ENOENT' });
+  await assert.rejects(readFile(join(invalidManifests, 'manifest-fixture-a.json')), { code: 'ENOENT' });
   const holdout = join(root, 'holdout.json');
   const manifests = join(root, 'manifests');
   run('freeze-retrieval-holdout.ts', [spec, holdout, manifests, ...repositories.map((repo) => repo.id + '=' + join(root, repo.id))]);

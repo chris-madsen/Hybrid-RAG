@@ -32,7 +32,6 @@ Bifröst — sole agent-facing LLM Gateway
   | post-auth Go ACE plugin
   +---- authenticated loopback context RPC ----> ACE Core (TypeScript + Effect)
   |                                              | code: native CBM
-  |                                              | legacy vector path pending retirement
   |                                              | docs: authorized Vertex AI RAG
   |                                              | memory: archive; Graphiti target
   |                                              v
