@@ -478,12 +478,27 @@ const main = async (): Promise<void> => {
       // may read a candidate list while another query mutates the native index.
       const semaphore = await Effect.runPromise(Effect.makeSemaphore(1));
       context = {
-        // The upstream stdio and nested snapshot/build promises are not
-        // cancellable. Once a permit is acquired, retain it until the native
-        // transaction settles; an interrupted caller cannot release a writer
-        // while it still mutates graph/candidate publication. Waiting for the
-        // permit remains interruptible. Provider operations have deadlines.
-        search: (input) => semaphore.withPermits(1)(Effect.uninterruptible(provider.search(input))),
+        // Interrupt the caller's wait, retire its actual native I/O, then
+        // drain the owned transaction in the interrupt finalizer BEFORE
+        // releasing the semaphore. The nested promise cannot publish after
+        // suspension; subsequent calls cannot dispatch to another child.
+        search: (input) => semaphore.withPermits(1)(Effect.suspend(() => {
+          graph.resume();
+          let pending: Promise<unknown> | undefined;
+          const operation = Effect.promise(() => {
+            const work = Effect.runPromise(provider.search(input));
+            pending = work;
+            return work;
+          });
+          return Effect.onInterrupt(operation, () => Effect.promise(async () => {
+            nativePublished = false;
+            candidates = [];
+            await graph.suspend();
+            try { await pending; } catch { /* interrupted transaction cannot deliver */ }
+            nativePublished = false;
+            candidates = [];
+          }));
+        })),
       };
       activeContextProviderIdentities = nativeIdentities;
       readiness.semantic_lsp = { state: 'not_ready', reason: 'native_exact_identifier_contract_pending' };

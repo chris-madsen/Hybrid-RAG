@@ -138,6 +138,40 @@ test('unsupported binary version and request timeout fail closed', async () => {
   } finally { await hanging.close(); }
 });
 
+test('cancelled native dispatch waits for child exit before admitting a replacement', {
+  timeout: 15_000, skip: process.platform === 'win32',
+}, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ace-cbm-cancel-'));
+  const log = join(dir, 'calls.jsonl');
+  process.env.ACE_CBM_TEST_LOG = log;
+  const client = makeCodebaseMemoryStdio({
+    rootPath: root, command: process.execPath,
+    args: [fixture, '--ignore-termination'], timeoutMs: 10_000,
+  });
+  try {
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Ok');
+    const pid = readLog(log)[0]?.pid;
+    assert.ok(pid);
+    const inFlight = client.invoke('search_graph', { semantic_query: ['hang-provider'] });
+    const limit = Date.now() + 3000;
+    while (!readLog(log).some((entry) => entry.tool === 'search_graph')) {
+      assert.ok(Date.now() < limit, 'fixture did not receive the in-flight search');
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
+    }
+    await client.suspend();
+    assert.equal((await inFlight)._tag, 'Err');
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'old writer must actually exit');
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Err');
+    client.resume();
+    assert.equal((await client.invoke('index_repository', { repo_path: root }))._tag, 'Ok');
+    assert.equal(new Set(readLog(log).map((entry) => entry.pid)).size, 2);
+  } finally {
+    await client.close();
+    delete process.env.ACE_CBM_TEST_LOG;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('closing during initialization cancels the native child instead of waiting for the request deadline', {
   timeout: 4_000,
 }, async () => {

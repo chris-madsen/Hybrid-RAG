@@ -93,6 +93,8 @@ const race = process.env.ACE_REAL_PROJECTION_RACE === 'true';
 const mutations = process.env.ACE_REAL_PROJECTION_NATIVE_MUTATIONS === 'true';
 const recovery = process.env.ACE_REAL_PROJECTION_NATIVE_RECOVERY === 'true';
 const worktree = process.env.ACE_REAL_PROJECTION_NATIVE_WORKTREE === 'true';
+const cancellation = process.env.ACE_REAL_PROJECTION_NATIVE_CANCELLATION === 'true';
+assert.ok(!cancellation || (native && !outage && !race && !mutations && !recovery && !worktree), 'native cancellation requires a healthy standalone fixture');
 assert.ok(!worktree || (native && !outage && !race && !mutations && !recovery), 'native worktree evidence requires a healthy standalone fixture');
 assert.ok(!recovery || (native && !outage && !race && !mutations), 'native recovery requires a healthy standalone native fixture');
 assert.ok(!mutations || (native && !outage && !race), 'native mutation test requires a healthy native-only fixture');
@@ -248,8 +250,8 @@ try {
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,
     }));
-    if (mutations || recovery || worktree) {
-      const projectAgain = async (query = payload.query) => {
+    if (mutations || recovery || worktree || cancellation) {
+      const projectAgain = async (query = payload.query, signal = timeout(maxWait)) => {
         const nextBytes = Buffer.from(JSON.stringify({ ...body, input: query }), 'utf8');
         const next = {
           ...payload, query, bodyBase64: nextBytes.toString('base64'), bodySha256: digest(nextBytes),
@@ -258,7 +260,7 @@ try {
         };
         const result = await fetch(endpoint + '/project', {
           method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
-          body: JSON.stringify(next), signal: timeout(maxWait),
+          body: JSON.stringify(next), signal,
         });
         const outcome = await result.json();
         assert.equal(result.status, 200, JSON.stringify(outcome));
@@ -297,6 +299,52 @@ try {
         assert.equal(indexesAfter, indexesBefore + 1, 'parallel requests must share exactly one recovered publication');
         assertNoExternalRetrievalProcesses(child.pid);
         console.log(JSON.stringify({ status: 'native-recovery-pass', providerWireCertified: false }));
+      }
+      if (cancellation) {
+        const nativeChild = processDescendants(child.pid).find((entry) =>
+          entry.parentPid === child.pid && /codebase-memory-mcp/u.test(entry.command));
+        assert.ok(nativeChild);
+        const indexQueued = (events) => events.filter((event) => event.provider === 'codebase_memory'
+          && event.operation === 'index_repository_request_queued').length;
+        const queuedBefore = indexQueued(await readProviderTrace(providerTracePath));
+        const changed = code.replace('return value;', "return value + '-cancelled-generation';") + filler + '\n';
+        await writeFile(codePath, changed);
+        const controller = new AbortController();
+        // SIGSTOP is a deterministic barrier: the actual native child cannot
+        // complete indexing until it is resumed or retired. Observe queued I/O
+        // before aborting the HTTP caller, not a guessed delay.
+        process.kill(nativeChild.pid, 'SIGSTOP');
+        const inFlight = projectAgain(payload.query, controller.signal);
+        const aborted = assert.rejects(inFlight, { name: 'AbortError' });
+        try {
+          const until = Date.now() + 10000;
+          while (indexQueued(await readProviderTrace(providerTracePath)) === queuedBefore) {
+            assert.ok(Date.now() < until, 'reindex was not queued to the real stopped child');
+            await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+          }
+          const cancelledAt = Date.now();
+          controller.abort();
+          await aborted;
+          const newest = code.replace('return value;', "return value + '-after-cancellation';") + filler + '\n';
+          await writeFile(codePath, newest);
+          const outcome = await projectAgain(payload.query, timeout(15000));
+          assert.equal(outcome.kind, 'PREPARED', JSON.stringify(outcome));
+          const projected = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+          const context = projected.input.find((item) => item.role === 'developer'
+            && String(item.content).includes('[ACE verified context]'));
+          assert.ok(context);
+          assert.match(context.content, /-after-cancellation/u);
+          assert.doesNotMatch(context.content, /-cancelled-generation/u);
+          assert.ok(!processDescendants(child.pid).some((entry) => entry.pid === nativeChild.pid));
+          assertNoExternalRetrievalProcesses(child.pid);
+          console.log(JSON.stringify({ status: 'native-cancellation-pass', recoveryMs: Date.now() - cancelledAt, providerWireCertified: false }));
+        } finally {
+          controller.abort();
+          if (processDescendants(child.pid).some((entry) => entry.pid === nativeChild.pid)) {
+            try { process.kill(nativeChild.pid, 'SIGCONT'); } catch { /* child already retired */ }
+          }
+          await aborted;
+        }
       }
       if (worktree) {
         const initialBranch = git('branch', '--show-current').trim();

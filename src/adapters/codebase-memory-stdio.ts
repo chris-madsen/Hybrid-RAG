@@ -33,6 +33,9 @@ export interface CodebaseMemoryStdioOptions {
 
 export interface CodebaseMemoryStdio {
   readonly invoke: (tool: string, args: Readonly<Record<string, unknown>>, requestId?: string) => Promise<Result<unknown, DomainError>>;
+  /** Suspend dispatch until the cancelled transaction has settled. */
+  readonly suspend: () => Promise<void>;
+  readonly resume: () => void;
   readonly close: () => Promise<void>;
 }
 
@@ -106,8 +109,32 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
   const timeoutMs = options.timeoutMs ?? 120_000;
   const command = options.command?.trim() || 'codebase-memory-mcp';
   let closed = false;
+  let suspended = false;
+  let retiring = Promise.resolve(true);
   let session: Session | undefined;
   let starting: Promise<Session> | undefined;
+
+  // Reuse Node's process lifecycle rather than treating signal delivery as
+  // process exit. No replacement writer may start while a retired child lives.
+  const retire = async (child: ChildProcessWithoutNullStreams): Promise<boolean> => {
+    if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return true;
+    let done: () => void = () => undefined;
+    const exited = new Promise<void>((resolveExit) => {
+      done = resolveExit;
+      child.once('exit', done);
+      child.once('close', done);
+    });
+    try {
+      if (child.exitCode !== null || child.signalCode !== null) return true;
+      try { child.kill('SIGTERM'); } catch { /* confirm actual exit below */ }
+      try { await deadline(exited, 750); return true; } catch { /* escalate */ }
+      try { child.kill('SIGKILL'); } catch { /* confirm actual exit below */ }
+      try { await deadline(exited, 1000); return true; } catch { return false; }
+    } finally {
+      child.off('exit', done);
+      child.off('close', done);
+    }
+  };
 
   const discard = (current: Session): void => {
     if (current.dead) return;
@@ -120,12 +147,11 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     }
     try { current.connection.dispose(); } catch { /* already closed */ }
     try { current.child.stdin.end(); } catch { /* already closed */ }
-    if (current.child.exitCode === null && current.child.signalCode === null) {
-      try { current.child.kill('SIGTERM'); } catch { /* already exited */ }
-    }
+    retiring = retire(current.child);
   };
 
   const connect = async (): Promise<Session> => {
+    if (!await retiring || closed || suspended) throw new Error('native provider retirement or cancellation prevents startup');
     const env: NodeJS.ProcessEnv = { ...process.env, CBM_ALLOWED_ROOT: root };
     delete env.GIT_DIR;
     delete env.GIT_WORK_TREE;
@@ -193,15 +219,15 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     if (!permitted.has(tool)) {
       return err(domainError('INVALID_INPUT', 'codebase_memory.tool', 'tool is not authorized for ACE internal retrieval'));
     }
-    if (closed) return err(domainError('NOT_READY', 'codebase_memory', 'native provider session is closed'));
+    if (closed || suspended) return err(domainError('NOT_READY', 'codebase_memory', 'native provider session is closed or suspended'));
     const startedAtMs = Date.now();
-    const trace = (status: 'success' | 'failure', errorCode?: string): void => {
+    const trace = (status: 'success' | 'failure', errorCode?: string, operation = tool): void => {
       try {
         options.trace?.record({
           timestampMs: Date.now(),
           provider: 'codebase_memory',
           providerVersion: `codebase-memory-mcp/${expectedVersion}`,
-          operation: tool,
+          operation,
           status,
           durationMs: Math.max(0, Date.now() - startedAtMs),
           ...(requestId === undefined ? {} : { requestId }),
@@ -214,10 +240,14 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     let current: Session | undefined;
     try {
       current = await getSession();
-      if (current.dead || closed) throw new Error('Codebase Memory session unavailable');
-      const raw: unknown = await deadline(current.connection.sendRequest('tools/call', {
+      if (current.dead || closed || suspended) throw new Error('Codebase Memory session unavailable');
+      const response = current.connection.sendRequest('tools/call', {
         name: tool, arguments: args,
-      }), timeoutMs);
+      });
+      // Local dispatch observation, not a successful native tool result.
+      // The separate terminal event remains the only provider-result evidence.
+      if (tool === 'index_repository') trace('success', undefined, 'index_repository_request_queued');
+      const raw: unknown = await deadline(response, timeoutMs);
       if (current.dead || closed) throw new Error('Codebase Memory session lost during request');
       const result = parseCodebaseMemoryToolResult(raw);
       trace(result._tag === 'Ok' ? 'success' : 'failure', result._tag === 'Err' ? result.error.code : undefined);
@@ -229,18 +259,21 @@ export const makeCodebaseMemoryStdio = (options: CodebaseMemoryStdioOptions): Co
     }
   };
 
-  const close = async (): Promise<void> => {
-    if (closed) return;
-    closed = true;
-    // A pending initialize may still settle; it observes closed and tears
-    // down its own child rather than establishing a post-close session.
+  const suspend = async (): Promise<void> => {
+    suspended = true;
+    const pending = starting;
     const active = session;
     if (active !== undefined) discard(active);
-    const pending = starting;
     if (pending !== undefined) {
       try { discard(await pending); } catch { /* failed startup already cleaned up */ }
     }
+    await retiring;
   };
 
-  return { invoke, close };
+  const close = async (): Promise<void> => {
+    closed = true;
+    await suspend();
+  };
+
+  return { invoke, suspend, resume: () => { if (!closed) suspended = false; }, close };
 };

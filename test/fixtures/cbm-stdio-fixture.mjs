@@ -35,6 +35,11 @@ connection.onRequest('tools/call', (input) => {
   }
   if (input.name === 'search_graph'
     && input.arguments?.semantic_query?.[0] === 'hang-provider') {
+    if (process.argv.includes('--ignore-termination')) {
+      process.on('SIGTERM', () => undefined);
+      // Keep the process alive even when the cancelled parent closes stdin.
+      setInterval(() => undefined, 1000);
+    }
     return new Promise(() => undefined);
   }
   let data;
