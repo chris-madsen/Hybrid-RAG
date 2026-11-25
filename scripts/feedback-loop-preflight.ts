@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -59,7 +59,6 @@ interface PreflightManifest {
     readonly nConcurrentTrials: 1;
     readonly nAttempts: 1;
     readonly authenticationRoute: typeof hermesCodexAuthenticationRoute;
-    readonly embeddingLibraryPath?: string;
   };
 }
 
@@ -108,22 +107,6 @@ const command = (name: string, args: readonly string[], environment?: Readonly<R
     reason: identity === undefined || identity.length === 0 ? `${name} returned no identity` : 'provider executable responded',
     ...(identity === undefined || identity.length === 0 ? {} : { identity: identity.slice(0, 200) }),
   };
-};
-
-const embeddingCache = async (): Promise<PreflightCheck> => {
-  const configured = process.env.FASTEMBED_CACHE_PATH?.trim();
-  const candidates = configured === undefined || configured.length === 0
-    ? ['.cache/ace-fastembed', '.venv-embedding-fast']
-    : [configured];
-  for (const candidate of candidates) {
-    try {
-      await access(candidate);
-      return { status: 'ready', reason: 'embedding cache path is accessible', identity: resolve(candidate) };
-    } catch {
-      // Probe the next explicitly permitted local candidate.
-    }
-  }
-  return { status: 'not_ready', reason: 'embedding cache path is not accessible' };
 };
 
 const harborDataset = (datasetId: string): PreflightCheck => {
@@ -268,16 +251,6 @@ const agentRuntimeDigestCheck = async (
   };
 };
 
-const qdrant = async (url: string): Promise<PreflightCheck> => {
-  try {
-    const response = await fetch(`${url.replace(/\/$/u, '')}/collections`, { signal: AbortSignal.timeout(3000) });
-    if (!response.ok) return { status: 'not_ready', reason: `Qdrant returned HTTP ${response.status}` };
-    return { status: 'ready', reason: 'Qdrant collections endpoint responded', identity: url };
-  } catch (error) {
-    return { status: 'not_ready', reason: error instanceof Error ? error.message : 'Qdrant request failed' };
-  }
-};
-
 const harborJobIdentity = async (
   nativeJobPath: string | undefined,
   aceJobPath: string | undefined,
@@ -348,9 +321,6 @@ const dockerImages = (
 
 const parseArgs = (): {
   readonly outputDirectory: string;
-  readonly embeddingPython: string;
-  readonly embeddingLibraryPath?: string;
-  readonly qdrantUrl: string;
   readonly taskManifestPath?: string;
   readonly nativeJobPath?: string;
   readonly aceJobPath?: string;
@@ -361,9 +331,6 @@ const parseArgs = (): {
 } => {
   const args = process.argv.slice(2);
   let outputDirectory = process.env.ACE_FEEDBACK_OUTPUT?.trim() || 'artifacts/feedback/preflight';
-  let embeddingPython = resolve(process.env.ACE_EMBEDDING_PYTHON?.trim() || '.venv-embedding-fast/bin/python');
-  let embeddingLibraryPath = process.env.ACE_EMBEDDING_LD_LIBRARY_PATH?.trim();
-  let qdrantUrl = process.env.ACE_QDRANT_URL?.trim() || 'http://127.0.0.1:6333';
   let taskManifestPath: string | undefined;
   let nativeJobPath: string | undefined;
   let aceJobPath: string | undefined;
@@ -379,22 +346,16 @@ const parseArgs = (): {
     }
     const value = args.shift();
     if (current === '--output' && value !== undefined) outputDirectory = value;
-    else if (current === '--embedding-python' && value !== undefined) embeddingPython = value;
-    else if (current === '--embedding-library-path' && value !== undefined) embeddingLibraryPath = value;
-    else if (current === '--qdrant-url' && value !== undefined) qdrantUrl = value;
     else if (current === '--task-manifest' && value !== undefined) taskManifestPath = resolve(value);
     else if (current === '--native-job' && value !== undefined) nativeJobPath = resolve(value);
     else if (current === '--ace-job' && value !== undefined) aceJobPath = resolve(value);
     else if (current === '--ace-runtime-bundle' && value !== undefined) aceRuntimeBundlePath = resolve(value);
     else if (current === '--image-digest' && value !== undefined) imageDigest = value.trim();
     else if (current === '--experiment-manifest' && value !== undefined) experimentManifestPath = resolve(value);
-    else throw new Error('Usage: tsx scripts/feedback-loop-preflight.ts [--fast-local] [--output dir] [--embedding-python path] [--embedding-library-path path] [--qdrant-url url] [--task-manifest path] [--native-job path] [--ace-job path] [--ace-runtime-bundle path] [--image-digest sha256:<64hex>] [--experiment-manifest path]');
+    else throw new Error('Usage: tsx scripts/feedback-loop-preflight.ts [--fast-local] [--output dir] [--task-manifest path] [--native-job path] [--ace-job path] [--ace-runtime-bundle path] [--image-digest sha256:<64hex>] [--experiment-manifest path]');
   }
   return {
     outputDirectory: resolve(outputDirectory),
-    embeddingPython,
-    ...(embeddingLibraryPath === undefined || embeddingLibraryPath.length === 0 ? {} : { embeddingLibraryPath }),
-    qdrantUrl,
     ...(taskManifestPath === undefined ? {} : { taskManifestPath }),
     ...(nativeJobPath === undefined ? {} : { nativeJobPath }),
     ...(aceJobPath === undefined ? {} : { aceJobPath }),
@@ -432,19 +393,6 @@ const main = async (): Promise<void> => {
   const harborJobs = await harborJobIdentity(args.nativeJobPath, args.aceJobPath);
   const source = sourceCheckout();
   const currentSourceCommit = source.commit;
-  const embeddingEnvironment = {
-    ACE_EMBEDDING_PYTHON: args.embeddingPython,
-    PYTHONDONTWRITEBYTECODE: '1',
-    ...(args.embeddingLibraryPath === undefined ? {} : { ACE_EMBEDDING_LD_LIBRARY_PATH: args.embeddingLibraryPath }),
-    ...(process.env.LD_PRELOAD?.trim() === undefined ? {} : { LD_PRELOAD: process.env.LD_PRELOAD.trim() }),
-    ...(process.env.ACE_EMBEDDING_LD_PRELOAD?.trim() === undefined ? {} : { LD_PRELOAD: process.env.ACE_EMBEDDING_LD_PRELOAD.trim() }),
-  };
-  const sparseEmbeddingEnvironment = {
-    ACE_SPARSE_EMBEDDING_PYTHON: process.env.ACE_SPARSE_EMBEDDING_PYTHON?.trim() || args.embeddingPython,
-    PYTHONDONTWRITEBYTECODE: '1',
-    ...(args.embeddingLibraryPath === undefined ? {} : { ACE_SPARSE_EMBEDDING_LD_LIBRARY_PATH: args.embeddingLibraryPath }),
-    ...(process.env.ACE_SPARSE_EMBEDDING_LD_PRELOAD?.trim() === undefined ? {} : { LD_PRELOAD: process.env.ACE_SPARSE_EMBEDDING_LD_PRELOAD.trim() }),
-  };
   const checks: Record<string, PreflightCheck> = {
     sourceCheckout: source.check,
     runtimeProvenance: await compiledRuntime(),
@@ -452,16 +400,6 @@ const main = async (): Promise<void> => {
     npm: command('npm', ['--version']),
     astGrep: command('./node_modules/.bin/ast-grep', ['--version']),
     typescriptLanguageServer: command('./node_modules/.bin/typescript-language-server', ['--version']),
-    embeddingPython: args.fastLocal && datasetId === 'local/ace-suite'
-      ? { status: 'not_required', reason: 'fast local smoke does not require host embedding workers; the task image probe is authoritative' }
-      : existsSync('scripts/fastembed-worker.sh')
-      ? command('bash', ['scripts/fastembed-worker.sh'], embeddingEnvironment)
-      : command(args.embeddingPython, ['-c', 'import fastembed, onnxruntime; print(fastembed.__version__)'], embeddingEnvironment),
-    sparseEmbedding: args.fastLocal && datasetId === 'local/ace-suite'
-      ? { status: 'not_required', reason: 'fast local smoke does not require host sparse embedding workers; the task image probe is authoritative' }
-      : existsSync('scripts/fastembed-sparse-worker.sh')
-      ? command('bash', ['scripts/fastembed-sparse-worker.sh'], sparseEmbeddingEnvironment)
-      : { status: 'not_ready', reason: 'sparse FastEmbed worker launcher is missing' },
     harbor: command('harbor', ['--version']),
     harborRun: command('harbor', ['run', '--help']),
     harborDatasets: command('harbor', ['datasets', 'list']),
@@ -507,17 +445,11 @@ const main = async (): Promise<void> => {
       ? { status: 'ready', reason: 'experiment identity matches checkout, Harbor jobs/version, Bifröst endpoint, image provenance and OAuth route' }
       : { status: 'not_ready', reason: `experiment identity mismatch: ${[...new Set(failures)].join(', ')}` };
   }
-  checks.qdrant = args.fastLocal && datasetId === 'local/ace-suite'
-    ? { status: 'not_required', reason: 'fast local smoke does not require a host Qdrant service' }
-    : await qdrant(args.qdrantUrl);
-  checks.embeddingCache = args.fastLocal && datasetId === 'local/ace-suite'
-    ? { status: 'not_required', reason: 'fast local smoke does not require a host embedding cache' }
-    : await embeddingCache();
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
-    'embeddingPython', 'sparseEmbedding', 'harbor', 'harborRun', 'harborDatasetPinned',
+    'harbor', 'harborRun', 'harborDatasetPinned',
     'hermesCodexAuth', 'bifrostEndpoint', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
-    'embeddingCache', 'qdrant', 'taskVerifier',
+    'taskVerifier',
   ];
   const blocked = required.filter((name) => !['ready', 'not_required'].includes(checks[name]?.status ?? 'not_ready'));
   const manifest: PreflightManifest = {
@@ -544,7 +476,6 @@ const main = async (): Promise<void> => {
           nConcurrentTrials: 1 as const,
           nAttempts: 1 as const,
           authenticationRoute: hermesCodexAuthenticationRoute,
-          ...(args.embeddingLibraryPath === undefined ? {} : { embeddingLibraryPath: args.embeddingLibraryPath }),
         },
       }
       : {}),

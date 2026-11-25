@@ -158,10 +158,12 @@ test('ACE context extension runtime forwards explicit sparse LD library path int
 });
 
 
-test('feedback preflight probes the sparse provider required by hybrid retrieval', async () => {
-  const preflight = await readFile(resolve('scripts/feedback-loop-preflight.ts'), 'utf8');
-  assert.match(preflight, /fastembed-sparse-worker\.sh/u);
-  assert.match(preflight, /sparseEmbedding/u);
+test('native feedback preflight requires the verified bundle instead of historical vector providers', async () => {
+  const preflight = await readFile('scripts/feedback-loop-preflight.ts', 'utf8');
+  assert.match(preflight, /verifyAceRuntimeBundle/u);
+  assert.match(preflight, /'aceRuntimeBundle', 'taskRuntimeProbe'/u);
+  assert.doesNotMatch(preflight, /fastembed-sparse-worker|sparseEmbedding|qdrantUrl|embeddingCache/u);
+  assert.match(preflight, /real, provenance-bound Hermes\/Bifröst\/ACE task-container probe/u);
 });
 
 
