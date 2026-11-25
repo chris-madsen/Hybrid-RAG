@@ -148,13 +148,10 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
 });
 
 
-test('ACE context extension runtime forwards explicit sparse LD library path into the sparse worker environment', async () => {
+test('native context runtime does not configure historical sparse workers', async () => {
   const runtime = await readFile(resolve('src/bin/ace-runtime.ts'), 'utf8');
-  const sparseEnvironmentBlock = runtime.slice(
-    runtime.indexOf('const sparseEnvironment: Record<string, string>'),
-    runtime.indexOf('const sparseEmbeddings = makeProcessSparseEmbeddingPort'),
-  );
-  assert.match(sparseEnvironmentBlock, /ACE_SPARSE_EMBEDDING_LD_LIBRARY_PATH/u);
+  assert.doesNotMatch(runtime, /ACE_SPARSE_EMBEDDING_LD_LIBRARY_PATH|makeProcessSparseEmbeddingPort|fastembed-sparse-worker/u);
+  assert.match(runtime, /Only native CBM code retrieval is supported/u);
 });
 
 

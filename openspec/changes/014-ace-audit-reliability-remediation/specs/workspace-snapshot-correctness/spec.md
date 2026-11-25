@@ -16,9 +16,9 @@ A successful complete retrieval SHALL require a trustworthy source observation. 
 - **THEN** the already approved verified-no-addition response preserves native input bytes exactly
 - **AND** stale, denied, partial, failed or unknown results never enter that success path
 
-### Requirement: Concurrent Qdrant publishers cannot roll back newer source
+### Requirement: Concurrent source publishers cannot roll back newer source
 
-The publisher SHALL have a workspace-scoped authority that prevents stale writers from erasing or activating older generations.
+The publisher SHALL preserve workspace-scoped authority that prevents stale writers from erasing or activating older generations. For the owner-selected native CBM cutover, reuse upstream coordination and ACE exact source/generation verification rather than rebuilding the retired vector publication mechanism. A process-local semaphore alone SHALL NOT be treated as cross-process authority. Supported concurrent topology must be proven, or an explicit approved constraint must prevent unsupported publishers from sharing mutable index state.
 
 #### Scenario: REM-005 — Stale writer after newer publication
 - **WHEN** process A observes v1, pauses, and process B publishes v2 before A continues
@@ -29,4 +29,5 @@ The publisher SHALL have a workspace-scoped authority that prevents stale writer
 - **WHEN** publication fails, a writer crashes/restarts or competing writers have the same claimed generation
 - **THEN** the system cannot expose a partial or rolled-back snapshot as complete
 - **AND** verified newer membership survives restart/cleanup and is not lost by stale pruning
-- **AND** alias atomicity is never mistaken for generation compare-and-swap
+- **AND** index/cache atomicity alone is never mistaken for verified source-generation ownership
+- **AND** restart or provider loss requires a fresh verified publication before any result can be declared complete

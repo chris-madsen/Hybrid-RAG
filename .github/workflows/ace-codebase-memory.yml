@@ -123,6 +123,10 @@ jobs:
         run: | # zizmor: ignore[adhoc-packages] pinned v0.12.1 verifies native archive checksum
           npm install --global codebase-memory-mcp@0.12.1
           codebase-memory-mcp --version
+      - name: Inventory remaining live vector consumers before physical retirement
+        # Temporary migration evidence. No source bodies or credentials in logs.
+        run: |
+          git grep -l -E '(@qdrant/js-client-rest|qdrant-context-provider|qdrant-publication-authority|qdrant-sdk-adapter|process-embedding|process-sparse-embedding|process-reranker|fastembed|onnxruntime|ACE_ENABLE_EXPERIMENTAL_QDRANT|ACE_QDRANT_)' -- src scripts test infra .github package.json Makefile Dockerfile.ace '*.toml' '*.txt' || test "$?" = 1
       - name: Run complete source contracts, build, architecture and nightly property suite
         run: npm run verify:full
 
