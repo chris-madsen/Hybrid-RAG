@@ -7,7 +7,6 @@
     "src/bin/ace-memory.ts",
     "src/bin/ace-worktree-helper.ts",
     // These operator tools are invoked directly or through dynamic child-process paths.
-    "scripts/ast-grep-provider-parity.ts",
     "scripts/baseline-verification.mjs",
     "scripts/graphiti-crash-worker.mjs",
     "scripts/harbor-ace-runtime-probe.mjs",
