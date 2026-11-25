@@ -14,6 +14,8 @@ on:
       - 'src/adapters/qdrant-context-provider.ts'
       - 'src/application/ports.ts'
       - 'src/application/workspace-sync.ts'
+      - 'src/application/responses-projection-service.ts'
+      - 'test/responses-projection-service.contracts.test.ts'
       - 'src/adapters/local-code-index.ts'
       - 'test/workspace-sync.contracts.test.ts'
       - 'test/index-state.contracts.test.ts'
@@ -84,6 +86,13 @@ jobs:
           ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
           ACE_REAL_PROJECTION_NATIVE_CANCELLATION: 'true'
         run: node scripts/real-projection-e2e.mjs
+      - name: Native CBM deadline, runtime restart and non-Git worktree
+        env:
+          ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
+        run: |
+          ACE_REAL_PROJECTION_NATIVE_DEADLINE=true node scripts/real-projection-e2e.mjs
+          ACE_REAL_PROJECTION_NATIVE_RESTART=true node scripts/real-projection-e2e.mjs
+          ACE_REAL_PROJECTION_NATIVE_NON_GIT=true node scripts/real-projection-e2e.mjs
       - name: Native CBM startup outage must block projection
         env:
           ACE_REAL_PROJECTION_NATIVE_CBM: 'true'
@@ -154,7 +163,7 @@ jobs:
         # isolated container; no operator worktree or credentials are mounted.
         run: |
           set -eu
-          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION; do
+          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT; do
             docker run --rm --init --network none \
               -v "$PWD:/evidence:ro" \
               -e GIT_OPTIONAL_LOCKS=0 \
