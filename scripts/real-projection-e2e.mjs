@@ -3,15 +3,17 @@
 // This deliberately does NOT traverse Bifröst or an LLM provider wire. It proves
 // real retrieval/projection behavior only; G11 provider-wire acceptance is separate.
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { mkdtemp, mkdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import { basename, join } from 'node:path';
+import { promisify } from 'node:util';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
 
+const execFileAsync = promisify(execFile);
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const port = async () => new Promise((resolve, reject) => {
   const server = createServer();
@@ -312,7 +314,8 @@ try {
           attemptGroupId: randomUUID(), deadlineEpochMs: Date.now() + deadlineMs,
         };
         const result = await fetch(endpoint + '/project', {
-          method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
+          method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret',
+            ...(daemonRecovery ? { connection: 'close' } : {}) },
           body: JSON.stringify(next), signal,
         });
         const outcome = await result.json();
@@ -382,8 +385,8 @@ try {
         // or kill a process by name: verify fixture-owned cache and home first.
         const frontend = await actualNativeChild(child.pid);
         const command = await readlink('/proc/' + frontend.pid + '/exe');
-        const daemonPid = () => {
-          const status = execFileSync(command, ['daemon', 'status'], {
+        const daemonPid = async () => {
+          const { stdout: status } = await execFileAsync(command, ['daemon', 'status'], {
             env: nativeEnvironment, encoding: 'utf8', timeout: 10000,
           });
           assert.match(status, /daemon: active \(session-managed\)/u);
@@ -391,21 +394,35 @@ try {
           assert.ok(match, 'upstream daemon status must identify its actual PID');
           return Number(match[1]);
         };
-        const oldDaemon = daemonPid();
+        const oldDaemon = await daemonPid();
         assert.ok(oldDaemon > 1 && oldDaemon !== child.pid && oldDaemon !== frontend.pid);
         assert.equal(await readlink('/proc/' + oldDaemon + '/exe'), command);
         const daemonEnv = (await readFile('/proc/' + oldDaemon + '/environ', 'utf8')).split('\0');
         assert.ok(daemonEnv.includes('HOME=' + nativeHome) && daemonEnv.includes('CBM_CACHE_DIR=' + nativeCache),
           'refuse fault injection unless daemon is bound to the disposable fixture');
-        const conflicting = spawnSync(command, ['cli', 'list_projects', '--format', 'json'], {
+        // Do not block the HTTP client's event loop while the upstream CLI
+        // waits for cache admission. A stale idle socket is not daemon evidence.
+        await assert.rejects(execFileAsync(command, ['cli', 'list_projects', '--format', 'json'], {
           env: { ...nativeEnvironment, CBM_CACHE_DIR: join(nativeHome, 'conflicting-cache') },
           encoding: 'utf8', timeout: 15000,
-        });
-        assert.equal(conflicting.error, undefined, 'a timeout is not proof of upstream cache admission refusal');
-        assert.ok(typeof conflicting.status === 'number' && conflicting.status !== 0,
-          'a second canonical cache root must not join the active account daemon');
-        assert.equal(daemonPid(), oldDaemon, 'conflicting cache must not replace the active daemon');
+        }), (error) => typeof error?.code === 'number' && error.code !== 0
+          && error.signal === null && !error.killed,
+        'a conflicting cache must be explicitly refused, not timed out');
+        assert.equal(await daemonPid(), oldDaemon, 'conflicting cache must not replace the active daemon');
+        const indexCount = async () => (await readProviderTrace(providerTracePath)).filter((event) =>
+          event.provider === 'codebase_memory' && event.operation === 'index_repository' && event.status === 'success').length;
+        const indexesBeforeLoss = await indexCount();
+        assert.ok(indexesBeforeLoss > 0);
         process.kill(oldDaemon, 'SIGKILL');
+        // Health checks only the existing ACE transport, never the daemon.
+        // Explicitly use a fresh socket to distinguish provider loss from an
+        // idle fixture connection closed while the CLI was waiting.
+        const alive = await fetch(endpoint + '/health', {
+          headers: { authorization: 'Bearer real-provider-fixture-secret', connection: 'close' },
+          signal: timeout(10000),
+        });
+        assert.equal(alive.status, 200);
+        await alive.json();
         // A request racing the loss may be explicitly unavailable. Never credit
         // an unverified response, and require actual recovery on unchanged source.
         let recovered;
@@ -425,7 +442,8 @@ try {
         assert.match(context.content, /retryAfterTransientFailure/u);
         assert.match(context.content, /service\.ts:/u);
         assert.equal(await readFile(codePath, 'utf8'), code + filler + '\n');
-        assert.notEqual(daemonPid(), oldDaemon, 'recovery must use a new upstream daemon');
+        assert.notEqual(await daemonPid(), oldDaemon, 'recovery must use a new upstream daemon');
+        assert.ok(await indexCount() > indexesBeforeLoss, 'unchanged source must be indexed by the recovered session');
         console.log(JSON.stringify({ status: 'native-daemon-recovery-pass', cacheConflictRejected: true, providerWireCertified: false }));
       }
       if (recovery) {
