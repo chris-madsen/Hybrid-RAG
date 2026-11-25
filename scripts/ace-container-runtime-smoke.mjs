@@ -35,7 +35,7 @@ try {
   } catch { /* digest-qualified registry reference remains authoritative */ }
   // Reuse real compiled RPC acceptance, not a second health-only preflight.
   // No model/provider wire, credentials or network.
-  const observed = run('docker', ['run', '--rm', '--init', '--network', 'none',
+  const observed = run('docker', ['run', '--rm', '--init', '--network', 'none', '--pull=never',
     '-v', `${bundleRoot}:/ace:ro`, '-v', `${root}:/evidence:ro`,
     '-e', 'GIT_OPTIONAL_LOCKS=0', '-e', 'GIT_CONFIG_COUNT=1',
     '-e', 'GIT_CONFIG_KEY_0=safe.directory', '-e', 'GIT_CONFIG_VALUE_0=/evidence',
