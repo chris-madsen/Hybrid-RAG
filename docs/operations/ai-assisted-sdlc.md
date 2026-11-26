@@ -60,9 +60,9 @@ Full procedure: [research_codebase.md](../research/sdlc/source/commands/research
 
 **Exit:** source-grounded facts sufficient to decide design; else PARTIAL/BLOCKED.
 
-## Additional Quality Gates from the video/Sphericon audit
+## Quality gates and verification scope
 
-Read the full [research comparison](../research/sdlc/QUALITY-GATES-VIDEO-SPHERICON-ACE.md), [gate catalog](../research/sdlc/QUALITY-GATES-CATALOG.md), and [detailed adoption plan](../research/sdlc/QUALITY-GATES-IMPLEMENTATION-PLAN.md). The working reviewer checklist is [Quality Gates](../research/sdlc/source/standards/Quality%20Gates.md).
+See the [engineering assessment](../research/sdlc/QUALITY-GATES-ENGINEERING-ASSESSMENT.md), [gate catalog](../research/sdlc/QUALITY-GATES-CATALOG.md), and [detailed adoption plan](../research/sdlc/QUALITY-GATES-IMPLEMENTATION-PLAN.md). The working reviewer checklist is [Quality Gates](../research/sdlc/source/standards/Quality%20Gates.md).
 
 The **G02 Design Consistency** check is required for new material T2 design decisions; an explicit owner instruction to implement existing canonical phase code permits scoped offline implementation without another G02 interview. Provider egress remains gated. For a new T2 design: every acceptance criterion must have an owner, accepted decision, interface/state, implementation phase, deterministic oracle and real-provider oracle if needed. In a local T1 defect use a short criterion→invariant→RED/GREEN mapping; for T0 mark N/A. G02 is a *procedure* now, not a new CI command.
 
@@ -75,7 +75,7 @@ Use existing fast ACE commands, then the four separate review passes from implem
 4. G06–G10: scoped PR architecture/security/docs/contract/acceptance gates.
 5. G11–G14: applicable real providers, nightly, release provenance and final owner review.
 
-Do not run SQL/Ent/Squawk/Schemalens gates for ACE's non-relational stores. Do not add TypeSpec solely because Sphericon uses it. New architecture rules require tested valid and invalid fixtures, exact rule ID, repair hint and observed CI failure before they are called ACTIVE.
+Apply storage-specific checks to the actual persistence contracts; SQL/Ent/Squawk/Schemalens gates are not applicable to non-relational stores. TypeSpec is the accepted wire-contract source under ADR-019; generation checks apply to its maintained artifacts. New architecture rules require tested valid and invalid fixtures, exact rule ID, repair hint and observed CI failure before they are called ACTIVE.
 
 ## 2. Design stage
 Full procedure: [design_feature.md](../research/sdlc/source/commands/design_feature.md) or [design_bugfix.md](../research/sdlc/source/commands/design_bugfix.md).

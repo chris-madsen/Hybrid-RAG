@@ -30,7 +30,7 @@ Each commands file is independent of a particular AI client. The source/agents d
 See REFERENCE-PROJECTS.md. The most closely matching research material was located in HumanLayer's indexed research command and parcadei/continuous-claude-v3. The other projects contribute detailed planning, inline execution, code review, testing and pre-build gate techniques.
 
 ## Limitations
-The screenshots did not expose every original prompt from the presenter; descriptions were expanded using source-grounded behaviors and independently authored instructions. The materials must not be represented as recovered verbatim private source. The present PR does not demonstrate that an agent has followed these prompts successfully in an actual ACE coding task.
+The instruction library is independently maintained; external reference material does not constitute execution evidence. This historical documentation change did not demonstrate successful application of the workflow to an actual ACE coding task.
 
 ## Remaining validation
 - Verify PR file inventory and CI at exact pushed HEAD.
@@ -40,9 +40,9 @@ The screenshots did not expose every original prompt from the presenter; descrip
 
 ## Quality Gates research update (2026-11-05)
 
-Added [QUALITY-GATES-VIDEO-SPHERICON-ACE.md](QUALITY-GATES-VIDEO-SPHERICON-ACE.md), [QUALITY-GATES-CATALOG.md](QUALITY-GATES-CATALOG.md) and [QUALITY-GATES-IMPLEMENTATION-PLAN.md](QUALITY-GATES-IMPLEMENTATION-PLAN.md), plus a full Quality Gates reviewer standard and a portable skill. Updated operational SDLC, design/implementation prompts, phase template and documentation index.
+Added [QUALITY-GATES-ENGINEERING-ASSESSMENT.md](QUALITY-GATES-ENGINEERING-ASSESSMENT.md), [QUALITY-GATES-CATALOG.md](QUALITY-GATES-CATALOG.md) and [QUALITY-GATES-IMPLEMENTATION-PLAN.md](QUALITY-GATES-IMPLEMENTATION-PLAN.md), plus a full Quality Gates reviewer standard and a portable skill. Updated operational SDLC, design/implementation prompts, phase template and documentation index.
 
-The Sphericon repository was inspected directly: actual task definitions, CI/nightly workflow division, ast-grep rule tests, package boundary configuration, schema and contract checks, secrets/Actions scanners, generated-code ownership and toolchain. Video summary evidence came from publicly accessible description and secondary summary; connected transcript unavailable due user account limit. No unverified transcript quotes or timestamps claimed.
+The Sphericon repository was inspected directly: actual task definitions, CI/nightly workflow division, ast-grep rule tests, package boundary configuration, schema and contract checks, secrets/Actions scanners, generated-code ownership and toolchain. The assessment established the reference configuration and declared checks, not successful execution of its CI.
 
 This is a **documentation/process change**, not installation of new automation. Existing ACE CI remains authoritative and future QG0–QG8 tool PRs are described in the plan. New G02 Design Consistency is a procedural requirement for T2 designs; no false CI PASS claimed.
 
@@ -56,4 +56,4 @@ This PR does not install TypeSpec emitters or run functional domain/codegen gate
 
 ## Service orchestration decision
 
-Owner chose not to adopt Sphericon's `mise daemons`. ACE keeps local k3s for reusable integration services/worktree isolation and in-process test doubles for lightweight dependencies; existing tool lockfiles/CI remain the toolchain authority.
+The service-orchestration decision excludes a separate `mise daemons` supervisor. ACE keeps local k3s for reusable integration services/worktree isolation and in-process test doubles for lightweight dependencies; existing tool lockfiles/CI remain the toolchain authority.
