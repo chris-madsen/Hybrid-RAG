@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Real ACE projection -> Core -> native CBM retrieval E2E.
-// This deliberately does NOT traverse Bifröst or an LLM provider wire. It proves
-// real retrieval/projection and local attempt denial only; G11 provider-wire acceptance is separate.
+// Default: direct local projection. Optional G11 chain: real Hermes SDK ->
+// Bifröst -> ACE/CBM -> physical-send denial. Neither certifies provider wire.
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -12,6 +12,7 @@ import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
+import { assertLoopbackOnlyNetworkNamespace } from './network-namespace-evidence.mjs';
 
 const execFileAsync = promisify(execFile);
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -75,6 +76,8 @@ const readProviderTrace = async (path) => {
     return [];
   }
 };
+const localChain = process.env.ACE_REAL_PROJECTION_G11_CHAIN === 'true';
+if (localChain) assertLoopbackOnlyNetworkNamespace();
 const runtime = await resolveRealProviderRuntime(import.meta.dirname);
 const directory = await mkdtemp(join(tmpdir(), 'ace-gateway-real-projection-'));
 const workspace = join(directory, 'workspace');
@@ -103,6 +106,8 @@ const scaleCases = [
   { query: 'Where does ACE read and verify the current semantic snapshot? Find readVerifiedSemanticSnapshot.', path: 'src/application/semantic-snapshot.ts', symbol: 'readVerifiedSemanticSnapshot' },
 ];
 const initialQuery = scale ? scaleCases[0].query : 'Find retryAfterTransientFailure and its definition.';
+const chainModel = 'gpt-5.6-sol';
+const chainTracePath = join(directory, 'chain-retrieval-trace.jsonl');
 let corpusTree;
 let corpusFiles;
 let corpusBytes;
@@ -150,6 +155,11 @@ assert.ok(!(restart || deadline || nonGit) || (native && !outage && !race && !mu
 assert.ok([restart, deadline, nonGit, scale].filter(Boolean).length <= 1);
 assert.ok(!scale || (native && !outage && !race && !mutations && !recovery && !worktree && !cancellation));
 assert.ok(!(native && race), 'historical embedding delay is not a native CBM race oracle');
+if (localChain) {
+  assert.ok(!outage && !race && !mutations && !recovery && !worktree && !cancellation
+    && !daemonRecovery && !sharedCache && !restart && !deadline && !nonGit && !scale);
+  assertLoopbackOnlyNetworkNamespace();
+}
 const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
 assert.ok(Number.isSafeInteger(maxWait) && maxWait >= 10000 && maxWait <= 600000);
 const gatewayPort = await port();
@@ -158,7 +168,9 @@ const nativeHome = join(directory, 'native-home');
 await mkdir(nativeHome);
 const nativeCache = join(nativeHome, 'cbm-cache');
 const nativeEnvironment = {
-  ...process.env,
+  // The zero-egress chain must not inherit operator credentials, provider flags,
+  // proxy configuration or unrelated runtime policy from the invoking shell.
+  ...(localChain ? { PATH: process.env.PATH, ACE_CBM_COMMAND: process.env.ACE_CBM_COMMAND } : process.env),
   HOME: nativeHome,
   XDG_CACHE_HOME: join(nativeHome, 'cache'),
   XDG_DATA_HOME: join(nativeHome, 'data'),
@@ -190,6 +202,13 @@ const spawnRuntime = (overrides = {}) => spawnRealProviderProcess(process.execPa
     ACE_CONTEXT_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source"]',
     ACE_CONTEXT_ALLOWED_LLM_DESTINATIONS_JSON: '[]',
     ACE_CONTEXT_ALLOWED_LLM_STREAMING_ROUTES_JSON: '[]',
+    ...(localChain ? {
+      ACE_CONTEXT_ALLOWED_LLM_PROVIDERS_JSON: '["openai"]',
+      ACE_CONTEXT_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: JSON.stringify({ openai: [chainModel] }),
+      ACE_CONTEXT_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source","private_conversation"]',
+      ACE_BENCHMARK_TRACE_FILE: chainTracePath,
+      ACE_EVIDENCE_SOURCE_COMMIT: runtime.sourceCommit,
+    } : {}),
     ...overrides,
   },
   stdio: ['ignore', 'ignore', 'pipe'],
@@ -241,6 +260,14 @@ try {
   const healthBody = await health.json();
   assert.equal(healthBody.providerWire, 'not_certified');
 
+  if (localChain) {
+    const { runLocalNativeChain } = await import('./g11-local-native-chain.mjs');
+    const observation = await runLocalNativeChain({
+      directory, endpoint, workspaceId, model: chainModel, port, runtime,
+      tracePath: chainTracePath, providerTracePath, core: child, stopRealProviderProcess,
+    });
+    console.log(JSON.stringify(observation));
+  } else {
   const body = {
     model: 'test-model', store: false,
     input: initialQuery,
@@ -893,6 +920,7 @@ try {
       console.log(JSON.stringify({ status: 'native-mutations-pass', edits: ['modify', 'rename', 'delete'], providerWireCertified: false }));
       }
     }
+  }
   }
 } catch (error) {
   if (daemonRecovery) {

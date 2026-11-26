@@ -6,7 +6,7 @@ set -euo pipefail
 # admission fixes, and subscription-only passthrough. Build is read-only; network access is governed by the
 # operator's Go module settings. Build host and plugin together for deployment.
 : "${BIFROST_SOURCE_ROOT:?set BIFROST_SOURCE_ROOT to the pinned Bifrost checkout}"
-: "${BIFROST_COMMIT:=622eb7610d5c85572fcaed36a02c21f127d2a2f0}"
+: "${BIFROST_COMMIT:=039f8964b3b8312170fbeb01d6fcbf7a556cdccd}"
 : "${GO_BIN:=go}"
 : "${OUTPUT:=${RUNNER_TEMP:-${TMPDIR:-$HOME/.cache/ace}}/bifrost-subscriber-server}"
 
@@ -78,6 +78,8 @@ if [[ -n "${ACE_PLUGIN_OUTPUT:-}" ]]; then
   sha256sum "$ACE_PLUGIN_OUTPUT"
 fi
 if [[ "${BIFROST_VERIFY_REQUIRED_GUARD:-true}" == true ]]; then
+  (cd "$root/core" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
+    ./providers/utils -run '^TestOperationErrorPreservesPhysicalSendDenial$' -v)
   (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
     ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardRejectsUpgradedRead|RequiredGuardLLMRemoval)$' -v)
   (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \

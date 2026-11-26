@@ -161,7 +161,8 @@ export const makeResponsesProjectionService = (
         deadlineEpochMs: request.deadlineEpochMs,
       }), security.receiptSigningKey);
       recordProjection?.({ requestId: request.requestId, providerRequestId: result.providerRequestId,
-        receiptSha256: sha256(projectionReceipt), projectedBodySha256: request.bodySha256, selectedEvidenceIds: [] });
+        receiptSha256: sha256(projectionReceipt), baseBodySha256: request.bodySha256,
+        projectedBodySha256: request.bodySha256, selectedEvidenceIds: [] });
       return ok({
         kind: 'PREPARED', reasonCode: 'VERIFIED_NO_CONTEXT_NEEDED',
         bodyBase64: request.bodyBase64,
@@ -201,7 +202,8 @@ export const makeResponsesProjectionService = (
     });
     const projectionReceipt = signProjectionReceipt(receiptClaims, security.receiptSigningKey);
     recordProjection?.({ requestId: request.requestId, providerRequestId: result.providerRequestId,
-      receiptSha256: sha256(projectionReceipt), projectedBodySha256, selectedEvidenceIds: result.selectedEvidenceIds });
+      receiptSha256: sha256(projectionReceipt), baseBodySha256: request.bodySha256,
+      projectedBodySha256, selectedEvidenceIds: result.selectedEvidenceIds });
     return ok({
       kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED',
       bodyBase64: injected.value,

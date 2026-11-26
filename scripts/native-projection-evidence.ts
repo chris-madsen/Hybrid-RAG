@@ -163,6 +163,10 @@ export const deriveNativeProjectionObservations = (
     assert.ok(decision.kind === 'PREPARED' && binding && typeof decision.projectionReceipt === 'string'
       && hash(decision.projectedBodySha256) && binding.projectedBodySha256 === decision.projectedBodySha256
       && binding.receiptSha256 === sha256(decision.projectionReceipt), 'missing actual prepared receipt binding');
+    // Historical captures predate the optional ingress digest. When present it must agree
+    // with the independently captured request and the signed receipt claims below.
+    assert.ok(binding.baseBodySha256 === undefined || binding.baseBodySha256 === request.bodySha256,
+      'terminal ingress body digest mismatch');
     usedBindings.add(binding.requestId);
     const projectedBytes = bytes(decision.bodyBase64);
     assert.ok(sha256(projectedBytes) === decision.projectedBodySha256, 'projected body digest mismatch');

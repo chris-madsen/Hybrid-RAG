@@ -6,6 +6,20 @@ on:
       - 'scripts/build-bifrost-subscriber-server.sh'
       - 'scripts/build-bifrost-ace-plugin.sh'
       - 'scripts/bifrost-binary-admission-smoke.py'
+      - 'scripts/g11-local-native-chain.mjs'
+      - 'scripts/real-projection-e2e.mjs'
+      - 'scripts/hermes-task-runtime-probe.py'
+      - 'scripts/network-namespace-evidence.mjs'
+      - 'scripts/real-provider-runtime.mjs'
+      - 'scripts/real-provider-process.mjs'
+      - 'src/domain/retrieval-benchmark.ts'
+      - 'src/adapters/retrieval-benchmark-trace.ts'
+      - 'src/adapters/codebase-memory-*.ts'
+      - 'src/adapters/native-cbm-context-provider.ts'
+      - 'src/bin/ace-context-rpc.ts'
+      - 'src/application/gateway-attempt-authorization-service.ts'
+      - 'src/application/responses-projection-service.ts'
+      - 'src/bin/ace-runtime.ts'
       - 'integrations/bifrost/ace-connector/**'
       - 'docs/operations/gateway-subscription-oauth.md'
       - '.github/workflows/ace-bifrost-server-build.yml'
@@ -27,7 +41,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: chris-madsen/bifrost
-          ref: 622eb7610d5c85572fcaed36a02c21f127d2a2f0
+          ref: 039f8964b3b8312170fbeb01d6fcbf7a556cdccd
           path: .cache/bifrost-pinned
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -44,7 +58,7 @@ jobs:
       - name: Compile server and plugin in one pinned Go workspace
         env:
           BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.cache/bifrost-pinned
-          BIFROST_COMMIT: 622eb7610d5c85572fcaed36a02c21f127d2a2f0
+          BIFROST_COMMIT: 039f8964b3b8312170fbeb01d6fcbf7a556cdccd
           OUTPUT: ${{ runner.temp }}/bifrost-pinned
           ACE_PLUGIN_OUTPUT: ${{ runner.temp }}/ace-bifrost-context.so
           BIFROST_VERIFY_REQUIRED_GUARD: 'true'
@@ -52,3 +66,32 @@ jobs:
       - name: Execute real HTTP admission without any external network
         run: |
           sudo unshare --net -- bash -c 'ip link set lo up; exec runuser -u "$1" -- python3 "$2" "$3" "$4" "$5"' _ "$(id -un)" "$PWD/scripts/bifrost-binary-admission-smoke.py" "$RUNNER_TEMP/bifrost-pinned" "$RUNNER_TEMP/ace-bifrost-context.so" "$PWD/.cache/bifrost-pinned/examples/configs/withlocalpricingfiles"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: NousResearch/hermes-agent
+          ref: 5b147ab036d6d19131bff8d20701b5001eab844a
+          path: .cache/hermes-probe
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14'
+      - name: Install the pinned Hermes environment
+        working-directory: .cache/hermes-probe
+        run: | # zizmor: ignore[adhoc-packages] Hermes PM pins uv 0.12.3; upstream uv.lock owns dependency resolution
+          python -m pip install --disable-pip-version-check uv==0.12.3
+          uv sync --locked --no-dev --python "$(command -v python)"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.23.4'
+          cache: npm
+      - name: Build exact ACE runtime and install native CBM
+        run: | # zizmor: ignore[adhoc-packages] native CBM 0.12.1 verifies release archive checksum
+          npm ci
+          npm run build
+          npm install --global codebase-memory-mcp@0.12.1
+          native="$(npm root -g)/codebase-memory-mcp/bin/codebase-memory-mcp"
+          test -x "$native"
+          printf 'ACE_CBM_COMMAND=%s\n' "$native" >> "$GITHUB_ENV"
+      - name: Real Hermes SDK to Bifröst to native ACE physical-send denial
+        run: |
+          sudo unshare --net -- bash -c 'ip link set lo up; exec runuser -u "$1" -- env PATH="$2" ACE_CBM_COMMAND="$3" ACE_REAL_PROJECTION_G11_CHAIN=true ACE_G11_BIFROST_BINARY="$4" ACE_G11_BIFROST_PLUGIN="$5" ACE_G11_BIFROST_CATALOG="$6" node "$7"' _ "$(id -un)" "$PWD/.cache/hermes-probe/.venv/bin:$PATH" "$ACE_CBM_COMMAND" "$RUNNER_TEMP/bifrost-pinned" "$RUNNER_TEMP/ace-bifrost-context.so" "$PWD/.cache/bifrost-pinned/examples/configs/withlocalpricingfiles" "$PWD/scripts/real-projection-e2e.mjs"
