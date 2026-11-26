@@ -104,6 +104,7 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
     assert.equal(terminal.projections.length, 1);
     const [projection] = terminal.projections;
     assert.equal(projection.requestId, binding.requestId);
+    assert.equal(projection.baseBodySha256, hermes.ingressBodySha256, 'actual SDK ingress must match signed projection input');
     assert.equal(projection.receiptSha256, binding.projectionReceiptSha256);
     assert.equal(projection.projectedBodySha256, binding.preparedBodySha256);
     assert.ok(projection.selectedEvidenceIds.length > 0);
@@ -117,7 +118,7 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
       bifrostBinarySha256: sha(await readFile(binary)), bifrostPluginSha256: sha(await readFile(plugin)),
       aceRuntimeSha256: sha(await readFile(runtime.executable)),
       hermes, requestId: binding.requestId, attemptId: binding.attemptId,
-      preparedBodySha256: binding.preparedBodySha256, finalBodySha256: binding.bodySha256,
+      baseBodySha256: projection.baseBodySha256, preparedBodySha256: binding.preparedBodySha256, finalBodySha256: binding.bodySha256,
       projectionReceiptSha256: binding.projectionReceiptSha256,
       retrievalTraceSha256: terminal.traceDigest, reasonCode: attempt.reasonCode,
       providerWireCertified: false };

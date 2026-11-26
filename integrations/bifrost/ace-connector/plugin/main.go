@@ -295,13 +295,18 @@ func prepareNativeResponses(ctx *schemas.BifrostContext, req *schemas.HTTPReques
 	if ctx == nil {
 		return errorResponse(503, "native Responses request context is unavailable"), nil
 	}
-	normalizedModelJSON, err := json.Marshal(normalizedModel)
-	if err != nil {
-		return errorResponse(400, "native Responses model could not be normalized"), nil
-	}
-	normalizedBody, err := providerUtils.SetRawJSONField(req.Body, "model", normalizedModelJSON)
-	if err != nil {
-		return errorResponse(400, "native Responses model normalization failed"), nil
+	// Bare Codex models already have the wire identity. Do not rewrite their
+	// original bytes: the SDK ingress digest must match the projection receipt.
+	normalizedBody := req.Body
+	if rawModel != normalizedModel {
+		normalizedModelJSON, err := json.Marshal(normalizedModel)
+		if err != nil {
+			return errorResponse(400, "native Responses model could not be normalized"), nil
+		}
+		normalizedBody, err = providerUtils.SetRawJSONField(req.Body, "model", normalizedModelJSON)
+		if err != nil {
+			return errorResponse(400, "native Responses model normalization failed"), nil
+		}
 	}
 	var requestCtx context.Context = ctx
 	deadline := time.Now().Add(30 * time.Second).UnixMilli()

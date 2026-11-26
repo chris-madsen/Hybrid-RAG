@@ -55,6 +55,8 @@ export interface BenchmarkProjectionBinding {
   readonly requestId: string;
   readonly providerRequestId: string;
   readonly receiptSha256: string;
+  /** Present on current captures; historical benchmark traces predate ingress binding. */
+  readonly baseBodySha256?: string;
   readonly projectedBodySha256: string;
   readonly selectedEvidenceIds: readonly string[];
 }
