@@ -91,7 +91,7 @@ test('native semantic shortlist is completed by native BM25 when semantic result
       assert.deepEqual(mixed.value.map((item) => item.candidate.candidateId),
         [semantic, exact, third, fourth, linked].map((item) => item.candidateId));
     }
-    const inherited = await Effect.runPromise(graph.search({ query: 'linked underfill', limit: 6 }));
+    const inherited = await Effect.runPromise(graph.search({ query: 'linked inheritance override', limit: 6 }));
     assert.equal(inherited._tag, 'Ok');
     if (inherited._tag === 'Ok') {
       assert.deepEqual(inherited.value.map((item) => item.candidate.candidateId),
