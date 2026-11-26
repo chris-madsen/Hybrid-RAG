@@ -66,15 +66,43 @@ connection.onRequest('tools/call', (input) => {
       };
       break;
     case 'search_graph':
-      data = input.arguments.semantic_query
-        ? { semantic: { cols: ['qn', 'file', 'score'], rows: [] } }
-        : { cols: ['qn', 'file', 'rank'], rows: [] };
+      if (process.argv.includes('--partial-semantic-bm25')) {
+        data = input.arguments.semantic_query
+          ? { semantic: { cols: ['qn', 'file', 'score'], rows: [
+            ['fixture.semantic', 'src/semantic.ts', 0.9],
+            ...(input.arguments.semantic_query[0] === 'duplicate semantic' ? [['fixture.semantic', 'src/semantic.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'unowned semantic' ? [['fixture.other', 'src/unindexed.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'unmatched semantic' ? [['fixture.other', 'src/exact-evidence.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'full semantic' ? [['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'linked underfill' ? [
+              ['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8],
+              ['fixture.third', 'src/third.ts', 0.7],
+              ['fixture.fourth', 'src/fourth.ts', 0.6],
+            ] : []),
+          ] } }
+          : { cols: ['qn', 'file', 'rank'], rows: [
+            ['fixture.semantic', 'src/semantic.ts', -0.2],
+            ['fixture.exactEvidence', 'src/exact-evidence.ts', -0.1],
+          ] };
+      } else {
+        data = input.arguments.semantic_query
+          ? { semantic: { cols: ['qn', 'file', 'score'], rows: [] } }
+          : { cols: ['qn', 'file', 'rank'], rows: [] };
+      }
+      if (!input.arguments.semantic_query && input.arguments.query === 'full semantic') {
+        data = { error: 'BM25 must not be called for a full valid semantic shortlist' };
+      }
+      if (!input.arguments.semantic_query && input.arguments.query === 'malformed lexical') {
+        data = { cols: ['qn', 'file'], rows: [] };
+      }
       break;
     case 'trace_path':
       data = { callees: { cols: ['name', 'hop'], groups: [] } };
       break;
     case 'query_graph':
-      data = { columns: ['qn', 'file'], rows: [] };
+      data = { columns: ['qn', 'file'], rows: process.argv.includes('--partial-semantic-bm25')
+        && input.arguments.query.includes("origin.file_path = 'src/third.ts'")
+        ? [['fixture.linked', 'src/linked.ts']] : [] };
       break;
     case 'detect_changes':
       data = { files: [] };

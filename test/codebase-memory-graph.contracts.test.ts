@@ -39,6 +39,58 @@ test('native CBM BM25 rows use documented columns without inventing a search ran
   }), [{ qn: 'ace.makeNativeCbmContextProvider', file: 'src/adapters/native-cbm-context-provider.ts', score: 7.5 }]);
 });
 
+test('native semantic shortlist is completed by native BM25 when semantic results are underfilled', async () => {
+  const workspaceId = 'cbm-partial-search-workspace' as CodeCandidate['workspaceId'];
+  const candidate = (id: string, repoPath: string, symbolName: string): CodeCandidate => ({
+    candidateId: id as CodeCandidate['candidateId'],
+    workspaceId,
+    repoPath: repoPath as CodeCandidate['repoPath'],
+    range: { startLine: 1, endLine: 1, startColumn: 1, endColumn: 32 },
+    symbolName,
+    structuralKind: 'function',
+    text: `export function ${symbolName}() {}`,
+    sourceDigest: 'a'.repeat(64) as CodeCandidate['sourceDigest'],
+    generation: 1 as CodeCandidate['generation'],
+    indexedAtMs: 1,
+    invalidated: false,
+  });
+  const semantic = candidate('semantic-candidate', 'src/semantic.ts', 'semantic');
+  const exact = candidate('exact-candidate', 'src/exact-evidence.ts', 'exactEvidence');
+  const third = candidate('third-candidate', 'src/third.ts', 'third');
+  const fourth = candidate('fourth-candidate', 'src/fourth.ts', 'fourth');
+  const linked = candidate('linked-candidate', 'src/linked.ts', 'linked');
+  const graph = makeCodebaseMemoryGraph({
+    rootPath: resolve(process.cwd()),
+    command: process.execPath,
+    args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--partial-semantic-bm25'],
+    candidates: () => [semantic, exact, third, fourth, linked],
+  });
+  try {
+    const indexed = await Effect.runPromise(graph.reindex());
+    assert.equal(indexed._tag, 'Ok');
+    for (const query of ['find exact evidence', 'duplicate semantic', 'unowned semantic', 'unmatched semantic', 'full semantic']) {
+      const found = await Effect.runPromise(graph.search({ query, limit: 2 }));
+      assert.equal(found._tag, 'Ok', query);
+      if (found._tag === 'Ok') {
+        assert.deepEqual(found.value.map((item) => item.candidate.candidateId), [
+          semantic.candidateId,
+          exact.candidateId,
+        ], query);
+      }
+    }
+    const mixed = await Effect.runPromise(graph.search({ query: 'linked underfill', limit: 5 }));
+    assert.equal(mixed._tag, 'Ok');
+    if (mixed._tag === 'Ok') {
+      assert.deepEqual(mixed.value.map((item) => item.candidate.candidateId),
+        [semantic, exact, third, fourth, linked].map((item) => item.candidateId));
+    }
+    const malformed = await Effect.runPromise(graph.search({ query: 'malformed lexical', limit: 2 }));
+    assert.equal(malformed._tag, 'Err');
+  } finally {
+    await graph.close();
+  }
+});
+
 test('native graph traversal and Cypher are decoded from upstream wire shape', () => {
   assert.deepEqual(nativeTraceQualifiedNames({
     callees: { cols: ['name', 'hop'], groups: [
@@ -90,14 +142,15 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
   const lines = data.split('\n');
   const line = lines.findIndex((item) => item.startsWith('export const makeNativeCbmContextProvider'));
   assert.ok(line >= 0);
+  const declarationLine = lines[line]!.replace(/\r$/u, '');
   const candidate: CodeCandidate = {
     candidateId: 'real-codebase-memory-contract' as CodeCandidate['candidateId'],
     workspaceId: 'ace-integration-smoke' as CodeCandidate['workspaceId'],
     repoPath: path as CodeCandidate['repoPath'],
-    range: { startLine: line + 1, startColumn: 1, endLine: line + 1, endColumn: Buffer.byteLength(lines[line]!) + 1 },
+    range: { startLine: line + 1, startColumn: 1, endLine: line + 1, endColumn: Buffer.byteLength(declarationLine) + 1 },
     symbolName: 'makeNativeCbmContextProvider',
     structuralKind: 'function',
-    text: lines[line]!,
+    text: declarationLine,
     sourceDigest: createHash('sha256').update(data).digest('hex') as CodeCandidate['sourceDigest'],
     generation: 1 as CodeCandidate['generation'],
     indexedAtMs: Date.now(),
@@ -182,7 +235,11 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     }));
     assert.equal(nativeResult._tag, 'Ok', JSON.stringify(nativeResult));
     if (nativeResult._tag === 'Ok') {
-      assert.equal(nativeResult.value.complete, true);
+      assert.equal(nativeResult.value.complete, true, JSON.stringify({
+        sourceCoverage: nativeResult.value.sourceCoverage,
+        partialSources: nativeResult.value.partialSources,
+        warnings: nativeResult.value.warnings,
+      }));
       assert.ok(nativeResult.value.evidence.some((item) =>
         item.source === 'code' && item.proofClass === 'direct'
         && item.citation.startsWith(path + ':')));
