@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: chris-madsen/bifrost
-          ref: 622eb7610d5c85572fcaed36a02c21f127d2a2f0
+          ref: 039f8964b3b8312170fbeb01d6fcbf7a556cdccd
           path: .cache/bifrost-pinned
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -50,7 +50,7 @@ jobs:
       - name: Compile server and plugin in one pinned Go workspace
         env:
           BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.cache/bifrost-pinned
-          BIFROST_COMMIT: 622eb7610d5c85572fcaed36a02c21f127d2a2f0
+          BIFROST_COMMIT: 039f8964b3b8312170fbeb01d6fcbf7a556cdccd
           OUTPUT: ${{ runner.temp }}/bifrost-pinned
           ACE_PLUGIN_OUTPUT: ${{ runner.temp }}/ace-bifrost-context.so
           BIFROST_VERIFY_REQUIRED_GUARD: 'true'

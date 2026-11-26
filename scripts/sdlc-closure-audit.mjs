@@ -76,14 +76,14 @@ const requirements = [
       'fetch --no-tags --depth=1 origin "$BIFROST_COMMIT"',
       'BIFROST_SOURCE_ROOT: ${{ runner.temp }}/bifrost-src',
       'go-version: "1.27.4"',
-      'BIFROST_COMMIT: 622eb7610d5c85572fcaed36a02c21f127d2a2f0',
+      'BIFROST_COMMIT: 039f8964b3b8312170fbeb01d6fcbf7a556cdccd',
     ],
   },
   {
     id: 'BIFROST_PLUGIN_BUILD_SCRIPT',
     file: 'scripts/build-bifrost-ace-plugin.sh',
     contains: [
-      'BIFROST_COMMIT:=622eb7610d5c85572fcaed36a02c21f127d2a2f0',
+      'BIFROST_COMMIT:=039f8964b3b8312170fbeb01d6fcbf7a556cdccd',
       'status --porcelain --untracked-files=all',
       'Bifrost source checkout must be clean',
       'ACE source checkout must be clean',
