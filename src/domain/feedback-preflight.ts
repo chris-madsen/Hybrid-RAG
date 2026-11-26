@@ -206,6 +206,9 @@ export const inspectHermesBifrostEndpoint = (input: {
   }
   let parsed: URL;
   try {
+    // Match the raw SDK base as well: WHATWG URL normalizes dot segments,
+    // backslashes and empty query/fragment delimiters differently from Python.
+    if (!/^https?:\/\/[^/?#\s\\]+\/chatgpt_passthrough\/backend-api\/codex$/iu.test(endpoint)) throw new Error('unsafe endpoint');
     parsed = new URL(endpoint);
     if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
       || parsed.username.length > 0 || parsed.password.length > 0

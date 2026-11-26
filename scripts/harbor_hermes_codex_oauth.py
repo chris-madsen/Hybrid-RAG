@@ -70,7 +70,12 @@ class HermesCodexOAuth(Hermes):
             raise ValueError("Hermes Bifrost endpoint and pinned SHA-256 identity are required")
         normalized = endpoint.strip().rstrip("/")
         try:
+            # Reject ambiguous URLs before either parser or SDK normalizes them.
+            if not re.fullmatch(r"https?://[^/?#\s\\]+/chatgpt_passthrough/backend-api/codex",
+                                normalized, re.IGNORECASE):
+                raise ValueError("unsafe endpoint")
             parsed = urlsplit(normalized)
+            _ = parsed.port  # urlsplit validates the port only on access
             hostname = (parsed.hostname or "").lower().rstrip(".")
             if (parsed.scheme not in ("http", "https") or not hostname
                     or parsed.username is not None or parsed.password is not None

@@ -180,12 +180,16 @@ endpoint = "http://127.0.0.1:8080/chatgpt_passthrough/backend-api/codex"
 pin = hashlib.sha256(endpoint.encode()).hexdigest()
 assert validate(endpoint, pin) == endpoint
 for bad_endpoint, bad_pin in (
-    ("https://chatgpt.com/backend-api/codex", hashlib.sha256(b"https://chatgpt.com/backend-api/codex").hexdigest()),
+    ("https://chatgpt.com/chatgpt_passthrough/backend-api/codex", hashlib.sha256(b"https://chatgpt.com/chatgpt_passthrough/backend-api/codex").hexdigest()),
     ("https://api.anthropic.com/v1", hashlib.sha256(b"https://api.anthropic.com/v1").hexdigest()),
     (endpoint, "f" * 64),
     ("http://127.0.0.1:8080/v1", hashlib.sha256(b"http://127.0.0.1:8080/v1").hexdigest()),
     ("http://127.0.0.1:8080/chatgpt_passthrough", hashlib.sha256(b"http://127.0.0.1:8080/chatgpt_passthrough").hexdigest()),
     (endpoint + "/responses", hashlib.sha256((endpoint + "/responses").encode()).hexdigest()),
+    (endpoint + "?", hashlib.sha256((endpoint + "?").encode()).hexdigest()),
+    (endpoint + "#", hashlib.sha256((endpoint + "#").encode()).hexdigest()),
+    (endpoint.replace(":8080", ":99999"), hashlib.sha256(endpoint.replace(":8080", ":99999").encode()).hexdigest()),
+    (endpoint.replace("/chatgpt_passthrough", "/ignored/../chatgpt_passthrough"), hashlib.sha256(endpoint.replace("/chatgpt_passthrough", "/ignored/../chatgpt_passthrough").encode()).hexdigest()),
     (None, pin),
 ):
     try:
@@ -193,7 +197,7 @@ for bad_endpoint, bad_pin in (
     except ValueError:
         continue
     raise AssertionError("invalid or direct provider endpoint was accepted")
-trailing_dot_endpoint = "https://api.openai.com./v1"
+trailing_dot_endpoint = "https://api.openai.com./chatgpt_passthrough/backend-api/codex"
 try:
     validate(trailing_dot_endpoint, hashlib.sha256(trailing_dot_endpoint.encode()).hexdigest(), "api.openai.com.")
 except ValueError:
@@ -229,11 +233,13 @@ test('Hermes Bifrost endpoint contract rejects direct provider URLs and endpoint
     expectedSha256: endpointSha256,
   });
   assert.equal(acceptedIdentity.status, 'ready');
-  for (const invalidBase of ['http://127.0.0.1:8080/chatgpt_passthrough', bifrostEndpoint + '/responses']) {
+  for (const invalidBase of ['http://127.0.0.1:8080/chatgpt_passthrough', bifrostEndpoint + '/responses',
+    bifrostEndpoint + '?', bifrostEndpoint + '#', bifrostEndpoint.replace(':8080', ':99999'),
+    bifrostEndpoint.replace('/chatgpt_passthrough', '/ignored/../chatgpt_passthrough')]) {
     const digest = sha256(invalidBase);
     assert.notEqual(routeContract.inspectHermesBifrostEndpoint({
       endpoint: invalidBase, endpointSha256: digest, expectedSha256: digest,
-    }).status, 'ready', 'incomplete or already suffixed SDK base must be rejected');
+    }).status, 'ready', 'ambiguous, incomplete or already suffixed SDK base must be rejected');
   }
   const wrongRoute = 'http://127.0.0.1:8080/v1';
   const wrong = routeContract.inspectHermesBifrostEndpoint({
@@ -252,14 +258,14 @@ test('Hermes Bifrost endpoint contract rejects direct provider URLs and endpoint
   assert.equal(acceptedIdentity.identity, endpointSha256);
   assert.doesNotMatch(JSON.stringify(acceptedIdentity), /127\.0\.0\.1/u);
 
-  const directProvider = 'https://chatgpt.com/backend-api/codex';
+  const directProvider = 'https://chatgpt.com/chatgpt_passthrough/backend-api/codex';
   const direct = routeContract.inspectHermesBifrostEndpoint({
     endpoint: directProvider,
     endpointSha256: sha256(directProvider),
     expectedSha256: sha256(directProvider),
   });
   assert.notEqual(direct.status, 'ready');
-  const trailingDotProvider = 'https://api.openai.com./v1';
+  const trailingDotProvider = 'https://api.openai.com./chatgpt_passthrough/backend-api/codex';
   const trailingDot = routeContract.inspectHermesBifrostEndpoint({
     endpoint: trailingDotProvider,
     endpointSha256: sha256(trailingDotProvider),
