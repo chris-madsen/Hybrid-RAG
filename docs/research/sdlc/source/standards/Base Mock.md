@@ -35,4 +35,4 @@ Provide reliable controlled behavior of external ports without confusing simulat
 | Malformed | invalid DTO | safe failure, no invented result |
 
 ## ACE note
-Reuse existing Node test doubles and real-provider suites; do not add a new BaseMock dependency solely to emulate the Go screenshot.
+Reuse existing Node test doubles and real-provider suites. Add a mock abstraction only if an actual testability requirement is not met by the existing facilities.

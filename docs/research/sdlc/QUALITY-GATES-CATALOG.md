@@ -196,7 +196,7 @@ Do not create a fabricated JSON file solely to satisfy a template. A Markdown ta
 - Security/egress/privacy/source-integrity failures: **no soft baseline**.
 - For a newly introduced noncritical static rule only: report-only initial run, then explicitly reviewed frozen legacy baseline, owner and expiration. New violations always fail; baseline may only shrink.
 - A waiver requires ID, path/line/range, reason, owner, expiry and test proving no dangerous bypass. No permanent wildcard ignore.
-- If initial violations are small, follow Sphericon's stronger practice and fix them before enabling rather than maintaining baseline.
+- If initial violations are small, fix them before enabling the rule rather than maintaining a violation baseline.
 - Unavailable provider access is not a waiver; a planned real E2E obligation stays pending.
 
 ## 5. Verification and definition of done
