@@ -31,6 +31,19 @@ def check(condition, code):
 
 
 def safe_reason_code(error):
+    if isinstance(error, subprocess.CalledProcessError):
+        captured = error.stdout
+        if isinstance(captured, bytes):
+            captured = captured.decode("utf-8", errors="replace")
+        if isinstance(captured, str):
+            for line in reversed(captured.splitlines()):
+                try:
+                    report = json.loads(line)
+                except (TypeError, ValueError):
+                    continue
+                code = report.get("reasonCode") if isinstance(report, dict) else None
+                if isinstance(code, str) and re.fullmatch(r"[A-Z][A-Z_]{3,100}", code):
+                    return code
     code = str(error)
     if re.fullmatch(r"[A-Z][A-Z_]{3,100}", code):
         return code
