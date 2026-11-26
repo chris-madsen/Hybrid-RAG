@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Real ACE projection -> Core -> native CBM retrieval E2E.
 // This deliberately does NOT traverse Bifröst or an LLM provider wire. It proves
-// real retrieval/projection behavior only; G11 provider-wire acceptance is separate.
+// real retrieval/projection and local attempt denial only; G11 provider-wire acceptance is separate.
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -168,13 +168,13 @@ const nativeEnvironment = {
 const spawnRuntime = (overrides = {}) => spawnRealProviderProcess(process.execPath, [runtime.executable], {
   cwd: runtime.runtimeRoot,
   env: {
-    ...process.env,
+    // Inherited container defaults must never override isolated fixture paths.
+    ...nativeEnvironment,
     ACE_RUNTIME_ROOT: runtime.runtimeRoot,
     ACE_WORKSPACE_ROOT: workspace,
     ACE_ALLOWED_ROOTS: directory,
     ACE_STATE_DIR: join(directory, 'state'),
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
-    ...nativeEnvironment,
     ACE_PROVIDER_TRACE_FILE: providerTracePath,
     ACE_WORKSPACE_ID: workspaceId,
     ...(native ? {
@@ -188,6 +188,8 @@ const spawnRuntime = (overrides = {}) => spawnRealProviderProcess(process.execPa
     ACE_CONTEXT_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
     ACE_CONTEXT_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: '{"mock":["test-model"]}',
     ACE_CONTEXT_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source"]',
+    ACE_CONTEXT_ALLOWED_LLM_DESTINATIONS_JSON: '[]',
+    ACE_CONTEXT_ALLOWED_LLM_STREAMING_ROUTES_JSON: '[]',
     ...overrides,
   },
   stdio: ['ignore', 'ignore', 'pipe'],
@@ -247,9 +249,10 @@ try {
   const bodyBytes = Buffer.from(JSON.stringify(body), 'utf8');
   const bodyBase64 = bodyBytes.toString('base64');
   const sessionId = 'real-projection-session';
+  const requestId = 'ace-' + randomUUID().replaceAll('-', '');
   const payload = {
-    schemaVersion: 'ace.context.v3', protocol: 'openai.responses', requestId: 'responses-projection-' + randomUUID(),
-    attemptGroupId: 'turn-1', agentSessionId: sessionId, workspaceId,
+    schemaVersion: 'ace.context.v3', protocol: 'openai.responses', requestId,
+    attemptGroupId: requestId, agentSessionId: sessionId, workspaceId,
     dataClass: 'private', provider: 'mock', model: 'test-model',
     bodyBase64, bodySha256: digest(bodyBytes),
     query: initialQuery,
@@ -307,6 +310,57 @@ try {
     assert.ok(contextMessage, 'real gateway projection must visibly add verified ACE context');
     if (!scale) assert.match(contextMessage.content, /retryAfterTransientFailure/u);
     if (!scale) assert.match(contextMessage.content, /service\.ts/u, 'context must cite source file');
+    if (!scale) {
+      // Exercise the compiled Core's real signed receipt, not a fabricated
+      // receipt or a provider request. The empty destination policy is deliberate.
+      const newAttemptId = () => 'bf-attempt-' + randomUUID().replaceAll('-', '');
+      const finalDigest = digest(Buffer.from(decision.bodyBase64, 'base64'));
+      assert.equal(finalDigest, decision.projectedBodySha256);
+      assert.equal(typeof decision.projectionReceipt, 'string');
+      const attempt = {
+        schemaVersion: payload.schemaVersion, requestId, attemptGroupId: requestId,
+        agentSessionId: sessionId, workspaceId, dataClass: payload.dataClass,
+        provider: payload.provider, model: payload.model, attemptId: newAttemptId(),
+        method: 'POST', destination: 'https://chatgpt.com/backend-api/codex/responses',
+        bodyBase64: decision.bodyBase64, bodySha256: finalDigest,
+        preparedBodySha256: decision.projectedBodySha256,
+        projectionReceipt: decision.projectionReceipt, deadlineEpochMs: payload.deadlineEpochMs,
+      };
+      const authorize = async (input, reasonCode) => {
+        const result = await fetch(endpoint + '/authorize-attempt', {
+          method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
+          body: JSON.stringify(input), signal: timeout(maxWait),
+        });
+        assert.equal(result.status, 200);
+        assert.deepEqual(await result.json(), { kind: 'BLOCK', attemptId: input.attemptId, bodySha256: input.bodySha256, reasonCode });
+      };
+      const [claims, signature] = decision.projectionReceipt.split('.');
+      assert.ok(claims && signature);
+      const alteredSignature = (signature[0] === 'A' ? 'B' : 'A') + signature.slice(1);
+      const forged = { ...attempt, attemptId: newAttemptId(), projectionReceipt: claims + '.' + alteredSignature };
+      const mismatched = { ...attempt, attemptId: newAttemptId(), preparedBodySha256: digest('different prepared body') };
+      await authorize(forged, 'PROJECTION_RECEIPT_INVALID');
+      await authorize(mismatched, 'ATTEMPT_BINDING_MISMATCH');
+      await authorize(attempt, 'DESTINATION_NOT_ALLOWED');
+      await authorize(attempt, 'ATTEMPT_REPLAYED_OR_CAPACITY_EXHAUSTED');
+      const records = (await readFile(join(directory, 'state', 'gateway-policy-audit.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
+      const physical = records.filter((entry) => entry.component === 'gateway-physical-send');
+      assert.deepEqual(physical.map((entry) => [entry.correlationId, entry.reasonCode, entry.outcome]), [
+        [forged.attemptId, 'PROJECTION_RECEIPT_INVALID', 'denied'],
+        [mismatched.attemptId, 'ATTEMPT_BINDING_MISMATCH', 'denied'],
+        [attempt.attemptId, 'DESTINATION_NOT_ALLOWED', 'denied'],
+        [attempt.attemptId, 'ATTEMPT_REPLAYED_OR_CAPACITY_EXHAUSTED', 'denied'],
+      ]);
+      for (const [entry, input] of physical.map((entry, index) => [entry, [forged, mismatched, attempt, attempt][index]])) {
+        assert.equal(entry.physicalSend.requestId, requestId);
+        assert.equal(entry.physicalSend.workspaceId, workspaceId);
+        assert.equal(entry.physicalSend.bodySha256, finalDigest);
+        assert.equal(entry.physicalSend.preparedBodySha256, input.preparedBodySha256);
+        assert.equal(entry.physicalSend.projectionReceiptSha256, digest(input.projectionReceipt));
+        assert.equal(entry.physicalSend.destinationSha256, digest(input.destination));
+      }
+      console.log(JSON.stringify({ status: 'local-attempt-denial-pass', providerWireCertified: false }));
+    }
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http',
       retrieval: 'native_cbm',
