@@ -21,6 +21,7 @@ import {
   inspectHermesAuthJson,
   validateFeedbackImageOverride,
   validateFeedbackPreflightBinding,
+  validateNativeTaskProjectionReceipt,
 } from '../src/domain/feedback-preflight.js';
 import {
   validateFeedbackExperimentManifest,
@@ -68,6 +69,41 @@ const aceRuntimeBundle = async (
 ): Promise<PreflightCheck> => {
   if (bundlePath === undefined) return { status: 'not_ready', reason: 'ACE runtime bundle is required for container preflight' };
   return verifyAceRuntimeBundle(bundlePath, expectedDigest);
+};
+
+// Local no-egress evidence cannot certify the Hermes executable,
+// Bifröst post-auth hook or a physical provider send.
+const nativeTaskProjection = (
+  bundlePath: string | undefined,
+  expectedBundleDigest: string | undefined,
+  sourceCommit: string,
+  taskImages: readonly { readonly reference: string; readonly digest: string }[] | undefined,
+  prerequisites: readonly PreflightCheck[],
+): PreflightCheck => {
+  if (bundlePath === undefined || expectedBundleDigest === undefined || !taskImages?.length
+    || prerequisites.some((check) => check.status !== 'ready')) {
+    return { status: 'not_ready', reason: 'native task projection requires a clean checkout, verified bundle and pinned local task images' };
+  }
+  for (const image of taskImages) {
+    const result = spawnSync(process.execPath, [
+      resolve('scripts/ace-container-runtime-smoke.mjs'),
+      '--image', `${image.reference}@${image.digest}`,
+      '--bundle', bundlePath,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 270_000 });
+    if (result.error !== undefined || result.status !== 0) {
+      return { status: 'not_ready', reason: 'native task-image zero-egress projection failed or timed out' };
+    }
+    if (!validateNativeTaskProjectionReceipt(result.stdout, {
+      sourceCommit, bundleSha256: expectedBundleDigest, reference: image.reference, digest: image.digest,
+    })) {
+      return { status: 'not_ready', reason: 'native task-image projection receipt does not match the frozen source, bundle and image' };
+    }
+  }
+  return {
+    status: 'ready',
+    reason: 'compiled native Context RPC projection and mutation passed in every pinned task image without network; provider wire remains uncertified',
+    identity: expectedBundleDigest,
+  };
 };
 
 const taskRuntimeProbe = (
@@ -445,10 +481,25 @@ const main = async (): Promise<void> => {
       ? { status: 'ready', reason: 'experiment identity matches checkout, Harbor jobs/version, Bifröst endpoint, image provenance and OAuth route' }
       : { status: 'not_ready', reason: `experiment identity mismatch: ${[...new Set(failures)].join(', ')}` };
   }
+  // Resolve single-image legacy experiments through the verified bundle's
+  // explicit image reference; never invent a tag from a content digest.
+  let probeImages = manifestTaskImages;
+  if (probeImages?.length === 0 && effectiveImageDigest !== undefined
+    && args.aceRuntimeBundlePath !== undefined && checks.aceRuntimeBundle.status === 'ready') {
+    const manifest = JSON.parse(await readFile(resolve(args.aceRuntimeBundlePath, 'runtime-manifest.json'), 'utf8')) as {
+      readonly taskImages: readonly { readonly reference: string; readonly digest: string }[];
+    };
+    probeImages = manifest.taskImages.length === 1 && manifest.taskImages[0]?.digest === effectiveImageDigest
+      ? manifest.taskImages : [];
+  }
+  checks.nativeTaskProjection = nativeTaskProjection(
+    args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256, currentSourceCommit, probeImages,
+    [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding],
+  );
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
     'harbor', 'harborRun', 'harborDatasetPinned',
-    'hermesCodexAuth', 'bifrostEndpoint', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'taskRuntimeProbe', 'experimentBinding',
+    'hermesCodexAuth', 'bifrostEndpoint', 'docker', 'harborJobs', 'harborImageDigest', 'agentRuntimeDigest', 'aceRuntimeBundle', 'nativeTaskProjection', 'taskRuntimeProbe', 'experimentBinding',
     'taskVerifier',
   ];
   const blocked = required.filter((name) => !['ready', 'not_required'].includes(checks[name]?.status ?? 'not_ready'));

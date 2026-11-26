@@ -145,19 +145,18 @@ export const inspectHermesAuthJson = (authPath: string, contents: string): Herme
   const legacyTokens = object(legacy?.tokens);
   const pool = object(root?.credential_pool);
   const currentEntries = Array.isArray(pool?.['openai-codex']) ? pool?.['openai-codex'] : [];
-  const current = currentEntries.map(object).find((entry): entry is JsonObject => entry !== undefined);
-  const currentAccess = nonEmpty(current?.access_token);
-  const currentRefresh = nonEmpty(current?.refresh_token);
-  const legacyAccess = nonEmpty(legacyTokens?.access_token);
-  const legacyRefresh = nonEmpty(legacyTokens?.refresh_token);
-  const authModeValid = legacy?.auth_mode === 'chatgpt' || current?.auth_type === 'oauth';
-  const hasAccessToken = currentAccess || legacyAccess;
-  const hasRefreshToken = currentRefresh || legacyRefresh;
-  const refreshMetadata = current?.last_refresh ?? legacy?.last_refresh;
-  const hasRefreshMetadata = nonEmpty(refreshMetadata)
-    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(refreshMetadata)
-    && Number.isFinite(Date.parse(refreshMetadata));
-  if (!authModeValid || !hasAccessToken || !hasRefreshToken || !hasRefreshMetadata) {
+  const validRefreshMetadata = (value: unknown): boolean => nonEmpty(value)
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)
+    && Number.isFinite(Date.parse(value));
+  // One session must independently satisfy every requirement. Do not combine
+  // access, refresh, mode or timestamp from different credential records.
+  const completeCurrent = currentEntries.map(object).some((entry) => entry?.auth_type === 'oauth'
+    && nonEmpty(entry.access_token) && nonEmpty(entry.refresh_token)
+    && validRefreshMetadata(entry.last_refresh));
+  const completeLegacy = legacy?.auth_mode === 'chatgpt'
+    && nonEmpty(legacyTokens?.access_token) && nonEmpty(legacyTokens?.refresh_token)
+    && validRefreshMetadata(legacy.last_refresh);
+  if (!completeCurrent && !completeLegacy) {
     return {
       status: 'not_ready',
       reason: 'Hermes auth file does not contain a complete independent openai-codex ChatGPT OAuth session',
@@ -275,4 +274,25 @@ export const validateFeedbackImageOverride = (
   if (requested === undefined) return [];
   if (taskImages.length > 0) return taskImages.length === 1 && taskImages[0]?.digest === requested ? [] : ['imageDigest'];
   return experimentImageDigest === undefined || experimentImageDigest === requested ? [] : ['imageDigest'];
+};
+
+/** Local smoke is evidence for this source, bundle and image only, not provider wire. */
+export const validateNativeTaskProjectionReceipt = (stdout: string, expected: {
+  readonly sourceCommit: string;
+  readonly bundleSha256: string;
+  readonly reference: string;
+  readonly digest: string;
+}): boolean => {
+  try {
+    const receipt = object(JSON.parse(stdout.trim().split(/\r?\n/u).at(-1) ?? '') as unknown);
+    return receipt?.schemaVersion === 1 && receipt.status === 'READY'
+      && receipt.gatewayHttpLiveness === true && receipt.nativeProjection === true
+      && receipt.providerWireCertified === false
+      && receipt.runtimeId === 'ace-harbor-runtime-v1'
+      && receipt.sourceCommit === expected.sourceCommit
+      && receipt.bundleSha256 === expected.bundleSha256
+      && receipt.imageReference === expected.reference && receipt.imageDigest === expected.digest;
+  } catch {
+    return false;
+  }
 };
