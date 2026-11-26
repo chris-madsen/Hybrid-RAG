@@ -79,20 +79,7 @@ if [[ -n "${ACE_PLUGIN_OUTPUT:-}" ]]; then
 fi
 if [[ "${BIFROST_VERIFY_REQUIRED_GUARD:-true}" == true ]]; then
   (cd "$root/core" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
-    ./providers/utils -run '^TestOperationErrorPreservesPhysicalSendDenial
-  (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
-    ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardRejectsUpgradedRead|RequiredGuardLLMRemoval)$' -v)
-  (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
-    ./bifrost-http/integrations -run '^TestChatGPTPassthrough(SubscriptionOnlyRejectsNonCallerBearer|StreamsWithoutBodyFlag|ForwardsCodexModelList)$' -v)
-fi
-test -s "$output_path"
-if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
-  echo 'Bifröst build modified tracked source files; refusing artifact' >&2
-  exit 2
-fi
-printf 'bifrost=%s\n' "$actual"
-sha256sum "$output_path"
- -v)
+    ./providers/utils -run '^TestOperationErrorPreservesPhysicalSendDenial$' -v)
   (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
     ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardRejectsUpgradedRead|RequiredGuardLLMRemoval)$' -v)
   (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
