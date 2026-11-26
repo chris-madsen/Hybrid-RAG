@@ -89,7 +89,7 @@ Published CBM results illustrate the opportunity:
 | --- | --- |
 | **~120× lower token volume** | Five structural queries: approximately 3,400 vs 412,000 tokens in the project's [published benchmark](https://github.com/DeusData/codebase-memory-mcp/blob/main/docs/BENCHMARK.md). |
 | **10× lower token use; 2.1× fewer tool calls** | [Codebase-Memory research preprint](https://arxiv.org/abs/2603.27277), across 31 repositories. Answer quality was 83% for graph exploration vs 92% for file exploration, highlighting the need for source verification and sufficient original context. |
-| **~22× lower retrieval token volume** | [Independent analysis by Emre Cavunt](https://emrecavunt.com/blog/codebase-memory-mcp-token-economy): a call-chain and source question on Google's ADK repository, compared with a focused grep/file-reading strategy. |
+| **~22× lower retrieval token volume** | [Independent analysis by Emre Cavunt](https://emrecavunt.com/blog/codebase-memory-mcp%2Dtoken-economy): 3,004 vs 67,428 tokenizer-counted response tokens for a call-chain and source question on Google's ADK repository, compared with a focused grep/file-reading strategy. |
 
 These are component-level exploration results, not ACE-wide task savings. The size of the benefit depends on the task, baseline, context selection and model. ACE combines structural discovery with exact source evidence rather than assuming a graph alone answers every question.
 
