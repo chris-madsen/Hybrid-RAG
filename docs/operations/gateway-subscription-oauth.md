@@ -66,3 +66,7 @@ A missing `session-id` or `x-bf-session-id` is not a login failure. ACE generate
 4. **Real C06–C08 and benchmarks:** independently verify streaming cancellation, multi-turn tool/reasoning continuity, and paired Hermes baseline versus Hermes+Bifröst+ACE Harbor task quality/latency/provider token usage. A mock fixture is not an E2E acceptance or token-savings result.
 
 **Evidence state:** code integration and deterministic CI can pass without live egress. We have **not** executed or certified the configured user's real Hermes subscription, provider acknowledgement, Harbor quality/economics or release. This runbook does not create a new permission gate or declare live tests impossible.
+
+### Candidate binary admission (not a production pin)
+
+The opt-in required-plugin change in [Bifröst PR #1](https://github.com/chris-madsen/bifrost/pull/1) is evaluated separately from the existing production source pin. The candidate CI builds the HTTP executable and shared object with one Go workspace and identical build tags, then runs them inside a Linux network namespace with only loopback enabled. The smoke requires startup refusal for absent, disabled and failed-init plugins, a real native HTTP hook invocation producing a correlated synthetic projection denial, and rejection of Chat Completions. It uses no subscriber credentials and does not certify provider wire or the task runtime. Do not promote the candidate pin until its binary admission checks and review are complete.
