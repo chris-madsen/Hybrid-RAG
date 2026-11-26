@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { canonicalBenchmarkCandidateId, type BenchmarkCandidateRange } from '../src/domain/retrieval-benchmark.js';
+import { exactUtf8SourceSpan } from '../src/domain/utf8-range.js';
+import { ingestRepoPath } from '../src/domain/workspace.js';
 import { writeFrozenArtifactPair } from './write-frozen-artifact-pair.js';
+import { assertNativeReleaseHoldout } from './native-projection-evidence.js';
 import type {
   RetrievalHoldout,
   RetrievalHoldoutCase,
@@ -48,20 +51,35 @@ if (sourceArg === undefined || holdoutArg === undefined || manifestDirectoryArg 
   throw new Error('Usage: tsx scripts/freeze-retrieval-holdout.ts <source-spec.json> <holdout.json> <manifest-dir> <repository-id>=<checkout-root> [...]');
 }
 
-const aceRepositoryRoot = resolve(process.cwd());
-const isInsideAceRepository = (path: string): boolean => {
-  const relativePath = relative(aceRepositoryRoot, resolve(path));
-  return relativePath === '' || (!isAbsolute(relativePath) && !relativePath.startsWith(`..${sep}`) && relativePath !== '..');
+// Resolve symlinked parents even when the final evidence path does not exist.
+const canonicalTarget = async (path: string): Promise<string> => {
+  const target = resolve(path);
+  try { return await realpath(target); } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(target) === target) throw cause;
+    return resolve(await canonicalTarget(dirname(target)), basename(target));
+  }
 };
-if (isInsideAceRepository(holdoutArg) || isInsideAceRepository(manifestDirectoryArg)) {
-  throw new Error('frozen holdout and manifest outputs must be outside the ACE checkout; use an external evidence directory');
-}
+const within = (root: string, path: string): boolean => {
+  const relation = relative(root, path);
+  return relation === '' || (!isAbsolute(relation) && relation !== '..' && !relation.startsWith('..' + sep));
+};
+const aceRepositoryRoot = await realpath(process.cwd());
 
 const repositoryRoots = new Map<string, string>();
 for (const argument of repositoryArgs) {
   const separator = argument.indexOf('=');
   if (separator < 1 || separator === argument.length - 1) throw new Error(`invalid repository mapping: ${argument}`);
-  repositoryRoots.set(argument.slice(0, separator), resolve(argument.slice(separator + 1)));
+  const id = argument.slice(0, separator);
+  if (repositoryRoots.has(id)) throw new Error(`duplicate repository mapping: ${id}`);
+  repositoryRoots.set(id, resolve(argument.slice(separator + 1)));
+}
+
+const forbiddenRoots = [aceRepositoryRoot, ...await Promise.all([...repositoryRoots.values()].map((root) => realpath(root)))];
+const holdoutTarget = await canonicalTarget(holdoutArg);
+const manifestTarget = await canonicalTarget(manifestDirectoryArg);
+if (forbiddenRoots.some((root) => within(root, holdoutTarget) || within(root, manifestTarget)
+  || within(root, resolve(holdoutArg)) || within(root, resolve(manifestDirectoryArg)))) {
+  throw new Error('frozen holdout and manifest outputs must be outside all source checkouts; use an external evidence directory');
 }
 
 const sourceSpec = JSON.parse(await readFile(resolve(sourceArg), 'utf8')) as SourceSpec;
@@ -69,6 +87,11 @@ if (sourceSpec.schemaVersion !== 1 || sourceSpec.status !== 'frozen_multi_reposi
   throw new Error('source spec must declare frozen_multi_repository_holdout schema version 1');
 }
 if (sourceSpec.repositories.length < 2) throw new Error('a frozen holdout requires at least two repositories');
+const repositoryIds = sourceSpec.repositories.map((repository) => repository.id);
+if (repositoryIds.some((id) => !/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(id))
+  || new Set(repositoryIds).size !== repositoryIds.length) {
+  throw new Error('frozen repository IDs must be unique safe filename components');
+}
 
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const git = (root: string, args: readonly string[]): Buffer => execFileSync('git', ['-C', root, ...args]);
@@ -82,14 +105,15 @@ const excluded = (repoPath: string): boolean => {
     || ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.zip', '.tar', '.gz', '.exe', '.dll'].some((suffix) => lower.endsWith(suffix));
 };
 
-const manifestFor = (repository: RepositorySpec, root: string): { readonly bytes: Buffer; readonly digest: string } => {
-  const paths = gitText(root, ['ls-tree', '-r', '-z', '--name-only', repository.revision])
+const manifestFor = (repository: RepositorySpec, root: string): { readonly bytes: Buffer; readonly digest: string; readonly entries: readonly ManifestEntry[] } => {
+  const paths = gitText(root, ['ls-tree', '-r', '-z', repository.revision])
     .split('\0')
-    .filter((value) => value.length > 0)
+    .filter((value) => /^(100644|100755) blob [a-f0-9]+\t/u.test(value))
+    .map((value) => value.slice(value.indexOf('\t') + 1))
     .sort((left, right) => left.localeCompare(right));
   const entries: ManifestEntry[] = [];
   for (const repoPath of paths) {
-    if (excluded(repoPath)) continue;
+    if (excluded(repoPath) || ingestRepoPath(repoPath)._tag !== 'Ok') continue;
     const bytes = sourceBytes(root, repository.revision, repoPath);
     if (bytes.includes(0)) continue;
     entries.push({ path: repoPath, sizeBytes: bytes.byteLength, sha256: sha256(bytes) });
@@ -102,11 +126,12 @@ const manifestFor = (repository: RepositorySpec, root: string): { readonly bytes
     entries,
   };
   const bytes = Buffer.from(JSON.stringify(value, null, 2) + '\n', 'utf8');
-  return { bytes, digest: sha256(bytes) };
+  return { bytes, digest: sha256(bytes), entries };
 };
 
 const repositories: RetrievalHoldoutRepository[] = [];
-const manifestByRepository = new Map<string, { readonly digest: string; readonly root: string; readonly revision: string }>();
+const pendingManifests: { readonly path: string; readonly bytes: Buffer; readonly digest: string }[] = [];
+const manifestByRepository = new Map<string, { readonly digest: string; readonly root: string; readonly revision: string; readonly entries: ReadonlyMap<string, ManifestEntry> }>();
 for (const repository of sourceSpec.repositories) {
   const root = repositoryRoots.get(repository.id);
   if (root === undefined || !existsSync(root)) throw new Error(`missing checkout for repository ${repository.id}`);
@@ -115,10 +140,11 @@ for (const repository of sourceSpec.repositories) {
     throw new Error(`repository ${repository.id} revision mismatch: expected ${repository.revision}, got ${actualRevision}`);
   }
   const manifest = manifestFor(repository, root);
-  const manifestPath = resolve(manifestDirectoryArg, `manifest-${repository.id}.json`);
-  await writeFrozenArtifactPair(manifestPath, manifest.bytes, manifest.digest);
+  const manifestPath = resolve(manifestTarget, `manifest-${repository.id}.json`);
+  pendingManifests.push({ path: manifestPath, bytes: manifest.bytes, digest: manifest.digest });
   repositories.push({ id: repository.id, revision: repository.revision, sourceManifestSha256: manifest.digest });
-  manifestByRepository.set(repository.id, { digest: manifest.digest, root, revision: repository.revision });
+  manifestByRepository.set(repository.id, { digest: manifest.digest, root, revision: repository.revision,
+    entries: new Map(manifest.entries.map((entry) => [entry.path, entry])) });
 }
 
 const seenCaseIds = new Set<string>();
@@ -129,7 +155,7 @@ const cases: RetrievalHoldoutCase[] = sourceSpec.cases.map((item) => {
   if (repository === undefined) throw new Error(`case ${item.id} references an unknown repository`);
   if (item.relevantSpans.length === 0) throw new Error(`case ${item.id} requires at least one relevant span`);
   const relevantCandidateIds = item.relevantSpans.map((span) => {
-    if (excluded(span.repoPath)
+    if (!repository.entries.has(span.repoPath)
       || !Number.isSafeInteger(span.startLine)
       || !Number.isSafeInteger(span.endLine)
       || span.startLine < 1
@@ -139,11 +165,11 @@ const cases: RetrievalHoldoutCase[] = sourceSpec.cases.map((item) => {
       throw new Error(`case ${item.id} has an invalid or excluded range in ${span.repoPath}`);
     }
     const bytes = sourceBytes(repository.root, repository.revision, span.repoPath);
-    const lineCount = bytes.toString('utf8').split('\n').length;
-    if (span.endLine > lineCount) {
+    if (exactUtf8SourceSpan(bytes, span) === undefined) {
       throw new Error(`case ${item.id} has an invalid range in ${span.repoPath}`);
     }
-    const digest = sha256(bytes);
+    const digest = repository.entries.get(span.repoPath)!.sha256;
+    if (sha256(bytes) !== digest) throw new Error(`case ${item.id} source differs from frozen manifest`);
     return canonicalBenchmarkCandidateId(item.repositoryId, span.repoPath, digest, span);
   });
   return {
@@ -174,7 +200,10 @@ const holdout: RetrievalHoldout = {
   repositories,
   cases,
 };
-const holdoutPath = resolve(holdoutArg);
+assertNativeReleaseHoldout(holdout);
+const holdoutPath = holdoutTarget;
 const holdoutBytes = Buffer.from(JSON.stringify(holdout, null, 2) + '\n', 'utf8');
+// Validate every label before publishing any manifest or holdout artifact.
+for (const manifest of pendingManifests) await writeFrozenArtifactPair(manifest.path, manifest.bytes, manifest.digest);
 await writeFrozenArtifactPair(holdoutPath, holdoutBytes, sha256(holdoutBytes));
 process.stdout.write(JSON.stringify({ holdout: holdoutPath, holdoutSha256: sha256(holdoutBytes), cases: cases.length, repositories: repositories.length }) + '\n');

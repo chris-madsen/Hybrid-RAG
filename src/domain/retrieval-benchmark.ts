@@ -26,6 +26,10 @@ export interface RetrievalBenchmarkCandidateIdentity {
   readonly repoPath: string;
   readonly sourceDigest: string;
   readonly range: SourceRange;
+  /** Exact verified retrieval candidate, before final projection. */
+  readonly evidenceId?: string;
+  readonly sourceTextSha256?: string;
+  readonly sourceTextCharacters?: number;
 }
 
 export interface RetrievalBenchmarkTraceEvent {
@@ -45,12 +49,23 @@ export interface RetrievalBenchmarkTraceRequestReceipt {
   readonly complete: boolean;
 }
 
+/** Captured by the actual projection owner after signing a PREPARED receipt.
+ * Contains no source text, request body or signing key. */
+export interface BenchmarkProjectionBinding {
+  readonly requestId: string;
+  readonly providerRequestId: string;
+  readonly receiptSha256: string;
+  readonly projectedBodySha256: string;
+  readonly selectedEvidenceIds: readonly string[];
+}
+
 export interface RetrievalBenchmarkTerminalReceipt {
   readonly schemaVersion: 1;
   readonly eventCount: number;
   readonly persistedEventCount: number;
   readonly requests: readonly RetrievalBenchmarkTraceRequestReceipt[];
   readonly traceDigest: string;
+  readonly projections?: readonly BenchmarkProjectionBinding[];
   readonly flushStatus: 'ok' | 'failed';
   readonly closeStatus: 'ok' | 'failed';
   readonly failureCode?: 'trace_persistence_failed';
@@ -67,6 +82,7 @@ export interface RetrievalBenchmarkTraceStatus {
 
 export interface RetrievalBenchmarkTraceSink {
   readonly record: (event: RetrievalBenchmarkTraceEvent) => void;
+  readonly recordProjection?: (binding: BenchmarkProjectionBinding) => void;
   readonly flush: () => Promise<void>;
   readonly close: () => Promise<void>;
   readonly status: RetrievalBenchmarkTraceStatus;

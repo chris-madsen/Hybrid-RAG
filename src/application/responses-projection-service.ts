@@ -14,6 +14,7 @@ import { authorizeAndAudit } from './policy-service.js';
 import type { GatewayProjectionSecurity } from './gateway-security-contract.js';
 import { sha256Base64 } from '../domain/gateway-request-binding.js';
 import { makeProjectionReceiptClaims, signProjectionReceipt } from './projection-receipt.js';
+import { sha256, type BenchmarkProjectionBinding } from '../domain/retrieval-benchmark.js';
 
 // This service prepares an additive native Responses input, not a provider
 // delivery receipt. Bifröst's per-physical-send guard is a separate hard gate.
@@ -68,6 +69,7 @@ const permitProjection = (
 
 export const makeResponsesProjectionService = (
   context: ContextTransformService, security: GatewayProjectionSecurity,
+  recordProjection?: (binding: BenchmarkProjectionBinding) => void,
 ): ResponsesProjectionService => ({
   projectResponses: (value) => Effect.gen(function* () {
     const valid = validateResponsesProjectionRequest(value);
@@ -158,6 +160,8 @@ export const makeResponsesProjectionService = (
         policyVersion: security.policy.policyVersion,
         deadlineEpochMs: request.deadlineEpochMs,
       }), security.receiptSigningKey);
+      recordProjection?.({ requestId: request.requestId, providerRequestId: result.providerRequestId,
+        receiptSha256: sha256(projectionReceipt), projectedBodySha256: request.bodySha256, selectedEvidenceIds: [] });
       return ok({
         kind: 'PREPARED', reasonCode: 'VERIFIED_NO_CONTEXT_NEEDED',
         bodyBase64: request.bodyBase64,
@@ -196,6 +200,8 @@ export const makeResponsesProjectionService = (
       deadlineEpochMs: request.deadlineEpochMs,
     });
     const projectionReceipt = signProjectionReceipt(receiptClaims, security.receiptSigningKey);
+    recordProjection?.({ requestId: request.requestId, providerRequestId: result.providerRequestId,
+      receiptSha256: sha256(projectionReceipt), projectedBodySha256, selectedEvidenceIds: result.selectedEvidenceIds });
     return ok({
       kind: 'PREPARED', reasonCode: 'VERIFIED_CONTEXT_ADDED',
       bodyBase64: injected.value,

@@ -13,6 +13,7 @@ import {
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import { validateReleaseExternalEvidenceDocument } from '../src/domain/release-external-evidence.js';
 import { validateReleaseSelectionSources } from './release-selection-source-validation.js';
+import { nativeReleaseEvidenceReader } from './native-release-evidence-reader.js';
 
 interface ReleasePolicy {
   readonly schemaVersion: 2;
@@ -64,6 +65,8 @@ const readEvidenceJson = async (path: string): Promise<{
   return { ...evidence, value: JSON.parse(Buffer.from(evidence.bytes).toString('utf8')) as unknown };
 };
 
+const readNativeJson = await nativeReleaseEvidenceReader(process.cwd(), process.env.ACE_NATIVE_EVIDENCE_ROOT?.trim() || undefined, readEvidenceJson);
+
 const [policyArg, outputArg] = process.argv.slice(2);
 if (policyArg === undefined || outputArg === undefined) {
   throw new Error('Usage: tsx scripts/release-preflight.ts <release-policy.json> <output.json>');
@@ -88,7 +91,7 @@ for (const key of ['dbc', 'semanticSelection', 'retrievalQuality', 'harborThreeA
 const [dbc, semantic, retrieval, harbor, resourceBudget, runtimeConfig] = await Promise.all([
   readEvidenceJson(artifacts.dbc),
   readEvidenceJson(artifacts.semanticSelection),
-  readEvidenceJson(artifacts.retrievalQuality),
+  readNativeJson(artifacts.retrievalQuality),
   readEvidenceJson(artifacts.harborThreeArm),
   readEvidenceJson(artifacts.resourceBudget),
   readEvidenceJson(artifacts.runtimeConfig),
@@ -97,6 +100,7 @@ const selectionSources = await validateReleaseSelectionSources(
   retrieval.value,
   semantic.value,
   readEvidenceJson,
+  readNativeJson,
 );
 
 const dbcRoot = typeof dbc.value === 'object' && dbc.value !== null && !Array.isArray(dbc.value)
