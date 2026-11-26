@@ -27,6 +27,7 @@ connection.onRequest('initialize', (input) => {
   };
 });
 
+let includeOverrideEdge = false;
 connection.onRequest('tools/call', (input) => {
   log({ method: 'tools/call', tool: input.name });
   if (input.name === 'search_graph'
@@ -67,6 +68,9 @@ connection.onRequest('tools/call', (input) => {
       break;
     case 'search_graph':
       if (process.argv.includes('--partial-semantic-bm25')) {
+        if (input.arguments.semantic_query) {
+          includeOverrideEdge = input.arguments.semantic_query[0] === 'linked inheritance override';
+        }
         data = input.arguments.semantic_query
           ? { semantic: { cols: ['qn', 'file', 'score'], rows: [
             ['fixture.semantic', 'src/semantic.ts', 0.9],
@@ -74,7 +78,7 @@ connection.onRequest('tools/call', (input) => {
             ...(input.arguments.semantic_query[0] === 'unowned semantic' ? [['fixture.other', 'src/unindexed.ts', 0.8]] : []),
             ...(input.arguments.semantic_query[0] === 'unmatched semantic' ? [['fixture.other', 'src/exact-evidence.ts', 0.8]] : []),
             ...(input.arguments.semantic_query[0] === 'full semantic' ? [['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8]] : []),
-            ...(input.arguments.semantic_query[0] === 'linked underfill' ? [
+            ...(['linked underfill', 'linked inheritance override'].includes(input.arguments.semantic_query[0]) ? [
               ['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8],
               ['fixture.third', 'src/third.ts', 0.7],
               ['fixture.fourth', 'src/fourth.ts', 0.6],
@@ -108,7 +112,7 @@ connection.onRequest('tools/call', (input) => {
         if (query.startsWith('MATCH (origin)-') && edgeTypes.includes('INHERITS')) {
           rows.push(['fixture.linked', 'src/linked.ts']);
         }
-        if (query.startsWith('MATCH (other)-') && edgeTypes.includes('OVERRIDE')) {
+        if (includeOverrideEdge && query.startsWith('MATCH (other)-') && edgeTypes.includes('OVERRIDE')) {
           rows.push(['fixture.overrideTarget', 'src/override.ts']);
         }
       }
