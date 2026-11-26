@@ -66,9 +66,19 @@ connection.onRequest('tools/call', (input) => {
       };
       break;
     case 'search_graph':
-      data = input.arguments.semantic_query
-        ? { semantic: { cols: ['qn', 'file', 'score'], rows: [] } }
-        : { cols: ['qn', 'file', 'rank'], rows: [] };
+      if (process.argv.includes('--partial-semantic-bm25')) {
+        data = input.arguments.semantic_query
+          ? { semantic: { cols: ['qn', 'file', 'score'], rows: [
+            ['fixture.semantic', 'src/semantic.ts', 0.9],
+          ] } }
+          : { cols: ['qn', 'file', 'rank'], rows: [
+            ['fixture.exactEvidence', 'src/exact-evidence.ts', -0.1],
+          ] };
+      } else {
+        data = input.arguments.semantic_query
+          ? { semantic: { cols: ['qn', 'file', 'score'], rows: [] } }
+          : { cols: ['qn', 'file', 'rank'], rows: [] };
+      }
       break;
     case 'trace_path':
       data = { callees: { cols: ['name', 'hop'], groups: [] } };

@@ -350,10 +350,12 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     if (hits === undefined) {
       return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented semantic result table'));
     }
-    // When the native vector top-k contains no file in the verified ACE
-    // candidate inventory, use CBM's OWN SQLite FTS5/BM25 query. This is
-    // upstream-supported discovery, not an ACE lexical search implementation.
-    if (hits.some((hit) => candidatePaths.has(hit.file))) return ok(hits);
+    const hasIndexedSemanticHit = hits.some((hit) => candidatePaths.has(hit.file));
+    // A short semantic response is not a complete top-k shortlist. Complete
+    // it with CBM's own SQLite FTS5/BM25 results, preserving each native order
+    // and semantic results first. This is upstream-supported discovery, not
+    // an ACE lexical search or score-fusion implementation.
+    if (hasIndexedSemanticHit && hits.length >= limit) return ok(hits);
     const lexical = await transport.invoke('search_graph', {
       project,
       query,
@@ -363,9 +365,20 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     }, requestId);
     if (lexical._tag === 'Err') return lexical;
     const fallback = lexicalRows(root, lexical.value);
-    return fallback === undefined
-      ? err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'))
-      : ok(fallback);
+    if (fallback === undefined) {
+      return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'));
+    }
+    if (!hasIndexedSemanticHit) return ok(fallback);
+    const combined = [...hits];
+    const seen = new Set(hits.map((hit) => hit.file + '\0' + hit.qn));
+    for (const hit of fallback) {
+      const identity = hit.file + '\0' + hit.qn;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      combined.push(hit);
+      if (combined.length >= limit) break;
+    }
+    return ok(combined);
   };
 
   /**
