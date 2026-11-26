@@ -23,7 +23,7 @@ CBM CLI bottleneck was superseded by merged PR #321.
   Never default to Harbor's built-in `name: hermes` agent; select only the pinned
   custom OAuth adapter through `import_path`.
 - Set `HERMES_CODEX_BASE_URL` to the full Bifröst passthrough **base prefix**,
-  for example `http://bifrost:8080/chatgpt_passthrough`, not `/v1`,
+  for example `http://bifrost:8080/chatgpt_passthrough/backend-api/codex`, not the bare `/chatgpt_passthrough` prefix, `/v1`,
   `/v1/responses`, ACE's context projection endpoint, or a direct provider URL.
   The prefix must be reachable from the actual sandbox network; `localhost`
   inside Docker does not refer to the host.

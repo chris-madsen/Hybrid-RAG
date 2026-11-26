@@ -213,12 +213,11 @@ export const inspectHermesBifrostEndpoint = (input: {
   } catch {
     return { status: 'invalid_configuration', reason: 'Hermes Bifröst endpoint is not a safe HTTP(S) URL' };
   }
-  // Hermes openai-codex appends the native /backend-api/codex/responses
-  // route to this Bifröst prefix. A /v1 base instead selects an unrelated
-  // API-key route, even if a hash of that URL happens to match.
-  if (parsed.pathname !== '/chatgpt_passthrough') {
+  // Hermes passes its configured Codex base URL to the OpenAI SDK unchanged.
+  // Responses.create appends only /responses; the base must include /backend-api/codex.
+  if (parsed.pathname !== '/chatgpt_passthrough/backend-api/codex') {
     return { status: 'invalid_configuration',
-      reason: 'Hermes openai-codex requires Bifröst /chatgpt_passthrough base route' };
+      reason: 'Hermes openai-codex requires Bifröst /chatgpt_passthrough/backend-api/codex base route' };
   }
   const host = parsed.hostname.toLowerCase().replace(/\.+$/u, '');
   if (host === 'openai.com' || host.endsWith('.openai.com')

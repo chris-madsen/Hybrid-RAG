@@ -37,10 +37,10 @@ The internal `record-delivery` endpoint was removed from v3: final provider deli
 Set `HERMES_CODEX_BASE_URL` to the Bifröst **passthrough base**, with the trailing prefix:
 
 ```text
-http://127.0.0.1:<bifrost-port>/chatgpt_passthrough
+http://127.0.0.1:<bifrost-port>/chatgpt_passthrough/backend-api/codex
 ```
 
-The existing Hermes OpenAI Codex adapter appends `/backend-api/codex/responses`. Supply the Bifröst virtual key via the supported separate `x-bf-vk` mechanism if the configured listener requires it; **do not** overwrite the ChatGPT `Authorization` bearer. Keep the existing Hermes OAuth state private.
+Hermes v0.22.3 passes the configured base URL directly to its OpenAI SDK client, whose `responses.create` appends only `/responses`. The earlier bare `/chatgpt_passthrough` base is invalid. Recompute the normalized endpoint digest and regenerate the experiment/job bindings; do not reuse old hashes. See [Hermes credential routing](https://github.com/NousResearch/hermes-agent/blob/v0.22.3/hermes_cli/auth_codex.py), [Hermes client construction](https://github.com/NousResearch/hermes-agent/blob/v0.22.3/agent/auxiliary_client.py) and [SDK Responses resource](https://github.com/openai/openai-python/blob/v2.24.0/src/openai/resources/responses/responses.py). Supply the Bifröst virtual key via the supported separate `x-bf-vk` mechanism if the configured listener requires it; **do not** overwrite the ChatGPT `Authorization` bearer. Keep the existing Hermes OAuth state private.
 
 The Bifröst **ACE plugin process** requires `ACE_BIFROST_TENANCY_MODE=single-workspace`, `ACE_BIFROST_WORKSPACE_ID=<registered-workspace>` and `ACE_CONTEXT_RPC_TOKEN=<private-connector-secret>`. ACE Core uses the same token as `ACE_CONTEXT_RPC_SHARED_SECRET`. These are process-to-process service credentials, **not a second OAuth sign-in**.
 
