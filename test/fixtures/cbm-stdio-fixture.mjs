@@ -70,14 +70,25 @@ connection.onRequest('tools/call', (input) => {
         data = input.arguments.semantic_query
           ? { semantic: { cols: ['qn', 'file', 'score'], rows: [
             ['fixture.semantic', 'src/semantic.ts', 0.9],
+            ...(input.arguments.semantic_query[0] === 'duplicate semantic' ? [['fixture.semantic', 'src/semantic.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'unowned semantic' ? [['fixture.other', 'src/unindexed.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'unmatched semantic' ? [['fixture.other', 'src/exact-evidence.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'full semantic' ? [['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8]] : []),
           ] } }
           : { cols: ['qn', 'file', 'rank'], rows: [
+            ['fixture.semantic', 'src/semantic.ts', -0.2],
             ['fixture.exactEvidence', 'src/exact-evidence.ts', -0.1],
           ] };
       } else {
         data = input.arguments.semantic_query
           ? { semantic: { cols: ['qn', 'file', 'score'], rows: [] } }
           : { cols: ['qn', 'file', 'rank'], rows: [] };
+      }
+      if (!input.arguments.semantic_query && input.arguments.query === 'full semantic') {
+        data = { error: 'BM25 must not be called for a full valid semantic shortlist' };
+      }
+      if (!input.arguments.semantic_query && input.arguments.query === 'malformed lexical') {
+        data = { cols: ['qn', 'file'], rows: [] };
       }
       break;
     case 'trace_path':

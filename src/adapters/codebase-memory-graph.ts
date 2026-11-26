@@ -333,7 +333,8 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       : invoke('detect_changes', { project, ...(since ? { since } : {}), scope: 'impact',
         direction: 'both', depth: 2, format: 'json' }));
 
-  const searchRows = async (query: string, limit: number, candidatePaths: ReadonlySet<RepoPath>, requestId?: string): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
+  const searchRows = async (query: string, limit: number,
+    resolveCandidate: (target: NativeGraphTarget) => Promise<CodeCandidate | undefined>, requestId?: string): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
     }
@@ -350,12 +351,23 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     if (hits === undefined) {
       return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented semantic result table'));
     }
-    const hasIndexedSemanticHit = hits.some((hit) => candidatePaths.has(hit.file));
-    // A short semantic response is not a complete top-k shortlist. Complete
-    // it with CBM's own SQLite FTS5/BM25 results, preserving each native order
-    // and semantic results first. This is upstream-supported discovery, not
-    // an ACE lexical search or score-fusion implementation.
-    if (hasIndexedSemanticHit && hits.length >= limit) return ok(hits);
+    // Count distinct source-bound candidates, not raw provider rows. A full
+    // table may contain duplicates, unindexed paths or unmatched symbols.
+    const combined: NativeGraphRow[] = [];
+    const seen = new Set<string>();
+    const append = async (rows: readonly NativeGraphRow[]): Promise<void> => {
+      for (const hit of rows) {
+        if (combined.length >= limit) break;
+        const candidate = await resolveCandidate(hit);
+        if (candidate === undefined || seen.has(candidate.candidateId)) continue;
+        seen.add(candidate.candidateId);
+        combined.push(hit);
+      }
+    };
+    await append(hits);
+    if (combined.length >= limit) return ok(combined);
+    // Supplement only an underfilled shortlist using CBM's own BM25.
+    // Preserve native order, semantic first; no ACE score fusion.
     const lexical = await transport.invoke('search_graph', {
       project,
       query,
@@ -368,16 +380,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     if (fallback === undefined) {
       return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'));
     }
-    if (!hasIndexedSemanticHit) return ok(fallback);
-    const combined = [...hits];
-    const seen = new Set(hits.map((hit) => hit.file + '\0' + hit.qn));
-    for (const hit of fallback) {
-      const identity = hit.file + '\0' + hit.qn;
-      if (seen.has(identity)) continue;
-      seen.add(identity);
-      combined.push(hit);
-      if (combined.length >= limit) break;
-    }
+    await append(fallback);
     return ok(combined);
   };
 
@@ -430,31 +433,6 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       list.push(candidate);
       candidatesByFile.set(candidate.repoPath, list);
     }
-    const native = await searchRows(input.query, input.limit, new Set(candidatesByFile.keys()), input.requestId);
-    if (native._tag === 'Err') return native;
-    // A natural-language semantic vector alone can miss explicitly named
-    // declarations. Ask the upstream graph for exact names, not an ACE
-    // lexical index. Only bounded identifier-shaped literals enter Cypher.
-    const identifiers = [...new Set(input.query.match(/[A-Za-z_][A-Za-z0-9_]{2,}/gu) ?? [])]
-      .filter((name) => /[a-z][A-Z]|_|^[A-Z][A-Z0-9]+$/u.test(name)).slice(0, 8);
-    const explicit: NativeGraphRow[] = [];
-    if (identifiers.length > 0) {
-      const predicate = identifiers.map((name) => "n.name = '" + name + "'").join(' OR ');
-      const found = await Effect.runPromise(queryGraph('MATCH (n) WHERE ' + predicate
-        + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 50'));
-      if (found._tag === 'Ok') {
-        for (const target of nativeQueryGraphTargets(root, found.value) ?? []) {
-          if (target.qn !== undefined && candidatesByFile.has(target.file)) {
-            explicit.push({ file: target.file, qn: target.qn, score: 1 });
-          }
-        }
-      }
-    }
-    // Explicit file references disambiguate only graph-returned candidates.
-    // Never treat a path mentioned in the prompt as authorized source proof.
-    const explicitHits = [...explicit.filter((hit) => input.query.includes(hit.file)),
-      ...explicit.filter((hit) => !input.query.includes(hit.file))];
-    const nativeHits = [...explicitHits, ...native.value];
     const outlineCache = new Map<RepoPath, readonly NativeOutlineRow[] | undefined>();
     const sourceCandidateFor = async (target: NativeGraphTarget): Promise<CodeCandidate | undefined> => {
       const candidates = candidatesByFile.get(target.file) ?? [];
@@ -487,6 +465,31 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       return candidates.find((candidate) => candidate.structuralKind === 'module'
         && candidate.symbolName === target.file) ?? candidates[0];
     };
+    const native = await searchRows(input.query, input.limit, sourceCandidateFor, input.requestId);
+    if (native._tag === 'Err') return native;
+    // A natural-language semantic vector alone can miss explicitly named
+    // declarations. Ask the upstream graph for exact names, not an ACE
+    // lexical index. Only bounded identifier-shaped literals enter Cypher.
+    const identifiers = [...new Set(input.query.match(/[A-Za-z_][A-Za-z0-9_]{2,}/gu) ?? [])]
+      .filter((name) => /[a-z][A-Z]|_|^[A-Z][A-Z0-9]+$/u.test(name)).slice(0, 8);
+    const explicit: NativeGraphRow[] = [];
+    if (identifiers.length > 0) {
+      const predicate = identifiers.map((name) => "n.name = '" + name + "'").join(' OR ');
+      const found = await Effect.runPromise(queryGraph('MATCH (n) WHERE ' + predicate
+        + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 50'));
+      if (found._tag === 'Ok') {
+        for (const target of nativeQueryGraphTargets(root, found.value) ?? []) {
+          if (target.qn !== undefined && candidatesByFile.has(target.file)) {
+            explicit.push({ file: target.file, qn: target.qn, score: 1 });
+          }
+        }
+      }
+    }
+    // Explicit file references disambiguate only graph-returned candidates.
+    // Never treat a path mentioned in the prompt as authorized source proof.
+    const explicitHits = [...explicit.filter((hit) => input.query.includes(hit.file)),
+      ...explicit.filter((hit) => !input.query.includes(hit.file))];
+    const nativeHits = [...explicitHits, ...native.value];
     const direct: RankedCandidate[] = [];
     const seen = new Set<string>();
     for (const hit of nativeHits) {
@@ -578,7 +581,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       return err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during retrieval'));
     }
     if (linked.length === 0) return ok(direct.slice(0, input.limit));
-    const directSlots = Math.max(1, Math.ceil(input.limit * 0.6));
+    const directSlots = Math.max(1, Math.ceil(input.limit * 0.6), input.limit - linked.length);
     return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
   });
 

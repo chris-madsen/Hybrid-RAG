@@ -65,14 +65,18 @@ test('native semantic shortlist is completed by native BM25 when semantic result
   try {
     const indexed = await Effect.runPromise(graph.reindex());
     assert.equal(indexed._tag, 'Ok');
-    const found = await Effect.runPromise(graph.search({ query: 'find exact evidence', limit: 2 }));
-    assert.equal(found._tag, 'Ok');
-    if (found._tag === 'Ok') {
-      assert.deepEqual(found.value.map((item) => item.candidate.candidateId), [
-        semantic.candidateId,
-        exact.candidateId,
-      ]);
+    for (const query of ['find exact evidence', 'duplicate semantic', 'unowned semantic', 'unmatched semantic', 'full semantic']) {
+      const found = await Effect.runPromise(graph.search({ query, limit: 2 }));
+      assert.equal(found._tag, 'Ok', query);
+      if (found._tag === 'Ok') {
+        assert.deepEqual(found.value.map((item) => item.candidate.candidateId), [
+          semantic.candidateId,
+          exact.candidateId,
+        ], query);
+      }
     }
+    const malformed = await Effect.runPromise(graph.search({ query: 'malformed lexical', limit: 2 }));
+    assert.equal(malformed._tag, 'Err');
   } finally {
     await graph.close();
   }
