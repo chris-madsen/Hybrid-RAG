@@ -14,6 +14,8 @@ on:
       - 'scripts/real-provider-process.mjs'
       - 'src/domain/retrieval-benchmark.ts'
       - 'src/adapters/retrieval-benchmark-trace.ts'
+      - 'src/adapters/codebase-memory-*.ts'
+      - 'src/adapters/native-cbm-context-provider.ts'
       - 'src/bin/ace-context-rpc.ts'
       - 'src/application/gateway-attempt-authorization-service.ts'
       - 'src/application/responses-projection-service.ts'

@@ -113,6 +113,8 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
     assert.equal(hermes.physicalDenialObserved, true);
     assert.equal(hermes.endpointSha256, sha(base));
     assert.equal(hermes.modelSha256, sha(model));
+    assert.equal(hermes.reasoningEffort, 'high');
+    assert.equal(hermes.nativeResponsesObserved, true);
     assert.equal(hermes.providerWireCertified, false);
     const audit = await jsonl(join(directory, 'state', 'gateway-policy-audit.jsonl'));
     const physical = audit.filter((entry) => entry.component === 'gateway-physical-send');
@@ -134,8 +136,6 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
       assert.match(binding[key], /^[a-f0-9]{64}$/u);
     }
     const providerEvents = await jsonl(providerTracePath);
-    assert.ok(providerEvents.some((event) => event.provider === 'codebase_memory'
-      && event.operation === 'search_graph' && event.status === 'success'));
     assert.ok(!providerEvents.some((event) => ['qdrant', 'embedding', 'sparse_embedding', 'reranker', 'lsp'].includes(event.provider)));
     await stopRealProviderProcess(core, { termTimeoutMs: 10000 });
     assert.equal(core.exitCode, 0, 'Core must close its trace successfully');
@@ -157,6 +157,15 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
     assert.equal(projection.baseBodySha256, hermes.ingressBodySha256, 'actual SDK ingress must match signed projection input');
     assert.equal(projection.receiptSha256, binding.projectionReceiptSha256);
     assert.equal(projection.projectedBodySha256, binding.preparedBodySha256);
+    // This pinned native route forwards the prepared bytes without rewriting.
+    // A denied destination alone does not establish final-body preservation.
+    assert.equal(binding.bodySha256, binding.preparedBodySha256, 'physical attempt must bind the exact prepared bytes');
+    assert.notEqual(projection.baseBodySha256, projection.projectedBodySha256, 'nonempty retrieval must change the prepared body');
+    assert.ok(providerEvents.some((event) => event.provider === 'codebase_memory'
+      && event.providerVersion === 'codebase-memory-mcp/0.12.1'
+      && event.requestId === projection.providerRequestId
+      && event.operation === 'search_graph' && event.status === 'success'),
+    'the same retrieval request must execute the pinned native CBM search');
     assert.ok(projection.selectedEvidenceIds.length > 0);
     const events = await jsonl(tracePath);
     assert.equal(events.length, retrievalBenchmarkStages.length);
