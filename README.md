@@ -87,7 +87,7 @@ Published CBM results illustrate the opportunity:
 
 | Result | Workload and source |
 | --- | --- |
-| **~120× lower token volume** | Five structural queries: approximately 3,400 vs 412,000 tokens in the project's [published benchmark](https://github.com/DeusData/codebase-memory-mcp/blob/main/docs/BENCHMARK.md). |
+| **99.2% fewer tokens (~121:1)** | Five structural queries: approximately 3,400 vs 412,000 tokens for CBM versus file-by-file grep exploration, as reported in the [historical upstream README, line 311](https://github.com/DeusData/codebase-memory-mcp/blob/4ff6feeab639c4668da0f491930326ed5ec63093/README.md#L311). The original inputs and raw artifacts are required for exact reproduction. |
 | **10× lower token use; 2.1× fewer tool calls** | [Codebase-Memory research preprint](https://arxiv.org/abs/2603.27277), across 31 repositories. Answer quality was 83% for graph exploration vs 92% for file exploration, highlighting the need for source verification and sufficient original context. |
 | **~22× lower retrieval token volume** | [Independent analysis by Emre Cavunt](https://emrecavunt.com/blog/codebase-memory-mcp%2Dtoken-economy): 3,004 vs 67,428 tokenizer-counted response tokens for a call-chain and source question on Google's ADK repository, compared with a focused grep/file-reading strategy. |
 
