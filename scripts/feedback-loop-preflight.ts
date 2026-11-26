@@ -30,6 +30,7 @@ import {
 } from '../src/domain/feedback-loop-experiment.js';
 import { verifyCompiledRuntimeProvenance } from '../src/application/runtime-provenance.js';
 import { verifyAceRuntimeBundle } from '../src/application/ace-runtime-bundle.js';
+import { validateHermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
 
 type CheckStatus = 'ready' | 'not_ready' | 'unknown' | 'not_required';
 
@@ -88,7 +89,7 @@ const nativeTaskProjection = (
     const result = spawnSync(process.execPath, [
       resolve('scripts/ace-container-runtime-smoke.mjs'),
       '--image', `${image.reference}@${image.digest}`,
-      '--bundle', bundlePath,
+      '--bundle', bundlePath, '--bundle-sha256', expectedBundleDigest,
     ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 270_000 });
     if (result.error !== undefined || result.status !== 0) {
       return { status: 'not_ready', reason: 'native task-image zero-egress projection failed or timed out' };
@@ -277,14 +278,33 @@ const compiledRuntime = async (): Promise<PreflightCheck> => {
     };
 };
 
-const agentRuntimeDigestCheck = async (
+const agentRuntimeDigestCheck = (
   experiment: FeedbackExperimentManifest | undefined,
-): Promise<PreflightCheck> => {
-  void experiment;
-  return {
-    status: 'not_ready',
-    reason: 'Legacy Hermes native ACE injection is retired; Gateway final-send evidence must be collected independently',
-  };
+  bundlePath: string | undefined,
+  sourceCommit: string,
+  images: readonly { readonly reference: string; readonly digest: string }[] | undefined,
+  prerequisites: readonly PreflightCheck[],
+): PreflightCheck => {
+  if (experiment?.bifrostEndpointSha256 === undefined || experiment.aceRuntimeBundleSha256 === undefined
+    || bundlePath === undefined || !images?.length || prerequisites.some((check) => check.status !== 'ready')) {
+    return { status: 'not_ready', reason: 'Hermes runtime probe requires frozen source, image, bundle and endpoint identities' };
+  }
+  for (const image of images) {
+    const result = spawnSync(process.execPath, [resolve('scripts/ace-container-runtime-smoke.mjs'),
+      '--image', `${image.reference}@${image.digest}`,
+      '--bundle', bundlePath, '--bundle-sha256', experiment.aceRuntimeBundleSha256,
+      '--hermes-endpoint-sha256', experiment.bifrostEndpointSha256, '--hermes-model', experiment.model,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 150_000 });
+    if (result.error !== undefined || result.status !== 0
+      || !validateHermesTaskRuntimeReceipt(result.stdout, {
+        sourceCommit, bundleSha256: experiment.aceRuntimeBundleSha256, reference: image.reference, digest: image.digest,
+        endpointSha256: experiment.bifrostEndpointSha256, modelSha256: sha256(experiment.model),
+      })) {
+      return { status: 'not_ready', reason: 'pinned task image lacks verified installed Hermes native Responses runtime or endpoint parity' };
+    }
+  }
+  return { status: 'ready', reason: 'actual pinned Hermes runtime and native SDK route observed in every task image without egress; Gateway final-send evidence must be collected independently',
+    identity: experiment.aceRuntimeBundleSha256 };
 };
 
 const harborJobIdentity = async (
@@ -452,7 +472,6 @@ const main = async (): Promise<void> => {
     harborJobs: harborJobs.check,
     taskVerifier: await taskVerifier(args.nativeJobPath),
     harborImageDigest: dockerImages(effectiveImageDigest, manifestTaskImages),
-    agentRuntimeDigest: await agentRuntimeDigestCheck(experimentManifest),
     aceRuntimeBundle: await aceRuntimeBundle(args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256),
     taskRuntimeProbe: taskRuntimeProbe(args.aceRuntimeBundlePath, manifestTaskImages),
   };
@@ -495,6 +514,10 @@ const main = async (): Promise<void> => {
   checks.nativeTaskProjection = nativeTaskProjection(
     args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256, currentSourceCommit, probeImages,
     [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding],
+  );
+  checks.agentRuntimeDigest = agentRuntimeDigestCheck(
+    experimentManifest, args.aceRuntimeBundlePath, currentSourceCommit, probeImages,
+    [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding, checks.bifrostEndpoint],
   );
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',

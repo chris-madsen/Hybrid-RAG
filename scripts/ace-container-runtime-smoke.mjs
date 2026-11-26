@@ -5,16 +5,22 @@ import { readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const usage = () => process.stdout.write('Usage: node scripts/ace-container-runtime-smoke.mjs --image <image>@sha256:<64hex> --bundle <bundle-dir>\n');
+const usage = () => process.stdout.write('Usage: node scripts/ace-container-runtime-smoke.mjs --image <image>@sha256:<64hex> --bundle <bundle-dir> [--bundle-sha256 <sha256>] [--hermes-endpoint-sha256 <sha256> --hermes-model <model>]\n');
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) { usage(); process.exit(0); }
 let image;
 let bundle;
+let expectedBundleSha256;
+let hermesEndpointSha256;
+let hermesModel;
 while (args.length > 0) {
   const name = args.shift();
   const value = args.shift();
   if (name === '--image') image = value;
   else if (name === '--bundle') bundle = value;
+  else if (name === '--bundle-sha256') expectedBundleSha256 = value;
+  else if (name === '--hermes-endpoint-sha256') hermesEndpointSha256 = value;
+  else if (name === '--hermes-model') hermesModel = value;
   else throw new Error('Usage error: unknown argument');
 }
 const match = /^(.+)@(sha256:[a-f0-9]{64})$/u.exec(image ?? '');
@@ -28,7 +34,10 @@ const containerName = 'ace-native-task-smoke-' + randomUUID();
 try {
   const manifest = JSON.parse(await readFile(join(bundleRoot, 'runtime-manifest.json'), 'utf8'));
   const { verifyAceRuntimeBundle } = await import(pathToFileURL(join(root, 'dist/application/ace-runtime-bundle.js')).href);
-  const verified = await verifyAceRuntimeBundle(bundleRoot, manifest.bundleSha256);
+  if (expectedBundleSha256 !== undefined && (!/^[a-f0-9]{64}$/u.test(expectedBundleSha256) || manifest.bundleSha256 !== expectedBundleSha256)) {
+    throw new Error('bundle does not match externally pinned digest');
+  }
+  const verified = await verifyAceRuntimeBundle(bundleRoot, expectedBundleSha256 ?? manifest.bundleSha256);
   if (verified.status !== 'ready') throw new Error(verified.reason);
   if (!manifest.taskImages.some((entry) => entry.reference === match[1] && entry.digest === match[2])) throw new Error('task image is not bound to the native bundle');
   const sourceCommit = run('git', ['-C', root, 'rev-parse', 'HEAD']).trim();
@@ -44,6 +53,22 @@ try {
     pinned = run('docker', ['image', 'inspect', '--format', '{{.Id}}', image]).trim();
   }
   if (!/^sha256:[a-f0-9]{64}$/u.test(pinned)) throw new Error('local pinned image identity unavailable');
+  if (hermesEndpointSha256 !== undefined || hermesModel !== undefined) {
+    if (!/^[a-f0-9]{64}$/u.test(hermesEndpointSha256 ?? '') || !hermesModel || !process.env.HERMES_CODEX_BASE_URL) {
+      throw new Error('Hermes task probe requires model and pinned endpoint');
+    }
+    // Do not expose the source checkout, bundle or credentials to the agent
+    // probe. Only its immutable source script is needed in this container.
+    const observed = run('docker', ['run', '--rm', '--name', containerName, '--init', '--network', 'none', '--pull=never',
+      '-v', `${root}/scripts/hermes-task-runtime-probe.py:/ace-probe.py:ro`,
+      '-e', 'HERMES_CODEX_BASE_URL', '--entrypoint', 'python3', pinned,
+      '/ace-probe.py', hermesEndpointSha256, hermesModel], 120_000);
+    const receipt = JSON.parse(observed.trim().split(/\r?\n/u).at(-1) ?? '');
+    if (receipt.status !== 'READY' || receipt.providerWireCertified !== false) throw new Error('Hermes local runtime probe did not pass');
+    process.stdout.write(JSON.stringify({ ...receipt, sourceCommit, bundleSha256: manifest.bundleSha256,
+      imageReference: match[1], imageDigest: match[2], localImageId: pinned }) + '\n');
+    process.exit(0);
+  }
   // Reuse real compiled RPC acceptance, not a second health-only preflight.
   // No model/provider wire, credentials or network.
   const observed = run('docker', ['run', '--rm', '--name', containerName, '--init', '--network', 'none', '--pull=never',
