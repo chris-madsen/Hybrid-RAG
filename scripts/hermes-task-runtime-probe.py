@@ -40,13 +40,24 @@ def run_transport(root, endpoint_digest, model, effort):
     sys.path.insert(0, str(root))
     from agent.transports.codex import ResponsesApiTransport
     from hermes_cli.auth_codex import _codex_base_url
+    from hermes_cli.runtime_provider import _pool_entry_mode_and_url
     import httpx
     import openai
 
     check(Path(sys.modules[ResponsesApiTransport.__module__].__file__).resolve()
           == root / "agent/transports/codex.py", "HERMES_TRANSPORT_ORIGIN_MISMATCH")
+    check(Path(sys.modules[_pool_entry_mode_and_url.__module__].__file__).resolve()
+          == root / "hermes_cli/runtime_provider.py", "HERMES_POOL_ROUTE_ORIGIN_MISMATCH")
+    check(Path(sys.modules[_codex_base_url.__module__].__file__).resolve()
+          == root / "hermes_cli/auth_codex.py", "HERMES_AUTH_ROUTE_ORIGIN_MISMATCH")
     check(openai.__version__ == SDK_VERSION, "HERMES_SDK_VERSION_MISMATCH")
     endpoint = _codex_base_url()
+    # Actual Hermes credential-pool routing must honor the same override.
+    # The canonical credential endpoint is a public constant, not a credential.
+    api_mode, pooled_endpoint = _pool_entry_mode_and_url(
+        "openai-codex", None, {}, model, "https://chatgpt.com/backend-api/codex")
+    check(api_mode == "codex_responses" and pooled_endpoint == endpoint,
+          "HERMES_POOL_ROUTE_MISMATCH")
     check(sha(endpoint.encode()) == endpoint_digest, "HERMES_ENDPOINT_DIGEST_MISMATCH")
     from urllib.parse import urlsplit
     parsed = urlsplit(endpoint)
