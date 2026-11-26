@@ -1,47 +1,103 @@
 # Adaptive Context Engine (ACE)
 
-**Open-source context engineering infrastructure for AI coding agents.**
+**Give AI coding agents the right context, not more context.**
 
-ACE combines hybrid retrieval, code intelligence and source verification to supply relevant, compact evidence directly to native LLM requests. It is designed to improve coding-agent task quality and token efficiency while preserving agent autonomy, exact source access and data privacy.
+ACE is open-source, agent-agnostic context engineering infrastructure for AI coding agents. It brings together structural code intelligence, project documentation and persistent project memory in a hybrid retrieval architecture, with context delivered at the LLM gateway rather than through a separate integration for every agent.
 
-Unlike a standalone vector search or an agent-specific retrieval plugin, ACE integrates at the LLM gateway boundary. Coding agents retain their own reasoning and tool workflows while the context engine handles evidence retrieval, verification and delivery.
+Coding agents are good at reasoning about code, but finding the right code can be expensive. They repeatedly search files, rediscover dependencies, read documentation and reconstruct decisions from previous sessions. ACE is designed to turn that exploration into focused, source-verified evidence, leaving more of the context window for solving the actual task.
 
-**TypeScript · Effect · Go · Python · Codebase Memory · LSP · TypeSpec · Docker/k3s**
+- **Understand unfamiliar code faster:** find relevant functions, callers, dependencies and implementation paths instead of reading files one by one.
+- **Spend fewer tokens on discovery:** deliver compact, relevant evidence and preserve access to complete authorized originals.
+- **Ground changes in project requirements:** retrieve relevant specifications, architecture decisions and technical documentation alongside code.
+- **Carry knowledge across tasks:** the temporal-memory design lets agents recover earlier decisions, rejected approaches and the reasons behind them.
+- **Keep your preferred agent:** context delivery happens through the LLM gateway; the agent retains its own tools, reasoning and workflow.
 
-## Key capabilities
+[How it works](#how-it-works) · [Agent compatibility](#agent-compatibility) · [Three layers of context](#three-layers-of-context) · [Token efficiency](#token-efficiency) · [Get started](#local-development)
 
-- **Hybrid code intelligence:** native CBM AST, dependency graph, semantic and BM25 retrieval; ACE verifies original source. CBM is the only code retrieval engine; independent LSP research is deferred.
-- **Source-grounded context:** exact current-file verification, SHA-256 digests, UTF-8 source spans, workspace reconciliation and lossless access to authorized originals.
-- **Agent-neutral integration:** additive context projection into native Responses requests through a Bifröst plugin, with signed receipts and per-attempt source/data-policy authorization.
-- **Privacy-aware data architecture:** local code indexing and immutable archival storage, explicit authorization for external document retrieval and model egress.
-- **Evidence-driven engineering:** typed contracts, functional domain modeling, automated architecture/security checks, reproducible builds and independent retrieval/agent benchmark methodology.
+## How it works
 
-[Architecture](#architecture) · [Retrieval and memory](#retrieval-and-memory) · [Development roadmap](#development-roadmap) · [Local development](#local-development) · [Verification](#verification-and-release)
+```mermaid
+flowchart LR
+    A["AI coding agent"] --> G["Bifröst LLM Gateway"]
+    G <-->|"Context RPC"| E["ACE Core"]
+    E --> C["Codebase Memory<br/>Code intelligence"]
+    E --> D["Vertex AI RAG<br/>Authorized documents"]
+    E -.-> M["Graphiti + FalkorDB<br/>Temporal memory (target)"]
+    G -->|"Authorized native request"| L["LLM provider"]
+```
+
+The gateway receives the agent's request. ACE identifies relevant evidence, checks source identity and access policy, and prepares context for the same model request. Bifröst delivers that request only after an independent physical-send authorization. The model can continue using its ordinary tools to investigate, edit files and run tests.
+
+This is **not another coding agent**, an agent scheduler, or a tool server that the model must remember to call. Retrieval is controlled by the application at the gateway boundary. The core is independent of the agent's UI, planning strategy and tool loop.
+
+## Agent compatibility
+
+ACE is designed around **one context engine, many agent harnesses**. A gateway integration can serve multiple clients that use the same supported wire protocol; adding a client should not require another RAG engine, code index or memory store.
+
+| Agent / harness | Integration direction |
+| --- | --- |
+| Hermes | Current reference integration: native ChatGPT/Codex Responses with Hermes-owned subscription OAuth. |
+| OpenAI Codex | Natural candidate for a compatible native Responses endpoint; separate client verification required. |
+| Aider | Candidate via a configurable LLM endpoint and a supported request protocol. |
+| OpenCode | Candidate via custom provider configuration and a supported request protocol. |
+| Claude Code | Candidate via an Anthropic-compatible gateway endpoint; native Messages context delivery would require additional support. |
+| Google Antigravity | Potential integration if the client exposes a supported gateway route; endpoint configurability and protocol compatibility must be established. |
+
+Bifröst supports a wider provider ecosystem than the current ACE integration. ACE's active generation contract is **provider-native Responses only**. Additional native protocols, such as Anthropic Messages, Chat Completions or Gemini, require approved architecture changes and protocol-specific lossless delivery and security tests. No translation or fallback is implied, and the list is a compatibility direction, not a claim of completed end-to-end support.
+
+## Three layers of context
+
+### 1. Code intelligence — understand relationships, not just text
+
+[Codebase Memory](https://github.com/DeusData/codebase-memory-mcp) builds a persistent local knowledge graph from source code using Tree-sitter. Its structural, semantic and lexical discovery can identify relevant symbols, follow call chains, explore dependencies and help assess the impact of changes.
+
+**Example:** ask an agent to change the connection retry policy without affecting payment retries. Instead of guessing filenames or reading every networking module, graph discovery can identify the retry implementation, its callers and adjacent dependencies. ACE can deliver selected source-verified snippets to the model, while the agent can still inspect complete files and run tests.
+
+ACE uses CBM as its sole code retrieval engine, including native semantic search and SQLite FTS5/BM25. It checks the selected evidence against the current working tree, verifies exact UTF-8 source ranges and SHA-256 digests, and rejects stale or unauthorized evidence. Graph relationships are discovery hints, not substitutes for the actual source.
+
+### 2. Project documentation — know what the software is supposed to do
+
+[Google Cloud Vertex AI RAG Engine](https://developers.googleblog.com/vertex-ai-rag-engine-a-developers-tool/) provides managed document ingestion, chunking, indexing and relevance-based retrieval. An authorized corpus can contain product requirements, architecture documents, API specifications, operational runbooks and internal engineering guides.
+
+**Example:** an agent implementing a new payment operation needs to understand not only existing code, but also the documented idempotency contract, retry limits and security requirements. Relevant document passages can be retrieved from the configured corpus and supplied alongside code evidence, so the model can reason about both the implementation and its intended behavior.
+
+ACE's documentation adapter retrieves from an explicitly configured corpus; document ingestion and corpus management use Vertex's supported facilities. Cloud document retrieval is opt-in and scoped to authorized project documents. It does not authorize uploading private source code, credentials or conversations.
+
+### 3. Persistent project memory — remember why decisions were made
+
+[Graphiti](https://github.com/getzep/graphiti) is a temporal knowledge-graph engine that represents evolving facts and their relationships over time. It can combine information from past conversations and structured records, retain historical relationships and distinguish newer facts from superseded ones. The [Zep research paper](https://arxiv.org/abs/2501.13956) explains the underlying approach. ACE's target uses Graphiti with FalkorDB and a local-first memory policy, backed by immutable original records.
+
+**Example:** a team once evaluated automatic payment retries but rejected them because the provider lacked idempotency guarantees. Months later, an agent proposes the same approach while planning another task. With persistent temporal recall, the agent could respond:
+
+> We already considered this approach. It was rejected because retrying an ambiguous payment response could create duplicate charges. The previous decision requires an idempotency guarantee before revisiting it.
+
+If the provider subsequently adds that guarantee, the memory should preserve the original rationale while allowing the newer evidence to change the decision. Historical records are not automatically current requirements.
+
+The same design can retain architectural decisions and alternatives, lessons from failed implementations, previous investigations and evolving project constraints across tasks, sessions and compatible agents.
+
+**Implementation scope:** ACE has an independent immutable archive; gateway-native Graphiti retrieval is a planned integration, not an enabled runtime feature. See the [readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md).
+
+## Token efficiency
+
+**Less exploration. More room for reasoning.**
+
+Codebase intelligence changes the economics of agentic development: a dependency query can return a focused set of symbols and relationships instead of flooding the model with entire files. Relevant documentation and historical decisions can also reduce repeated investigation when those sources are available.
+
+Published CBM results illustrate the opportunity:
+
+| Result | Workload and source |
+| --- | --- |
+| **~120× lower token volume** | Five structural queries: approximately 3,400 vs 412,000 tokens in the project's [published benchmark](https://github.com/DeusData/codebase-memory-mcp/blob/main/docs/BENCHMARK.md). |
+| **10× lower token use; 2.1× fewer tool calls** | [Codebase-Memory research preprint](https://arxiv.org/abs/2603.27277), across 31 repositories. Answer quality was 83% for graph exploration vs 92% for file exploration, highlighting the need for source verification and sufficient original context. |
+| **~22× lower retrieval token volume** | [Independent analysis by Emre Cavunt](https://emrecavunt.com/blog/codebase-memory-mcp-token-economy): a call-chain and source question on Google's ADK repository, compared with a focused grep/file-reading strategy. |
+
+These are component-level exploration results, not ACE-wide task savings. The size of the benefit depends on the task, baseline, context selection and model. ACE combines structural discovery with exact source evidence rather than assuming a graph alone answers every question.
+
+ACE targets a **5× reduction in total model tokens per accepted coding task**, with correctness as the first constraint. The [evaluation protocol](https://github.com/chris-madsen/Hybrid-RAG/issues/171) compares matched agent runs, includes retries and failed attempts, and measures actual provider usage and independently verified outcomes.
 
 ## Architecture
 
-The [Architecture Description](docs/architecture/README.md) organizes ACE's stakeholder concerns, architecture views, decisions and traceability around ISO/IEC/IEEE 42010:2022. It separates the implemented system from target capabilities and acceptance evidence; the [clause-by-clause assessment](docs/architecture/conformance.md) records the review scope and limitations.
-
-
-```text
-Hermes (own ChatGPT/Codex subscription OAuth)
-  | native Responses
-  v
-Bifröst — sole agent-facing LLM Gateway
-  | POST /chatgpt_passthrough/backend-api/codex/responses
-  | post-auth Go ACE plugin
-  +---- authenticated loopback context RPC ----> ACE Core (TypeScript + Effect)
-  |                                              | code: native CBM
-  |                                              | docs: authorized Vertex AI RAG
-  |                                              | memory: archive; Graphiti target
-  |                                              v
-  |<--- verified additive context + signed receipt
-  |
-  | per-physical-send source/data-policy authorization
-  v
-ChatGPT/Codex native Responses provider
-  (Bifröst owns bearer forwarding, retries, streaming and response accounting)
-```
+The [Architecture Description](docs/architecture/README.md) contains the ISO/IEC/IEEE 42010:2022-aligned views, decisions and traceability. The [current runtime architecture](docs/operations/current-architecture.md) distinguishes implemented components from target capabilities.
 
 ACE is neither an agent scheduler nor a second model proxy. Hermes owns its subscription OAuth; Bifröst forwards the bearer on its existing native subscription route. ACE never authenticates to ChatGPT on the agent's behalf, chooses billing credentials, generates model responses, or exposes retrieval tools for discretionary model invocation. No API-key or legacy Chat/Completions fallback is permitted for the subscription path.
 
@@ -58,48 +114,15 @@ The Go plugin applies context to the **same** native Responses request. Projecti
 
 See [ADR-021: single Bifröst Gateway](docs/references/ADR-021-bifrost-single-gateway-ace-context-service.md), [ADR-020: native Responses](docs/references/ADR-020-native-responses-only.md), [current architecture](docs/operations/current-architecture.md) and the [Go connector](integrations/bifrost/ace-connector/README.md).
 
-## Retrieval and memory
+### Source fidelity and privacy
 
-| Component | Role | Current boundary |
-| --- | --- | --- |
-| Codebase Memory (CBM) v0.12.1 | Native AST, code graph, semantic and SQLite FTS5/BM25 discovery | Active structural/graph engine; persistent application-owned stdio RPC; retrieval tools remain internal and are never exposed to the agent |
-| External LSP | Independent symbol/definition verification | Independent exact-symbol contracts and implementation retained for research (#364); not requested by native code-only RPC |
-| Vertex AI RAG | Authorized project documentation | Explicit cloud opt-in and corpus/IAM configuration; not a private-code destination |
-| Local immutable archive | Content-addressed originals, replay, tombstones and lifecycle/reconciliation | Implemented separately; archive availability is not live temporal recall |
-| Graphiti / FalkorDB | Target for temporal/project memory | NOT_READY: no active context RPC memory provider; enabling the retired adapter fails startup |
+Current verified source takes precedence over stale index entries, documentation and derived memory. ACE verifies workspace membership, original bytes and source ranges; required-source coverage and uncertainty determine completeness. Large authorized originals remain accessible without silently truncating them. Provider outages and denied requests are explicit failures, not successful empty results.
 
-Native CBM is the sole code retrieval owner (#363). It supplies structural, graph, semantic and lexical discovery; ACE verifies the current original bytes, authorization, and coverage. The former separate vector index, embedding workers, and reranker are retired in the native cutover. Independent external LSP is retained for research (#364). Vertex and temporal memory remain separate. The development-only ast-grep CLI enforces architectural fitness, not runtime parsing. Final acceptance of the cutover requires absolute quality, scale and safety evidence.
+Code indexing is local by default. External retrieval and model-bound transmission require separate data-class and destination authorization. The gateway checks each protected physical attempt, including retries, rather than treating a prepared projection as permission to send.
 
-ACE validates workspace identity and path containment, reconciles tracked, untracked and removed files, rereads original source bytes and verifies SHA-256 and UTF-8 ranges. Current verified source outranks stale index payloads, documentation and derived memory. Required-source coverage, freshness and uncertainty determine completeness. Large originals remain losslessly accessible under authorization; partial results, failed providers and unknown usage are reported explicitly. Private source and conversations remain local by default; each external provider and data class requires separate authorization.
+## Project status
 
-See [CBM provider](docs/operations/codebase-memory-provider.md), [configuration/readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md) and [ADR-014: hybrid context engine](docs/references/ADR-014-hybrid-context-engine.md).
-
-## Development roadmap
-
-ACE has implemented the core context engine, native Responses projection, local hybrid retrieval and source-policy contracts. Development is focused on end-to-end acceptance, native CBM retirement acceptance, temporal memory integration and independently measured agent economics. Production release remains evidence-gated.
-
-The target is a 5× reduction in total tokens per accepted task, measured against a matched agent baseline with independent correctness checks. This is an evaluation target, not a measured achievement.
-
-The following snapshot summarizes active work; OpenSpec remains the canonical acceptance tracker.
-
-| Workstream | Status as of 2026-11-24 |
-| --- | --- |
-| Single Bifröst context integration | TypeSpec context RPC v3, native Bifröst hooks and exact-request policy; see [integration change #328](https://github.com/chris-madsen/Hybrid-RAG/pull/328). |
-| C01–C02 native contracts and lossless projection | Implemented and accepted at their documented local contract scope. |
-| C03–C07 physical-send guard, route, streaming, Hermes loop | Implementation in place; live subscriber final-wire, streaming/cancellation and long agent-loop acceptance are the next milestones. |
-| C08 Harbor task quality and economics | Independent paired trials and release decision remain open; no certified 5× improvement. |
-| AR01–AR10 reliability | Source coverage, publication authority, archive durability, ranking/trace integrity, worker lifecycle and Harbor usage binding. Acceptance tracked per phase. |
-| Retrieval architecture evaluation | Native CBM cutover: verify absolute quality/scale and topology, validate the retired-vector-free composition; independent LSP research deferred. No production certificate. |
-| Full unified memory | Blocked by the missing active Graphiti context provider; do not infer temporal recall from archive tests. |
-
-**Recent evidence and remediation (21 November 2026):**
-
-- [PR #321](https://github.com/chris-madsen/Hybrid-RAG/pull/321) replaced repeated CBM CLI startup with a persistent local process.
-- [PR #322](https://github.com/chris-madsen/Hybrid-RAG/pull/322) repaired typed readiness diagnostics, pinned Bifröst server/UI build and Harbor Hermes OAuth routing. The pinned server build passed on its recorded source SHA; actual deployment and subscriber traffic were not tested by that build.
-- [PR #325](https://github.com/chris-madsen/Hybrid-RAG/pull/325) addressed timed-out embedding workers and late-result isolation. [PR #326](https://github.com/chris-madsen/Hybrid-RAG/pull/326) tightened Harbor task/provider/attempt usage correlation and failure accounting.
-- [PR #327](https://github.com/chris-madsen/Hybrid-RAG/pull/327) fixed source-span mismatches caused by trimming provider content. The documented local rerun returned `PREPARED` on synthetic and Git-backed fixtures; the latter took 16.56 s with one CBM process start. The deliberate Qdrant outage returned `BLOCK / NOT_READY`. These mock-policy local runs did not start Bifröst or contact a model.
-
-The [Hermes E2E recovery runbook](docs/operations/2026-11-21-hermes-e2e-repair-runbook.md) records commands, exact evidence identities, limitations and the ordered live acceptance procedure. The canonical active acceptance trackers are [OpenSpec 013 (C01–C08)](openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014 (AR01–AR10)](openspec/changes/014-ace-audit-reliability-remediation/tasks.md). Historical plans and benchmarks are not an alternate implementation queue.
+ACE is under active development. Native code retrieval, the internal context RPC, source verification and gateway policy contracts are implemented. The current reference path is Hermes through Bifröst; live agent acceptance, independent retrieval and token-economics evaluation, and gateway-native temporal memory have separate acceptance gates. See the [readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md), [OpenSpec gateway acceptance](openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [reliability acceptance](openspec/changes/014-ace-audit-reliability-remediation/tasks.md) for the authoritative status instead of a dated changelog here.
 
 ## Local development
 
@@ -163,7 +186,7 @@ Build from a clean Git checkout. The Make target compiles ACE before building th
 
 Evaluate retrieval independently with upstream Agent Retrieval Bench, ContextBench and CodeGraph Bench; evaluate end-to-end agent behavior and economics with Harbor using matched frozen tasks, model/effort, tools and source budgets. Count retries, failed attempts and total usage; unknown telemetry is not zero. Require independent task correctness before drawing accepted-task token conclusions. Use the [testing strategy](docs/operations/testing-strategy.md) and [current Harbor acceptance specification](openspec/changes/013-gateway-g11-production-acceptance/phases/C08.md).
 
-Previously retired transport-specific E2E runners do not count as current acceptance; equivalent real context-path restart, multi-writer, interrupted-publish, scale and holdout evidence must be re-established where required. A green build, mock wire test, local `PREPARED`, or historical benchmark cannot certify live model delivery. No environment flag grants production readiness.
+See the [acceptance runbook](docs/operations/2026-11-21-hermes-e2e-repair-runbook.md) for real task and provider verification. Local preparation and deterministic checks are distinct from live acceptance.
 
 ## AI-assisted SDLC and contribution
 
