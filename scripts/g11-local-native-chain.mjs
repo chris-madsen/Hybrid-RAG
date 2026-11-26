@@ -12,6 +12,29 @@ import { assertLoopbackOnlyNetworkNamespace } from './network-namespace-evidence
 const exec = promisify(execFile);
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const jsonl = async (path) => (await readFile(path, 'utf8')).trim().split('\n').map(JSON.parse);
+const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+export const safeCode = (value) => typeof value === 'string' && /^[A-Z][A-Z0-9_]{3,100}$/u.test(value) ? value : undefined;
+
+export async function failureEvidence(directory, tracePath, providerTracePath) {
+  const [audit, trace, providerTrace, receipt] = await Promise.all([
+    jsonl(join(directory, 'state', 'gateway-policy-audit.jsonl')).catch(() => []),
+    jsonl(tracePath).catch(() => []),
+    jsonl(providerTracePath).catch(() => []),
+    readFile(tracePath + '.receipt.json', 'utf8').then(JSON.parse).catch(() => undefined),
+  ]);
+  const physical = audit.filter((entry) => isRecord(entry) && entry.component === 'gateway-physical-send');
+  const memory = providerTrace.filter((entry) => isRecord(entry) && entry.provider === 'codebase_memory');
+  return {
+    physicalAttemptCount: physical.length,
+    physicalOutcomes: [...new Set(physical.map((entry) => entry.outcome).filter((value) => value === 'allowed' || value === 'denied'))],
+    physicalReasonCodes: [...new Set(physical.map((entry) => safeCode(entry.reasonCode)).filter(Boolean))],
+    projectionCount: Array.isArray(receipt?.projections) ? receipt.projections.length : 0,
+    traceFlushStatus: receipt?.flushStatus === 'ok' ? 'ok' : 'not_ok_or_missing',
+    traceCloseStatus: receipt?.closeStatus === 'ok' ? 'ok' : 'not_ok_or_missing',
+    deliveredEventCount: trace.filter((entry) => isRecord(entry) && entry.stage === 'delivered').length,
+    nativeMemoryOperationCount: memory.filter((entry) => entry.status === 'success').length,
+  };
+}
 
 export async function runLocalNativeChain({ directory, endpoint, workspaceId, model, port, runtime,
   tracePath, providerTracePath, core, stopRealProviderProcess }) {
@@ -66,12 +89,24 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
       await new Promise((r) => setTimeout(r, 100));
     }
     assert.ok(ready, 'Bifröst did not start: ' + logs);
-    const { stdout } = await exec('python', [join(import.meta.dirname, 'hermes-task-runtime-probe.py'),
-      sha(base), model, 'high'], {
-      env: { PATH: process.env.PATH, HOME: process.env.HOME, HERMES_CODEX_BASE_URL: base,
-        ACE_HERMES_LOCAL_CHAIN: 'true' },
-      timeout: 90000,
-    });
+    let stdout;
+    try {
+      ({ stdout } = await exec('python', [join(import.meta.dirname, 'hermes-task-runtime-probe.py'),
+        sha(base), model, 'high'], {
+        env: { PATH: process.env.PATH, HOME: process.env.HOME, HERMES_CODEX_BASE_URL: base,
+          ACE_HERMES_LOCAL_CHAIN: 'true' },
+        timeout: 90000,
+      }));
+    } catch (error) {
+      let probeReasonCode;
+      if (typeof error?.stdout === 'string') {
+        try {
+          probeReasonCode = safeCode(JSON.parse(error.stdout.trim().split('\n').at(-1)).reasonCode);
+        } catch { /* keep the diagnostic category generic */ }
+      }
+      const evidence = await failureEvidence(directory, tracePath, providerTracePath);
+      throw new Error(`Hermes probe failed (${probeReasonCode ?? 'HERMES_RUNTIME_PROBE_FAILED'}); chainEvidence=${JSON.stringify(evidence)}`);
+    }
     const hermes = JSON.parse(stdout.trim().split('\n').at(-1));
     assert.equal(hermes.status, 'READY');
     assert.equal(hermes.localChainObserved, true);
