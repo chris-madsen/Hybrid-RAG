@@ -29,7 +29,9 @@ try {
     for (let i = 0; i < 12; i++) cases.push({
       id: id + '-' + i, repositoryId: id, critical: i < 2, kind: kinds[i % kinds.length],
       query: 'Find retryAfterTransientFailure and its definition in service.ts.',
-      relevantSpans: [{ repoPath: 'service.ts', startLine: 1, endLine: 3, startColumn: 1, endColumn: 2 }],
+      // CBM line outlines are materialized as full verified lines, including the
+      // terminating newline. The exclusive end is therefore line 4, column 1.
+      relevantSpans: [{ repoPath: 'service.ts', startLine: 1, endLine: 4, startColumn: 1, endColumn: 1 }],
     });
   }
   const spec = join(root, 'spec.json');
@@ -72,7 +74,14 @@ try {
   run('merge-retrieval-runs.ts', [holdout, merged, ...runs]);
   const mergedPath = join(merged, 'native_cbm.json');
   const verdictPath = join(root, 'fixture-verdict.json');
-  run('retrieval-quality-gate.ts', [holdout, mergedPath, policy, verdictPath]);
+  try {
+    run('retrieval-quality-gate.ts', [holdout, mergedPath, policy, verdictPath]);
+  } catch (error) {
+    // Only disposable synthetic evidence: expose the failed assertion, not real holdout data.
+    const failure = JSON.parse(await readFile(verdictPath, 'utf8')).verdict;
+    console.error(JSON.stringify({ failures: failure.failures, metrics: failure.metrics }));
+    throw error;
+  }
   const verdict = JSON.parse(await readFile(verdictPath, 'utf8')).verdict;
   assert.equal(verdict.measurementAccepted, true);
   assert.equal(verdict.metrics.cases, 24);
