@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { canonicalBenchmarkCandidateId, type BenchmarkCandidateRange } from '../src/domain/retrieval-benchmark.js';
 import { exactUtf8SourceSpan } from '../src/domain/utf8-range.js';
 import { ingestRepoPath } from '../src/domain/workspace.js';
 import { writeFrozenArtifactPair } from './write-frozen-artifact-pair.js';
+import { assertNativeReleaseHoldout } from './native-projection-evidence.js';
 import type {
   RetrievalHoldout,
   RetrievalHoldoutCase,
@@ -50,14 +51,19 @@ if (sourceArg === undefined || holdoutArg === undefined || manifestDirectoryArg 
   throw new Error('Usage: tsx scripts/freeze-retrieval-holdout.ts <source-spec.json> <holdout.json> <manifest-dir> <repository-id>=<checkout-root> [...]');
 }
 
-const aceRepositoryRoot = resolve(process.cwd());
-const isInsideAceRepository = (path: string): boolean => {
-  const relativePath = relative(aceRepositoryRoot, resolve(path));
-  return relativePath === '' || (!isAbsolute(relativePath) && !relativePath.startsWith(`..${sep}`) && relativePath !== '..');
+// Resolve symlinked parents even when the final evidence path does not exist.
+const canonicalTarget = async (path: string): Promise<string> => {
+  const target = resolve(path);
+  try { return await realpath(target); } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(target) === target) throw cause;
+    return resolve(await canonicalTarget(dirname(target)), basename(target));
+  }
 };
-if (isInsideAceRepository(holdoutArg) || isInsideAceRepository(manifestDirectoryArg)) {
-  throw new Error('frozen holdout and manifest outputs must be outside the ACE checkout; use an external evidence directory');
-}
+const within = (root: string, path: string): boolean => {
+  const relation = relative(root, path);
+  return relation === '' || (!isAbsolute(relation) && relation !== '..' && !relation.startsWith('..' + sep));
+};
+const aceRepositoryRoot = await realpath(process.cwd());
 
 const repositoryRoots = new Map<string, string>();
 for (const argument of repositoryArgs) {
@@ -66,6 +72,14 @@ for (const argument of repositoryArgs) {
   const id = argument.slice(0, separator);
   if (repositoryRoots.has(id)) throw new Error(`duplicate repository mapping: ${id}`);
   repositoryRoots.set(id, resolve(argument.slice(separator + 1)));
+}
+
+const forbiddenRoots = [aceRepositoryRoot, ...await Promise.all([...repositoryRoots.values()].map((root) => realpath(root)))];
+const holdoutTarget = await canonicalTarget(holdoutArg);
+const manifestTarget = await canonicalTarget(manifestDirectoryArg);
+if (forbiddenRoots.some((root) => within(root, holdoutTarget) || within(root, manifestTarget)
+  || within(root, resolve(holdoutArg)) || within(root, resolve(manifestDirectoryArg)))) {
+  throw new Error('frozen holdout and manifest outputs must be outside all source checkouts');
 }
 
 const sourceSpec = JSON.parse(await readFile(resolve(sourceArg), 'utf8')) as SourceSpec;
@@ -126,7 +140,7 @@ for (const repository of sourceSpec.repositories) {
     throw new Error(`repository ${repository.id} revision mismatch: expected ${repository.revision}, got ${actualRevision}`);
   }
   const manifest = manifestFor(repository, root);
-  const manifestPath = resolve(manifestDirectoryArg, `manifest-${repository.id}.json`);
+  const manifestPath = resolve(manifestTarget, `manifest-${repository.id}.json`);
   pendingManifests.push({ path: manifestPath, bytes: manifest.bytes, digest: manifest.digest });
   repositories.push({ id: repository.id, revision: repository.revision, sourceManifestSha256: manifest.digest });
   manifestByRepository.set(repository.id, { digest: manifest.digest, root, revision: repository.revision,
@@ -186,7 +200,8 @@ const holdout: RetrievalHoldout = {
   repositories,
   cases,
 };
-const holdoutPath = resolve(holdoutArg);
+assertNativeReleaseHoldout(holdout);
+const holdoutPath = holdoutTarget;
 const holdoutBytes = Buffer.from(JSON.stringify(holdout, null, 2) + '\n', 'utf8');
 // Validate every label before publishing any manifest or holdout artifact.
 for (const manifest of pendingManifests) await writeFrozenArtifactPair(manifest.path, manifest.bytes, manifest.digest);

@@ -207,7 +207,7 @@ jobs:
               -e "$scenario=true" \
               --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
           done
-      - name: Real native holdout collector on disposable synthetic partition
+      - name: Real native holdout collection, merge and gate on disposable synthetic partitions
         # Read-only source and CI-installed dev tooling; no real corpus, secrets
         # or network. This validates the runner, not release-quality labels.
         run: |

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -20,7 +21,7 @@ try {
   for (const id of ['fixture-a', 'fixture-b']) {
     const checkout = join(root, id);
     await mkdir(checkout);
-    await writeFile(join(checkout, 'service.ts'), code);
+    await writeFile(join(checkout, 'service.ts'), code + '// ' + id + '\n');
     git(checkout, 'init', '--quiet');
     git(checkout, 'add', 'service.ts');
     git(checkout, '-c', 'user.name=ACE fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'fixture');
@@ -49,13 +50,40 @@ try {
   const manifests = join(root, 'manifests');
   run('freeze-retrieval-holdout.ts', [spec, holdout, manifests, ...repositories.map((repo) => repo.id + '=' + join(root, repo.id))]);
   run('validate-retrieval-holdout.ts', [holdout, manifests]);
-  const output = join(root, 'run');
-  run('run-native-retrieval-holdout.ts', [holdout, join(manifests, 'manifest-fixture-a.json'), 'fixture-a', join(root, 'fixture-a'), output]);
-  const observed = JSON.parse(await readFile(join(output, 'native-run.json'), 'utf8'));
-  assert.equal(observed.observations.length, 12);
-  assert.ok(observed.observations.every((item) => item.stageStatuses.delivered === 'executed' && item.retrievedCandidateIds.length > 0));
-  assert.equal(observed.projectionEvidence.length, 1);
-  console.log(JSON.stringify({ status: 'native-holdout-collector-smoke-pass', cases: 12, syntheticFixture: true, providerWireCertified: false }));
+  const frozen = JSON.parse(await readFile(holdout, 'utf8'));
+  const policy = join(root, 'fixture-policy.json');
+  // Test the evaluator with known fixture labels, not a release threshold.
+  await writeFile(policy, JSON.stringify({ selectedStrategy: 'native_cbm',
+    requiredHoldoutSha256: createHash('sha256').update(await readFile(holdout)).digest('hex'),
+    requiredHoldoutStatus: frozen.status, minRepositoryCount: 2,
+    minRecallAt1: 1, minRecallAt3: 1, minRecallAt5: 1, minCriticalRecallAt5: 1, minMrr: 1, minNdcgAt5: 1 }));
+  const runs = [];
+  for (const { id } of repositories) {
+    const output = join(root, 'run-' + id);
+    run('run-native-retrieval-holdout.ts', [holdout, join(manifests, 'manifest-' + id + '.json'), id, join(root, id), output]);
+    const path = join(output, 'native-run.json');
+    const observed = JSON.parse(await readFile(path, 'utf8'));
+    assert.equal(observed.observations.length, 12);
+    assert.ok(observed.observations.every((item) => item.stageStatuses.delivered === 'executed' && item.retrievedCandidateIds.length > 0));
+    assert.equal(observed.projectionEvidence.length, 1);
+    runs.push(path);
+  }
+  const merged = join(root, 'merged');
+  run('merge-retrieval-runs.ts', [holdout, merged, ...runs]);
+  const mergedPath = join(merged, 'native_cbm.json');
+  const verdictPath = join(root, 'fixture-verdict.json');
+  run('retrieval-quality-gate.ts', [holdout, mergedPath, policy, verdictPath]);
+  const verdict = JSON.parse(await readFile(verdictPath, 'utf8')).verdict;
+  assert.equal(verdict.measurementAccepted, true);
+  assert.equal(verdict.metrics.cases, 24);
+  assert.equal(verdict.metrics.repositoryCount, 2);
+  const tampered = JSON.parse(await readFile(mergedPath, 'utf8'));
+  tampered.observations[0].retrievedCandidateIds = ['forged'];
+  const tamperedPath = join(root, 'tampered.json');
+  await writeFile(tamperedPath, JSON.stringify(tampered));
+  assert.throws(() => run('retrieval-quality-gate.ts', [holdout, tamperedPath, policy, join(root, 'bad-verdict.json')]),
+    (error) => String(error.stderr).includes('do not match actual projection evidence'));
+  console.log(JSON.stringify({ status: 'native-holdout-collector-smoke-pass', cases: 24, syntheticFixture: true, providerWireCertified: false }));
 } finally {
   await rm(root, { recursive: true, force: true });
 }

@@ -70,10 +70,10 @@ const lexicalRelation = relative(root, outputDirectory);
 const inside = (relation: string): boolean => relation === ''
   || (!isAbsolute(relation) && relation !== '..' && !relation.startsWith('..' + sep));
 if (inside(lexicalRelation)) throw new Error('native run output must stay in the external evidence workspace');
-await mkdir(outputDirectory, { recursive: true });
+await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
 if (inside(relative(root, await realpath(outputDirectory)))) {
   throw new Error('native run output must stay in the external evidence workspace');
 }
 const outputPath = resolve(outputDirectory, 'native_cbm.json');
-await writeFile(outputPath, JSON.stringify(merged, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+await writeFile(outputPath, JSON.stringify(merged, null, 2) + '\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
 process.stdout.write(JSON.stringify({ strategy: merged.strategy, output: outputPath, cases: merged.observations.length }) + '\n');

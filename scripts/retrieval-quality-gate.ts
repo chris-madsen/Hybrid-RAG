@@ -60,6 +60,6 @@ await writeFile(outputPath, JSON.stringify({
   runSha256: createHash('sha256').update(runBytes).digest('hex'),
   policySha256: createHash('sha256').update(policyBytes).digest('hex'),
   verdict: verdict.value,
-}, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+}, null, 2) + '\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
 process.stdout.write(JSON.stringify({ output: outputPath, strategy: verdict.value.selectedStrategy, accepted: verdict.value.measurementAccepted }) + '\n');
 if (!verdict.value.measurementAccepted) process.exitCode = 2;
