@@ -139,7 +139,8 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
     assert.ok(!providerEvents.some((event) => ['qdrant', 'embedding', 'sparse_embedding', 'reranker', 'lsp'].includes(event.provider)));
     await stopRealProviderProcess(core, { termTimeoutMs: 10000 });
     assert.equal(core.exitCode, 0, 'Core must close its trace successfully');
-    const terminal = JSON.parse(await readFile(tracePath + '.receipt.json', 'utf8'));
+    const terminalBytes = await readFile(tracePath + '.receipt.json');
+    const terminal = JSON.parse(terminalBytes.toString('utf8'));
     const trace = await readFile(tracePath);
     assert.equal(terminal.sourceCommit, runtime.sourceCommit);
     assert.equal(terminal.flushStatus, 'ok');
@@ -147,16 +148,27 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
     assert.equal(terminal.traceDigest, sha(trace));
     assert.equal(terminal.projections.length, 1);
     const [projection] = terminal.projections;
+    const { validateRetrievalBenchmarkTraceArtifact, retrievalBenchmarkStages } = await import(
+      pathToFileURL(join(runtime.runtimeRoot, 'dist/domain/retrieval-benchmark.js')).href);
+    const validation = validateRetrievalBenchmarkTraceArtifact(trace.toString('utf8'), terminal, [projection.providerRequestId]);
+    assert.equal(validation.valid, true, validation.failures.join(', '));
+    assert.equal(terminal.requests.length, 1, 'one retrieval request must own the complete trace');
     assert.equal(projection.requestId, binding.requestId);
     assert.equal(projection.baseBodySha256, hermes.ingressBodySha256, 'actual SDK ingress must match signed projection input');
     assert.equal(projection.receiptSha256, binding.projectionReceiptSha256);
     assert.equal(projection.projectedBodySha256, binding.preparedBodySha256);
     assert.ok(projection.selectedEvidenceIds.length > 0);
     const events = await jsonl(tracePath);
+    assert.equal(events.length, retrievalBenchmarkStages.length);
+    assert.equal(new Set(events.map((event) => event.stage)).size, retrievalBenchmarkStages.length);
+    assert.ok(events.every((event) => event.requestId === projection.providerRequestId && event.sourceCommit === runtime.sourceCommit));
     const delivered = events.filter((event) => event.requestId === projection.providerRequestId && event.stage === 'delivered');
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].status, 'executed');
-    assert.ok(delivered[0].candidates.some((candidate) => candidate.repoPath === 'service.ts'), 'fixture source must be delivered');
+    const fixtureDigest = sha(await readFile(join(directory, 'workspace', 'service.ts')));
+    assert.ok(delivered[0].candidates.some((candidate) => candidate.repoPath === 'service.ts'
+      && candidate.sourceDigest === fixtureDigest && candidate.range.startLine === 1), 'verified fixture definition must be delivered');
+    assert.equal(new Set(projection.selectedEvidenceIds).size, projection.selectedEvidenceIds.length);
     assert.deepEqual(delivered[0].candidates.map((candidate) => candidate.evidenceId).sort(), [...projection.selectedEvidenceIds].sort());
     return { status: 'local-native-chain-denied', sourceCommit: runtime.sourceCommit,
       bifrostCommit, bifrostBinarySha256: sha(await readFile(binary)), bifrostPluginSha256: sha(await readFile(plugin)),
@@ -165,7 +177,8 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
       hermes, requestId: binding.requestId, attemptId: binding.attemptId,
       baseBodySha256: projection.baseBodySha256, preparedBodySha256: binding.preparedBodySha256, finalBodySha256: binding.bodySha256,
       projectionReceiptSha256: binding.projectionReceiptSha256,
-      retrievalTraceSha256: terminal.traceDigest, reasonCode: attempt.reasonCode,
+      retrievalTraceSha256: terminal.traceDigest, terminalReceiptSha256: sha(terminalBytes),
+      policyAuditSha256: sha(await readFile(join(directory, 'state', 'gateway-policy-audit.jsonl'))), reasonCode: attempt.reasonCode,
       providerWireCertified: false };
   } finally {
     await stopRealProviderProcess(gateway, { termTimeoutMs: 5000 });

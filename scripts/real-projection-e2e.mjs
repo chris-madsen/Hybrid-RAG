@@ -76,6 +76,8 @@ const readProviderTrace = async (path) => {
     return [];
   }
 };
+const localChain = process.env.ACE_REAL_PROJECTION_G11_CHAIN === 'true';
+if (localChain) assertLoopbackOnlyNetworkNamespace();
 const runtime = await resolveRealProviderRuntime(import.meta.dirname);
 const directory = await mkdtemp(join(tmpdir(), 'ace-gateway-real-projection-'));
 const workspace = join(directory, 'workspace');
@@ -104,7 +106,6 @@ const scaleCases = [
   { query: 'Where does ACE read and verify the current semantic snapshot? Find readVerifiedSemanticSnapshot.', path: 'src/application/semantic-snapshot.ts', symbol: 'readVerifiedSemanticSnapshot' },
 ];
 const initialQuery = scale ? scaleCases[0].query : 'Find retryAfterTransientFailure and its definition.';
-const localChain = process.env.ACE_REAL_PROJECTION_G11_CHAIN === 'true';
 const chainModel = 'gpt-5.6-sol';
 const chainTracePath = join(directory, 'chain-retrieval-trace.jsonl');
 let corpusTree;
@@ -167,7 +168,9 @@ const nativeHome = join(directory, 'native-home');
 await mkdir(nativeHome);
 const nativeCache = join(nativeHome, 'cbm-cache');
 const nativeEnvironment = {
-  ...process.env,
+  // The zero-egress chain must not inherit operator credentials, provider flags,
+  // proxy configuration or unrelated runtime policy from the invoking shell.
+  ...(localChain ? { PATH: process.env.PATH, ACE_CBM_COMMAND: process.env.ACE_CBM_COMMAND } : process.env),
   HOME: nativeHome,
   XDG_CACHE_HOME: join(nativeHome, 'cache'),
   XDG_DATA_HOME: join(nativeHome, 'data'),
