@@ -9,10 +9,10 @@
 | Information | Authority / role | Lifecycle and readiness |
 | --- | --- | --- |
 | Current source bytes | Workspace original; verified digest and exact UTF-8 range | Reread/revalidate during selection; a changed source must not be labeled fresh |
-| Structural and semantic discovery | CBM native AST, graph, semantic and BM25 hints | Persistent provider process; lost session invalidates its graph until reindex |
+| Structural and semantic discovery | CBM native AST, graph, semantic and BM25 hints | Persistent provider process; loss of session invalidates ACE publication until verified reinitialization |
 | Native ranked candidates | CBM graph/semantic/BM25 | Sole retrieval index; no claims of complete recall from top-K |
 | Symbol evidence | External LSP definition and document symbol validation | Independent contracts and adapters retained; native code-only RPC does not request LSP. Further research deferred |
-| Project documentation | Vertex AI RAG with separately authorized corpus/data class | External opt-in; not an implicit code or private conversation destination |
+| Project documentation | Vertex AI RAG with separately authorized corpus/data class | Separate external opt-in; native Responses projection requests code only; not an implicit code or private conversation destination |
 | Archive originals | Immutable content-addressed local archive, lifecycle and tombstones | Implemented archive mechanisms; exact originals remain authoritative |
 | Temporal projection | Graphiti/FalkorDB selected target | Not configured in current context runtime; enabling the retired adapter fails startup |
 | Evaluation evidence | Frozen tasks, attempt/usage correlation and retained artifacts | Separate observations, unknowns and accepted outcomes |
@@ -23,10 +23,10 @@ flowchart LR
     I --> C["Ranked candidates"]
     O --> V["Exact-byte verification"]
     C --> V
-    L["Independent LSP evidence"] --> V
+    L["Independent LSP evidence"] -.-> V
     V --> B["Verified evidence bundle"]
     A["Immutable archive"] -. "target derived temporal projection" .-> G["Graphiti / FalkorDB"]
-    D["Authorized Vertex documents"] --> B
+    D["Authorized Vertex documents"] -.-> B
 ~~~
 
 Private source, private conversation, secret and project-document policy boundaries are independent of provider capability. Only authorized data classes may cross an external boundary. Context completeness depends on all required sources and verified evidence, not candidate count. Original artifacts support lossless authorized access; budget pressure does not justify silently declaring incomplete evidence complete.

@@ -1,8 +1,10 @@
-# AR03 — single-host Qdrant publication authority
+# AR03 — historical single-host Qdrant publication authority
+
+**RETIRED:** #378 removed Qdrant code retrieval and its publication machinery. This record describes the former implementation, not a deployment procedure. Do not configure its environment variables or run its obsolete tests on current main. Native CBM lifecycle, cache ownership and source verification remain separate acceptance obligations; see [current runtime](current-architecture.md) and [#363](https://github.com/chris-madsen/Hybrid-RAG/issues/363).
 
 ## Deployment boundary
 
-ACE currently writes directly to one Qdrant **stable collection** per workspace/provider fingerprint; the historical immutable-collection and `..._current` alias-switch runbook is not the active algorithm. Qdrant itself remains a **candidate for removal from code retrieval** pending a matched CBM-only vs CBM+Qdrant benchmark, not an approved production requirement in the target architecture. An acknowledged upsert or atomic alias switch does **not** implement cross-process compare-and-swap. Writers need an authority covering source observation, mutation/deletion, physical membership verification and commit.
+The former ACE implementation wrote directly to one Qdrant **stable collection** per workspace/provider fingerprint; the historical immutable-collection and `..._current` alias-switch runbook was superseded by stable-collection publication before the entire Qdrant path was retired. An acknowledged upsert or atomic alias switch does **not** implement cross-process compare-and-swap. Writers need an authority covering source observation, mutation/deletion, physical membership verification and commit.
 
 AR03 implements conservative **single-Linux-host** fencing, not distributed consensus. Set the following environment variable to the **same shared, durable local directory for every writer of the same workspace**:
 

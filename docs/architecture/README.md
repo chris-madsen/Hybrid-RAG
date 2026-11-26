@@ -25,7 +25,7 @@ This architecture description is organized using the concepts of [ISO/IEC/IEEE 4
 
 ## Detailed model components and original records
 
-The existing detailed design records are retained as supporting source models, not rewritten as a competing architecture. Current view components have their own IDs, versions and governing model kinds. Where their historical assumptions differ from current accepted decisions or source, use the current view and the identified supersession.
+The detailed design records are maintained as English-language supporting logical models, not as a competing architecture or a claim that every logical component is implemented. Earlier editions remain available in Git history. Current view components have their own IDs, versions and governing model kinds. Where their historical assumptions differ from current accepted decisions or source, use the current view and the identified supersession.
 
 - [Strategic DDD](01-strategic-ddd.md), [Event Storming](02-event-storming.md), [Tactical DDD](03-tactical-ddd.md), [FSM workflows](04-fsm-workflows.md).
 - [Contracts and deployment](05-contracts-and-deployment.md), [traceability and review](06-traceability-and-review.md), [architecture fitness contracts](07-architecture-fitness-contracts.md).
