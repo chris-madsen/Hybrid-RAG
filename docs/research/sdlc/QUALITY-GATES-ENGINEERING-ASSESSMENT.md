@@ -2,9 +2,9 @@
 
 # Quality gates — engineering assessment and adoption rationale
 
-**Status:** research and proposed adoption; no new Quality Gate is executable in ACE merely because it appears here.
+**Status:** historical assessment of proposed adoption at the recorded baseline. Executable gates are defined by the current [operational SDLC](../../operations/ai-assisted-sdlc.md), [gate catalog](QUALITY-GATES-CATALOG.md) and repository CI.
 **Scope:** ACE developer SDLC (one agent, TypeScript + Effect, existing GitHub Actions/OpenSpec/ADRs).
-**Reviewed:** 2026-11-05. Source revision anchors: Sphericon \`main\` commit \`c9dc3fdd88f07ad815de0cf31b319be633fcde67\` (tree \`3b6297128b9fbad5f77351eb9f442fcdde8dbe63\`); ACE \`main\` commit \`ec09f51d6e87b1b913ce6edb2674472d62e8b0c3\` (tree \`32304542e6980f9b442c8c5bd62195364f03946a\`); SDLC PR #222 is separate and not merged.
+**Reviewed:** 2026-11-05. Source revision anchors: Sphericon \`main\` commit \`c9dc3fdd88f07ad815de0cf31b319be633fcde67\` (tree \`3b6297128b9fbad5f77351eb9f442fcdde8dbe63\`); ACE \`main\` commit \`ec09f51d6e87b1b913ce6edb2674472d62e8b0c3\` (tree \`32304542e6980f9b442c8c5bd62195364f03946a\`); SDLC PR #222 was not merged at the time of this assessment.
 
 ## Evidence and attribution
 
@@ -14,7 +14,7 @@
 
 ## Executive findings
 
-1. Sphericon keeps **review rules separate from how to run tools**: \`docs/standards/review-rules.md\` is a numbered rules catalog; \`CODING_STANDARDS.md\` maps enforceable rules to analyzers and \`mise run check\`; \`AGENTS.md\` says which checks apply. ACE should replicate **that separation of concerns**, not those Go implementation details.
+1. Sphericon keeps **review rules separate from how to run tools**: \`docs/standards/review-rules.md\` is a numbered rules catalog; \`CODING_STANDARDS.md\` maps enforceable rules to analyzers and \`mise run check\`; \`AGENTS.md\` says which checks apply. ACE should separate normative requirements, analyzer configuration and execution procedures so that rules remain traceable and implementation-specific checks remain scoped.
 2. Syntax-only invariants use **ast-grep rules with positive and negative rule tests**. Type-aware invariants use Sphericon's Go custom \`go/analysis\` and **SCIP-based** \`easement\` for inter-package boundaries. ACE can start with a few TS ast-grep checks; escalate to SCIP/easement only when ordinary import/AST constraints cannot express the actual rule.
 3. Sphericon's code generation is **one-way**: TypeSpec → OpenAPI → generated Go/TypeScript, Ent → generated storage and mapping, with generated-file ownership checks. ACE has no comparable proven multiparty TypeSpec source of truth. For ACE use existing retired optional tool-call protocol schemas, Effect contracts and OpenSpec; introduce TypeSpec *only after* a versioned public API requires it.
 4. Sphericon uses many **independently scheduled gates**. Heavy language/package tests run in PR CI, whereas mutation testing, API fuzzing, coverage, CodeQL and vulnerability freshness are scheduled/nightly. ACE already splits fast deterministic PR verification from real Qdrant/LSP and production gates.
@@ -26,7 +26,7 @@
 
 Legend: EXISTING = already present in ACE; ADOPT = suitable next implementation; PILOT = evaluate before dependency; CONDITIONAL = only if feature requires; NOT-APPLICABLE = reject for current ACE. None of ADOPT/PILOT denotes an installed check.
 
-| Concern | Sphericon implementation | ACE today | ACE recommendation |
+| Concern | Reference implementation | ACE at reviewed baseline | Proposed ACE treatment |
 |---|---|---|---|
 | Strict TS type checking | \`tsc\` (and oxlint typed layer) | \`npm run check\`, \`verify:pr\` | **EXISTING**; preserve |
 | Lint | oxlint/oxfmt + golangci-lint | ESLint \`--max-warnings=0\` | **EXISTING**, compare speed before migrating |

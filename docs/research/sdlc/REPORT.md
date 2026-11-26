@@ -1,10 +1,10 @@
 # SDLC prompt library — delivery report
 
 PR: https://github.com/chris-madsen/Mult-agent-AI-Orchestration/pull/222
-Status: documentation change on a feature branch; production implementation not implied.
+Status at the recorded revision: documentation-only change; production implementation not implied.
 
-## Repairs to the initial version
-The first deliverable contained prompts too short to drive an engineering workflow. They have now been expanded into independent instruction files with:
+## Procedure coverage
+The instruction files define:
 - explicit input contracts, constraints and failure conditions;
 - current-revision research with code-level evidence;
 - conditional design artifacts and architecture/behavior/test matrices;
