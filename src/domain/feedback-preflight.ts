@@ -145,19 +145,18 @@ export const inspectHermesAuthJson = (authPath: string, contents: string): Herme
   const legacyTokens = object(legacy?.tokens);
   const pool = object(root?.credential_pool);
   const currentEntries = Array.isArray(pool?.['openai-codex']) ? pool?.['openai-codex'] : [];
-  const current = currentEntries.map(object).find((entry): entry is JsonObject => entry !== undefined);
-  const currentAccess = nonEmpty(current?.access_token);
-  const currentRefresh = nonEmpty(current?.refresh_token);
-  const legacyAccess = nonEmpty(legacyTokens?.access_token);
-  const legacyRefresh = nonEmpty(legacyTokens?.refresh_token);
-  const authModeValid = legacy?.auth_mode === 'chatgpt' || current?.auth_type === 'oauth';
-  const hasAccessToken = currentAccess || legacyAccess;
-  const hasRefreshToken = currentRefresh || legacyRefresh;
-  const refreshMetadata = current?.last_refresh ?? legacy?.last_refresh;
-  const hasRefreshMetadata = nonEmpty(refreshMetadata)
-    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(refreshMetadata)
-    && Number.isFinite(Date.parse(refreshMetadata));
-  if (!authModeValid || !hasAccessToken || !hasRefreshToken || !hasRefreshMetadata) {
+  const validRefreshMetadata = (value: unknown): boolean => nonEmpty(value)
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)
+    && Number.isFinite(Date.parse(value));
+  // One session must independently satisfy every requirement. Do not combine
+  // access, refresh, mode or timestamp from different credential records.
+  const completeCurrent = currentEntries.map(object).some((entry) => entry?.auth_type === 'oauth'
+    && nonEmpty(entry.access_token) && nonEmpty(entry.refresh_token)
+    && validRefreshMetadata(entry.last_refresh));
+  const completeLegacy = legacy?.auth_mode === 'chatgpt'
+    && nonEmpty(legacyTokens?.access_token) && nonEmpty(legacyTokens?.refresh_token)
+    && validRefreshMetadata(legacy.last_refresh);
+  if (!completeCurrent && !completeLegacy) {
     return {
       status: 'not_ready',
       reason: 'Hermes auth file does not contain a complete independent openai-codex ChatGPT OAuth session',

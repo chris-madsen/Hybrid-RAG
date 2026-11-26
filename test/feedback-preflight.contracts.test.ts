@@ -72,6 +72,20 @@ test('Hermes Codex-OAuth preflight rejects missing or malformed OAuth state', ()
   })).status, 'not_ready');
 });
 
+test('Hermes readiness requires one complete session without mixing credential records', () => {
+  const last_refresh = '2026-10-23T16:18:50Z';
+  const access = { auth_type: 'oauth', access_token: 'test-access', last_refresh };
+  const refresh = { auth_type: 'oauth', refresh_token: 'test-refresh', last_refresh };
+  const inspect = (entries: readonly object[], legacy?: object) => inspectHermesAuthJson('/tmp/auth.json', JSON.stringify({
+    credential_pool: { 'openai-codex': entries },
+    providers: { 'openai-codex': legacy },
+  }));
+  assert.equal(inspect([access, refresh]).status, 'not_ready');
+  assert.equal(inspect([access], { auth_mode: 'chatgpt', tokens: { refresh_token: 'test-refresh' }, last_refresh }).status, 'not_ready');
+  assert.equal(inspect([{}, { ...access, refresh_token: 'test-refresh' }]).status, 'ready');
+  assert.equal(inspect([{ ...access, auth_type: 'api_key', refresh_token: 'test-refresh' }]).status, 'not_ready');
+});
+
 test('task verifier preflight never exposes credentials and classifies invalid configuration', () => {
   const missing = inspectFeedbackVerifierConfiguration({ apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'model' });
   assert.equal(missing.status, 'missing_configuration');
