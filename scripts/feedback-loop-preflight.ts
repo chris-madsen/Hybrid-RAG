@@ -5,6 +5,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   dockerImageDigestPattern,
+  feedbackHermesProviderPrefix,
   dockerImageMatchesDigest,
   validateMatchingFeedbackHarborJobs,
   type FeedbackHarborJobIdentity,
@@ -30,6 +31,7 @@ import {
 } from '../src/domain/feedback-loop-experiment.js';
 import { verifyCompiledRuntimeProvenance } from '../src/application/runtime-provenance.js';
 import { verifyAceRuntimeBundle } from '../src/application/ace-runtime-bundle.js';
+import { readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
 
 type CheckStatus = 'ready' | 'not_ready' | 'unknown' | 'not_required';
 
@@ -37,6 +39,8 @@ interface PreflightCheck {
   readonly status: CheckStatus;
   readonly reason: string;
   readonly identity?: string;
+  readonly hermesRuntimeReceipts?: readonly HermesTaskRuntimeReceipt[];
+  readonly agentAdapterSha256?: string;
 }
 
 interface PreflightManifest {
@@ -88,7 +92,7 @@ const nativeTaskProjection = (
     const result = spawnSync(process.execPath, [
       resolve('scripts/ace-container-runtime-smoke.mjs'),
       '--image', `${image.reference}@${image.digest}`,
-      '--bundle', bundlePath,
+      '--bundle', bundlePath, '--bundle-sha256', expectedBundleDigest,
     ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 270_000 });
     if (result.error !== undefined || result.status !== 0) {
       return { status: 'not_ready', reason: 'native task-image zero-egress projection failed or timed out' };
@@ -279,12 +283,43 @@ const compiledRuntime = async (): Promise<PreflightCheck> => {
 
 const agentRuntimeDigestCheck = async (
   experiment: FeedbackExperimentManifest | undefined,
+  bundlePath: string | undefined,
+  sourceCommit: string,
+  images: readonly { readonly reference: string; readonly digest: string }[] | undefined,
+  prerequisites: readonly PreflightCheck[],
 ): Promise<PreflightCheck> => {
-  void experiment;
-  return {
-    status: 'not_ready',
-    reason: 'Legacy Hermes native ACE injection is retired; Gateway final-send evidence must be collected independently',
-  };
+  if (experiment?.bifrostEndpointSha256 === undefined || experiment.aceRuntimeBundleSha256 === undefined
+    || bundlePath === undefined || !images?.length || prerequisites.some((check) => check.status !== 'ready')) {
+    return { status: 'not_ready', reason: 'Hermes runtime probe requires frozen source, image, bundle and endpoint identities' };
+  }
+  if (!experiment.model.startsWith(feedbackHermesProviderPrefix)) return { status: 'not_ready', reason: 'Hermes Codex model identity is invalid' };
+  const wireModel = experiment.model.slice(feedbackHermesProviderPrefix.length);
+  if (wireModel.length === 0 || experiment.agentVersion !== 'v0.22.3'
+    || sha256(await readFile('scripts/harbor_hermes_codex_oauth.py')) !== experiment.agentAdapterSha256) {
+    return { status: 'not_ready', reason: 'installed agent adapter or pinned Hermes version differs from experiment identity' };
+  }
+  const receipts: HermesTaskRuntimeReceipt[] = [];
+  for (const image of images) {
+    const result = spawnSync(process.execPath, [resolve('scripts/ace-container-runtime-smoke.mjs'),
+      '--image', `${image.reference}@${image.digest}`,
+      '--bundle', bundlePath, '--bundle-sha256', experiment.aceRuntimeBundleSha256,
+      '--hermes-endpoint-sha256', experiment.bifrostEndpointSha256, '--hermes-model', wireModel,
+      '--hermes-reasoning', experiment.reasoningEffort,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 150_000 });
+    const receipt = result.error === undefined && result.status === 0
+      ? readHermesTaskRuntimeReceipt(result.stdout, {
+        sourceCommit, bundleSha256: experiment.aceRuntimeBundleSha256, reference: image.reference, digest: image.digest,
+        endpointSha256: experiment.bifrostEndpointSha256, modelSha256: sha256(wireModel), reasoningEffort: experiment.reasoningEffort,
+      }) : undefined;
+    if (receipt === undefined) {
+      return { status: 'not_ready', reason: 'pinned task image lacks verified installed Hermes native Responses runtime or endpoint parity',
+        hermesRuntimeReceipts: receipts, agentAdapterSha256: experiment.agentAdapterSha256 };
+    }
+    receipts.push(receipt);
+  }
+  return { status: 'ready', reason: 'actual pinned Hermes runtime and native SDK route observed in every task image without egress; Gateway final-send evidence must be collected independently',
+    identity: sha256(JSON.stringify({ agentAdapterSha256: experiment.agentAdapterSha256, receipts })),
+    hermesRuntimeReceipts: receipts, agentAdapterSha256: experiment.agentAdapterSha256 };
 };
 
 const harborJobIdentity = async (
@@ -452,7 +487,6 @@ const main = async (): Promise<void> => {
     harborJobs: harborJobs.check,
     taskVerifier: await taskVerifier(args.nativeJobPath),
     harborImageDigest: dockerImages(effectiveImageDigest, manifestTaskImages),
-    agentRuntimeDigest: await agentRuntimeDigestCheck(experimentManifest),
     aceRuntimeBundle: await aceRuntimeBundle(args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256),
     taskRuntimeProbe: taskRuntimeProbe(args.aceRuntimeBundlePath, manifestTaskImages),
   };
@@ -495,6 +529,10 @@ const main = async (): Promise<void> => {
   checks.nativeTaskProjection = nativeTaskProjection(
     args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256, currentSourceCommit, probeImages,
     [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding],
+  );
+  checks.agentRuntimeDigest = await agentRuntimeDigestCheck(
+    experimentManifest, args.aceRuntimeBundlePath, currentSourceCommit, probeImages,
+    [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding, checks.bifrostEndpoint],
   );
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',

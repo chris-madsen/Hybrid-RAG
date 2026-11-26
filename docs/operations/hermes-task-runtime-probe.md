@@ -1,0 +1,17 @@
+# Local Hermes task-runtime probe (G11 / #323)
+
+This candidate replaces the permanently blocked **agent runtime** check with an executable, isolated check. It does not replace the independent provider-wire or task-outcome gates. The native projection check stays separate.
+
+The experiment must use an immutable, locally available task image with the approved Hermes v0.22.3 source installation (commit `5b147ab036d6d19131bff8d20701b5001eab844a`) already installed by the existing Hermes/Harbor installation process. A base image that only has Node, Python and Git is not an installed agent image. Freeze the actual image digest and rebuild the ACE bundle for it. No automatic install or pull happens during preflight. The probe uses the native Hermes PM-selected dependency environment, verifies the source checkout, launcher digest, actual Responses transport and SDK 2.24.0, and verifies the actual upstream credential-pool route resolves to the configured Codex endpoint (without using credentials), then observes the native request using the SDK's terminal mock transport. It requires the complete Codex base URL from PR #384. No auth store, provider token, private task source or network is mounted into the probe.
+
+Run the normal preflight with frozen experiment/job/bundle inputs. The same lower-level probe may be run independently:
+
+```sh
+node scripts/ace-container-runtime-smoke.mjs \
+  --image "$PINNED_TASK_IMAGE" --bundle "$ACE_RUNTIME_BUNDLE" \
+  --bundle-sha256 "$PINNED_BUNDLE_SHA256" \
+  --hermes-endpoint-sha256 "$PINNED_ENDPOINT_SHA256" --hermes-model "$BARE_CODEX_MODEL" \
+  --hermes-reasoning "$PINNED_REASONING_EFFORT"
+```
+
+A successful local receipt binds the checkout, bundle, image, Hermes commit/launcher/transport, SDK version, endpoint and bare wire model hashes, plus the observed reasoning effort. The Harbor adapter digest is checked against the current source, not the retired ContextEngine bridge. It has `providerWireCertified:false`. The Docker image must be trusted; a process in an arbitrary image can forge its own stdout. This is not a signed attestation of the deployed Bifröst listener, real OAuth, post-auth projection, protected physical send or ChatGPT response. Keep `taskRuntimeProbe` blocked until independently correlated real evidence is available. Keep all outputs local.
