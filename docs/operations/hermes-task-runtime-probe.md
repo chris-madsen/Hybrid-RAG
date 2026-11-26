@@ -10,7 +10,8 @@ Run the normal preflight with frozen experiment/job/bundle inputs. The same lowe
 node scripts/ace-container-runtime-smoke.mjs \
   --image "$PINNED_TASK_IMAGE" --bundle "$ACE_RUNTIME_BUNDLE" \
   --bundle-sha256 "$PINNED_BUNDLE_SHA256" \
-  --hermes-endpoint-sha256 "$PINNED_ENDPOINT_SHA256" --hermes-model "$PINNED_MODEL"
+  --hermes-endpoint-sha256 "$PINNED_ENDPOINT_SHA256" --hermes-model "$BARE_CODEX_MODEL" \
+  --hermes-reasoning "$PINNED_REASONING_EFFORT"
 ```
 
-A successful local receipt binds the checkout, bundle, image, Hermes commit/launcher/transport, SDK version, endpoint and model hashes. It has `providerWireCertified:false`. The Docker image must be trusted; a process in an arbitrary image can forge its own stdout. This is not a signed attestation of the deployed Bifröst listener, real OAuth, post-auth projection, protected physical send or ChatGPT response. Keep `taskRuntimeProbe` blocked until independently correlated real evidence is available. Keep all outputs local.
+A successful local receipt binds the checkout, bundle, image, Hermes commit/launcher/transport, SDK version, endpoint and bare wire model hashes, plus the observed reasoning effort. The Harbor adapter digest is checked against the current source, not the retired ContextEngine bridge. It has `providerWireCertified:false`. The Docker image must be trusted; a process in an arbitrary image can forge its own stdout. This is not a signed attestation of the deployed Bifröst listener, real OAuth, post-auth projection, protected physical send or ChatGPT response. Keep `taskRuntimeProbe` blocked until independently correlated real evidence is available. Keep all outputs local.

@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const usage = () => process.stdout.write('Usage: node scripts/ace-container-runtime-smoke.mjs --image <image>@sha256:<64hex> --bundle <bundle-dir> [--bundle-sha256 <sha256>] [--hermes-endpoint-sha256 <sha256> --hermes-model <model>]\n');
+const usage = () => process.stdout.write('Usage: node scripts/ace-container-runtime-smoke.mjs --image <image>@sha256:<64hex> --bundle <bundle-dir> [--bundle-sha256 <sha256>] [--hermes-endpoint-sha256 <sha256> --hermes-model <bare-model> --hermes-reasoning <effort>]\n');
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) { usage(); process.exit(0); }
 let image;
@@ -13,6 +13,7 @@ let bundle;
 let expectedBundleSha256;
 let hermesEndpointSha256;
 let hermesModel;
+let hermesReasoning;
 while (args.length > 0) {
   const name = args.shift();
   const value = args.shift();
@@ -21,6 +22,7 @@ while (args.length > 0) {
   else if (name === '--bundle-sha256') expectedBundleSha256 = value;
   else if (name === '--hermes-endpoint-sha256') hermesEndpointSha256 = value;
   else if (name === '--hermes-model') hermesModel = value;
+  else if (name === '--hermes-reasoning') hermesReasoning = value;
   else throw new Error('Usage error: unknown argument');
 }
 const match = /^(.+)@(sha256:[a-f0-9]{64})$/u.exec(image ?? '');
@@ -53,8 +55,8 @@ try {
     pinned = run('docker', ['image', 'inspect', '--format', '{{.Id}}', image]).trim();
   }
   if (!/^sha256:[a-f0-9]{64}$/u.test(pinned)) throw new Error('local pinned image identity unavailable');
-  if (hermesEndpointSha256 !== undefined || hermesModel !== undefined) {
-    if (!/^[a-f0-9]{64}$/u.test(hermesEndpointSha256 ?? '') || !hermesModel || !process.env.HERMES_CODEX_BASE_URL) {
+  if (hermesEndpointSha256 !== undefined || hermesModel !== undefined || hermesReasoning !== undefined) {
+    if (!/^[a-f0-9]{64}$/u.test(hermesEndpointSha256 ?? '') || !hermesModel || !['low', 'medium', 'high', 'xhigh'].includes(hermesReasoning) || !process.env.HERMES_CODEX_BASE_URL) {
       throw new Error('Hermes task probe requires model and pinned endpoint');
     }
     // Do not expose the source checkout, bundle or credentials to the agent
@@ -62,7 +64,7 @@ try {
     const observed = run('docker', ['run', '--rm', '--name', containerName, '--init', '--network', 'none', '--pull=never',
       '-v', `${root}/scripts/hermes-task-runtime-probe.py:/ace-probe.py:ro`,
       '-e', 'HERMES_CODEX_BASE_URL', '--entrypoint', 'python3', pinned,
-      '/ace-probe.py', hermesEndpointSha256, hermesModel], 120_000);
+      '/ace-probe.py', hermesEndpointSha256, hermesModel, hermesReasoning], 120_000);
     const receipt = JSON.parse(observed.trim().split(/\r?\n/u).at(-1) ?? '');
     if (receipt.status !== 'READY' || receipt.providerWireCertified !== false) throw new Error('Hermes local runtime probe did not pass');
     process.stdout.write(JSON.stringify({ ...receipt, sourceCommit, bundleSha256: manifest.bundleSha256,

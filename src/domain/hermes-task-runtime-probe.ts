@@ -8,6 +8,7 @@ export const validateHermesTaskRuntimeReceipt = (stdout: string, expected: {
   readonly digest: string;
   readonly endpointSha256: string;
   readonly modelSha256: string;
+  readonly reasoningEffort: string;
 }): boolean => {
   try {
     const raw = JSON.parse(stdout.trim().split(/\r?\n/u).at(-1) ?? '') as unknown;
@@ -21,7 +22,8 @@ export const validateHermesTaskRuntimeReceipt = (stdout: string, expected: {
       && receipt.sourceCommit === expected.sourceCommit && receipt.bundleSha256 === expected.bundleSha256
       && receipt.imageReference === expected.reference && receipt.imageDigest === expected.digest
       && typeof receipt.localImageId === 'string' && /^sha256:[a-f0-9]{64}$/u.test(receipt.localImageId)
-      && receipt.endpointSha256 === expected.endpointSha256 && receipt.modelSha256 === expected.modelSha256;
+      && receipt.endpointSha256 === expected.endpointSha256 && receipt.modelSha256 === expected.modelSha256
+      && receipt.reasoningEffort === expected.reasoningEffort;
   } catch {
     return false;
   }

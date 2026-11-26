@@ -35,7 +35,7 @@ def output(*args, cwd=None, env=None):
                                    timeout=45, text=True).strip()
 
 
-def run_transport(root, endpoint_digest, model):
+def run_transport(root, endpoint_digest, model, effort):
     # Import the pinned Hermes implementation, not a substitute transport.
     sys.path.insert(0, str(root))
     from agent.transports.codex import ResponsesApiTransport
@@ -58,7 +58,7 @@ def run_transport(root, endpoint_digest, model):
     kwargs = adapter.build_kwargs(model=model, messages=[{"role": "user", "content": "fixture query"}],
                                   provider="openai-codex", base_url=endpoint,
                                   is_codex_backend=True, session_id="ace-offline-probe",
-                                  reasoning_config={"enabled": True, "effort": "low"})
+                                  reasoning_config={"enabled": True, "effort": effort})
     seen = []
     def observe(request):
         body = json.loads(request.content)
@@ -76,21 +76,23 @@ def run_transport(root, endpoint_digest, model):
     check(len(seen) == 1, "HERMES_NATIVE_REQUEST_COUNT_MISMATCH")
     method, path, body = seen[0]
     check(method == "POST" and path == NATIVE_PATH and body.get("store") is False
-          and body.get("model") == model and "previous_response_id" not in body
+          and body.get("model") == model and body.get("reasoning", {}).get("effort") == effort
+          and "previous_response_id" not in body
           and "conversation" not in body, "HERMES_NATIVE_REQUEST_MISMATCH")
     return {"hermesTransportSha256": sha((root / "agent/transports/codex.py").read_bytes()),
             "hermesSdkVersion": openai.__version__, "endpointSha256": endpoint_digest,
-            "modelSha256": sha(model.encode()), "nativeResponsesObserved": True,
+            "modelSha256": sha(model.encode()), "reasoningEffort": effort, "nativeResponsesObserved": True,
             "providerWireCertified": False}
 
 
 def main():
     check({name for _, name in socket.if_nameindex()} == {"lo"}, "TASK_NETWORK_NOT_ISOLATED")
-    if len(sys.argv) == 5 and sys.argv[1] == "--transport":
-        print(json.dumps(run_transport(Path(sys.argv[2]), sys.argv[3], sys.argv[4])))
+    if len(sys.argv) == 6 and sys.argv[1] == "--transport":
+        print(json.dumps(run_transport(Path(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5])))
         return
-    check(len(sys.argv) == 3, "TASK_PROBE_ARGUMENTS_INVALID")
-    expected, model = sys.argv[1:]
+    check(len(sys.argv) == 4, "TASK_PROBE_ARGUMENTS_INVALID")
+    expected, model, effort = sys.argv[1:]
+    check(effort in ("low", "medium", "high", "xhigh"), "HERMES_REASONING_INVALID")
     check(re.fullmatch(r"[a-f0-9]{64}", expected) is not None, "HERMES_ENDPOINT_PIN_MISSING")
     check(bool(model) and len(model) <= 256, "HERMES_MODEL_INVALID")
     launcher = shutil.which("hermes", path=str(Path.home() / ".local/bin") + os.pathsep + os.environ["PATH"])
@@ -115,7 +117,7 @@ def main():
         from pm.environments import selected_venv, venv_command
         command = venv_command(root, selected_venv(root), ["-I", "-B"])
         result = output(*command, str(Path(__file__).resolve()), "--transport", str(root),
-                        expected, model, cwd=root, env=env)
+                        expected, model, effort, cwd=root, env=env)
         observation = json.loads(result.splitlines()[-1])
         check(observation.get("nativeResponsesObserved") is True
               and observation.get("providerWireCertified") is False, "HERMES_TRANSPORT_EVIDENCE_MISSING")

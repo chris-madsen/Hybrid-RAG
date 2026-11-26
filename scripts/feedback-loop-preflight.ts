@@ -5,6 +5,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   dockerImageDigestPattern,
+  feedbackHermesProviderPrefix,
   dockerImageMatchesDigest,
   validateMatchingFeedbackHarborJobs,
   type FeedbackHarborJobIdentity,
@@ -278,27 +279,34 @@ const compiledRuntime = async (): Promise<PreflightCheck> => {
     };
 };
 
-const agentRuntimeDigestCheck = (
+const agentRuntimeDigestCheck = async (
   experiment: FeedbackExperimentManifest | undefined,
   bundlePath: string | undefined,
   sourceCommit: string,
   images: readonly { readonly reference: string; readonly digest: string }[] | undefined,
   prerequisites: readonly PreflightCheck[],
-): PreflightCheck => {
+): Promise<PreflightCheck> => {
   if (experiment?.bifrostEndpointSha256 === undefined || experiment.aceRuntimeBundleSha256 === undefined
     || bundlePath === undefined || !images?.length || prerequisites.some((check) => check.status !== 'ready')) {
     return { status: 'not_ready', reason: 'Hermes runtime probe requires frozen source, image, bundle and endpoint identities' };
+  }
+  if (!experiment.model.startsWith(feedbackHermesProviderPrefix)) return { status: 'not_ready', reason: 'Hermes Codex model identity is invalid' };
+  const wireModel = experiment.model.slice(feedbackHermesProviderPrefix.length);
+  if (wireModel.length === 0 || experiment.agentVersion !== 'v0.22.3'
+    || sha256(await readFile('scripts/harbor_hermes_codex_oauth.py')) !== experiment.agentAdapterSha256) {
+    return { status: 'not_ready', reason: 'installed agent adapter or pinned Hermes version differs from experiment identity' };
   }
   for (const image of images) {
     const result = spawnSync(process.execPath, [resolve('scripts/ace-container-runtime-smoke.mjs'),
       '--image', `${image.reference}@${image.digest}`,
       '--bundle', bundlePath, '--bundle-sha256', experiment.aceRuntimeBundleSha256,
-      '--hermes-endpoint-sha256', experiment.bifrostEndpointSha256, '--hermes-model', experiment.model,
+      '--hermes-endpoint-sha256', experiment.bifrostEndpointSha256, '--hermes-model', wireModel,
+      '--hermes-reasoning', experiment.reasoningEffort,
     ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 150_000 });
     if (result.error !== undefined || result.status !== 0
       || !validateHermesTaskRuntimeReceipt(result.stdout, {
         sourceCommit, bundleSha256: experiment.aceRuntimeBundleSha256, reference: image.reference, digest: image.digest,
-        endpointSha256: experiment.bifrostEndpointSha256, modelSha256: sha256(experiment.model),
+        endpointSha256: experiment.bifrostEndpointSha256, modelSha256: sha256(wireModel), reasoningEffort: experiment.reasoningEffort,
       })) {
       return { status: 'not_ready', reason: 'pinned task image lacks verified installed Hermes native Responses runtime or endpoint parity' };
     }
@@ -515,7 +523,7 @@ const main = async (): Promise<void> => {
     args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256, currentSourceCommit, probeImages,
     [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding],
   );
-  checks.agentRuntimeDigest = agentRuntimeDigestCheck(
+  checks.agentRuntimeDigest = await agentRuntimeDigestCheck(
     experimentManifest, args.aceRuntimeBundlePath, currentSourceCommit, probeImages,
     [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding, checks.bifrostEndpoint],
   );
