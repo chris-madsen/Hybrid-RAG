@@ -127,7 +127,7 @@ Owner approval:
 - "No vulnerabilities" from an outdated or missing advisory database.
 - "Production-ready" from mock Qdrant/LSP/LLM tests.
 - "Schema consistency validated" when no applicable schema/provider exists.
-- "This is exactly as in the video" without a checked original source.
+- Claims of conformance to an external implementation without source-level verification.
 - "Architecture checked" when only a filename regex ran.
 - "CI is green" when checks belong to a different commit.
 - "The agent independently reviewed itself".

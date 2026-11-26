@@ -38,7 +38,7 @@ At least one real PR completed through the applicable stages, reproducible tests
 
 ## Quality Gates extension — execute as small follow-up PRs
 
-See [research comparison](QUALITY-GATES-VIDEO-SPHERICON-ACE.md), [gate catalog](QUALITY-GATES-CATALOG.md), and [implementation plan](QUALITY-GATES-IMPLEMENTATION-PLAN.md).
+See [research comparison](QUALITY-GATES-ENGINEERING-ASSESSMENT.md), [gate catalog](QUALITY-GATES-CATALOG.md), and [implementation plan](QUALITY-GATES-IMPLEMENTATION-PLAN.md).
 
 Current implementation status:
 1. **QG0 — ACTIVE:** offline local Markdown links with positive/negative fixtures.
@@ -50,7 +50,7 @@ Current implementation status:
 7. **QG6 — ACTIVE:** nightly/full deterministic-property verification and OSV reporting are complemented by pinned CodeQL and a targeted mutation gate for accepted security invariants; remote external links are scheduled nonblocking signal.
 8. **QG7/8 conditional:** typed SCIP/easement or additional toolchain managers are not required for SDLC closure unless a measured invariant cannot be proved with the existing graph/tests.
 
-Do not copy Sphericon's PostgreSQL/Go SQL testing, frontend bundle-size gate, worktree isolation daemon or TypeSpec generators as mandatory ACE checks. Existing ACE deterministic tests, real providers and release supply-chain proof remain independent authoritative checks.
+Select checks against ACE's actual technology and risk boundaries; PostgreSQL/Go-specific SQL testing, browser bundle budgets, a second worktree supervisor and stack-specific generators are not mandatory ACE checks. Existing ACE deterministic tests, real providers and release supply-chain proof remain independent authoritative checks.
 
 Any future gate/tool extension must still show a clean fixture and deliberately violating fixture, observed commands and GitHub CI result at the exact PR SHA. Do not relabel optional/planned gates as required closure criteria.
 
