@@ -276,3 +276,24 @@ export const validateFeedbackImageOverride = (
   if (taskImages.length > 0) return taskImages.length === 1 && taskImages[0]?.digest === requested ? [] : ['imageDigest'];
   return experimentImageDigest === undefined || experimentImageDigest === requested ? [] : ['imageDigest'];
 };
+
+/** Local smoke is evidence for this source, bundle and image only, not provider wire. */
+export const validateNativeTaskProjectionReceipt = (stdout: string, expected: {
+  readonly sourceCommit: string;
+  readonly bundleSha256: string;
+  readonly reference: string;
+  readonly digest: string;
+}): boolean => {
+  try {
+    const receipt = object(JSON.parse(stdout.trim().split(/\r?\n/u).at(-1) ?? '') as unknown);
+    return receipt?.schemaVersion === 1 && receipt.status === 'READY'
+      && receipt.gatewayHttpLiveness === true && receipt.nativeProjection === true
+      && receipt.providerWireCertified === false
+      && receipt.runtimeId === 'ace-harbor-runtime-v1'
+      && receipt.sourceCommit === expected.sourceCommit
+      && receipt.bundleSha256 === expected.bundleSha256
+      && receipt.imageReference === expected.reference && receipt.imageDigest === expected.digest;
+  } catch {
+    return false;
+  }
+};

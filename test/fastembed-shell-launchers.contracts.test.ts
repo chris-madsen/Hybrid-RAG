@@ -13,7 +13,7 @@ test('native context runtime does not configure historical sparse workers', asyn
 test('native feedback preflight requires the verified bundle instead of historical vector providers', async () => {
   const preflight = await readFile('scripts/feedback-loop-preflight.ts', 'utf8');
   assert.match(preflight, /verifyAceRuntimeBundle/u);
-  assert.match(preflight, /'aceRuntimeBundle', 'taskRuntimeProbe'/u);
+  assert.match(preflight, /'aceRuntimeBundle', 'nativeTaskProjection', 'taskRuntimeProbe'/u);
   assert.doesNotMatch(preflight, /fastembed-sparse-worker|sparseEmbedding|qdrantUrl|embeddingCache/u);
   assert.match(preflight, /real, provenance-bound Hermes\/Bifröst\/ACE task-container probe/u);
 });

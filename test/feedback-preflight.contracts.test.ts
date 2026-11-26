@@ -9,6 +9,7 @@ import {
   isApprovedVerifierTransport,
   inspectFeedbackVerifierModelsResponse,
   inspectHermesAuthJson,
+  validateNativeTaskProjectionReceipt,
 } from '../src/domain/feedback-preflight.js';
 import * as feedbackPreflight from '../src/domain/feedback-preflight.js';
 import {
@@ -380,4 +381,22 @@ test('Hermes paired arms leave provider-owned context-window configuration untou
   const beforeBranch = adapter.split('if ace_context_enabled:')[0];
   assert.doesNotMatch(beforeBranch, /model_config\["context_length"\]\s*=/u);
   assert.doesNotMatch(beforeBranch, /config\["model"\]\s*=\s*model_config/u);
+});
+
+test('task image receipt binds actual multiline smoke output to source, bundle and image', () => {
+  const expected = { sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64),
+    reference: 'task:1', digest: 'sha256:' + 'c'.repeat(64) };
+  const receipt = { schemaVersion: 1, status: 'READY', gatewayHttpLiveness: true, nativeProjection: true,
+    providerWireCertified: false, runtimeId: 'ace-harbor-runtime-v1', sourceCommit: expected.sourceCommit,
+    bundleSha256: expected.bundleSha256, imageReference: expected.reference, imageDigest: expected.digest };
+  const output = (value: unknown) => 'fixture log\r\n' + JSON.stringify(value) + '\n';
+  assert.equal(validateNativeTaskProjectionReceipt(output(receipt), expected), true);
+  for (const change of [
+    { sourceCommit: 'd'.repeat(40) }, { bundleSha256: 'd'.repeat(64) },
+    { imageDigest: 'sha256:' + 'd'.repeat(64) }, { imageReference: 'task:2' },
+    { providerWireCertified: true }, { nativeProjection: false }, { status: 'BLOCKED' },
+  ]) {
+    assert.equal(validateNativeTaskProjectionReceipt(output({ ...receipt, ...change }), expected), false);
+  }
+  assert.equal(validateNativeTaskProjectionReceipt('not JSON', expected), false);
 });

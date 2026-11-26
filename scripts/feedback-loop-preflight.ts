@@ -21,6 +21,7 @@ import {
   inspectHermesAuthJson,
   validateFeedbackImageOverride,
   validateFeedbackPreflightBinding,
+  validateNativeTaskProjectionReceipt,
 } from '../src/domain/feedback-preflight.js';
 import {
   validateFeedbackExperimentManifest,
@@ -75,6 +76,7 @@ const aceRuntimeBundle = async (
 const nativeTaskProjection = (
   bundlePath: string | undefined,
   expectedBundleDigest: string | undefined,
+  sourceCommit: string,
   taskImages: readonly { readonly reference: string; readonly digest: string }[] | undefined,
   prerequisites: readonly PreflightCheck[],
 ): PreflightCheck => {
@@ -87,19 +89,14 @@ const nativeTaskProjection = (
       resolve('scripts/ace-container-runtime-smoke.mjs'),
       '--image', `${image.reference}@${image.digest}`,
       '--bundle', bundlePath,
-    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 });
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 270_000 });
     if (result.error !== undefined || result.status !== 0) {
       return { status: 'not_ready', reason: 'native task-image zero-egress projection failed or timed out' };
     }
-    try {
-      const lastLine = result.stdout.trim().split(/\\r?\\n/u).at(-1);
-      const receipt = JSON.parse(lastLine ?? '') as Record<string, unknown>;
-      if (receipt.status !== 'READY' || receipt.nativeProjection !== true
-        || receipt.providerWireCertified !== false || receipt.bundleSha256 !== expectedBundleDigest) {
-        return { status: 'not_ready', reason: 'native task-image projection receipt does not match the frozen bundle' };
-      }
-    } catch {
-      return { status: 'not_ready', reason: 'native task-image projection receipt is malformed' };
+    if (!validateNativeTaskProjectionReceipt(result.stdout, {
+      sourceCommit, bundleSha256: expectedBundleDigest, reference: image.reference, digest: image.digest,
+    })) {
+      return { status: 'not_ready', reason: 'native task-image projection receipt does not match the frozen source, bundle and image' };
     }
   }
   return {
@@ -459,10 +456,6 @@ const main = async (): Promise<void> => {
     aceRuntimeBundle: await aceRuntimeBundle(args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256),
     taskRuntimeProbe: taskRuntimeProbe(args.aceRuntimeBundlePath, manifestTaskImages),
   };
-  checks.nativeTaskProjection = nativeTaskProjection(
-    args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256, manifestTaskImages,
-    [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest],
-  );
   const harborVersion = checks.harbor.identity;
   if (experimentManifest === undefined) {
     checks.experimentBinding = { status: 'not_ready', reason: 'experiment manifest is required for exact-current feedback preflight' };
@@ -488,6 +481,21 @@ const main = async (): Promise<void> => {
       ? { status: 'ready', reason: 'experiment identity matches checkout, Harbor jobs/version, Bifröst endpoint, image provenance and OAuth route' }
       : { status: 'not_ready', reason: `experiment identity mismatch: ${[...new Set(failures)].join(', ')}` };
   }
+  // Resolve single-image legacy experiments through the verified bundle's
+  // explicit image reference; never invent a tag from a content digest.
+  let probeImages = manifestTaskImages;
+  if (probeImages?.length === 0 && effectiveImageDigest !== undefined
+    && args.aceRuntimeBundlePath !== undefined && checks.aceRuntimeBundle.status === 'ready') {
+    const manifest = JSON.parse(await readFile(resolve(args.aceRuntimeBundlePath, 'runtime-manifest.json'), 'utf8')) as {
+      readonly taskImages: readonly { readonly reference: string; readonly digest: string }[];
+    };
+    probeImages = manifest.taskImages.length === 1 && manifest.taskImages[0]?.digest === effectiveImageDigest
+      ? manifest.taskImages : [];
+  }
+  checks.nativeTaskProjection = nativeTaskProjection(
+    args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256, currentSourceCommit, probeImages,
+    [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding],
+  );
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
     'harbor', 'harborRun', 'harborDatasetPinned',
