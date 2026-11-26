@@ -73,15 +73,15 @@ test('Hermes Codex-OAuth preflight rejects missing or malformed OAuth state', ()
 });
 
 test('Hermes readiness requires one complete session without mixing credential records', () => {
-  const last_refresh = '2026-10-23T16:18:50Z';
-  const access = { auth_type: 'oauth', access_token: 'test-access', last_refresh };
-  const refresh = { auth_type: 'oauth', refresh_token: 'test-refresh', last_refresh };
+  const lastRefresh = '2026-10-23T16:18:50Z';
+  const access = { auth_type: 'oauth', access_token: 'test-access', last_refresh: lastRefresh };
+  const refresh = { auth_type: 'oauth', refresh_token: 'test-refresh', last_refresh: lastRefresh };
   const inspect = (entries: readonly object[], legacy?: object) => inspectHermesAuthJson('/tmp/auth.json', JSON.stringify({
     credential_pool: { 'openai-codex': entries },
     providers: { 'openai-codex': legacy },
   }));
   assert.equal(inspect([access, refresh]).status, 'not_ready');
-  assert.equal(inspect([access], { auth_mode: 'chatgpt', tokens: { refresh_token: 'test-refresh' }, last_refresh }).status, 'not_ready');
+  assert.equal(inspect([access], { auth_mode: 'chatgpt', tokens: { refresh_token: 'test-refresh' }, last_refresh: lastRefresh }).status, 'not_ready');
   assert.equal(inspect([{}, { ...access, refresh_token: 'test-refresh' }]).status, 'ready');
   assert.equal(inspect([{ ...access, auth_type: 'api_key', refresh_token: 'test-refresh' }]).status, 'not_ready');
 });
