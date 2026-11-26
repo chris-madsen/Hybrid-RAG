@@ -79,7 +79,7 @@ if [[ -n "${ACE_PLUGIN_OUTPUT:-}" ]]; then
 fi
 if [[ "${BIFROST_VERIFY_REQUIRED_GUARD:-false}" == true ]]; then
   (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
-    ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardLLMRemoval)$' -v)
+    ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardRejectsUpgradedRead|RequiredGuardLLMRemoval)$' -v)
 fi
 test -s "$output_path"
 if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
