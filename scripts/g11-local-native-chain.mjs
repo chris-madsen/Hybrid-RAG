@@ -20,6 +20,14 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
       assert.ok(process.env[key], 'missing chain artifact: ' + key);
       return realpath(process.env[key]);
     }));
+  const bifrostCommit = (await exec('git', ['-C', catalog, 'rev-parse', 'HEAD'])).stdout.trim();
+  assert.equal(bifrostCommit, '622eb7610d5c85572fcaed36a02c21f127d2a2f0');
+  assert.equal((await exec('git', ['-C', catalog, 'status', '--porcelain', '--untracked-files=all'])).stdout.trim(), '');
+  const provenanceBytes = await readFile(join(runtime.runtimeRoot, 'dist/runtime-provenance.json'));
+  const provenance = JSON.parse(provenanceBytes.toString('utf8'));
+  const runtimeSha = sha(await readFile(join(runtime.runtimeRoot, 'dist/bin/ace-runtime.js')));
+  assert.equal(provenance.sourceCommit, runtime.sourceCommit);
+  assert.equal(provenance.executableSha256, runtimeSha);
   const root = join(directory, 'bifrost');
   await mkdir(root);
   const portNumber = await port();
@@ -115,8 +123,9 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
     assert.ok(delivered[0].candidates.some((candidate) => candidate.repoPath === 'service.ts'), 'fixture source must be delivered');
     assert.deepEqual(delivered[0].candidates.map((candidate) => candidate.evidenceId).sort(), [...projection.selectedEvidenceIds].sort());
     return { status: 'local-native-chain-denied', sourceCommit: runtime.sourceCommit,
-      bifrostBinarySha256: sha(await readFile(binary)), bifrostPluginSha256: sha(await readFile(plugin)),
-      aceRuntimeSha256: sha(await readFile(runtime.executable)),
+      bifrostCommit, bifrostBinarySha256: sha(await readFile(binary)), bifrostPluginSha256: sha(await readFile(plugin)),
+      aceRuntimeSha256: runtimeSha, runtimeProvenanceSha256: sha(provenanceBytes),
+      aceEntrypointSha256: sha(await readFile(runtime.executable)),
       hermes, requestId: binding.requestId, attemptId: binding.attemptId,
       baseBodySha256: projection.baseBodySha256, preparedBodySha256: binding.preparedBodySha256, finalBodySha256: binding.bodySha256,
       projectionReceiptSha256: binding.projectionReceiptSha256,
