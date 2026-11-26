@@ -30,6 +30,14 @@ def check(condition, code):
         raise RuntimeError(code)
 
 
+def safe_reason_code(error):
+    code = str(error)
+    if re.fullmatch(r"[A-Z][A-Z_]{3,100}", code):
+        return code
+    kind = re.sub(r"[^A-Z0-9]+", "_", type(error).__name__.upper()).strip("_")[:48]
+    return "HERMES_RUNTIME_PROBE_" + kind if kind else "HERMES_RUNTIME_PROBE_FAILED"
+
+
 def output(*args, cwd=None, env=None):
     return subprocess.check_output(args, cwd=cwd, env=env, stderr=subprocess.DEVNULL,
                                    timeout=45, text=True).strip()
@@ -159,9 +167,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as error:
-        code = str(error)
-        if not re.fullmatch(r"[A-Z][A-Z_]{3,100}", code):
-            code = "HERMES_RUNTIME_PROBE_FAILED"
+        code = safe_reason_code(error)
         print(json.dumps({"schemaVersion": 1, "status": "BLOCKED", "reasonCode": code,
                           "providerWireCertified": False}))
         raise SystemExit(2) from None
