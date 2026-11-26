@@ -99,11 +99,22 @@ connection.onRequest('tools/call', (input) => {
     case 'trace_path':
       data = { callees: { cols: ['name', 'hop'], groups: [] } };
       break;
-    case 'query_graph':
-      data = { columns: ['qn', 'file'], rows: process.argv.includes('--partial-semantic-bm25')
-        && input.arguments.query.includes("origin.file_path = 'src/third.ts'")
-        ? [['fixture.linked', 'src/linked.ts']] : [] };
+    case 'query_graph': {
+      // Model the pinned CBM relationship names, not aliases invented by ACE.
+      const query = input.arguments.query;
+      const edgeTypes = /\[r:([^\]]+)\]/u.exec(query)?.[1]?.split('|') ?? [];
+      const rows = [];
+      if (process.argv.includes('--partial-semantic-bm25') && query.includes("origin.file_path = 'src/third.ts'")) {
+        if (query.startsWith('MATCH (origin)-') && edgeTypes.includes('INHERITS')) {
+          rows.push(['fixture.linked', 'src/linked.ts']);
+        }
+        if (query.startsWith('MATCH (other)-') && edgeTypes.includes('OVERRIDE')) {
+          rows.push(['fixture.overrideTarget', 'src/override.ts']);
+        }
+      }
+      data = { columns: ['qn', 'file'], rows };
       break;
+    }
     case 'detect_changes':
       data = { files: [] };
       break;
