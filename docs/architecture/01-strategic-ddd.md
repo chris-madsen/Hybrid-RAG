@@ -1,145 +1,125 @@
-# ACE — Strategic DDD: поддомены, Bounded Contexts и Context Map
+# ACE — Strategic DDD: subdomains, bounded contexts and context map
 
-> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+> **Design model, not an implementation inventory.** This document reconciles the original logical design with the native CBM cutover and the single Bifröst boundary. Identifiers, proposed events and logical consistency boundaries do not imply that corresponding classes, tables or public operations exist. The [original record](https://github.com/chris-madsen/Hybrid-RAG/blob/d19b8ac04ce3861ee0b477fd5253c684edb5136f/docs/architecture/01-strategic-ddd.md) remains in Git history. Current implementation and acceptance are described in [current runtime architecture](../operations/current-architecture.md), the accepted ADRs and applicable OpenSpec.
 
-**Статус:** Current DDD architecture baseline · **Обновлено:** 2026-11-14 · **Основание:** PRD, Accepted ADRs, Gateway-only owner decision и active OpenSpec.
+## 1. Domain vision and system objectives
 
-> В этом документе `Accepted` относится **только к решениям из исходных ADR**. Границы Bounded Context, порты, имена событий, технические интерфейсы и модули ниже — **предложенный дизайн**, требующий design review. **Один Bounded Context не означает отдельный pod или микросервис.**
+ACE is an agent-neutral context engine. Its responsibility is to identify relevant evidence for a coding task, verify it against authorized sources and prepare an additive context projection for the same native Responses request. It does not write code, schedule agents, manage their private reasoning or history, authenticate to the model provider, or dispatch a second model request.
 
-## 1. Domain vision и ценностное предложение
+The supported integration boundary is Bifröst and its thin Go connector, which invokes the authenticated local TypeScript/Effect context RPC. Hermes is the reference client; other compatible harnesses require their own protocol and route verification. External orchestration is outside ACE.
 
-**Current architecture (owner decision 2026-11-14):** LangGraph or another external orchestrator may own agent coordination, but ACE itself has one agent-facing context-delivery path: **Bifröst → thin Go ACE connector → authenticated local Gateway Projection API → TypeScript + Effect ACE Core**. Native Hermes ACE delivery and model-invoked ACE context tools are retired. Provider-wire/real-agent acceptance remains a separate evidence stage.
+The measurable objective is at least a fivefold reduction in total model tokens per accepted task against a strong native baseline, without degrading independently assessed task quality. This is a hypothesis, not a result. Measure latency, external costs, failure rate and retrieval quality separately; include failed attempts and report configuration and limitations. See [evaluation issue #171](https://github.com/chris-madsen/Hybrid-RAG/issues/171).
 
-**Adaptive Context Engine (ACE)** — внешний агентонезависимый слой для coding-агентов (включая управляемых LangGraph), который по смысловому запросу поставляет релевантный, текущий, проверяемый и при необходимости исторический контекст. Продукт не пишет код самостоятельно, не управляет скрытой памятью Codex и не заменяет инструменты coding-агента.
+## 2. Ubiquitous language
 
-**North Star:** `end-to-end baseline total tokens / ACE total tokens >= 5` на заранее зафиксированном наборе задач при качестве не ниже baseline. 5× — цель, а не уже достигнутый результат. Отдельно измеряются денежная себестоимость, latency, фактические ошибки и долговременная память. Цифры публикуются с конфигурацией и ограничениями.
-
-**Две задачи бизнеса:** (1) эффективнее собственная агентная разработка; (2) воспроизводимый DevOps/AI Platform Engineering проект для демонстрации внедрения готовых технологий и доказательных сравнений.
-
-## 2. Ubiquitous Language
-
-| Термин | Строгое значение / антипример |
+| Term | Meaning and boundary |
 |---|---|
-| `Workspace` | Логически зарегистрированный локальный репозиторий/рабочее дерево; не синоним Git commit. |
-| `WorkingTreeVersion` | Идентификатор текущего снимка наблюдаемых исходников, включая изменения вне коммитов; не обещает атомарного снимка всего ФС. |
-| `SourceEvidence` | Ссылка на конкретный исходник, хэш, диапазон и метод получения факта. Не означает доказанную корректность программы. |
-| `Candidate` | Релевантный результат поиска; может оказаться ложным, устаревшим или неразрешённым. |
-| `VerifiedCurrent` | Проверена идентичность наблюдаемого содержания в момент проверки. Не гарантия отсутствия последующей конкурентной правки. |
-| `SemanticFact` | Определение/тип/reference из live language service в пределах его модели языка. |
-| `UnknownDynamicEdge` | Связь, потенциально скрытая DI/reflection/dynamic dispatch/runtime; отсутствие references не доказывает отсутствие вызовов. |
-| `ContextRequest` | Внутренний авторизованный запрос ACE, сформированный из request-bound Gateway projection; agent-facing transport не является частью domain model. |
-| `RetrievalPlan` | План обращения к одному/нескольким источникам; Jev пока исследовательский кандидат. |
-| `ContextBundle` | Набор evidence, excerpts, отношений и предупреждений с disclosure-ссылками; не patch и не сохранённый файл. |
-| `SessionEpisode` | Неизменённый фрагмент оригинальной сессии Codex с provenance и временными метками. |
-| `DecisionRecord` | Извлечённое/подтверждённое архитектурное решение с temporal status; не равно свободной LLM-summary. |
-| `BenchmarkRun` | Единичное выполнение конкретной конфигурации агента на pinned task/environment. |
-| `EvaluationSuite` | Версионированный набор задач, в том числе holdout, предназначенный для сравнения. |
-| `PolicyDenied` | Запрещённая операция (включая передачу приватного кода в облако); не обычная ошибка backend. |
-| `TechnicalDegradation` | Недоступность разрешённого источника; допустим безопасный fallback Codex с явной пометкой. |
+| Workspace | Registered, authorized local repository or working tree; not synonymous with a Git commit. |
+| WorkingTreeVersion | Identity of observed source state, including uncommitted changes; not an atomic snapshot of the entire filesystem. |
+| SourceEvidence | A reference to an identified source, digest, range and evidence method; not proof of program correctness. |
+| Candidate | Ranked discovery result; relevance, freshness, scope and correctness still require verification. |
+| VerifiedCurrent | Exact source identity checked at the observation boundary; not a guarantee against later concurrent edits. |
+| SemanticFact | Definition, reference or type established within a specific language-analysis provider's capabilities; not a graph hint relabeled as an LSP fact. |
+| UnknownDynamicEdge | A possible relationship hidden by dynamic dispatch, reflection or runtime registration; missing static edges do not prove absence. |
+| ContextRequest | Internal authorized request for evidence, derived from a request-bound gateway projection. |
+| RetrievalPlan | Required and optional source obligations and permitted retrieval operations; not a guarantee that every source is available. |
+| ContextBundle | Internal evidence, excerpts, provenance and completeness information; not a patch or provider response. |
+| SessionEpisode | Original imported session fragment with provenance and timestamps; exact capture depends on the supported importer. |
+| DecisionRecord | A proposed, accepted, rejected or superseded decision linked to its original evidence; not an automatically accepted summary. |
+| BenchmarkRun | One execution of a pinned agent configuration on an identified task/environment. |
+| EvaluationSuite | Versioned, frozen task set and scoring rules, including independent holdout where required. |
+| PolicyDenied | Prohibited operation; not interchangeable with a provider outage. |
+| TechnicalDegradation | A permitted dependency is unavailable; report missing evidence and block when required coverage cannot be established. |
 
-## 3. Поддомены и приоритеты
+## 3. Subdomains and responsibilities
 
-| Поддомен | Тип | Ответственность |
+| Subdomain | Strategic role | Responsibility |
 |---|---|---|
-| **Context Orchestration** | **Core** | Из задачи получить стратегию поиска, объединить факты, пометить неизвестное, уменьшить лишний контекст и сохранить lossless drill-down. |
-| **Workspace Truth & Freshness** | **Core / supporting** | Проект, версия текущего рабочего дерева, инвалидация stale evidence, правдивость «текущего» кода. |
-| **Temporal Engineering Memory** | **Core** | Спустя недели восстановить что, когда и почему обсуждали, не потеряв первоисточник. |
-| **Code Discovery** | Supporting | Находит кандидатов через локальный Qdrant и lexical search, но не утверждает семантическую точность. |
-| **Semantic Code Intelligence** | Supporting | AST, LSP, definitions, refs, types, structural queries и ограниченность статического анализа. |
-| **Documentation Knowledge** | Supporting | Поиск в разрешённых документах через Vertex AI RAG Engine. |
-| **Trust & Data Policy** | Generic / critical | Разрешения, data residency, secret filtering, fail-closed решения, безопасное журналирование. |
-| **Agent Access** | Generic / interface | Implemented Bifröst Gateway Projection adapter; sole agent-facing ACE delivery path. |
-| **Experimentation & Evaluation** | **Core для продукта/портфолио** | Harbor, воспроизводимые сравнения, реальный usage, качество, статистика. |
+| Context Orchestration | Core | Select evidence obligations, assemble relevant verified context, preserve original access and represent uncertainty. |
+| Workspace Truth & Freshness | Core/supporting | Establish workspace identity, observe current source and invalidate stale evidence. |
+| Temporal Engineering Memory | Core target | Recover prior decisions and rationale with historical provenance; archive is implemented separately from live temporal recall. |
+| Code Discovery | Supporting | Delegate structural, semantic, lexical and graph discovery to native CBM. |
+| Semantic Code Intelligence | Supporting | Interpret structural evidence and independently verified language-service facts where required; preserve static-analysis limits. |
+| Documentation Knowledge | Supporting | Retrieve authorized project documents through the Vertex adapter. |
+| Trust & Data Policy | Generic, security-critical | Authorize source access, external destinations and every physical model attempt; fail closed. |
+| Agent Access | Interface | Translate native Bifröst requests into local context RPC calls. |
+| Experimentation & Evaluation | Supporting assurance | Collect reproducible retrieval/task evidence, grade outcomes and measure actual usage. |
 
-## 4. Bounded Contexts (BC)
+These classifications describe responsibilities, not a commercial offering, process topology or proof of implementation.
 
-**BC-01 Workspace Truth**: хранит идентичность workspace, рабочую ревизию и сведения о свежести. Внешний контекст не изменяет индекс Qdrant напрямую. Выдаёт версионированные `WorkspaceChanged`, `SnapshotObserved`.
+## 4. Bounded contexts (BC)
 
-**BC-02 Code Discovery**: строит symbol-aware индекс в Qdrant, использует локальный lexical fallback; владеет `IndexGeneration`, retrieval candidates, но не определением «семантически корректно».
+| ID | Logical ownership | Current implementation or target |
+|---|---|---|
+| BC-01 Workspace Truth | Registered identity, source observations, revision/digest, containment and invalidation. | WorkspaceSync and authorized source verification. |
+| BC-02 Code Discovery | Candidate selection and provider readiness, not source truth. | CBM owns its native index, AST, graph, semantic and BM25 discovery; ACE does not maintain a second vector index. |
+| BC-03 Semantic Intelligence | Evidence method, exact spans, symbol identity and limits of static analysis. | CBM structural hints plus ACE byte verification. Independent LSP adapters/contracts remain; native code-only RPC does not request LSP evidence (#364). |
+| BC-04 Documentation Knowledge | Corpus identity, permitted document evidence and citations. | Vertex adapter exists; combined document delivery through native Responses is not established by the current code-only projection. |
+| BC-05 Engineering Memory | Immutable originals, decision provenance, temporal status and deletion. | Archive and lifecycle mechanisms exist; Graphiti/FalkorDB is the selected temporal projection target, not a configured gateway runtime. |
+| BC-06 Context Orchestration | Required coverage, relevance, deduplication, verification and request-local projection. | TypeScript/Effect application; signed PREPARED receipt or explicit BLOCK. |
+| BC-07 Trust & Policy | Authorization, source classification, protected attempt binding, secret-safe auditing. | Policy and per-attempt decision service; Bifröst enforces the physical-send boundary. |
+| BC-08 Evaluation | Frozen tasks, provider/task/attempt attribution, correctness and usage accounting. | Harbor integration and evidence tooling; independent acceptance remains open. |
 
-**BC-03 Semantic Intelligence**: Tree-sitter/ast-grep + LSP adapter; выдаёт проверяемые структурные и семантические свидетельства. Выбор Serena vs tsserver остаётся spike.
+Agent Access is an anti-corruption layer (ACL), not a ninth core bounded context. The Go connector owns transport adaptation, not retrieval, domain policy or agent planning.
 
-**BC-04 Documentation Knowledge**: адаптер к Vertex AI RAG Engine и версии документов; хранение оригиналов и разрешений на внешний импорт — предмет интеграции, не собственность Codex.
+## 5. Context map
 
-**BC-05 Engineering Memory**: неизменяемый архив исходных эпизодов + Graphiti как temporal index; не превращает извлечённые summaries в принятые ADR без подтверждения.
-
-**BC-06 Context Orchestration**: главный доменный контекст: стратегия, parallel retrieval, relevance-first assembly, дедупликация, freshness, provenance, incomplete statuses, lossless expand.
-
-**BC-07 Trust & Policy**: авторизует маршруты данных и операции на границе, защищает от секретов/prompt injection. Не доверяет внешним источникам и embedded инструкциям в коде.
-
-**BC-08 Evaluation**: формирует reproducible experimental record, контролирует baseline и holdout, собирает provider-reported токены. Harbor — runner, а не источник бизнес-истины.
-
-**Agent Access (ACL)** — supporting adapter/module, **не отдельный Core BC**: переводит request-bound Bifröst Gateway Projection во внутренние команды ACE. Thin Go connector не владеет retrieval/policy/domain logic; старые native/tool delivery adapters не являются поддерживаемыми маршрутами. Системные состояния не управляются из model-generated snippets.
-
-## 5. Context Map
+Solid relationships describe the current code-only projection; dotted relationships identify independent or target retrieval capabilities, not active delivery.
 
 ```mermaid
 flowchart TB
-  LG["LangGraph external orchestrator"] --> AG["Existing coding agents"]
-  AG -->|"configured model endpoint"| BF["Bifröst gateway + pinned thin Go connector"]
-  BF -->|"authenticated ace.context.v3"| ACL["ACE native Responses projection adapter"]
-  ACL --> O["BC-06 Context Orchestration / CORE"]
-  O --> P["BC-07 Trust & Policy"]
+  AG["Coding agent"] --> BF["Bifröst + Go connector"]
+  BF <-->|"ace.context.v3"| ACL["Agent Access"]
+  ACL --> O["BC-06 Context Orchestration"]
   O --> W["BC-01 Workspace Truth"]
   O --> C["BC-02 Code Discovery"]
-  O --> S["BC-03 Semantic Intelligence"]
-  O --> D["BC-04 Documentation Knowledge"]
-  O --> M["BC-05 Engineering Memory"]
-  C --> Q["Qdrant - local"]
-  S --> L["ast-grep + LSP"]
-  D --> V["Authorized Vertex RAG"]
-  M --> G["Archive + Graphiti"]
-  E["BC-08 Evaluation"] --> H["Harbor runs"]
+  O --> P["BC-07 Trust & Policy"]
+  C --> CBM["Native Codebase Memory"]
+  O -.-> S["BC-03 Independent semantic verification"]
+  S -.-> LS["External LSP research"]
+  O -.-> D["BC-04 Documentation Knowledge"]
+  D --> V["Vertex adapter"]
+  O -.-> M["BC-05 Engineering Memory"]
+  M --> A["Immutable archive"]
+  M -.-> G["Graphiti / FalkorDB target"]
+  E["BC-08 Evaluation"] --> H["Harbor runner"]
+  BF -->|"Only after attempt authorization"| L["Model provider"]
 ```
 
-### Relationship types / ownership
-
-| Upstream (owner) → downstream (consumer) | Отношение | Контракт |
+| Relationship | DDD relationship | Contract |
 |---|---|---|
-| Workspace Truth → Code Discovery / Semantic Intelligence | **Published Language + Domain Events** | WorkspaceId, file hash/revision, mutation sequence; downstream builds own projection. |
-| Code Discovery → Orchestration | **Open Host Service + ACL** | CandidateBatch с состоянием индекса; не `verified` по умолчанию. |
-| Semantic Intelligence → Orchestration | **Customer/Supplier через query port** | ResolvedSymbol, static edge, diagnostic, completeness warning. |
-| Documentation Knowledge → Orchestration | **ACL к внешнему SaaS** | DocEvidence: document_id/version/section, authorisation marker, excerpt. |
-| Engineering Memory → Orchestration | **Published Language + ACL** | MemoryEvidence со ссылкой на original episode и статусом решения. |
-| Trust & Policy → все внешние I/O | **Conformist to mandatory policy API** | Allowed/Denied + reason code; отсутствие решения = Denied. |
-| Context Orchestration → Agent Access | **Published Language** | Versioned Gateway projection/result with no Qdrant/Graphiti/Vertex DTO leakage; Bifröst is the only agent-facing transport. |
-| Evaluation → Harbor | **Anti-Corruption Layer** | Internal BenchmarkRun ↔ pinned Harbor execution/result. |
+| Workspace Truth → discovery and verification | Published language | Registered identity, observed paths, digests and revision; downstream projections cannot redefine source truth. |
+| Code Discovery → Orchestration | Provider ACL/query port | Ranked native candidates and readiness; not verified facts by default. |
+| Semantic Intelligence → Orchestration | Customer/supplier through typed ports | Method, symbol/range identity, uncertainty and unavailable status where applicable. |
+| Documentation Knowledge → Orchestration | External service ACL | Authorized corpus, source citation, excerpt and limitations. |
+| Engineering Memory → Orchestration | Archive/temporal projection boundary | Original episode reference and decision status; derived facts remain secondary. |
+| Trust & Policy → external I/O | Mandatory policy contract | Allow/deny with reason; absence of authorization does not permit sending. |
+| Orchestration → Agent Access | Versioned published language | Internal context RPC v3, no provider-specific retrieval DTO leakage. |
+| Evaluation ↔ Harbor | ACL | Frozen task/run identity, observed outcome and normalized usage. |
 
-BC **не** является Kubernetes Deployment. Предложение: один modular-monolith process для собственных модулей + готовые stateful зависимости (Qdrant, backend Graphiti) и внешний Vertex. Не проектировать 8 микросервисов.
+Bounded contexts are logical ownership boundaries, not Kubernetes pods. ACE remains a modular monolith; deployment of existing external dependencies is a separate concern.
 
-## 6. Внешние системы и «переплюнуть»
+## 6. External systems and comparison boundaries
 
-- Codex native — основной сильный baseline: rg/read/git/test/caching/compaction остаются включёнными.
-- Serena — сравнительный LSP/tooling baseline и кандидат адаптера.
-- Augment Code Context Engine — сильный коммерческий benchmark, но не обязательный runtime dependency.
-- GitNexus / CodeGraphContext — сравнительный graph baseline; не принимать noncommercial компонент в коммерческий продукт без лицензии.
-- Qdrant — выбранное локальное code retrieval хранилище (**ADR-003**).
-- Vertex AI RAG Engine — выбранный documentation retrieval (**ADR-003**).
-- Graphiti — выбранный temporal knowledge index с raw archive (**ADR-005**).
-- Harbor — выбранный evaluation harness (**ADR-009**).
+CBM is the selected sole code retrieval engine. Vertex is selected for authorized documentation; Graphiti/FalkorDB is selected for the future temporal projection. Harbor is the experiment runner, not the source of correctness. A strong unmodified agent remains the matched baseline. Codex is a historical comparison client; Hermes is the current reference route. Prior research into Serena, Qdrant, separate embedding workers and alternative graph engines is not permission to reintroduce them.
 
-**Граница возможностей:** систематическую экономию, correctness, превосходство над конкурентами следует доказать на контрольном наборе. Доменное проектирование само по себе не подтверждает 5×.
+No competitive superiority, production readiness or end-to-end token saving follows from these selections. See [native CBM cutover](../plans/2026-11-25-native-cbm-cutover-and-legacy-retirement.md) and [readiness](../operations/ace-configuration-and-readiness-matrix.md).
 
-## 7. Стратегия интеграции и риски
+## 7. Integration strategy and risks
 
-- **Single Bifröst Gateway delivery entrypoint**; provider/retrieval adapters are ports, not Domain Model dependencies.
-- **DDD modules в монолите**: `packages/domain-*` либо модульные директории — решение структуры репозитория будет принято в spike, а не сейчас.
-- Внешние вызовы проходят Policy Gate **до** отправки payload и redaction; локальные безопасные поиски доступны при деградации.
-- Все внешние результаты — недоверенные данные; RAG snippets и transcript fragments не являются инструкциями.
-- Security logs обязательны, полная observability отложена по ADR-010.
-- Спроектированное событие обозначает факт для подписчиков, **не требование вводить Kafka/event sourcing**: durable outbox при необходимости и локальный event dispatcher достаточны для модульного монолита.
+- Keep provider DTOs and I/O in adapters; implement domain invariants with immutable ADTs and pure functions, orchestrated by Effect.
+- Treat indexed snippets, documents and memory as untrusted evidence, never as policy or executable instructions.
+- Recheck source identity and required coverage at delivery; never infer exact language-service coordinates or runtime behavior from graph hints.
+- Separate project/prepare from per-physical-attempt authorization; no silent provider or protocol fallback.
+- Use durable outbox and idempotent retry where required by observed lifecycle needs. Domain events do not mandate an event bus or event sourcing.
+- Record safe diagnostics and usage; full observability remains a separate decision under ADR-010.
 
-## 8. Источники требований и непереопределяемые решения
+## 8. Authority and unresolved decisions
 
-- `docs/references/PRD-v1.0.md`: цели, сценарии, quality gates.
-- `docs/references/ADR-001...010`: принятые ограничения; **ADR-006 превосходит старое PRD FR-06 о фиксированном `max_tokens`**. Контекст relevance-first, автоматическая обрезка созданного кода недопустима.
-- **Открыто:** Jev vs deterministic router; Serena vs tsserver; embeddings local/cloud; code graph extension; способ K8s-доступа к рабочему дереву; provider для Graphiti extraction и его приватность; детали импорта Codex sessions; точная версия/adapter Harbor.
+Use [PRD](../references/PRD-v1.0.md), [ADR register](../references/ADR-000-decision-register.md), [ADR-019](../references/ADR-019-functional-ddd-typespec-contracts.md), [ADR-020](../references/ADR-020-native-responses-only.md), [ADR-021](../references/ADR-021-bifrost-single-gateway-ace-context-service.md) and [AGENTS.md](../../AGENTS.md). ADR-006 governs exact original access without forced truncation. The selected native-only runtime supersedes old vector-specific designs; preserve their historical rationale in Git.
 
+Open questions include absolute retrieval quality and scale, native daemon/cache and remote-worktree topology (#363), independent external LSP scope (#364), authorized document and temporal delivery, real provider/agent acceptance and matched task economics. Consult [OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014](../../openspec/changes/014-ace-audit-reliability-remediation/tasks.md) rather than inferring readiness from a conceptual model.
 
----
+## Architecture correction: a bounded context is not a runnable provider
 
-## Architecture correction: Bounded Context is not a runnable provider (proposed, 2026-10-18)
-
-Context Orchestration is accountable for the **observable capability** of delivering current, symbol-specific context through the authorized Bifröst Gateway projection path. Code Discovery owns candidate retrieval semantics, Semantic Intelligence owns AST spans / language-service facts, Workspace Truth owns local source freshness, and Evaluation owns **attribution** of agent-run token results to real ACE invocations. These ownership lines are useful only if runtime composition actually delegates to each provider when required. A port, value object or mock is an implementation artifact, not a delivered bounded-context capability.
-
-**Dependency direction:** external agent → Bifröst Gateway projection adapter → policy-gated ACE orchestration → selected mature provider adapters → current source verification → ranked request-local projection. Gateway implementation exists, but production provider/agent acceptance remains evidence-gated. Each provider's native DTO belongs in its own adapter, not domain code. A deterministic fallback is explicitly marked fallback/degraded; it never silently becomes the selected Qdrant/AST/LSP implementation. No new microservice is implied by these boundaries. See proposed ADR-012 and `07-architecture-fitness-contracts.md` for proof requirements.
+A port, event name, value object, mock or adapter on disk does not prove a delivered capability. The required provider must be invoked by the claimed runtime, its evidence verified and the result observed at the applicable boundary. This principle retains the original 2026-10-18 design correction without treating its historical provider choices as current.
