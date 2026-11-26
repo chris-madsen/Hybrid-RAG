@@ -2,13 +2,13 @@
 
 **Give AI coding agents the right context, not more context.**
 
-ACE is open-source, agent-agnostic context engineering infrastructure for AI coding agents. It brings together structural code intelligence, project documentation and persistent project memory in a hybrid retrieval architecture, with context delivered at the LLM gateway rather than through a separate integration for every agent.
+ACE is open-source, agent-agnostic context engineering infrastructure for AI coding agents. Its hybrid retrieval architecture combines structural code intelligence, project documentation and persistent project memory, with context delivered at the LLM gateway rather than through a separate integration for every agent. The current native Responses projection delivers verified code context; document and memory delivery are separate integration stages.
 
 Coding agents are good at reasoning about code, but finding the right code can be expensive. They repeatedly search files, rediscover dependencies, read documentation and reconstruct decisions from previous sessions. ACE is designed to turn that exploration into focused, source-verified evidence, leaving more of the context window for solving the actual task.
 
 - **Understand unfamiliar code faster:** find relevant functions, callers, dependencies and implementation paths instead of reading files one by one.
 - **Spend fewer tokens on discovery:** deliver compact, relevant evidence and preserve access to complete authorized originals.
-- **Ground changes in project requirements:** retrieve relevant specifications, architecture decisions and technical documentation alongside code.
+- **Ground changes in project requirements:** the documentation layer is designed to retrieve specifications, architecture decisions and technical guides alongside code.
 - **Carry knowledge across tasks:** the temporal-memory design lets agents recover earlier decisions, rejected approaches and the reasons behind them.
 - **Keep your preferred agent:** context delivery happens through the LLM gateway; the agent retains its own tools, reasoning and workflow.
 
@@ -21,7 +21,7 @@ flowchart LR
     A["AI coding agent"] --> G["Bifröst LLM Gateway"]
     G <-->|"Context RPC"| E["ACE Core"]
     E --> C["Codebase Memory<br/>Code intelligence"]
-    E --> D["Vertex AI RAG<br/>Authorized documents"]
+    E -.-> D["Vertex AI RAG<br/>Document delivery (target)"]
     E -.-> M["Graphiti + FalkorDB<br/>Temporal memory (target)"]
     G -->|"Authorized native request"| L["LLM provider"]
 ```
@@ -57,15 +57,15 @@ ACE uses CBM as its sole code retrieval engine, including native semantic search
 
 ### 2. Project documentation — know what the software is supposed to do
 
-[Google Cloud Vertex AI RAG Engine](https://developers.googleblog.com/vertex-ai-rag-engine-a-developers-tool/) provides managed document ingestion, chunking, indexing and relevance-based retrieval. An authorized corpus can contain product requirements, architecture documents, API specifications, operational runbooks and internal engineering guides.
+[Google Cloud Vertex AI RAG Engine](https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/rag-engine/rag-overview) provides managed document ingestion, chunking, indexing and relevance-based retrieval. An authorized corpus can contain product requirements, architecture documents, API specifications, operational runbooks and internal engineering guides.
 
-**Example:** an agent implementing a new payment operation needs to understand not only existing code, but also the documented idempotency contract, retry limits and security requirements. Relevant document passages can be retrieved from the configured corpus and supplied alongside code evidence, so the model can reason about both the implementation and its intended behavior.
+**Example:** an agent implementing a new payment operation needs to understand not only existing code, but also the documented idempotency contract, retry limits and security requirements. In the target combined delivery path, relevant passages from the configured corpus accompany code evidence, so the model can reason about both implementation and intended behavior.
 
-ACE's documentation adapter retrieves from an explicitly configured corpus; document ingestion and corpus management use Vertex's supported facilities. Cloud document retrieval is opt-in and scoped to authorized project documents. It does not authorize uploading private source code, credentials or conversations.
+ACE has a Vertex retrieval adapter for an explicitly configured corpus; document ingestion and corpus management use [Vertex's supported facilities](https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/rag-engine/use-data-ingestion). Cloud document retrieval is opt-in and scoped to authorized project documents. It does not authorize uploading private source code, credentials or conversations. **Current scope:** the native Responses projection requests code only and rejects non-code evidence. Combining Vertex passages with code in the outbound request requires its own integration and acceptance.
 
 ### 3. Persistent project memory — remember why decisions were made
 
-[Graphiti](https://github.com/getzep/graphiti) is a temporal knowledge-graph engine that represents evolving facts and their relationships over time. It can combine information from past conversations and structured records, retain historical relationships and distinguish newer facts from superseded ones. The [Zep research paper](https://arxiv.org/abs/2501.13956) explains the underlying approach. ACE's target uses Graphiti with FalkorDB and a local-first memory policy, backed by immutable original records.
+[Graphiti](https://github.com/getzep/graphiti) is a temporal knowledge-graph engine that represents evolving facts and their relationships over time. It can combine information from past conversations and structured records, retain historical relationships and distinguish newer facts from superseded ones. The [Zep research preprint](https://arxiv.org/abs/2501.13956v1) describes the underlying temporal graph architecture; its evaluation is of Zep, not ACE or an independently deployed Graphiti instance. ACE's target uses Graphiti with FalkorDB and a local-first memory policy, backed by immutable original records.
 
 **Example:** a team once evaluated automatic payment retries but rejected them because the provider lacked idempotency guarantees. Months later, an agent proposes the same approach while planning another task. With persistent temporal recall, the agent could respond:
 
@@ -87,9 +87,9 @@ Published CBM results illustrate the opportunity:
 
 | Result | Workload and source |
 | --- | --- |
-| **~120× lower token volume** | Five structural queries: approximately 3,400 vs 412,000 tokens in the project's [published benchmark](https://github.com/DeusData/codebase-memory-mcp/blob/main/docs/BENCHMARK.md). |
-| **10× lower token use; 2.1× fewer tool calls** | [Codebase-Memory research preprint](https://arxiv.org/abs/2603.27277), across 31 repositories. Answer quality was 83% for graph exploration vs 92% for file exploration, highlighting the need for source verification and sufficient original context. |
-| **~22× lower retrieval token volume** | [Independent analysis by Emre Cavunt](https://emrecavunt.com/blog/codebase-memory-mcp%2Dtoken-economy): 3,004 vs 67,428 tokenizer-counted response tokens for a call-chain and source question on Google's ADK repository, compared with a focused grep/file-reading strategy. |
+| **~120× lower token volume** | Five structural queries: approximately 3,400 vs 412,000 tokens for CBM versus file-by-file grep exploration, as reported in the [historical upstream README, line 311](https://github.com/DeusData/codebase-memory-mcp/blob/4ff6feeab639c4668da0f491930326ed5ec63093/README.md#L311). The original inputs and raw artifacts are required for exact reproduction. |
+| **10× fewer tokens per question; 2.1× fewer tool calls** | [Codebase-Memory preprint, §4.1, Table 6](https://arxiv.org/html/2603.27277v1#S4.SS1): about 1,000 vs 10,000 tokens and 2.3 vs 4.8 calls per question, using Claude Opus 4.6 across 31 repositories. Author-graded mean quality scores: 0.83 vs 0.92. See [§5.4](https://arxiv.org/html/2603.27277v1#S5.SS4) for limitations. |
+| **~22× fewer retrieval-output tokens** | [Independent analysis by Emre Cavunt, One question, three bills](https://emrecavunt.com/blog/codebase-memory-mcp%2Dtoken-economy#one-question-three-bills): 3,004 vs 67,428 tokens on Google ADK Python, using CBM v0.9.0 and a disciplined grep/file-reading baseline. Counts use the cl100k_base tokenizer on command output, not live model usage; no agent ran in the loop. |
 
 These are component-level exploration results, not ACE-wide task savings. The size of the benefit depends on the task, baseline, context selection and model. ACE combines structural discovery with exact source evidence rather than assuming a graph alone answers every question.
 
@@ -116,17 +116,17 @@ See [ADR-021: single Bifröst Gateway](docs/references/ADR-021-bifrost-single-ga
 
 ### Source fidelity and privacy
 
-Current verified source takes precedence over stale index entries, documentation and derived memory. ACE verifies workspace membership, original bytes and source ranges; required-source coverage and uncertainty determine completeness. Large authorized originals remain accessible without silently truncating them. Provider outages and denied requests are explicit failures, not successful empty results.
+Current verified source is authoritative for implementation facts; documented requirements and historical decisions provide different evidence, not replacements for current source bytes. ACE verifies workspace membership, original bytes and source ranges; required-source coverage and uncertainty determine completeness. Large authorized originals remain accessible without silently truncating them. Provider outages and denied requests are explicit failures, not successful empty results.
 
 Code indexing is local by default. External retrieval and model-bound transmission require separate data-class and destination authorization. The gateway checks each protected physical attempt, including retries, rather than treating a prepared projection as permission to send.
 
 ## Project status
 
-ACE is under active development. Native code retrieval, the internal context RPC, source verification and gateway policy contracts are implemented. The current reference path is Hermes through Bifröst; live agent acceptance, independent retrieval and token-economics evaluation, and gateway-native temporal memory have separate acceptance gates. See the [readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md), [OpenSpec gateway acceptance](openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [reliability acceptance](openspec/changes/014-ace-audit-reliability-remediation/tasks.md) for the authoritative status instead of a dated changelog here.
+ACE is under active development. Native code retrieval, the internal context RPC, source verification and gateway policy contracts are implemented. The current reference path is Hermes through Bifröst; live agent acceptance, independent retrieval and token-economics evaluation, and gateway-native document and temporal-memory delivery have separate acceptance gates. See the [readiness matrix](docs/operations/ace-configuration-and-readiness-matrix.md), [OpenSpec gateway acceptance](openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [reliability acceptance](openspec/changes/014-ace-audit-reliability-remediation/tasks.md) for the authoritative status instead of a dated changelog here.
 
 ## Local development
 
-Node.js/TypeScript and Effect implement the core modular monolith using functional DDD; Go is the Bifröst integration boundary. Python remains available for independent memory, HTTP and evaluation tooling. Docker/k3s provide local deployment infrastructure.
+Node.js/TypeScript and Effect implement the core modular monolith using functional DDD; Go is the Bifröst integration boundary. Python remains available for independent memory, HTTP and evaluation tooling. Docker provides local deployment infrastructure; full-unified k3s deployment remains a separate acceptance scope.
 
 ```bash
 npm ci
