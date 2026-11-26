@@ -87,7 +87,7 @@ Published CBM results illustrate the opportunity:
 
 | Result | Workload and source |
 | --- | --- |
-| **99.2% fewer tokens (~121:1)** | Five structural queries: approximately 3,400 vs 412,000 tokens for CBM versus file-by-file grep exploration, as reported in the [historical upstream README, line 311](https://github.com/DeusData/codebase-memory-mcp/blob/4ff6feeab639c4668da0f491930326ed5ec63093/README.md#L311). The original inputs and raw artifacts are required for exact reproduction. |
+| **~120× lower token volume** | Five structural queries: approximately 3,400 vs 412,000 tokens for CBM versus file-by-file grep exploration, as reported in the [historical upstream README, line 311](https://github.com/DeusData/codebase-memory-mcp/blob/4ff6feeab639c4668da0f491930326ed5ec63093/README.md#L311). The original inputs and raw artifacts are required for exact reproduction. |
 | **10× fewer tokens per question; 2.1× fewer tool calls** | [Codebase-Memory preprint, §4.1, Table 6](https://arxiv.org/html/2603.27277v1#S4.SS1): about 1,000 vs 10,000 tokens and 2.3 vs 4.8 calls per question, using Claude Opus 4.6 across 31 repositories. Author-graded mean quality scores: 0.83 vs 0.92. See [§5.4](https://arxiv.org/html/2603.27277v1#S5.SS4) for limitations. |
 | **~22× fewer retrieval-output tokens** | [Independent analysis by Emre Cavunt, One question, three bills](https://emrecavunt.com/blog/codebase-memory-mcp%2Dtoken-economy#one-question-three-bills): 3,004 vs 67,428 tokens on Google ADK Python, using CBM v0.9.0 and a disciplined grep/file-reading baseline. Counts use the cl100k_base tokenizer on command output, not live model usage; no agent ran in the loop. |
 
