@@ -42,10 +42,10 @@ def safe_reason_code(error):
                 except (TypeError, ValueError):
                     continue
                 code = report.get("reasonCode") if isinstance(report, dict) else None
-                if isinstance(code, str) and re.fullmatch(r"[A-Z][A-Z_]{3,100}", code):
+                if isinstance(code, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{3,100}", code):
                     return code
     code = str(error)
-    if re.fullmatch(r"[A-Z][A-Z_]{3,100}", code):
+    if re.fullmatch(r"[A-Z][A-Z0-9_]{3,100}", code):
         return code
     kind = re.sub(r"[^A-Z0-9]+", "_", type(error).__name__.upper()).strip("_")[:48]
     return "HERMES_RUNTIME_PROBE_" + kind if kind else "HERMES_RUNTIME_PROBE_FAILED"
@@ -113,7 +113,9 @@ def run_transport(root, endpoint_digest, model, effort):
             try:
                 client.responses.create(**kwargs)
             except openai.APIStatusError as error:
-                check(error.status_code == (403 if local_chain else 400), "HERMES_UNEXPECTED_DENIAL_STATUS")
+                expected_status = 403 if local_chain else 400
+                check(error.status_code == expected_status,
+                      f"HERMES_UNEXPECTED_DENIAL_STATUS_{error.status_code}")
                 if local_chain:
                     check("DESTINATION_NOT_ALLOWED" in error.response.text, "HERMES_PHYSICAL_DENIAL_MISSING")
             else:
