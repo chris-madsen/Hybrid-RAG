@@ -70,7 +70,12 @@ class HermesCodexOAuth(Hermes):
             raise ValueError("Hermes Bifrost endpoint and pinned SHA-256 identity are required")
         normalized = endpoint.strip().rstrip("/")
         try:
+            # Reject ambiguous URLs before either parser or SDK normalizes them.
+            if not re.fullmatch(r"https?://[^/?#\s\\]+/chatgpt_passthrough/backend-api/codex",
+                                normalized, re.IGNORECASE):
+                raise ValueError("unsafe endpoint")
             parsed = urlsplit(normalized)
+            _ = parsed.port  # urlsplit validates the port only on access
             hostname = (parsed.hostname or "").lower().rstrip(".")
             if (parsed.scheme not in ("http", "https") or not hostname
                     or parsed.username is not None or parsed.password is not None
@@ -78,10 +83,10 @@ class HermesCodexOAuth(Hermes):
                 raise ValueError("unsafe endpoint")
         except ValueError as exc:
             raise ValueError("Hermes Bifrost endpoint is not a safe HTTP(S) URL") from exc
-        # Hermes Codex appends /backend-api/codex/responses to this prefix.
-        # /v1 would bypass the subscribed route, even on the same local host.
-        if parsed.path != "/chatgpt_passthrough":
-            raise ValueError("Hermes openai-codex requires Bifrost /chatgpt_passthrough base path")
+        # Hermes passes the base to OpenAI; its SDK appends only /responses.
+        # Require the complete Codex base, never the gateway prefix alone.
+        if parsed.path != "/chatgpt_passthrough/backend-api/codex":
+            raise ValueError("Hermes openai-codex requires Bifrost /chatgpt_passthrough/backend-api/codex base path")
         if (hostname == "openai.com" or hostname.endswith(".openai.com")
                 or hostname == "chatgpt.com" or hostname.endswith(".chatgpt.com")):
             raise ValueError("direct OpenAI/Codex endpoints bypass Bifrost and are prohibited")

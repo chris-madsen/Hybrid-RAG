@@ -262,12 +262,15 @@ try {
       providerManagedHistoryCapability: 'visible', hostTranscriptAttested: false, compactionEnabled: false,
     },
   };
+  const projectionStarted = performance.now();
   const responsePromise = fetch(endpoint + '/project', {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret' },
     body: JSON.stringify(payload), signal: timeout(maxWait),
   });
   const response = await responsePromise;
   const decision = await response.json();
+  const initialProjectionElapsedMs = Math.round(performance.now() - projectionStarted);
+  let nativeOperationCounts;
   if (native) {
     nativeProcessNames = assertNoExternalRetrievalProcesses(child.pid);
     const traceEvents = await readProviderTrace(providerTracePath);
@@ -275,6 +278,7 @@ try {
       ['qdrant', 'embedding', 'sparse_embedding', 'reranker', 'lsp'].includes(event.provider));
     assert.deepEqual(forbiddenProviders, [], 'native retrieval trace must contain no legacy provider operations');
     const nativeEvents = traceEvents.filter((event) => event.provider === 'codebase_memory');
+    nativeOperationCounts = Object.fromEntries([...new Set(nativeEvents.map((event) => event.operation))].map((operation) => [operation, nativeEvents.filter((event) => event.operation === operation).length]));
     assert.ok(nativeEvents.some((event) => event.operation === (outage ? 'index_repository' : 'search_graph')
       && event.status === (outage ? 'failure' : 'success')),
     'provider trace must prove the native CBM operation that determined the projection result');
@@ -306,7 +310,9 @@ try {
     console.log(JSON.stringify({
       status: 'projection-pass', transport: 'ace-internal-projection-http',
       retrieval: 'native_cbm',
-      ...(native ? { nativeProcessNames } : {}),
+      ...(native ? { nativeProcessNames, nativeOperationCounts } : {}),
+      elapsedMs: initialProjectionElapsedMs, decisionKind: decision.kind,
+      reasonCode: decision.reasonCode,
       source: scale ? 'frozen ACE source subtree' : nonGit ? 'non-Git native CBM fixture' : 'Git-backed native CBM fixture',
       projectedBodySha256: decision.projectedBodySha256,
       providerWireCertified: false,

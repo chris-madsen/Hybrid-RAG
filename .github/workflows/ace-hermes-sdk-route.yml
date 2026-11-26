@@ -1,0 +1,32 @@
+name: Hermes pinned native Responses SDK path
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/harbor_hermes_codex_oauth.py'
+      - 'scripts/hermes-sdk-route-smoke.py'
+      - 'src/domain/feedback-preflight.ts'
+      - '.github/workflows/ace-hermes-sdk-route.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Install isolated test-only Hermes SDK dependency
+        run: | # zizmor: ignore[adhoc-packages] exact SDK and HTTP client versions from pinned Hermes release
+          python -m venv "$RUNNER_TEMP/ace-hermes-sdk"
+          "$RUNNER_TEMP/ace-hermes-sdk/bin/python" -m pip install --disable-pip-version-check openai==2.24.0 httpx==0.28.1
+      - name: Observe native request path with no network
+        run: |
+          sudo unshare --net -- runuser -u "$(id -un)" -- "$RUNNER_TEMP/ace-hermes-sdk/bin/python" "$PWD/scripts/hermes-sdk-route-smoke.py"
