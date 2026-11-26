@@ -56,7 +56,8 @@ CBM CLI bottleneck was superseded by merged PR #321.
    latencies. Never increase timeouts just to hide repeated indexing.
 4. **Start one local Gateway:** launch ACE's internal projection service and
    the pinned Bifröst HTTP binary with the approved connector, native CBM and
-   `BIFROST_REQUIRED_PHYSICAL_SEND_PLUGIN=ace-bifrost-context` configuration. Verify the subscription passthrough from the sandbox.
+   `BIFROST_REQUIRED_PHYSICAL_SEND_PLUGIN=ace-bifrost-context` and
+   `BIFROST_CHATGPT_PASSTHROUGH_SUBSCRIPTION_ONLY=true` configuration. Verify the subscription passthrough from the sandbox.
    A reachable health endpoint is NOT proof that the ACE post-auth hook runs.
 5. **Harbor dry run:** verify that the job uses ONLY `import_path` and no
    built-in `name`; verify Hermes v0.22.3 binary and its supported
