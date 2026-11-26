@@ -93,6 +93,7 @@ def main():
                 # No inherited provider or proxy credentials.
                 env = {"PATH": os.environ["PATH"], "HOME": str(root),
                        "BIFROST_REQUIRED_PHYSICAL_SEND_PLUGIN": PLUGIN,
+                       "BIFROST_CHATGPT_PASSTHROUGH_SUBSCRIPTION_ONLY": "true",
                        "ACE_CONTEXT_RPC_URL": f"http://127.0.0.1:{rpc.server_port}{RPC_PATH}",
                        "ACE_BIFROST_TENANCY_MODE": "single-workspace",
                        "ACE_BIFROST_WORKSPACE_ID": "fixture",
@@ -128,6 +129,9 @@ def main():
                         assert json.loads(base64.b64decode(projection["bodyBase64"])) == json.loads(BODY)
                         status, _ = request(port, "POST", "/v1/chat/completions", BODY)
                         assert status == 404 and len(observed) == 1, "unsupported generation route was not denied"
+                        status, body = request(port, "GET", "/chatgpt_passthrough/backend-api/codex/models")
+                        assert status == 401 and b"stored-key fallback is disabled" in body, "non-subscriber must not select a stored key"
+                        assert len(observed) == 1, "model catalog request must not fabricate projection evidence"
                         status, _ = request(port, "GET", INGRESS, extra_headers={
                             "Upgrade": "websocket", "Connection": "Upgrade",
                             "Sec-WebSocket-Version": "13", "Sec-WebSocket-Key": base64.b64encode(os.urandom(16)).decode("ascii")})

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${BIFROST_SOURCE_ROOT:?set BIFROST_SOURCE_ROOT to the exact Bifrost checkout}"
-: "${BIFROST_COMMIT:=72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0}"
+: "${BIFROST_COMMIT:=622eb7610d5c85572fcaed36a02c21f127d2a2f0}"
 : "${GO_BIN:=go}"
 temp_root=${RUNNER_TEMP:-${TMPDIR:-$HOME/.cache/ace}}
 : "${OUTPUT:=$temp_root/ace-bifrost-context.so}"

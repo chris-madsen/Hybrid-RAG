@@ -16,7 +16,7 @@ For active requirements and runbooks see [OpenSpec C04](../../../openspec/change
 
 The connector's current Go plugin is built against a **pinned review fork**:
 
-`chris-madsen/bifrost@72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0`
+`chris-madsen/bifrost@622eb7610d5c85572fcaed36a02c21f127d2a2f0`
 
 The **exact pinned fork** already includes `NewChatGPTPassthroughRouter` in `transports/bifrost-http/integrations/passthrough.go`, which preserves the caller's ChatGPT bearer and forwards the POST to `https://chatgpt.com/backend-api/codex/responses`. Its OpenAI provider `Passthrough` and `PassthroughStream` use the Bifröst Core request pipeline. ACE now attaches at the **existing post-auth HTTP transport hook on this route**, not an independent Gateway or custom OAuth implementation.
 
@@ -26,7 +26,7 @@ Maintained upstream Bifröst transport `transports/v2.6.0` has a native subscrip
 
 ## Request and trust boundaries
 
-1. Hermes targets the existing Bifröst **`/chatgpt_passthrough`** base URL with its own subscription bearer in Authorization; a Bifröst virtual key, if required, is supplied separately in `x-bf-vk`. Hermes must not target an ACE HTTP endpoint as its LLM base URL.
+1. Hermes targets the existing Bifröst **`/chatgpt_passthrough/backend-api/codex`** SDK base URL with its own subscription bearer in Authorization; a Bifröst virtual key, if required, is supplied separately in `x-bf-vk`. Hermes must not target an ACE HTTP endpoint as its LLM base URL.
 2. `HTTPTransportPreHook` binds the actual incoming message to its workspace and creates the ACE request identity. Caller-provided session headers are *correlation*, not authentication.
 3. Post-auth `HTTPTransportPreHook` calls the ACE projector, mutates the **same** native request body and installs the Bifröst Core per-physical-send guard; `PreLLMHook` verifies the binding and guards the real `PassthroughRequest`. `PREPARED` alone cannot authorize dispatch.
 4. The guard stages final native body bytes, obtains an ACE single-use attempt decision and permits transmission only on `ALLOW`. A later plugin mutation or an unknown route invalidates the receipt; retry/fallback attempts cannot reuse a permit.
@@ -38,6 +38,8 @@ Maintained upstream Bifröst transport `transports/v2.6.0` has a native subscrip
 For a private single-workspace Bifröst instance, set in the **Bifröst plugin process**:
 
 ```bash
+BIFROST_REQUIRED_PHYSICAL_SEND_PLUGIN=ace-bifrost-context
+BIFROST_CHATGPT_PASSTHROUGH_SUBSCRIPTION_ONLY=true
 ACE_BIFROST_TENANCY_MODE=single-workspace
 ACE_BIFROST_WORKSPACE_ID=<registered-workspace>
 ACE_CONTEXT_RPC_TOKEN=<private-shared-secret>
@@ -45,7 +47,7 @@ ACE_CONTEXT_RPC_TOKEN=<private-shared-secret>
 
 Set the same secret as `ACE_CONTEXT_RPC_SHARED_SECRET` in the local ACE context process. Never share it in logs or repository files. This authenticates the connector process; no multi-tenant identity claim is made.
 
-The ACE context engine reads independent explicit destination/model/data-class permission:
+The ACE context engine reads independent explicit destination/model/data-class permission. This example is a policy shape, not authorization to enable private-data egress before live acceptance; keep ordinary generation and destination allowlists disabled pending certification:
 
 ```bash
 ACE_CONTEXT_EXTERNAL_LLM_OPT_IN=true
@@ -69,16 +71,18 @@ npm run test:gateway-only-audit
 go test ./...
 ```
 
-Build the current fork-pinned plugin from repository root:
+Build the current fork-pinned server and plugin together from repository root (the standalone plugin build does not prove host ABI compatibility):
 
 ```bash
-GOWORK=off GO_BIN=/absolute/path/to/go1.27.4/bin/go \
+GO_BIN=/absolute/path/to/go1.27.4/bin/go \
   BIFROST_SOURCE_ROOT=/absolute/path/to/bifrost-checkout \
-  BIFROST_COMMIT=72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0 \
-  ./scripts/build-bifrost-ace-plugin.sh
+  BIFROST_COMMIT=622eb7610d5c85572fcaed36a02c21f127d2a2f0 \
+  ACE_PLUGIN_OUTPUT=/absolute/path/to/ace-bifrost-context.so \
+  OUTPUT=/absolute/path/to/bifrost-subscriber-server \
+  ./scripts/build-bifrost-subscriber-server.sh
 ```
 
-The script requires clean pinned Bifröst and ACE checkouts and embeds **both actual Git commit SHAs** (ACE and the verified external Bifröst checkout) into the plugin; `Init` rejects either missing provenance. The host-build digest derives from these exact injected SHAs, **not** from a separately maintained constant. The script returns the plugin SHA-256. Passing this build, Go tests and local HTTPS mocks is **not** a real subscription-provider trial. Full C03–C05 certification requires a real, correlated provider acknowledgement through the installed Hermes + Bifröst + ACE route; C07/C08 additionally require real Hermes/Harbor trials. **There is only one agent-facing LLM Gateway: Bifröst.**
+The script requires clean pinned Bifröst and ACE checkouts and embeds **both actual Git commit SHAs** (ACE and the verified external Bifröst checkout) into the plugin; `Init` rejects either missing provenance. The host-build digest derives from these exact injected SHAs, **not** from a separately maintained constant. The script returns the plugin and server SHA-256 values and executes the required-plugin regression tests. Passing this build, Go tests and local HTTPS mocks is **not** a real subscription-provider trial. Full C03–C05 certification requires a real, correlated provider acknowledgement through the installed Hermes + Bifröst + ACE route; C07/C08 additionally require real Hermes/Harbor trials. **There is only one agent-facing LLM Gateway: Bifröst.**
 
 ### ACE context RPC initialization contract
 

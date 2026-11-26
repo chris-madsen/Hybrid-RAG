@@ -6,7 +6,7 @@ test('pinned Bifröst ACE plugin requires per-attempt native Responses authoriza
   const script = await readFile('scripts/build-bifrost-ace-plugin.sh', 'utf8');
   const plugin = await readFile('integrations/bifrost/ace-connector/plugin/main.go', 'utf8');
   const workflow = await readFile('.github/workflows/ace-contracts.yml', 'utf8');
-  assert.match(script, /BIFROST_COMMIT:=72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0/u);
+  assert.match(script, /BIFROST_COMMIT:=622eb7610d5c85572fcaed36a02c21f127d2a2f0/u);
   assert.match(script, /OUTPUT:=\$temp_root\/ace-bifrost-context\.so/u);
   assert.match(script, /mktemp -d "\$temp_root\/ace-bifrost-plugin\./u);
   assert.match(script, /status --porcelain --untracked-files=all/u);

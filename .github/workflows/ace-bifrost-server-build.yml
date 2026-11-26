@@ -16,62 +16,25 @@ permissions:
 
 jobs:
   pinned-subscriber-http-build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Checkout independently pinned Bifrost source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: chris-madsen/bifrost
-          ref: 72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0
-          path: .bifrost-src
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '25'
-          cache: npm
-          cache-dependency-path: .bifrost-src/ui/package-lock.json
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
-        with:
-          go-version: '1.27.4'
-          cache: false
-      - name: Validate build script syntax
-        run: bash -n scripts/build-bifrost-subscriber-server.sh
-      - name: Compile pinned HTTP subscriber server with readonly modules
-        env:
-          BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.bifrost-src
-          OUTPUT: ${{ runner.temp }}/bifrost-subscriber-server
-        run: bash scripts/build-bifrost-subscriber-server.sh
-      - name: Verify executable exists and source remained clean
-        env:
-          BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.bifrost-src
-        run: |
-          test -s "${RUNNER_TEMP}/bifrost-subscriber-server"
-          test -z "$(git -C "$BIFROST_SOURCE_ROOT" status --porcelain --untracked-files=all)"
-
-  candidate-required-plugin-admission:
-    # This is an explicitly isolated candidate check, not a production pin update.
+    # Source/ABI/zero-egress admission qualification, not provider-wire certification.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Checkout exact required-plugin candidate
+      - name: Checkout exact required-plugin source pin
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: chris-madsen/bifrost
-          ref: e2c6e04789b6020c901e957e85d21916eae53c18
-          path: .cache/bifrost-candidate
+          ref: 622eb7610d5c85572fcaed36a02c21f127d2a2f0
+          path: .cache/bifrost-pinned
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '25'
           cache: npm
-          cache-dependency-path: .cache/bifrost-candidate/ui/package-lock.json
+          cache-dependency-path: .cache/bifrost-pinned/ui/package-lock.json
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: '1.27.4'
@@ -80,12 +43,12 @@ jobs:
         run: bash -n scripts/build-bifrost-subscriber-server.sh
       - name: Compile server and plugin in one pinned Go workspace
         env:
-          BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.cache/bifrost-candidate
-          BIFROST_COMMIT: e2c6e04789b6020c901e957e85d21916eae53c18
-          OUTPUT: ${{ runner.temp }}/bifrost-candidate
-          ACE_PLUGIN_OUTPUT: ${{ runner.temp }}/ace-candidate.so
+          BIFROST_SOURCE_ROOT: ${{ github.workspace }}/.cache/bifrost-pinned
+          BIFROST_COMMIT: 622eb7610d5c85572fcaed36a02c21f127d2a2f0
+          OUTPUT: ${{ runner.temp }}/bifrost-pinned
+          ACE_PLUGIN_OUTPUT: ${{ runner.temp }}/ace-bifrost-context.so
           BIFROST_VERIFY_REQUIRED_GUARD: 'true'
         run: bash scripts/build-bifrost-subscriber-server.sh
       - name: Execute real HTTP admission without any external network
         run: |
-          sudo unshare --net -- bash -c 'ip link set lo up; exec runuser -u "$1" -- python3 "$2" "$3" "$4" "$5"' _ "$(id -un)" "$PWD/scripts/bifrost-binary-admission-smoke.py" "$RUNNER_TEMP/bifrost-candidate" "$RUNNER_TEMP/ace-candidate.so" "$PWD/.cache/bifrost-candidate/examples/configs/withlocalpricingfiles"
+          sudo unshare --net -- bash -c 'ip link set lo up; exec runuser -u "$1" -- python3 "$2" "$3" "$4" "$5"' _ "$(id -un)" "$PWD/scripts/bifrost-binary-admission-smoke.py" "$RUNNER_TEMP/bifrost-pinned" "$RUNNER_TEMP/ace-bifrost-context.so" "$PWD/.cache/bifrost-pinned/examples/configs/withlocalpricingfiles"
