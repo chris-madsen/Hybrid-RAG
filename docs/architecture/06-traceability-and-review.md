@@ -1,12 +1,12 @@
-# ACE — Traceability Matrix, Design Review и Definition of Ready
+# ACE — Traceability Matrix, Design Review and Definition of Ready
 
 > **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
 
-**Статус:** Current traceability/review baseline, updated 2026-11-14. Older `Planned` cells are historical blueprint state unless superseded by an explicit current-status section; capability-specific provider/agent proof remains separate.
+**Status:** Historical PRD-to-OpenSpec mapping, reconciled with current native code retrieval. The original November 14 baseline and its older `Planned` cells are not current implementation or acceptance statuses. The original record remains available in [Git history](https://github.com/chris-madsen/Hybrid-RAG/blob/d19b8ac04ce3861ee0b477fd5253c684edb5136f/docs/architecture/06-traceability-and-review.md). Use current OpenSpec ledgers and actual evidence for acceptance.
 
-## 1. PRD → домены → OpenSpec
+## 1. PRD to domains to OpenSpec
 
-| PRD requirement | BC / механизм | OpenSpec capability | Change | Статус реализации |
+| PRD requirement | BC / mechanism | OpenSpec capability | Change | Historical mapping / current qualification |
 |---|---|---|---|---|
 | FR-01 lexical+semantic code | Code Discovery | `code-discovery` | 003 | Planned |
 | FR-02 AST-aware symbols | Semantic Intelligence | `semantic-verification` | 003 | Planned |
@@ -16,7 +16,7 @@
 | FR-06 fixed budget (original PRD) | Context Orchestration | `gateway-foundation`, `unified-context` | 001, 003 | **Superseded by ADR-006:** no mandatory cap; exact source preservation |
 | FR-07 adaptive routing | Context Orchestration | `adaptive-routing` | 005 | Experiment only; Jev not adopted |
 | FR-08 structural search | Semantic Intelligence | `semantic-verification` | 003 | Planned |
-| FR-09 graph/impact | Semantic Intelligence | `semantic-verification` | 003 | Minimal impact from AST/LSP; persistent graph deferred |
+| FR-09 graph/impact | Semantic Intelligence | `semantic-verification` | 003 | Historical minimal AST/LSP target; native CBM graph is implemented; independent LSP verification remains deferred |
 | FR-10 data-flow/CFG | Future static analysis | no current spec | Later | **Deferred P2** |
 | FR-11 runtime/test evidence | Future evidence ports | no current spec | Later | **Deferred P2** |
 | FR-12 source/revision | Workspace Truth | `workspace-identity` | 001 | Planned |
@@ -31,7 +31,7 @@
 | FR-21 time-aware | Memory | `project-memory` | 004 | Planned |
 | FR-22 delete/correct | Memory + Policy | `project-memory` | 004 | Planned |
 | FR-23 links to commits/ADRs | Memory + Workspace | `project-memory`, `workspace-identity` | 004 | Initial provenance; richer cross-graph linking later |
-| FR-24 agent-facing context integration | Agent Access | `gateway-foundation`, `gateway-only-ownership` | 001, 010 | **Implemented Gateway-only for supported Chat route; real-agent/provider G11 separate** |
+| FR-24 agent-facing context integration | Agent Access | `gateway-foundation`, `gateway-only-ownership` | 001, 010 | **Native Responses via Bifröst and context RPC v3 implemented at source level; G11 real-agent/provider acceptance separate** |
 | FR-25 no coding-agent fork | Agent Access | `gateway-only-ownership` | 010 | **Implemented via configurable Bifröst endpoint; no ACE agent fork** |
 | FR-26 AGENTS.md guidance | Agent Access | root `AGENTS.md` | 001/010 | **Current Gateway-only + SDLC closure guidance present** |
 | FR-27 future agents | Agent Access ACL | `gateway-only-ownership` | 010 | Provider-compatible agents may participate by targeting Bifröst; unsupported routes/capabilities fail closed |
@@ -55,8 +55,8 @@
 |---|---|
 | ADR-001 agent-neutral core | Gateway foundation + BC-06 + active change 010; historical tool/native delivery portions are superseded by ADR-017/owner decision |
 | ADR-002 Jev proposed | Change 005 **experiment**, not runtime dependency |
-| ADR-003 Qdrant code + Vertex docs | BC-02 + BC-04, change 003 |
-| ADR-004 Tree-sitter/ast-grep + LSP spike + fresh overlay | BC-01/02/03, changes 001/003 |
+| ADR-003 historical Qdrant code + Vertex docs | BC-02 + BC-04, change 003; native CBM cutover supersedes vector runtime |
+| ADR-004 structural/semantic verification + fresh overlay | BC-01/02/03, changes 001/003; CBM owns structural discovery; independent FR-03 remains open |
 | ADR-005 archive + Graphiti | BC-05, change 004 |
 | ADR-006 no forced output truncation | ArtifactPort + exact source preservation/re-projection, changes 001/003 |
 | ADR-007 policy deny vs outage with logs | BC-07, changes 001/003/004 |
@@ -70,10 +70,10 @@
 | Test ID | Scenario | Expected invariant | Owner BC |
 |---|---|---|---|
 | ACE-T001 | Registered repository with symlink to outside | Denied/no leakage | Workspace Truth + Policy |
-| ACE-T002 | Working-tree file changed after Qdrant index built | Old D1 never `current` | Workspace Truth / Orchestration |
+| ACE-T002 | Working-tree file changed after native index observation | Old D1 never `current` | Workspace Truth / Orchestration |
 | ACE-T003 | Same method name in two classes | Correct references or unresolved, not merged by name | Semantic Intelligence |
 | ACE-T004 | Dynamically registered handler; LSP returns 0 refs | Unknown dynamic exposure, not «unused» | Semantic Intelligence |
-| ACE-T005 | Vertex timeout and local AST available | Degraded partial bundle and safe log | Orchestration / Policy |
+| ACE-T005 | Vertex timeout in a required document plan | Missing document coverage and safe log; current code-only projection does not require Vertex | Orchestration / Policy |
 | ACE-T006 | Policy forbids code upload | No external request; deny logged | Policy |
 | ACE-T007 | Prompt injection embedded in README | Treated as source text, no tool/policy escalation | Policy / Orchestration |
 | ACE-T008 | 2000+ line file round-trip | Byte-identical full read; SHA-256 equality | Agent Gateway / Artifact |
@@ -93,12 +93,12 @@
 - **D-01:** Language of main monolith (**resolved by ADR-011:** TypeScript + Effect; Rust remains benchmark-gated).
 - **D-02:** Secure read of local Codex working tree from K8s pod (host helper / specific mount alternative).
 - **D-03:** Actual LSP adapter (Serena or direct TypeScript service).
-- **D-04:** Embedding model(s), local-first and cloud opt-in quality gate.
+- **D-04:** Native CBM owns code semantic search; independent absolute quality acceptance remains #363. Historical standalone embedding selection is superseded.
 - **D-05:** Codex transcript export mechanism and exactly what can be captured.
 - **D-06:** Graphiti extractor/model + backend license, local privacy, durable storage and deletion.
 - **D-07:** Jev adoption only *after* comparative spike; optional forever.
 - **D-08:** Pinned Harbor/Codex adapter and normalization of usage counter semantics.
-- **D-09:** Exact native Responses v2 schema, request-bound Bifröst connector behavior and supported route capabilities; unsupported routes fail closed.
+- **D-09:** Exact internal context RPC v3 schema, request-bound Bifröst connector behavior and supported route capabilities; unsupported routes fail closed.
 
 Implementer MAY mock unresolved provider integration for isolated tests, but MUST return `unsupported/not_configured` in functional paths until an approved real provider exists. No simulated successful runtime behavior.
 
@@ -114,7 +114,7 @@ Implementer MAY mock unresolved provider integration for isolated tests, but MUS
 
 ## 6. Definition of Done for a change
 
-- All behavioral scenarios tested or explicitly accepted as controlled exception.
+- All applicable mandatory behavioral scenarios tested; record a controlled exception as missing evidence, not as a passing gate.
 - No data leakage or false-success/freshness reports in negative tests.
 - Domain invariants enforced in code, not only comments.
 - Adapter-specific DTOs do not leak into domain modules.
@@ -130,18 +130,18 @@ Implementer MAY mock unresolved provider integration for isolated tests, but MUS
 
 | Architecture contract | PRD / ADR | Spec owner | Current observed gap (2026-10-18) |
 |---|---|---|---|
-| DBC-01/02/03 actual Qdrant→AST→LSP, precise spans | FR-01/02/03/05, ADR-003/004 | 003 + 006 | Real Gateway→Qdrant/FastEmbed/LSP composition has deterministic/provider fixtures; full real-agent/external-provider G11 remains capability-specific |
+| DBC-01/02/03 actual retrieval composition and precise spans | FR-01/02/03/05, ADR-003/004 | 003 + 006 | Historical vector and LSP fixtures do not establish native-only acceptance; current CBM path has scoped native tests; independent LSP and G11 remain separate |
 | DBC-06 completeness | FR-05/15/28, ADR-006/007 | 003 + 006 | Warnings can coexist with `complete=true` |
-| DBC-09 Gateway/connector conformance | FR-24/27, ADR-017/020 | 001 + 006 + 010 + 013 | Native Responses v2 contract + Go connector + plugin compile are CI-checked; final external-provider wire/real-agent G11 remains separate |
+| DBC-09 Gateway/connector conformance | FR-24/27, ADR-017/020 | 001 + 006 + 010 + 013 | Historical native Responses contract and plugin build evidence; current v3 and exact-head checks must be verified; final external-provider wire/real-agent G11 remains separate |
 | DBC-10/11 archive identity/delete | FR-17/18/22, ADR-005 | 004 + 006 | append re-identifies episodes; shared digest delete risk |
 | DBC-12 Harbor attribution | FR-29/30/35, ADR-009 | 002 + 006 | trivial forced smoke and zero-call natural smoke cannot prove gains |
 
 **Implementation-status vocabulary:** `contract-designed` → `adapter-implemented` → `provider-tested` → `agent-E2E-tested` → `benchmarked` → `owner-approved/production-ready`. A prior checkbox means only its **narrowly worded task** was attempted; it must not be used to promote an entire capability. The quality gates in `07-architecture-fitness-contracts.md` and proposed ADR-012 supersede any informal inference of readiness; accepted ADRs remain authoritative until the owner approves changes.
 
 
-## 7. Current-state correction and ADR-014 traceability — 2026-10-21
+## 8. Historical implementation correction and ADR-014 traceability — 2026-10-21
 
-The original “Planned” statuses above are historical blueprint state and must not be used as current implementation status. By current main after PR #94:
+The original “Planned” statuses above are historical blueprint state and must not be used as current implementation status. At the historical post-PR #94 baseline (not current main):
 
 - ast-grep structural extraction is implemented in the production path;
 - generic LSP provider wiring is implemented;
@@ -152,7 +152,7 @@ The original “Planned” statuses above are historical blueprint state and mus
 
 ADR-014 / OpenSpec 007 add the remaining target capabilities:
 
-| Target | Capability | Change | Current status |
+| Historical target | Capability | Change | Status at the October 21 baseline |
 |---|---|---|---|
 | Dense + sparse code retrieval | hybrid-context | 007 | **Open** — dense exists, sparse/BM25+RRF missing |
 | Reranking | hybrid-context | 007 | **Open** — provider/model not selected |
@@ -161,4 +161,4 @@ ADR-014 / OpenSpec 007 add the remaining target capabilities:
 | Compact structural outlines in locate mode | hybrid-context | 007 | **Partial** — ast-grep outline exists internally; delivery policy open |
 | Natural agent token/quality proof | agent-benchmarking + hybrid-context | 002,007 | **Open** |
 
-This table is the current bridge from the historical blueprint to the accepted Cursor-like hybrid architecture. See `plans/2026-10-21-cursor-like-hybrid-context-completion-plan.md`.
+This table records the historical transition, not an active queue. The native-only cutover supersedes separate vector retrieval, reranking and parser composition. See [current architecture](../operations/current-architecture.md), [native cutover plan](../plans/2026-11-25-native-cbm-cutover-and-legacy-retirement.md) and [OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md).
