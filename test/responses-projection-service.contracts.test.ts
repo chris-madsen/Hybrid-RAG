@@ -170,6 +170,7 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
   const auditRecords: SafeAuditRecord[] = [];
   const security = makeSecurity({
     allowedDataClasses: ['private_source', 'private_conversation'],
+    allowedStreamingRoutes: [{ provider: 'openai', model: native.model, destination: subscriptionResponsesUrl }],
     audit: { append: (record) => {
       auditRecords.push(record);
       return Effect.succeed(ok(undefined));
@@ -395,11 +396,29 @@ test('physical-send authorization binds each attempt, consumes IDs once, and fai
     /canonical credential-free HTTPS Responses URL/u,
   );
   const streamingAttemptId = 'bf-attempt-' + 'f'.repeat(32);
-  const streaming = await Effect.runPromise(authorization.authorizePhysicalSend(streamingAttemptFor(streamingAttemptId)));
+  const disabledStreamingAuthorization = makeGatewayAttemptAuthorizationService({ ...security, allowedStreamingRoutes: [] });
+  const streaming = await Effect.runPromise(disabledStreamingAuthorization.authorizePhysicalSend(streamingAttemptFor(streamingAttemptId)));
   assert.equal(streaming._tag, 'Ok');
   if (streaming._tag === 'Ok') {
     assert.equal(streaming.value.kind, 'BLOCK');
     if (streaming.value.kind === 'BLOCK') assert.equal(streaming.value.reasonCode, 'STREAMING_ROUTE_NOT_ALLOWED');
+  }
+
+  // Codex passthrough streams regardless of the JSON flag. A fresh receipt
+  // for either false or omitted stream must still require explicit permission.
+  for (const [index, stream] of [false, undefined].entries()) {
+    const effectiveRequest = req({ requestId, attemptGroupId: requestId }, { ...native, stream });
+    const prepared = await Effect.runPromise(makeResponsesProjectionService(context, security).projectResponses(effectiveRequest));
+    assert.equal(prepared._tag, 'Ok');
+    if (prepared._tag !== 'Ok' || prepared.value.kind !== 'PREPARED') assert.fail('effective-stream fixture must prepare');
+    const denied = await Effect.runPromise(disabledStreamingAuthorization.authorizePhysicalSend({
+      ...attempt('bf-attempt-' + String(index + 1).repeat(32)),
+      bodyBase64: prepared.value.bodyBase64, bodySha256: prepared.value.projectedBodySha256,
+      preparedBodySha256: prepared.value.projectedBodySha256, projectionReceipt: prepared.value.projectionReceipt,
+      deadlineEpochMs: effectiveRequest.deadlineEpochMs,
+    }));
+    assert.equal(denied._tag, 'Ok');
+    if (denied._tag === 'Ok') assert.equal(denied.value.reasonCode, 'STREAMING_ROUTE_NOT_ALLOWED');
   }
 
   const streamingAuthorization = makeGatewayAttemptAuthorizationService({

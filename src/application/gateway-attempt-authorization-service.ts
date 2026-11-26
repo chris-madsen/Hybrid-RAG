@@ -167,7 +167,12 @@ export const makeGatewayAttemptAuthorizationService = (
           .some((field) => finalBody[field] !== undefined)) {
         return yield* sendBlock(request, 'FINAL_BODY_NOT_CERTIFIED', security);
       }
-      if (streamValue === true && !security.allowedStreamingRoutes.some((route) =>
+      // Bifröst's native ChatGPT passthrough always uses PassthroughStream,
+      // even when the caller omits stream or explicitly sets it false.
+      // Gate the effective route, not merely the caller's body flag.
+      const effectiveStreaming = streamValue === true
+        || request.destination === 'https://chatgpt.com/backend-api/codex/responses';
+      if (effectiveStreaming && !security.allowedStreamingRoutes.some((route) =>
         route.provider === request.provider.toLowerCase()
         && route.model === request.model
         && route.destination === request.destination)) {

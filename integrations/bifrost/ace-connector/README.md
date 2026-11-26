@@ -16,7 +16,7 @@ For active requirements and runbooks see [OpenSpec C04](../../../openspec/change
 
 The connector's current Go plugin is built against a **pinned review fork**:
 
-`chris-madsen/bifrost@622eb7610d5c85572fcaed36a02c21f127d2a2f0`
+`chris-madsen/bifrost@039f8964b3b8312170fbeb01d6fcbf7a556cdccd`
 
 The **exact pinned fork** already includes `NewChatGPTPassthroughRouter` in `transports/bifrost-http/integrations/passthrough.go`, which preserves the caller's ChatGPT bearer and forwards the POST to `https://chatgpt.com/backend-api/codex/responses`. Its OpenAI provider `Passthrough` and `PassthroughStream` use the Bifröst Core request pipeline. ACE now attaches at the **existing post-auth HTTP transport hook on this route**, not an independent Gateway or custom OAuth implementation.
 
@@ -76,7 +76,7 @@ Build the current fork-pinned server and plugin together from repository root (t
 ```bash
 GO_BIN=/absolute/path/to/go1.27.4/bin/go \
   BIFROST_SOURCE_ROOT=/absolute/path/to/bifrost-checkout \
-  BIFROST_COMMIT=622eb7610d5c85572fcaed36a02c21f127d2a2f0 \
+  BIFROST_COMMIT=039f8964b3b8312170fbeb01d6fcbf7a556cdccd \
   ACE_PLUGIN_OUTPUT=/absolute/path/to/ace-bifrost-context.so \
   OUTPUT=/absolute/path/to/bifrost-subscriber-server \
   ./scripts/build-bifrost-subscriber-server.sh

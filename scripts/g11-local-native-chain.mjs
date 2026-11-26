@@ -22,7 +22,7 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
       return realpath(process.env[key]);
     }));
   const bifrostCommit = (await exec('git', ['-C', catalog, 'rev-parse', 'HEAD'])).stdout.trim();
-  assert.equal(bifrostCommit, '622eb7610d5c85572fcaed36a02c21f127d2a2f0');
+  assert.equal(bifrostCommit, '039f8964b3b8312170fbeb01d6fcbf7a556cdccd');
   assert.equal((await exec('git', ['-C', catalog, 'status', '--porcelain', '--untracked-files=all'])).stdout.trim(), '');
   const provenanceBytes = await readFile(join(runtime.runtimeRoot, 'dist/runtime-provenance.json'));
   const provenance = JSON.parse(provenanceBytes.toString('utf8'));
