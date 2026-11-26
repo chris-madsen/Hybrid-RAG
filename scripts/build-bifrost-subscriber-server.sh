@@ -49,11 +49,38 @@ modules=("$root/core" "$root/framework" "$root/transports")
 for plugin in "$root"/plugins/*; do
   if [[ -f "$plugin/go.mod" ]]; then modules+=("$plugin"); fi
 done
+# A Go shared object must use the same module graph, compiler and build tags
+# as its host binary. The standalone plugin build is not an ABI proof.
+build_tags=sqlite_static
+if [[ -n "${ACE_PLUGIN_OUTPUT:-}" ]]; then
+  ace_root=$(git rev-parse --show-toplevel)
+  ace_commit=$(git -C "$ace_root" rev-parse HEAD)
+  test -z "$(git -C "$ace_root" status --porcelain --untracked-files=all)"
+  [[ "$ACE_PLUGIN_OUTPUT" = /* ]] || { echo 'ACE_PLUGIN_OUTPUT must be absolute' >&2; exit 2; }
+  plugin_root="$workspace_dir/ace-plugin"
+  mkdir -p "$plugin_root" "$(dirname "$ACE_PLUGIN_OUTPUT")"
+  cp "$ace_root"/integrations/bifrost/ace-connector/plugin/*.go "$plugin_root/"
+  printf 'module ace-bifrost-context-plugin\n\ngo 1.27.4\n' > "$plugin_root/go.mod"
+  modules+=("$ace_root/integrations/bifrost/ace-connector" "$plugin_root")
+  build_tags=sqlite_static,bifrost_plugin
+fi
 (cd "$workspace_dir" && GOWORK=off "$GO_BIN" work init "${modules[@]}")
 # -mod=readonly enforces the pinned versions; workspace sums, if needed,
 # remain inside a disposable directory.
 (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" build \
-  -mod=readonly -tags sqlite_static -o "$output_path" ./bifrost-http)
+  -mod=readonly -tags "$build_tags" -o "$output_path" ./bifrost-http)
+if [[ -n "${ACE_PLUGIN_OUTPUT:-}" ]]; then
+  (cd "$plugin_root" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 .)
+  (cd "$plugin_root" && GOWORK="$workspace_dir/go.work" "$GO_BIN" build -mod=readonly -tags "$build_tags" \
+    -buildmode=plugin -ldflags "-X main.aceSourceCommit=$ace_commit -X main.aceBifrostCommit=$actual" -o "$ACE_PLUGIN_OUTPUT" .)
+  test -s "$ACE_PLUGIN_OUTPUT"
+  test -z "$(git -C "$ace_root" status --porcelain --untracked-files=all)"
+  sha256sum "$ACE_PLUGIN_OUTPUT"
+fi
+if [[ "${BIFROST_VERIFY_REQUIRED_GUARD:-false}" == true ]]; then
+  (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
+    ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardRejectsUpgradedRead|RequiredGuardLLMRemoval)$' -v)
+fi
 test -s "$output_path"
 if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
   echo 'Bifröst build modified tracked source files; refusing artifact' >&2
