@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Builds the REAL Bifröst HTTP subscriber route, not merely the ACE .so plugin.
-# The exact source pin includes only the reviewed go.sum checksum repair atop
-# the previously approved 6baf302d source. Build is read-only and network
-# access is governed by the operator's Go module settings.
+# Exact source pin includes the reviewed checksum repair and required-plugin
+# admission fixes. Build is read-only; network access is governed by the
+# operator's Go module settings. Build host and plugin together for deployment.
 : "${BIFROST_SOURCE_ROOT:?set BIFROST_SOURCE_ROOT to the pinned Bifrost checkout}"
-: "${BIFROST_COMMIT:=72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0}"
+: "${BIFROST_COMMIT:=e2c6e04789b6020c901e957e85d21916eae53c18}"
 : "${GO_BIN:=go}"
 : "${OUTPUT:=${RUNNER_TEMP:-${TMPDIR:-$HOME/.cache/ace}}/bifrost-subscriber-server}"
 
@@ -77,7 +77,7 @@ if [[ -n "${ACE_PLUGIN_OUTPUT:-}" ]]; then
   test -z "$(git -C "$ace_root" status --porcelain --untracked-files=all)"
   sha256sum "$ACE_PLUGIN_OUTPUT"
 fi
-if [[ "${BIFROST_VERIFY_REQUIRED_GUARD:-false}" == true ]]; then
+if [[ "${BIFROST_VERIFY_REQUIRED_GUARD:-true}" == true ]]; then
   (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
     ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardRejectsUpgradedRead|RequiredGuardLLMRemoval)$' -v)
 fi

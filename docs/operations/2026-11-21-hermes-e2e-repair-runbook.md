@@ -41,21 +41,22 @@ CBM CLI bottleneck was superseded by merged PR #321.
 ## Minimal ordered verification
 
 1. **Source and build:** verify clean ACE and pinned Bifröst checkouts. Build
-   the pinned ACE Go plugin with `scripts/build-bifrost-ace-plugin.sh` and the
-   actual HTTP binary with `scripts/build-bifrost-subscriber-server.sh`.
-   The second script builds the upstream Vite UI and uses a disposable
-   Go workspace with `-mod=readonly`; neither uses a new protocol.
+   the qualified source pin's actual HTTP binary and ACE plugin together with
+   `scripts/build-bifrost-subscriber-server.sh` and absolute `ACE_PLUGIN_OUTPUT`.
+   The script builds the upstream Vite UI and uses a disposable Go workspace
+   with `-mod=readonly`; no new protocol. See the current subscription runbook
+   for the exact pin; historical evidence below retains its original SHA.
 2. **Zero-egress tests:** run `npm run verify:full`, the real installed-CBM
    integration job, the Gateway-only audit, and the Go plugin contracts.
    These checks may pass with NO real Hermes/provider traffic.
 3. **Reproduce source projection first:** reuse the exact tiny Git-backed
    synthetic fixture and known source/configuration revision. Record
    `PREPARED` or the precise typed `BLOCK` reason, verified candidate
-   counts, CBM index identity, Qdrant publication membership and per-stage
+   counts, CBM index identity and per-stage
    latencies. Never increase timeouts just to hide repeated indexing.
 4. **Start one local Gateway:** launch ACE's internal projection service and
-   the pinned Bifröst HTTP binary with the approved connector and worker
-   configuration. Verify the subscription passthrough from the sandbox.
+   the pinned Bifröst HTTP binary with the approved connector, native CBM and
+   `BIFROST_REQUIRED_PHYSICAL_SEND_PLUGIN=ace-bifrost-context` configuration. Verify the subscription passthrough from the sandbox.
    A reachable health endpoint is NOT proof that the ACE post-auth hook runs.
 5. **Harbor dry run:** verify that the job uses ONLY `import_path` and no
    built-in `name`; verify Hermes v0.22.3 binary and its supported

@@ -336,7 +336,7 @@ jobs:
       - name: Fetch exact pinned Bifröst source outside ACE checkout
         shell: bash
         env:
-          BIFROST_COMMIT: 72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0
+          BIFROST_COMMIT: e2c6e04789b6020c901e957e85d21916eae53c18
         run: |
           set -euo pipefail
           source_root="$RUNNER_TEMP/bifrost-src"
@@ -354,7 +354,7 @@ jobs:
       - name: Compile native plugin against pinned upstream
         shell: bash
         env:
-          BIFROST_COMMIT: 72f03b4b0d4a93b08e9fc0e5ebfe3447248af2a0
+          BIFROST_COMMIT: e2c6e04789b6020c901e957e85d21916eae53c18
           BIFROST_SOURCE_ROOT: ${{ runner.temp }}/bifrost-src
           OUTPUT: ${{ runner.temp }}/ace-bifrost-context.so
         run: |
