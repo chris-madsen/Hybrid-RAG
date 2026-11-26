@@ -213,6 +213,7 @@ jobs:
         run: |
           docker run --rm --init --network none \
             -v "$PWD:/evidence:ro" \
+            -v "$PWD/node_modules:/evidence/node_modules:ro" \
             -e GIT_OPTIONAL_LOCKS=0 \
             -e GIT_CONFIG_COUNT=1 \
             -e GIT_CONFIG_KEY_0=safe.directory \
