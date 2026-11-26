@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Builds the REAL Bifröst HTTP subscriber route, not merely the ACE .so plugin.
-# Exact source pin includes the reviewed checksum repair and required-plugin
-# admission fixes. Build is read-only; network access is governed by the
+# Exact source pin includes the reviewed checksum repair, required-plugin
+# admission fixes, and subscription-only passthrough. Build is read-only; network access is governed by the
 # operator's Go module settings. Build host and plugin together for deployment.
 : "${BIFROST_SOURCE_ROOT:?set BIFROST_SOURCE_ROOT to the pinned Bifrost checkout}"
-: "${BIFROST_COMMIT:=e2c6e04789b6020c901e957e85d21916eae53c18}"
+: "${BIFROST_COMMIT:=622eb7610d5c85572fcaed36a02c21f127d2a2f0}"
 : "${GO_BIN:=go}"
 : "${OUTPUT:=${RUNNER_TEMP:-${TMPDIR:-$HOME/.cache/ace}}/bifrost-subscriber-server}"
 
@@ -80,6 +80,8 @@ fi
 if [[ "${BIFROST_VERIFY_REQUIRED_GUARD:-true}" == true ]]; then
   (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
     ./bifrost-http/handlers -run '^TestTransportInterceptor(RequiresPhysicalSendPlugin|FailsClosedAfterPluginRemoval|RequiredGuardReadOnlyRoutes|RequiredGuardRejectsUpgradedRead|RequiredGuardLLMRemoval)$' -v)
+  (cd "$root/transports" && GOWORK="$workspace_dir/go.work" "$GO_BIN" test -mod=readonly -tags "$build_tags" -count=1 \
+    ./bifrost-http/integrations -run '^TestChatGPTPassthrough(SubscriptionOnlyRejectsNonCallerBearer|StreamsWithoutBodyFlag|ForwardsCodexModelList)$' -v)
 fi
 test -s "$output_path"
 if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
