@@ -56,11 +56,14 @@ test('native semantic shortlist is completed by native BM25 when semantic result
   });
   const semantic = candidate('semantic-candidate', 'src/semantic.ts', 'semantic');
   const exact = candidate('exact-candidate', 'src/exact-evidence.ts', 'exactEvidence');
+  const third = candidate('third-candidate', 'src/third.ts', 'third');
+  const fourth = candidate('fourth-candidate', 'src/fourth.ts', 'fourth');
+  const linked = candidate('linked-candidate', 'src/linked.ts', 'linked');
   const graph = makeCodebaseMemoryGraph({
     rootPath: resolve(process.cwd()),
     command: process.execPath,
     args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--partial-semantic-bm25'],
-    candidates: () => [semantic, exact],
+    candidates: () => [semantic, exact, third, fourth, linked],
   });
   try {
     const indexed = await Effect.runPromise(graph.reindex());
@@ -74,6 +77,12 @@ test('native semantic shortlist is completed by native BM25 when semantic result
           exact.candidateId,
         ], query);
       }
+    }
+    const mixed = await Effect.runPromise(graph.search({ query: 'linked underfill', limit: 5 }));
+    assert.equal(mixed._tag, 'Ok');
+    if (mixed._tag === 'Ok') {
+      assert.deepEqual(mixed.value.map((item) => item.candidate.candidateId),
+        [semantic, exact, third, fourth, linked].map((item) => item.candidateId));
     }
     const malformed = await Effect.runPromise(graph.search({ query: 'malformed lexical', limit: 2 }));
     assert.equal(malformed._tag, 'Err');

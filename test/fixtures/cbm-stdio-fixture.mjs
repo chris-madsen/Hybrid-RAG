@@ -74,6 +74,11 @@ connection.onRequest('tools/call', (input) => {
             ...(input.arguments.semantic_query[0] === 'unowned semantic' ? [['fixture.other', 'src/unindexed.ts', 0.8]] : []),
             ...(input.arguments.semantic_query[0] === 'unmatched semantic' ? [['fixture.other', 'src/exact-evidence.ts', 0.8]] : []),
             ...(input.arguments.semantic_query[0] === 'full semantic' ? [['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8]] : []),
+            ...(input.arguments.semantic_query[0] === 'linked underfill' ? [
+              ['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8],
+              ['fixture.third', 'src/third.ts', 0.7],
+              ['fixture.fourth', 'src/fourth.ts', 0.6],
+            ] : []),
           ] } }
           : { cols: ['qn', 'file', 'rank'], rows: [
             ['fixture.semantic', 'src/semantic.ts', -0.2],
@@ -95,7 +100,9 @@ connection.onRequest('tools/call', (input) => {
       data = { callees: { cols: ['name', 'hop'], groups: [] } };
       break;
     case 'query_graph':
-      data = { columns: ['qn', 'file'], rows: [] };
+      data = { columns: ['qn', 'file'], rows: process.argv.includes('--partial-semantic-bm25')
+        && input.arguments.query.includes("origin.file_path = 'src/third.ts'")
+        ? [['fixture.linked', 'src/linked.ts']] : [] };
       break;
     case 'detect_changes':
       data = { files: [] };
