@@ -2,11 +2,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { spawnRealProviderProcess } from './real-provider-process.mjs';
+import { assertLoopbackOnlyNetworkNamespace } from './network-namespace-evidence.mjs';
 
 const exec = promisify(execFile);
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -14,7 +15,7 @@ const jsonl = async (path) => (await readFile(path, 'utf8')).trim().split('\n').
 
 export async function runLocalNativeChain({ directory, endpoint, workspaceId, model, port, runtime,
   tracePath, providerTracePath, core, stopRealProviderProcess }) {
-  assert.deepEqual(await readdir('/sys/class/net'), ['lo']);
+  assertLoopbackOnlyNetworkNamespace();
   const [binary, plugin, catalog] = await Promise.all(
     ['ACE_G11_BIFROST_BINARY', 'ACE_G11_BIFROST_PLUGIN', 'ACE_G11_BIFROST_CATALOG'].map((key) => {
       assert.ok(process.env[key], 'missing chain artifact: ' + key);

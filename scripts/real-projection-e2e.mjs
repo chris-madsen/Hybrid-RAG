@@ -12,6 +12,7 @@ import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
+import { assertLoopbackOnlyNetworkNamespace } from './network-namespace-evidence.mjs';
 
 const execFileAsync = promisify(execFile);
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -156,7 +157,7 @@ assert.ok(!(native && race), 'historical embedding delay is not a native CBM rac
 if (localChain) {
   assert.ok(!outage && !race && !mutations && !recovery && !worktree && !cancellation
     && !daemonRecovery && !sharedCache && !restart && !deadline && !nonGit && !scale);
-  assert.deepEqual(await readdir('/sys/class/net'), ['lo'], 'G11 chain requires loopback-only network namespace');
+  assertLoopbackOnlyNetworkNamespace();
 }
 const maxWait = Number(process.env.ACE_REAL_PROJECTION_TIMEOUT_MS || '180000');
 assert.ok(Number.isSafeInteger(maxWait) && maxWait >= 10000 && maxWait <= 600000);
