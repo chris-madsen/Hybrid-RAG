@@ -168,13 +168,13 @@ const nativeEnvironment = {
 const spawnRuntime = (overrides = {}) => spawnRealProviderProcess(process.execPath, [runtime.executable], {
   cwd: runtime.runtimeRoot,
   env: {
-    ...process.env,
+    // Inherited container defaults must never override isolated fixture paths.
+    ...nativeEnvironment,
     ACE_RUNTIME_ROOT: runtime.runtimeRoot,
     ACE_WORKSPACE_ROOT: workspace,
     ACE_ALLOWED_ROOTS: directory,
     ACE_STATE_DIR: join(directory, 'state'),
     ACE_ARTIFACT_DIR: join(directory, 'artifacts'),
-    ...nativeEnvironment,
     ACE_PROVIDER_TRACE_FILE: providerTracePath,
     ACE_WORKSPACE_ID: workspaceId,
     ...(native ? {
