@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { pinnedHermesCommit, validateHermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
+import { pinnedHermesCommit, readHermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
 
 test('local Hermes task probe is pinned to installed version, executable, endpoint, model and immutable task image', () => {
   const expected = { sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64), reference: 'task:1',
@@ -12,7 +12,8 @@ test('local Hermes task probe is pinned to installed version, executable, endpoi
     imageReference: expected.reference, imageDigest: expected.digest, localImageId: expected.digest,
     endpointSha256: expected.endpointSha256, modelSha256: expected.modelSha256, reasoningEffort: expected.reasoningEffort };
   const output = (value: unknown): string => 'fixture output\r\n' + JSON.stringify(value) + '\n';
-  assert.equal(validateHermesTaskRuntimeReceipt(output(receipt), expected), true);
+  assert.deepEqual(readHermesTaskRuntimeReceipt(output(receipt), expected), receipt);
+  assert.deepEqual(readHermesTaskRuntimeReceipt(output({ ...receipt, arbitraryProcessOutput: 'not evidence' }), expected), receipt);
   for (const change of [
     { hermesCommit: 'a'.repeat(40) }, { hermesVersion: 'v0.22.2' }, { hermesSdkVersion: '2.23.0' },
     { hermesExecutableSha256: '' }, { hermesTransportSha256: 'unknown' }, { localImageId: 'task:mutable' },
@@ -20,6 +21,6 @@ test('local Hermes task probe is pinned to installed version, executable, endpoi
     { imageDigest: 'sha256:' + 'f'.repeat(64) }, { endpointSha256: 'f'.repeat(64) },
     { modelSha256: 'f'.repeat(64) }, { reasoningEffort: 'low' }, { nativeResponsesObserved: false }, { providerWireCertified: true },
     { status: 'BLOCKED' }, { schemaVersion: 2 },
-  ]) assert.equal(validateHermesTaskRuntimeReceipt(output({ ...receipt, ...change }), expected), false);
-  assert.equal(validateHermesTaskRuntimeReceipt('not JSON', expected), false);
+  ]) assert.equal(readHermesTaskRuntimeReceipt(output({ ...receipt, ...change }), expected), undefined);
+  assert.equal(readHermesTaskRuntimeReceipt('not JSON', expected), undefined);
 });
