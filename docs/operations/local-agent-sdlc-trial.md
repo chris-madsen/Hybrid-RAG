@@ -24,7 +24,7 @@ The preflight is **read-only and offline**: it does not fetch or update Git, run
 
 Provide the coding agent with this exact task:
 
-> Follow `AGENTS.md`, `.agents/skills/ace-sdlc/SKILL.md` and the full Research stage of `docs/operations/ai-assisted-sdlc.md`. Research the actual source-backed Hermes Native Responses → Bifröst connector → authenticated ACE context extension v2 → CBM/Qdrant/LSP runtime path. Identify the runtime composition, source identity, typed unavailable behavior and real versus mocked provider evidence. Record the current SHA and file/line citations. Do **not** change code or suggest a redesign during Research.
+> Follow `AGENTS.md`, `.agents/skills/ace-sdlc/SKILL.md` and the full Research stage of `docs/operations/ai-assisted-sdlc.md`. Research the actual source-backed Hermes Native Responses → Bifröst connector → authenticated ACE context RPC v3 → native CBM code retrieval; examine independent LSP verification separately. Identify the runtime composition, source identity, typed unavailable behavior and real versus mocked provider evidence. Record the current SHA and file/line citations. Do **not** change code or suggest a redesign during Research.
 
 Acceptance: no modified source files; research facts tied to real code, and no real provider egress claim derived from local projection or mock-wire success.
 
@@ -71,4 +71,4 @@ This negative preflight can report exit 2 / `G02=BLOCKED` for a missing crosswal
 - Real provider or agent E2E: `PASS` only with real observed commands/artifacts; otherwise `NOT-RUN` or `UNKNOWN`.
 - PR number, source head, CI checkout/merge SHA, review and owner decision. A failed prior CI attempt stays visible.
 
-The selected Matt Pocock helper subset is vendored under `.agents/skills/` and pinned by `.agents/matt-pocock-skills-v1.3.2-manifest.json`; read the ACE compatibility overlay before invoking it. This is repository-level availability, not proof of a live model invocation or provider acceptance. TypeSpec native Responses v2 compiler/codegen is installed and CI-checked; production provider acceptance remains a separate G11 stage. Never use a second orchestrator or `mise daemons` to run this SDLC.
+The selected Matt Pocock helper subset is vendored under `.agents/skills/` and pinned by `.agents/matt-pocock-skills-v1.3.2-manifest.json`; read the ACE compatibility overlay before invoking it. This is repository-level availability, not proof of a live model invocation or provider acceptance. TypeSpec internal context RPC v3 compiler/codegen is installed and CI-checked; production provider acceptance remains a separate G11 stage. Never use a second orchestrator or `mise daemons` to run this SDLC.

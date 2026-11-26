@@ -14,7 +14,7 @@ flowchart TD
         A --> CBM["CBM stdio frontend / native daemon"]
     end
     A --> S["Workspace + local archive"]
-    A -->|"authorized only"| V["Vertex"]
+    A -.->|"separate authorized document adapter"| V["Vertex"]
     B -->|"approved model route"| P["ChatGPT provider"]
 ~~~
 

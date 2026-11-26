@@ -1,12 +1,12 @@
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
-# Contract-first code generation — Sphericon lessons applied to ACE
+# Contract-first code generation — architecture and coverage
 
 **Current implementation status (2026-11-18):** OpenSpec change 013 and ADR-020 select TypeSpec-generated native Responses v2 as the sole active Gateway contract. Pinned OpenAPI, JSON Schema, SDK and server types are generated from `typespec/responses-v2.tsp`; tests verify deterministic artifacts and strict unknown-field rejection. These checks do not certify provider dispatch or production readiness. Broader generation ideas below remain optional future capabilities.
 
 **Owner choice:** TypeSpec is the canonical language for new/migrated ACE public machine contracts. The goal is **substantial generated integration boilerplate**, not merely TypeScript types. This document records the active native Responses v2 generation slice and broader generation coverage candidates; only committed generator/config/CI artifacts count as installed.
 
-## Inspected concrete Sphericon pipeline
+## Reference implementation
 
 Source: [getsphericon/sphericon/docs/agents/codegen.md](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/docs/agents/codegen.md), [mise/tasks.toml](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/mise/tasks.toml), [check-generated.ts](https://github.com/getsphericon/sphericon/blob/c9dc3fdd88f07ad815de0cf31b319be633fcde67/mise/scripts/check-generated.ts).
 

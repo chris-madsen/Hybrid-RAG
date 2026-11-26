@@ -2,7 +2,7 @@
 
 > **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
 
-**Status:** Accepted Design-by-Contract evaluation policy from 2026-11-14. **2026-11-21 implementation reconciliation:** Native Codebase Memory v0.12.1 replaced runtime ast-grep/RepoMap in PR #316; the current code also composes Qdrant and LSP. The Gateway-native Graphiti provider remains unconfigured, and real provider-wire/Hermes/Harbor acceptance remains open. See [current source-inspected architecture](../operations/current-architecture.md). Deterministic structural/contract gates are installed; each real-provider/real-agent DBC still requires its own observed evidence before production claims. **Scope:** architecture/spec acceptance, not blanket runtime certification. **Source:** PRD, ADR-001/003/004/005/006/007/009, review `docs/reviews/2026-10-18-architecture-failure-review.md`. Owner acceptance policy approved; implementation and production readiness still require evidence. Existing small unit tests remain valuable but **cannot replace these end-to-end contracts**.
+**Status:** Accepted Design-by-Contract evaluation policy from 2026-11-14. **Implementation reconciliation:** Native CBM v0.12.1 is the sole code retrieval engine after #378. Separate vector workers, Qdrant and runtime ast-grep/RepoMap are retired. Independent LSP verification is retained as a separate contract and is not requested by the current code-only RPC. The Gateway-native Graphiti provider remains unconfigured, and real provider-wire/Hermes/Harbor acceptance remains open. See [current source-inspected architecture](../operations/current-architecture.md). Deterministic structural/contract gates are installed; each real-provider/real-agent DBC still requires its own observed evidence before production claims. **Scope:** architecture/spec acceptance, not blanket runtime certification. **Source:** PRD, ADR-001/003/004/005/006/007/009, review `docs/reviews/2026-10-18-architecture-failure-review.md`. Owner acceptance policy approved; implementation and production readiness still require evidence. Existing small unit tests remain valuable but **cannot replace these end-to-end contracts**.
 
 ## 1. The architectural mistake we are preventing
 
@@ -20,20 +20,18 @@ flowchart LR
   B -.->|"dispatch blocked until certified"| P["LLM providers"]
   Gate --> O["Context Orchestration / Effect"]
   O --> Plan["Deterministic retrieval routing"]
-  Plan --> Q["Qdrant dense + sparse"]
-  Plan --> AST["Codebase Memory AST, graph, semantic/BM25"]
-  Plan --> LS["Language service / LSP"]
-  Plan --> Docs["Authorized Vertex docs"]
-  Plan --> Mem["Archive; Graphiti Gateway NOT_READY"]
-  Q --> V["Exact source verification"]
-  AST --> V
-  LS --> V
+  Plan --> CBM["Native CBM AST, graph, semantic/BM25"]
+  Plan -.-> LS["Independent LSP scope"]
+  Plan -.-> Docs["Authorized Vertex document delivery target"]
+  Plan -.-> Mem["Archive; Graphiti delivery target"]
+  CBM --> V["Exact source verification"]
+  LS -.-> V
   V --> Bundle["Verified ContextBundle / projection"]
-  Docs --> Bundle
-  Mem --> Bundle
+  Docs -.-> Bundle
+  Mem -.-> Bundle
 ```
 
-This **does not** require executing every provider for every query. Selection depends on request and permissions. A fallback may exist for outages; it must be labelled as such and cannot silently masquerade as production RAG or LSP evidence.
+Solid lines identify the current code-only path; dotted lines identify separate/target capabilities. Selection depends on required source obligations and permission. No retired code-provider fallback or false LSP evidence is allowed. The following stable DBC IDs retain their acceptance intent; the former Qdrant-specific fixtures are historical and must be replaced by real native-provider evidence, not by a relaxed oracle.
 
 ## 2. Meyer contract vocabulary
 
@@ -51,19 +49,19 @@ IDs are stable acceptance criteria. Each case must be implemented as **agent-fac
 
 | Contract | `require` / test fixture | `ensure` / oracle | `invariant` / negative oracle |
 |---|---|---|---|
-| **DBC-01 Prod composition** | Current candidate: native CBM v0.12.1 + local Qdrant/embedding + required external LSP; supported Native Responses/Bifröst Gateway route active | Trace identifies Bifröst→ACE plus actual invocation of each needed provider for a query requiring them | A disconnected adapter/fallback alone is **not** a passing result; unavailable required providers -> explicit not-ready/partial/block |
-| **DBC-02 Symbol precision** | 2000-line TS file with 25-line target function and similar names elsewhere | Answer includes AST-bound target span, correct digest and exact citation; full file is retrievable through the authorized host's exact source reader | Initial excerpt must not copy the full file merely because a symbol name matched |
+| **DBC-01 Prod composition** | Pinned native CBM and supported native Responses/Bifröst route; for full-unified scope, separately required document/memory and semantic capabilities | Trace identifies Bifröst→ACE plus actual invocation of each needed provider for a query requiring them | A disconnected adapter/fallback alone is **not** a passing result; unavailable required providers -> explicit not-ready/partial/block |
+| **DBC-02 Symbol precision** | 2000-line TS file with 25-line target function and similar names elsewhere | Prepared evidence includes the verified structural target span, correct digest and exact citation; full file is retrievable through the authorized host's exact source reader | Initial excerpt must not copy the full file merely because a symbol name matched |
 | **DBC-03 Behavior-based RAG** | Query describes behavior without lexical names; labeled semantic/lexical distractors | Approved semantic retrieval surfaces relevant candidate; hits verified against source; report recall/precision | SHA-256 hash-vector baseline cannot be counted as semantic embedding quality |
 | **DBC-04 Same-name semantics** | Classes A/B each implement `save()`; distinct call sites | LSP references/definitions identify correct symbol; tests preserve compiler semantics | Write access is **not** equivalent to definition; name equality is not symbol identity |
 | **DBC-05 Freshness race** | Start retrieval on digest D1; mutate file to D2 before response | Deliver D2 after re-read, or `stale/changed_during_request` with evidence | D1 must never be labelled `current`; no TOCTOU falsely current |
-| **DBC-06 Failure truth** | Force Qdrant timeout; local AST available | Partial response lists Qdrant as failed; fallback explicitly labelled | `complete=true` prohibited when a **required** source failed, even if remaining evidence is current |
+| **DBC-06 Failure truth** | Force required native CBM outage; independently available evidence cannot satisfy required code coverage | Typed not-ready/partial or BLOCK; missing required provider recorded | `complete=true` prohibited when a **required** source failed, even if remaining evidence is current |
 | **DBC-07 Policy safety** | Private-code cloud upload forbidden; Vertex/Jev or an LLM provider requested | Typed `POLICY_DENIED`, audit/evidence record where applicable, **zero** prohibited outbound requests | Gateway private-source projection requires explicit provider identity, cloud opt-in and provider allowlist; do not reinterpret policy deny as outage or auto-route/fallback to another cloud |
 | **DBC-08 Source exactness** | 2000+ line code and binary-like UTF-8 payload incl. newlines | Authorized host-side file reads return SHA-256-identical complete bytes (or exact ranges that reassemble them) | Source never silently truncated or replaced with summary |
-| **DBC-09 Gateway/connector conformance** | supported native Responses request + pinned Bifröst/connector + explicit provider/model + valid/invalid projection cases | Native Responses v2, auth, honest host-state confidence, request/session binding, pre-retrieval destination policy, secret guard and semantic body preservation meet the accepted contract; physical provider attempts stay blocked until certified | No alternate transport, automatic/unauthorized provider selection, fabricated host transcript proof, unbound attempt, silent passthrough or unpinned plugin ABI |
+| **DBC-09 Gateway/connector conformance** | supported native Responses request + pinned Bifröst/connector + explicit provider/model + valid/invalid projection cases | Internal context RPC v3, auth, honest host-state confidence, request/session binding, pre-retrieval destination policy, secret guard and semantic body preservation meet the accepted contract; physical attempts require fresh authorization; only owner-approved bounded C03–C05 probes may precede ordinary-route certification | No alternate transport, automatic/unauthorized provider selection, fabricated host transcript proof, unbound attempt, silent passthrough or unpinned plugin ABI |
 | **DBC-10 Memory stable identity** | Append one more JSONL episode to already imported history; replay | Prior episode IDs/citations stable; new episode added exactly once | File-level digest change must not re-identify existing episodes |
 | **DBC-11 Memory safe deletion** | Two distinct episodes reference identical content digest; delete only one | Survivor remains exactly readable; deleted episode inaccessible; derived projection purged | No shared content removal until reference-safe; no inferred decision auto-accepted |
 | **DBC-12 Benchmark attribution** | Pinned paired real-agent runs on a repo/task requiring code exploration | Report prepared-projection count separately from verified final provider sends, provider trace, token totals, quality, external costs and source hashes | A prepared projection without verified provider evidence **cannot** prove ACE-caused saving; trivial forced context injection does not establish value |
-| **DBC-13 Index persistence** | Restart ACE with dirty worktree and stale Qdrant generation | Startup/refresh computes truthful index status and incremental rebuild/overlay behavior | Restart never silently upgrades stale generation to current |
+| **DBC-13 Index persistence** | Restart ACE with dirty worktree and stale native provider observation | Startup/refresh computes truthful index status and incremental rebuild/overlay behavior | Restart never silently upgrades stale generation to current |
 | **DBC-14 Documentation conflict** | ADR says X, changed current code says Y | Bundle contains both, source classifications and timestamps, with conflict explicit | Documentation is not silently used as current source-code truth |
 
 ## 4. Example formalization: retrieval
@@ -101,7 +99,7 @@ ContextRequest.resolve(request, workspace, policy)
 
 1. **Unit/contract**: pure domain rules; helper/fixture doubles permitted. Output: `contract-pass:isolated`.
 2. **Integration**: real pinned provider and wiring; down/up/outage/race. Output: `provider-pass`.
-3. **Agent E2E**: use the actual supported delivery path: real coding agent → Bifröst → ACE context extension → authorized provider. Inspect server-minted physical request binding, normalized session correlation, APPLY/BLOCK receipt, provider-bound evidence, answer/task quality and route identity. Output: `agent-e2e-pass` only for the exact tested route/commit.
+3. **Agent E2E**: use the actual supported delivery path: real coding agent → Bifröst → ACE context extension → authorized provider. Inspect server-minted physical request binding, normalized session correlation, PREPARED/BLOCK result and independent attempt authorization, provider-bound evidence, answer/task quality and route identity. Output: `agent-e2e-pass` only for the exact tested route/commit.
 4. **Benchmark**: paired Harbor retrieval-demanding tasks; real ACE calls and separate total tokens, costs, success/latency. Output: `evaluation-pass`.
 5. **Owner gate**: unresolved provider/license/K8s decisions approved and no outstanding mandatory contracts. Output: `production-ready` only then.
 

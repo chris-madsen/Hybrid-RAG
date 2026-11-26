@@ -5,7 +5,7 @@
 ## Live process and evidence
 
 - [SDLC entry/resume](../operations/implementation-entry-resume.md) and [runtime configuration/readiness](../operations/ace-configuration-and-readiness-matrix.md).
-- [Codebase Memory native provider](../operations/codebase-memory-provider.md): PR #316 adopted CBM for AST, graph and code semantic/BM25 search. Qdrant and external LSP are retained in current composition pending independent A/B assessment.
+- [Codebase Memory native provider](../operations/codebase-memory-provider.md): PR #316 adopted CBM for AST, graph and code semantic/BM25 search. PR #378 retired the separate vector stack. External LSP remains a separately scoped research question (#364), not an active code-only dependency.
 - [Real Hermes feedback loop](./ace-real-feedback-loop.md), [retrieval quality ablations](./retrieval-quality-ablation-runbook.md), and [unified release preflight](./unified-production-release-preflight.md): **not** proof that live egress or 5× savings has passed.
 
 ## Historical design and execution plans — not active implementation authority

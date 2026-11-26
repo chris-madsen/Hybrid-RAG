@@ -15,7 +15,7 @@
 | Prepared context → actual provider send | Final-body mutation, replay, unauthorized retry | Signed receipt and exact physical-attempt binding; consume authorization once; reauthorize each retry | Fail closed; no send permit inferred from preparation |
 | Source/build/release evidence | Secret leakage, compromised workflow or unverifiable artifact | Pinned dependencies/tools, secret scanning, workflow security checks, SBOM/provenance and explicit signature evidence requirements | Report failure or missing evidence; do not claim promotion |
 
-Local service credentials are not provider OAuth credentials. Provider readiness and permitted egress are distinct decisions. Source data classes and destination permissions are not inherited from the presence of a Vertex corpus or working vector index.
+Local service credentials are not provider OAuth credentials. Provider readiness and permitted egress are distinct decisions. Source data classes and destination permissions are not inherited from the presence of a Vertex corpus or working native code index.
 
 ## Controls and evidence
 

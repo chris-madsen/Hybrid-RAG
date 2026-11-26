@@ -2,7 +2,7 @@
 
 # AI-assisted SDLC — full working prompts, standards and ACE integration
 
-This directory contains a **multi-file practical instruction set**, designed for one coding agent and portable across Codex, Claude Code, OpenCode, Gemini CLI, Cursor and similar tools. The source-methodology was demonstrated in the [AI SDLC video](https://www.youtube.com/watch?v=7oRBHxMvWxQ); missing instructions were expanded using working engineering practices and comparable public projects. These are maintained working files, not a verbatim archive of the presenter’s private repository.
+This directory contains a **multi-file practical instruction set**, designed for one coding agent and portable across Codex, Claude Code, OpenCode, Gemini CLI, Cursor and similar tools. It defines maintained engineering procedures for research, design, implementation and verification, with explicit inputs, artifacts, failure conditions and acceptance criteria. Accepted ADRs, OpenSpec and the operational SDLC govern their application.
 
 ## Start here
 1. Read [ACE operational SDLC](../../operations/ai-assisted-sdlc.md).
@@ -64,7 +64,7 @@ Root AGENTS.md, Accepted ADRs, OpenSpec and existing CI retain full authority. N
 
 ## Quality Gates and reusable reviewer procedure
 
-- [Video + Sphericon evidence and ACE gap audit](QUALITY-GATES-VIDEO-SPHERICON-ACE.md)
+- [Engineering assessment and quality-gate rationale](QUALITY-GATES-ENGINEERING-ASSESSMENT.md)
 - [Complete Quality Gate catalog, G00–G16](QUALITY-GATES-CATALOG.md)
 - [Phased tool implementation plan](QUALITY-GATES-IMPLEMENTATION-PLAN.md)
 - [Quality Gates reviewer standard](source/standards/Quality%20Gates.md)

@@ -10,7 +10,7 @@
 | Native code retrieval | Pinned local CBM, authorized ACE-local workspace | Sole code runtime; exact source proof required; no provider-wire certification |
 | Codebase Memory unavailable | Pinned native stdio server missing, protocol identity incompatible, session lost or index incomplete | Required native graph/source discovery is not_ready; a new session requires explicit reindex, never fallback to ast-grep runtime parser |
 | LSP unavailable or not supported for language | No trustworthy native symbol/definition evidence | Do not claim LSP verification; exact source bytes may still be independently checked |
-| Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Vertex AI RAG for authorized `project_document`, not a code retrieval corpus |
+| Documentation | `ACE_ENABLE_VERTEX=true`, `ACE_CLOUD_DOCS_OPT_IN=true` + approved corpus/project and data class | Separate Vertex adapter for authorized `project_document`; native Responses projection requests code only |
 | Temporal memory | `ACE_ENABLE_GRAPHITI=true` | **UNSUPPORTED / startup error**: `ace-runtime.ts` refuses the retired tool-server adapter; Gateway-native Graphiti is not configured. Archive CLI/reconciliation code exists separately, but full unified temporal retrieval is NOT_READY |
 | Host worktree helper | Any configured `ACE_WORKTREE_HELPER_URL` | Native runtime refuses startup; remote topology decision and real containment tests remain open |
 | Release | Exact source SHA + real provider, agent, privacy, quality and owner evidence | No unconditional READY from configuration flags |
@@ -49,7 +49,7 @@ Legacy provider enablement is rejected; disabled legacy flags may be removed fro
 
 ## Documentation / Vertex
 
-Vertex is opt-in twice: the provider must be enabled and cloud document egress must be explicitly permitted.
+Vertex is opt-in twice: the provider must be enabled and cloud document egress must be explicitly permitted. These settings configure the adapter, not combined delivery: `responses-projection-service.ts` requests only code and rejects non-code evidence.
 
 ```bash
 ACE_ENABLE_VERTEX=true
@@ -79,7 +79,7 @@ Real Graphiti extraction, temporal recall, purge/recovery and local inference ec
 
 ## Host worktree helper / local k3s
 
-When ACE runs away from the host process that owns the live worktree, use the authenticated helper rather than a writable hostPath:
+**Historical helper configuration, not supported by the native-only runtime.** The current runtime rejects `ACE_WORKTREE_HELPER_URL`. The following retained settings describe the previous remote-worktree design; they must not be used as current startup instructions:
 
 ```bash
 ACE_WORKTREE_HELPER_URL=https://<host-helper>:7443/v1/worktree
