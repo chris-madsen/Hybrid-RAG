@@ -28,6 +28,17 @@ on:
       - 'test/index-state.contracts.test.ts'
       - 'src/bin/ace-runtime.ts'
       - 'scripts/real-projection-e2e.mjs'
+      - 'scripts/run-native-retrieval-holdout.ts'
+      - 'scripts/native-projection-evidence.ts'
+      - 'scripts/native-holdout-runner-smoke.mjs'
+      - 'scripts/native-release-evidence-reader.ts'
+      - 'test/native-release-evidence-reader.contracts.test.ts'
+      - 'scripts/merge-retrieval-runs.ts'
+      - 'scripts/retrieval-quality-gate.ts'
+      - 'scripts/release-selection-source-validation.ts'
+      - 'src/domain/retrieval-benchmark.ts'
+      - 'src/adapters/retrieval-benchmark-trace.ts'
+      - 'test/release-selection-source-validation.contracts.test.ts'
       - 'test/codebase-memory-graph.contracts.test.ts'
       - '.github/workflows/ace-codebase-memory.yml'
   workflow_dispatch:
@@ -182,7 +193,7 @@ jobs:
         # isolated container; no operator worktree or credentials are mounted.
         run: |
           set -eu
-          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT ACE_REAL_PROJECTION_NATIVE_DAEMON_RECOVERY; do
+          for scenario in ACE_REAL_PROJECTION_NATIVE_MUTATIONS ACE_REAL_PROJECTION_NATIVE_RECOVERY ACE_REAL_PROJECTION_NATIVE_WORKTREE ACE_REAL_PROJECTION_NATIVE_CANCELLATION ACE_REAL_PROJECTION_NATIVE_DEADLINE ACE_REAL_PROJECTION_NATIVE_RESTART ACE_REAL_PROJECTION_NATIVE_NON_GIT ACE_REAL_PROJECTION_NATIVE_DAEMON_RECOVERY ACE_REAL_PROJECTION_NATIVE_SHARED_CACHE; do
             docker run --rm --init --network none \
               -v "$PWD:/evidence:ro" \
               -e GIT_OPTIONAL_LOCKS=0 \
@@ -196,6 +207,21 @@ jobs:
               -e "$scenario=true" \
               --entrypoint node ace-native-ci /evidence/scripts/real-projection-e2e.mjs
           done
+      - name: Real native holdout collection, merge and gate on disposable synthetic partitions
+        # Read-only source and CI-installed dev tooling; no real corpus, secrets
+        # or network. This validates the runner, not release-quality labels.
+        run: |
+          docker run --rm --init --network none \
+            -v "$PWD:/evidence:ro" \
+            -e GIT_OPTIONAL_LOCKS=0 \
+            -e GIT_CONFIG_COUNT=1 \
+            -e GIT_CONFIG_KEY_0=safe.directory \
+            -e GIT_CONFIG_VALUE_0=/evidence \
+            -e ACE_SOURCE_ROOT=/evidence \
+            -e ACE_RUNTIME_ROOT=/opt/ace \
+            -e ACE_CBM_COMMAND=/opt/ace-native/codebase-memory-mcp \
+            -e ACE_CBM_HOLDOUT_ISOLATED=true \
+            --entrypoint node ace-native-ci /evidence/scripts/native-holdout-runner-smoke.mjs
       - name: Native CBM real source corpus and resource observations
         run: |
           docker run --rm --init --network none \

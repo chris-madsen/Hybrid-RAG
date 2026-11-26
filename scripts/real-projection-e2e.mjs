@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdtemp, mkdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, open, readdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -135,6 +135,10 @@ const recovery = process.env.ACE_REAL_PROJECTION_NATIVE_RECOVERY === 'true';
 const worktree = process.env.ACE_REAL_PROJECTION_NATIVE_WORKTREE === 'true';
 const cancellation = process.env.ACE_REAL_PROJECTION_NATIVE_CANCELLATION === 'true';
 const daemonRecovery = process.env.ACE_REAL_PROJECTION_NATIVE_DAEMON_RECOVERY === 'true';
+const sharedCache = process.env.ACE_REAL_PROJECTION_NATIVE_SHARED_CACHE === 'true';
+assert.ok(!sharedCache || (process.env.ACE_REAL_PROJECTION_ISOLATED_CONTAINER === 'true'
+  && process.platform === 'linux' && !outage && !race && !mutations && !recovery && !worktree
+  && !cancellation && !restart && !deadline && !nonGit && !scale && !daemonRecovery), 'shared-cache fault injection requires an isolated Linux container');
 assert.ok(!daemonRecovery || (process.env.ACE_REAL_PROJECTION_ISOLATED_CONTAINER === 'true'
   && process.platform === 'linux' && !outage && !race && !mutations && !recovery && !worktree
   && !cancellation && !restart && !deadline && !nonGit && !scale), 'daemon fault injection is restricted to the isolated container fixture');
@@ -161,7 +165,7 @@ const nativeEnvironment = {
   CBM_CACHE_DIR: nativeCache,
   CBM_ALLOWED_ROOT: workspace,
 };
-const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.executable], {
+const spawnRuntime = (overrides = {}) => spawnRealProviderProcess(process.execPath, [runtime.executable], {
   cwd: runtime.runtimeRoot,
   env: {
     ...process.env,
@@ -184,6 +188,7 @@ const spawnRuntime = () => spawnRealProviderProcess(process.execPath, [runtime.e
     ACE_CONTEXT_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
     ACE_CONTEXT_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: '{"mock":["test-model"]}',
     ACE_CONTEXT_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source"]',
+    ...overrides,
   },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
@@ -192,8 +197,9 @@ let child = spawnRuntime();
 let startupLog = '';
 const endpoint = `http://127.0.0.1:${gatewayPort}/internal/ace-context/v3`;
 const timeout = (ms) => AbortSignal.timeout(ms);
-const waitForStartup = async () => {
-  startupLog = '';
+const waitForStartup = async (target = child) => {
+  let log = '';
+  if (target === child) startupLog = '';
   await new Promise((resolve, reject) => {
     let done = false;
     const settle = (error) => {
@@ -202,13 +208,14 @@ const waitForStartup = async () => {
       clearTimeout(timer);
       error ? reject(error) : resolve();
     };
-    const timer = setTimeout(() => settle(new Error('Gateway startup timed out: ' + startupLog.slice(-3000))), maxWait);
-    child.stderr.on('data', (chunk) => {
-      startupLog += chunk.toString('utf8');
-      if (startupLog.includes('ace-context-rpc listening')) settle();
+    const timer = setTimeout(() => settle(new Error('Gateway startup timed out: ' + log.slice(-3000))), maxWait);
+    target.stderr.on('data', (chunk) => {
+      log += chunk.toString('utf8');
+      if (target === child) startupLog = log;
+      if (log.includes('ace-context-rpc listening')) settle();
     });
-    child.once('exit', (code) => settle(new Error('Gateway exited before listening: ' + code + ': ' + startupLog.slice(-3000))));
-    child.once('error', settle);
+    target.once('exit', (code) => settle(new Error('Gateway exited before listening: ' + code + ': ' + log.slice(-3000))));
+    target.once('error', settle);
   });
 };
 try {
@@ -305,17 +312,17 @@ try {
       providerWireCertified: false,
     }));
     }
-    if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit || scale || daemonRecovery) {
-      const projectAgain = async (query = payload.query, signal = timeout(maxWait), deadlineMs = maxWait) => {
+    if (mutations || recovery || worktree || cancellation || restart || deadline || nonGit || scale || daemonRecovery || sharedCache) {
+      const projectAgain = async (query = payload.query, signal = timeout(maxWait), deadlineMs = maxWait, targetEndpoint = endpoint, targetWorkspaceId = workspaceId) => {
         const nextBytes = Buffer.from(JSON.stringify({ ...body, input: query }), 'utf8');
         const next = {
-          ...payload, query, bodyBase64: nextBytes.toString('base64'), bodySha256: digest(nextBytes),
+          ...payload, workspaceId: targetWorkspaceId, query, bodyBase64: nextBytes.toString('base64'), bodySha256: digest(nextBytes),
           requestId: 'responses-projection-' + randomUUID(),
           attemptGroupId: randomUUID(), deadlineEpochMs: Date.now() + deadlineMs,
         };
-        const result = await fetch(endpoint + '/project', {
+        const result = await fetch(targetEndpoint + '/project', {
           method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer real-provider-fixture-secret',
-            ...(daemonRecovery ? { connection: 'close' } : {}) },
+            ...((daemonRecovery || sharedCache) ? { connection: 'close' } : {}) },
           body: JSON.stringify(next), signal,
         });
         const outcome = await result.json();
@@ -477,6 +484,177 @@ try {
         assert.equal(indexesAfter, indexesBefore + 1, 'parallel requests must share exactly one recovered publication');
         assertNoExternalRetrievalProcesses(child.pid);
         console.log(JSON.stringify({ status: 'native-recovery-pass', providerWireCertified: false }));
+      }
+      if (sharedCache) {
+        const nativeChild = await actualNativeChild(child.pid);
+        const command = await readlink('/proc/' + nativeChild.pid + '/exe');
+        const daemonPid = async () => {
+          const status = await execFileAsync(command, ['daemon', 'status'], {
+            env: nativeEnvironment, encoding: 'utf8', timeout: 10000,
+          });
+          assert.match(status.stdout, /daemon: active \(session-managed\)/u);
+          const match = /^\s*pid: (\d+)\s*$/mu.exec(status.stdout);
+          assert.ok(match, 'session-managed native daemon must be visible');
+          return Number(match[1]);
+        };
+        const daemon = await daemonPid();
+        const otherPort = await port();
+        const otherEndpoint = 'http://127.0.0.1:' + otherPort + '/internal/ace-context/v3';
+        const otherTrace = join(directory, 'provider-trace-other.jsonl');
+        const otherOverrides = {
+          ACE_CONTEXT_RPC_PORT: String(otherPort),
+          ACE_STATE_DIR: join(directory, 'state-other'),
+          ACE_ARTIFACT_DIR: join(directory, 'artifacts-other'),
+          ACE_PROVIDER_TRACE_FILE: otherTrace,
+        };
+        let other = spawnRuntime(otherOverrides);
+        let inFlight;
+        let paused = false;
+        const context = (outcome) => {
+          assert.equal(outcome.kind, 'PREPARED');
+          const body = JSON.parse(Buffer.from(outcome.bodyBase64, 'base64').toString('utf8'));
+          return body.input.find((entry) => entry.role === 'developer' && String(entry.content).includes('[ACE verified context]')).content;
+        };
+        const before = await readFile(codePath, 'utf8');
+        const sourceHandle = await open(codePath, 'r+');
+        const metadata = await sourceHandle.stat();
+        const writeSource = async (value) => {
+          const bytes = Buffer.from(value, 'utf8');
+          await sourceHandle.truncate(0);
+          const written = await sourceHandle.write(bytes, 0, bytes.length, 0);
+          assert.equal(written.bytesWritten, bytes.length);
+        };
+        const changed = (marker) => before.replace('return value;', "return value + '" + marker + "';");
+        const assertCurrent = (outcome, marker) => {
+          const delivered = context(outcome);
+          assert.ok(delivered.includes(marker), 'native context must contain the current exact marker');
+          assert.ok(!delivered.includes('older-generation'), 'stale writer must not deliver older source');
+        };
+        try {
+          await waitForStartup(other);
+          assert.notEqual((await actualNativeChild(other.pid)).pid, nativeChild.pid);
+          assert.equal(await daemonPid(), daemon, 'both runtimes must use one session-managed native daemon');
+          assert.ok(context(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint)).includes('retryAfterTransientFailure'));
+          const count = async () => (await readProviderTrace(providerTracePath)).filter((event) =>
+            event.operation === 'index_repository_request_queued').length;
+          const queued = await count();
+          await writeSource(changed('older-generation'));
+          process.kill(nativeChild.pid, 'SIGSTOP');
+          paused = true;
+          inFlight = projectAgain();
+          // Observe rejection immediately even if the other runtime fails.
+          void inFlight.catch(() => {});
+          const until = Date.now() + 10000;
+          while (await count() <= queued) {
+            assert.ok(Date.now() < until, 'first runtime must queue a native index request before source advances');
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          const newer = changed('newer-generation');
+          assert.equal(Buffer.byteLength(newer), Buffer.byteLength(changed('older-generation')));
+          await writeSource(newer);
+          await sourceHandle.utimes(metadata.atime, metadata.mtime);
+          assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'newer-generation');
+          process.kill(nativeChild.pid, 'SIGCONT');
+          paused = false;
+          const staleAttempt = await inFlight;
+          if (staleAttempt.kind === 'PREPARED') assertCurrent(staleAttempt, 'newer-generation');
+          else {
+            assert.equal(staleAttempt.kind, 'BLOCK');
+            assert.equal(staleAttempt.projectionReceipt, undefined);
+            assert.equal(staleAttempt.bodyBase64, undefined);
+          }
+          assertCurrent(await projectAgain(), 'newer-generation');
+          assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'newer-generation');
+          // ABA: first runtime observes A and queues a real search while its
+          // frontend is stopped. Another runtime publishes B; restore A with
+          // the same size and mtime before the first search resumes. This
+          // exercises stale shared graph hints, not merely two source scans.
+          const searchCount = async () => (await readProviderTrace(providerTracePath)).filter((event) =>
+            event.operation === 'search_graph_request_queued').length;
+          const searchQueued = await searchCount();
+          process.kill(nativeChild.pid, 'SIGSTOP');
+          paused = true;
+          inFlight = projectAgain();
+          void inFlight.catch(() => {});
+          const searchUntil = Date.now() + 10000;
+          while (await searchCount() <= searchQueued) {
+            assert.ok(Date.now() < searchUntil, 'first runtime must queue a native search before ABA mutation');
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          const intermediate = changed('other-generation');
+          assert.equal(Buffer.byteLength(intermediate), Buffer.byteLength(newer));
+          await writeSource(intermediate);
+          await sourceHandle.utimes(metadata.atime, metadata.mtime);
+          assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'other-generation');
+          await writeSource(newer);
+          await sourceHandle.utimes(metadata.atime, metadata.mtime);
+          process.kill(nativeChild.pid, 'SIGCONT');
+          paused = false;
+          const abaAttempt = await inFlight;
+          if (abaAttempt.kind === 'PREPARED') {
+            assertCurrent(abaAttempt, 'newer-generation');
+            assert.ok(!context(abaAttempt).includes('other-generation'), 'intermediate ABA source must never be delivered');
+          } else {
+            assert.equal(abaAttempt.kind, 'BLOCK');
+            assert.equal(abaAttempt.projectionReceipt, undefined);
+            assert.equal(abaAttempt.bodyBase64, undefined);
+          }
+          assertCurrent(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint), 'newer-generation');
+          assertCurrent(await projectAgain(), 'newer-generation');
+          // Reuse the daemon/cache from a different registered root. A common
+          // symbol and relative path must never substitute a foreign source.
+          await stopRealProviderProcess(other);
+          const foreign = join(directory, 'foreign-workspace');
+          await mkdir(foreign);
+          await writeFile(join(foreign, 'service.ts'), changed('foreign-generation'));
+          const foreignId = randomUUID();
+          other = spawnRuntime({
+            ...otherOverrides,
+            ACE_WORKSPACE_ROOT: foreign,
+            CBM_ALLOWED_ROOT: foreign,
+            ACE_WORKSPACE_ID: foreignId,
+            ACE_STATE_DIR: join(directory, 'state-foreign'),
+            ACE_ARTIFACT_DIR: join(directory, 'artifacts-foreign'),
+            ACE_PROVIDER_TRACE_FILE: join(directory, 'provider-trace-foreign.jsonl'),
+          });
+          await waitForStartup(other);
+          assert.equal(await daemonPid(), daemon);
+          const foreignContext = context(await projectAgain(payload.query, timeout(maxWait), maxWait, otherEndpoint, foreignId));
+          assert.ok(foreignContext.includes('foreign-generation'));
+          assert.ok(!foreignContext.includes('newer-generation'));
+          const local = context(await projectAgain());
+          assert.ok(local.includes('newer-generation') && !local.includes('foreign-generation'));
+        } finally {
+          if (paused) { try { process.kill(nativeChild.pid, 'SIGCONT'); } catch {} }
+          if (inFlight) await inFlight.catch(() => {});
+          await sourceHandle.close();
+          await stopRealProviderProcess(other);
+        }
+        // All frontends are now closed before reopening the same cache. The
+        // portable export flag is false, but the local SQLite index persists.
+        await stopRealProviderProcess(child);
+        const sqliteFiles = [];
+        const visit = async (path) => {
+          for (const entry of await readdir(path, { withFileTypes: true })) {
+            const full = join(path, entry.name);
+            if (entry.isDirectory()) await visit(full);
+            else if (entry.isFile() && /\.db$|\.sqlite3?$/u.test(entry.name)) {
+              const file = await open(full, 'r');
+              try {
+                const magic = Buffer.alloc(16);
+                const read = await file.read(magic, 0, magic.length, 0);
+                if (read.bytesRead === 16 && magic.toString('utf8') === 'SQLite format 3\0') sqliteFiles.push(full);
+              } finally { await file.close(); }
+            }
+          }
+        };
+        await visit(nativeCache);
+        assert.ok(sqliteFiles.length > 0, 'actual native SQLite cache must remain after runtime stop');
+        child = spawnRuntime();
+        await waitForStartup();
+        assertCurrent(await projectAgain(), 'newer-generation');
+        console.log(JSON.stringify({ status: 'native-shared-cache-pass', retainedSqliteFiles: sqliteFiles.length,
+          portableExport: false, providerWireCertified: false }));
       }
       if (restart) {
         const oldPid = (await actualNativeChild(child.pid)).pid;

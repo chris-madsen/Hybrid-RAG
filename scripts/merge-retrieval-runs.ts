@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { validateNativeProjectionRunEvidence } from './native-projection-evidence.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import {
   evaluateRetrievalStrategy,
@@ -22,6 +23,10 @@ const runs = await Promise.all(runArgs.map(async (path) => JSON.parse(await read
 const first = runs[0]!;
 const repositories = new Set<string>();
 for (const run of runs) {
+  await validateNativeProjectionRunEvidence(holdout, run, async (path) => {
+    const raw = await readFile(resolve(path));
+    return { sha256: createHash('sha256').update(raw).digest('hex'), value: JSON.parse(raw.toString('utf8')) as unknown };
+  });
   const identity = validateNativeRetrievalRunIdentity(holdout, run, sourceCommit);
   if (identity._tag === 'Err') throw new Error(identity.error.message);
   if (run.holdoutSha256 !== holdoutSha256 || run.runnerVersion !== first.runnerVersion) {
@@ -52,6 +57,7 @@ const merged: RetrievalStrategyRun = {
   runnerVersion: first.runnerVersion!,
   providerIdentities: nativeCodeRetrieval.providerIdentities,
   observations: runs.flatMap((run) => run.observations),
+  projectionEvidence: runs.flatMap((run) => run.projectionEvidence ?? []),
   ...(tracePaths.length === 0 ? {} : { tracePaths, terminalTraceReceiptPaths }),
 };
 const evaluated = evaluateRetrievalStrategy(holdout, merged);
@@ -64,10 +70,10 @@ const lexicalRelation = relative(root, outputDirectory);
 const inside = (relation: string): boolean => relation === ''
   || (!isAbsolute(relation) && relation !== '..' && !relation.startsWith('..' + sep));
 if (inside(lexicalRelation)) throw new Error('native run output must stay in the external evidence workspace');
-await mkdir(outputDirectory, { recursive: true });
+await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
 if (inside(relative(root, await realpath(outputDirectory)))) {
   throw new Error('native run output must stay in the external evidence workspace');
 }
 const outputPath = resolve(outputDirectory, 'native_cbm.json');
-await writeFile(outputPath, JSON.stringify(merged, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+await writeFile(outputPath, JSON.stringify(merged, null, 2) + '\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
 process.stdout.write(JSON.stringify({ strategy: merged.strategy, output: outputPath, cases: merged.observations.length }) + '\n');

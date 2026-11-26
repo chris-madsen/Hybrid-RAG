@@ -13,7 +13,7 @@ export const writeFrozenArtifactPair = async (
   bytes: Uint8Array,
   digest: string,
 ): Promise<void> => {
-  await mkdir(dirname(outputPath), { recursive: true });
+  await mkdir(dirname(outputPath), { recursive: true, mode: 0o700 });
   const flags = constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0);
   const data = await open(outputPath, flags, 0o600);
   try {

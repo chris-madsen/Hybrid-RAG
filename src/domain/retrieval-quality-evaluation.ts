@@ -98,6 +98,8 @@ export interface RetrievalStrategyRun {
   readonly providerIdentities?: Readonly<Record<string, string>>;
   readonly tracePaths?: readonly string[];
   readonly terminalTraceReceiptPaths?: readonly string[];
+  /** External, digest-bound native projection captures; never inferred from rank arrays. */
+  readonly projectionEvidence?: readonly { readonly path: string; readonly sha256: string }[];
 }
 
 export interface RetrievalQualityMetrics {

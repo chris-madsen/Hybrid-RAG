@@ -105,6 +105,7 @@ const recordBenchmarkStage = (
   startedAtMs: number,
   repositoryId?: string,
   status: RetrievalBenchmarkStageStatus = 'executed',
+  evidenceIds?: ReadonlyMap<string, string>,
 ): void => {
   trace?.record({
     requestId,
@@ -123,6 +124,11 @@ const recordBenchmarkStage = (
       repoPath: candidate.repoPath,
       sourceDigest: candidate.sourceDigest,
       range: candidate.range,
+      ...(evidenceIds?.has(String(candidate.candidateId)) ? {
+        evidenceId: evidenceIds.get(String(candidate.candidateId))!,
+        sourceTextSha256: createHash('sha256').update(candidate.text, 'utf8').digest('hex'),
+        sourceTextCharacters: candidate.text.length,
+      } : {}),
     })),
     // Non-executed placeholders have NO elapsed time. startedAtMs=0 is a
     // sentinel, not Unix epoch zero; never contaminate latency aggregates.
@@ -769,6 +775,7 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
           deliveryTraceStartedAtMs,
           activeConfig.benchmarkRepositoryId,
           incompleteVerification ? 'unavailable' : 'executed',
+          candidateEvidenceIds,
         );
       }
       return ok(covered);

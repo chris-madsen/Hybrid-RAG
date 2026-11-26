@@ -138,7 +138,7 @@ test('native CBM is the single production structural owner', async () => {
 test('Bifröst-only composition cannot start an optional model tool transport', async () => {
   const runtime = await readFile(join(process.cwd(), 'src/bin/ace-runtime.ts'), 'utf8');
   const gateway = await readFile(join(process.cwd(), 'src/transport/context-rpc-http.ts'), 'utf8');
-  assert.match(runtime, /const projection = makeResponsesProjectionService\(contextProvider, gatewaySecurity\)/u);
+  assert.match(runtime, /const projection = makeResponsesProjectionService\(contextProvider, gatewaySecurity, benchmarkTrace\?\.recordProjection\)/u);
   assert.match(runtime, /const attemptAuthorization = makeGatewayAttemptAuthorizationService\(gatewaySecurity\)/u);
   assert.match(runtime, /runContextRpcHttp\(\{[\s\S]*?projectResponses: projection\.projectResponses,[\s\S]*?authorizePhysicalSend: attemptAuthorization\.authorizePhysicalSend/u);
   assert.match(gateway, /\/internal\/ace-context\/v3\/project/u);
