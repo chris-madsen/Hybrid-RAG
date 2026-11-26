@@ -79,7 +79,7 @@ const holdoutTarget = await canonicalTarget(holdoutArg);
 const manifestTarget = await canonicalTarget(manifestDirectoryArg);
 if (forbiddenRoots.some((root) => within(root, holdoutTarget) || within(root, manifestTarget)
   || within(root, resolve(holdoutArg)) || within(root, resolve(manifestDirectoryArg)))) {
-  throw new Error('frozen holdout and manifest outputs must be outside all source checkouts');
+  throw new Error('frozen holdout and manifest outputs must be outside all source checkouts; use an external evidence directory');
 }
 
 const sourceSpec = JSON.parse(await readFile(resolve(sourceArg), 'utf8')) as SourceSpec;
