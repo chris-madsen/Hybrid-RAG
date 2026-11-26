@@ -1,135 +1,114 @@
-# ACE — Event Storming: события, команды, политики и hot spots
+# ACE — Event Storming: events, commands, policies and unresolved questions
 
-> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+> **Design model, not an implementation inventory.** This document reconciles the original logical design with the native CBM cutover and the single Bifröst boundary. Identifiers, proposed events and logical consistency boundaries do not imply that corresponding classes, tables or public operations exist. The [original record](https://github.com/chris-madsen/Hybrid-RAG/blob/d19b8ac04ce3861ee0b477fd5253c684edb5136f/docs/architecture/02-event-storming.md) remains in Git history. Current implementation and acceptance are described in [current runtime architecture](../operations/current-architecture.md), the accepted ADRs and applicable OpenSpec.
 
-**Статус:** архитектурная гипотеза; события и термины не следует считать существующими реализациями. Это текстовый Big Picture → Process Level → Design Level Event Storming, требующий последующей совместной сессии с владельцем. События домена ниже не равны событиям Codex SDK/Harbor.
+**Status:** conceptual Big Picture, Process Level and Design Level model; proposed event and command vocabulary, not a catalog of implemented messages. Event Storming is domain discovery for material T2 changes, not a requirement for event sourcing. Use immutable ADTs, pure transitions, Effect ports and TypeSpec at versioned wire boundaries.
 
-**Implementation preference:** Event Storming is mandatory domain discovery for material T2 changes, but **Event Storming ≠ Event Sourcing** and an event sticky note ≠ mandatory event bus. Translate commands/policies/hot spots into readonly ADTs, pure bounded-context transition functions and explicit Effect ports. A logical aggregate is an invariant/consistency boundary, not a mutable class. Public message shapes are governed by TypeSpec after staged adoption. See [Functional DDD + TypeSpec architecture](../research/sdlc/ARCHITECTURE-FUNCTIONAL-DDD-TYPESPEC.md).
+## 1. Event Storming legend
 
-## 1. Event Storming легенда
+| Marker | Meaning |
+|---|---|
+| Domain event | A fact that has occurred (past tense). |
+| Command | An intention that may be rejected. |
+| Policy/process manager | A rule reacting to an event. |
+| Aggregate | A logical invariant/consistency boundary. |
+| Read model | A projection used for queries. |
+| Hot spot | A question requiring design or empirical evidence. |
+| Actor | Owner, coding agent, operator or evaluation runner. |
 
-- 🟧 **Domain event** — произошло и стало фактом (прошедшее время).
-- 🟦 **Command** — запрос на действие (может быть отклонён).
-- 🟪 **Policy / process manager** — правило реакций на события.
-- 🟨 **Aggregate** — владеет инвариантами и последовательностью изменений.
-- 🟩 **Read model** — проекция для поиска/выдачи.
-- 🟥 **Hot spot / unanswered question** — требует технической или продуктовой проверки.
-- 👤 **Actor** — Codex, владелец, Harbor runner.
-
-Эти цветовые обозначения служат текстовой заменой event-storming-стикеров.
-
-## 2. Big Picture — общий timeline
+## 2. Big picture — workflow
 
 ```mermaid
 flowchart LR
-  A["👤 Register workspace"] --> B["🟧 WorkspaceRegistered"]
-  B --> C["🟧 SnapshotObserved"]
-  C --> D["🟧 CodeIndexPublished"]
-  D --> E["👤 ContextRequested"]
-  E --> F["🟧 RetrievalPlanned"]
-  F --> G["🟧 EvidenceCollected"]
-  G --> H["🟧 ContextBundleDelivered"]
-  H --> I["👤 Codex edits code"]
-  I --> J["🟧 WorkspaceChanged"]
-  J --> K["🟧 IndexInvalidated"]
-  K --> L["🟧 IndexUpdated"]
-  L --> M["🟧 SessionArchived"]
-  M --> N["🟧 KnowledgeExtracted"]
-  N --> O["👤 DecisionApproved"]
-  O --> P["🟧 DecisionAccepted"]
+  A["Register workspace"] --> B["WorkspaceRegistered"]
+  B --> C["SnapshotObserved"]
+  C --> D["CodeIndexPublished"]
+  D --> E["ContextRequested"]
+  E --> F["RetrievalPlanned"]
+  F --> G["EvidenceCollected"]
+  G --> H["ContextBundleComposed"]
+  H --> I["ProjectionPrepared or Blocked"]
+  I --> J["AttemptAuthorized or Denied"]
+  J --> K["Provider result, if allowed"]
+  K --> L["Agent edits/tests"]
+  L --> M["WorkspaceChanged"]
+  M --> N["IndexInvalidated"]
+  N --> D
 ```
 
-Параллельная линия: `BenchmarkRunRequested → EnvironmentPrepared → AgentRunCompleted/Failed → UsageCaptured → QualityGraded → ComparisonPublished`. **Ни один из этих event-ов не означает, что Harbor меняет реальный рабочий репозиторий.**
+Memory ingestion (separate/target workflow): SessionArchived → KnowledgeExtracted → DecisionAccepted/Rejected/Superseded. Evaluation: BenchmarkRunRequested → EnvironmentPrepared → AgentRunCompleted/Failed → UsageCaptured → QualityGraded → ComparisonPublished. The latter uses isolated task environments, not the real user working tree. These are conceptual milestones, not promises of a persisted event bus.
 
-## 3. Event Storming — поток A: регистрация и кодовый индекс
+## 3. Flow A — workspace and native code index
 
-| Актор / trigger | 🟦 Команда | 🟨 Агрегат | 🟧 Событие | 🟪 Реакция | 🟩 Проекция |
-|---|---|---|---|---|---|
-| Пользователь | `RegisterWorkspace` | Workspace | `WorkspaceRegistered` | Validate path/access, observe HEAD + working tree | Workspaces |
-| FS watcher / explicit refresh | `ObserveWorkspace` | Workspace | `SnapshotObserved` / `WorkspaceChanged` | Invalidate impacted hits; schedule reindex | CurrentFileRevisions |
-| Index scheduler | `StartIndexGeneration` | CodeIndex | `IndexBuildStarted` | Parse safe files, build symbol-aware vectors | IndexProgress |
-| Index workers | `PublishIndexGeneration` | CodeIndex | `CodeIndexPublished` | Atomic switch active generation pointer after coverage check | ActiveIndex |
-| Ошибка backend | `MarkIndexDegraded` | CodeIndex | `IndexBuildFailed` | Retain previous index as stale; expose reason, fallback lexical | IndexStatus |
+| Actor/trigger | Command | Logical boundary | Proposed event | Policy/read model |
+|---|---|---|---|---|
+| Operator | RegisterWorkspace | Workspace | WorkspaceRegistered | Validate authorized root and observe workspace. |
+| Source observation | ObserveWorkspace | Workspace | SnapshotObserved / WorkspaceChanged | Invalidate affected evidence, reconcile current manifest. |
+| Native index lifecycle | StartIndexGeneration | CodeIndex | IndexBuildStarted | Delegate index/AST/graph/semantic/BM25 to CBM. |
+| Reconciliation succeeds | PublishIndexGeneration | CodeIndex | CodeIndexPublished | Publish ACE's verified observation only after required checks. CBM owns native index/cache. |
+| Provider failure | MarkIndexDegraded | CodeIndex | IndexBuildFailed | Invalidate affected publication, report not ready; no retired vector fallback. |
 
-**Invariant A:** После `WorkspaceChanged` старый snippet **не** объявляется `VerifiedCurrent`, даже если Qdrant возвращает его с высоким similarity.
+**Invariant A:** After WorkspaceChanged, stale evidence cannot be presented as VerifiedCurrent. File mutation between discovery, materialization and delivery requires source re-observation and digest verification; unresolved races must fail or be represented explicitly. ACE does not invent a transaction encompassing the filesystem and CBM internals.
 
-**Concurrency hot spot:** файл может измениться между индексированием, candidate discovery и построением ответа. Решение: проверка хэша при materialization, повторная проверка перед delivery; если повторить невозможно — `changed_during_request`.
+## 4. Flow B — a context request and physical attempt
 
-## 4. Event Storming — поток B: один context request
+| Actor/trigger | Command | Logical boundary | Proposed event | Policy/read model |
+|---|---|---|---|---|
+| Bifröst connector | RequestContext | ContextRequest | ContextRequested | Validate request identity, workspace and allowed scope. |
+| Policy | AuthorizeContextRoute | AccessDecision | RouteAllowed / RouteDenied | Denied path stops; audit safely. |
+| Orchestration | PlanRetrieval | ContextRequest | RetrievalPlanned | Current projection requires code; broader source plans are separate scope. |
+| Native provider | CollectEvidence | ContextRequest | EvidenceCollected / SourceUnavailable | Return ranked candidates and typed failure. |
+| Workspace verifier | VerifyEvidence | ContextRequest | EvidenceVerified / FreshnessUnknown | Reread exact bytes/digests and ranges; no fabricated LSP facts. |
+| Composer | ComposeBundle | ContextRequest | ContextBundleComposed | Relevance, required coverage, deduplication and exact provenance. |
+| Context RPC | ProjectModelContext | Projection request | ProjectionPrepared / ProjectionBlocked | Return PREPARED with signed receipt or BLOCK. |
+| Bifröst physical boundary | AuthorizeAttempt | Attempt identity | AttemptAuthorized / AttemptDenied | Verify receipt and actual final attempt under current policy; each retry needs a new attempt. |
 
-| Актор / trigger | 🟦 Команда | 🟨 Агрегат | 🟧 Событие | 🟪 Реакция | 🟩 Проекция |
-|---|---|---|---|---|---|
-| Codex | `RequestContext` | ContextRequest | `ContextRequested` | Policy check до внешнего I/O | Requests |
-| Policy Gate | `AuthorizeContextRoute` | AccessDecision | `RouteAllowed` / `RouteDenied` | Denied → halt path/log; no bypass | SecurityJournal |
-| Router | `PlanRetrieval` | ContextRequest | `RetrievalPlanned` | Rule-based default; multi-source; Jev spike | Plans |
-| Adapters | `CollectEvidence` | ContextRequest | `EvidenceCollected` / `SourceUnavailable` | Dedup, mark partial | CandidateSet |
-| Resolver | `VerifyEvidence` | ContextRequest | `EvidenceVerified` / `FreshnessUnknown` | Live AST/LSP + file hash, uncertainty | EvidenceView |
-| Builder | `ComposeBundle` | ContextRequest | `ContextBundleComposed` | Relevance-first, lossless expansion links | ContextBundle |
-| Bifröst Gateway adapter | `ProjectModelContext` | GatewayProjectionRequest | `ContextProjectionApplied` / `ContextProjectionBlocked` | Persist only redacted request/receipt identities if allowed | ProjectionReceipt |
+**Invariant B:** CandidateFound, VerifiedCurrent, PREPARED, attempt authorization and observed provider delivery are distinct facts. The final guard is not a consequence of merely preparing context.
 
-**Invariant B:** `CandidateFound` ≠ `VerifiedCurrent` ≠ `RuntimeProven`. Классы свидетельств сохраняются до ответа агенту.
+**Invariant C:** ACE does not rewrite generated patches or truncate the agent's original native input. Exact authorized source remains available independently of compact evidence selection.
 
-**Invariant C:** Если 2000 строк кода созданы агентом, ACE не заменяет их усечённым snippet. Возможно компактно ссылаться на байт-в-байт сохранённый артефакт, предоставляя `expand` без потерь; ACE не перехватывает и не переписывает сам patch.
+Hot spots: required-source failure, source races, request deadlines, repeat evidence, token cost and permission changes. Measure the complete workflow; a router model call or speculative extra retrieval is not automatically beneficial.
 
-**Hot spots:** не выполняет ли дополнительный router model call работу дороже сэкономленного? Нужно ли группировать docs+memory только для некоторых intent? Исследовать через Harbor, не устанавливать произвольный token cap.
+## 5. Flow C — engineering memory across sessions (target integration)
 
-## 5. Event Storming — поток C: инженерная память через недели
+| Trigger | Command | Logical boundary | Proposed event | Policy/read model |
+|---|---|---|---|---|
+| Authorized importer | CaptureSession | SessionArchive | SessionCaptured | Preserve and deduplicate exact originals, with approved data scope. |
+| Archive | SealEpisode | SessionArchive | SessionArchived | Verify digest, enqueue derived processing. |
+| Extraction worker | ExtractKnowledge | MemoryFact | KnowledgeCandidateExtracted | Link claims to original episode/offset. |
+| Owner | ApproveDecision | DecisionRecord | DecisionAccepted | Retain approval, validity and provenance. |
+| Owner | RejectDecision | DecisionRecord | DecisionRejected | Do not present as current requirement. |
+| Approved replacement | SupersedeDecision | DecisionRecord | DecisionSuperseded | Retain old rationale and replacement identity. |
+| Authorized deletion | DeleteStoredData | ArchivePrivacyRecord | DeletionRequested / DataErased | Remove access, reconcile derived projection and retention scope. |
 
-| Актор / trigger | 🟦 Команда | 🟨 Агрегат | 🟧 Событие | 🟪 Реакция | 🟩 Проекция |
-|---|---|---|---|---|---|
-| Codex export adapter | `CaptureSession` | SessionArchive | `SessionCaptured` | Verify digest, dedupe, redact prohibited fields, append original | RawEpisodes |
-| Archive | `SealEpisode` | SessionArchive | `SessionArchived` | Queue extraction without mutating episode | ArchiveIndex |
-| Extraction worker | `ExtractKnowledge` | MemoryFact | `KnowledgeCandidateExtracted` | Link statement to exact episode/offset | CandidateFacts |
-| Пользователь | `ApproveDecision` | DecisionRecord | `DecisionAccepted` | Graphiti index, retain temporal interval and sources | CurrentDecisions |
-| Пользователь | `RejectDecision` | DecisionRecord | `DecisionRejected` | Never advertise as current requirement | DecisionHistory |
-| Новое подтверждение | `SupersedeDecision` | DecisionRecord | `DecisionSuperseded` | Preserve previous fact and reason | Timeline |
-| Пользователь | `DeleteStoredData` | ArchivePrivacyRecord | `DeletionRequested` / `DataErased` | Purge originals + derived index + backups per policy | DeletionAudit |
+**Invariant D:** Graphiti is a derived temporal projection; extraction does not make a claim an accepted decision. Archive integrity is independent of extraction success. Deletion is reference-safe and policy-controlled. Current archive tooling does not establish a gateway-native temporal recall capability; the current runtime rejects enabling that provider. Import feasibility is client/version-specific, not implicit access to private agent history.
 
-**Invariant D:** Неподтверждённая LLM-summary не становится `Accepted`. Graphiti — производная проекция; оригиналы остаются проверяемым первоисточником (пока не удалены по запросу).
+## 6. Flow D — benchmark and token objective
 
-**Hot spot:** обнаружение/capture Codex sessions не гарантировано на всех версиях. Требуется spike exporter и capability detection; нельзя обещать невидимый перехват чужой истории.
+| Trigger | Command | Boundary | Proposed event | Policy/read model |
+|---|---|---|---|---|
+| Evaluator | FreezeSuite | EvaluationSuite | SuiteFrozen | Pin task, repository and verifier identities before execution. |
+| Harbor | ScheduleRun | BenchmarkRun | BenchmarkRunScheduled | Isolated matched environment. |
+| Runner | StartAgentRun | BenchmarkRun | AgentRunStarted | Bind version, model, effort and tools. |
+| Provider/runner | RecordUsage | BenchmarkRun | UsageRecorded / UsageUnavailable | Distinguish cumulative from incremental counts, correlate attempts. |
+| Independent grader | GradeOutcome | BenchmarkRun | RunGraded | Include failures/timeouts, not cherry-picked passes. |
+| Analyst | PublishComparison | ComparisonReport | ComparisonPublished | Report quality, total usage, costs, latency and limitations. |
 
-## 6. Event Storming — поток D: benchmark / доказательство 5×
+**Invariant E:** Cached input and reasoning output must not be double-counted when they are subsets of provider totals; unknown is not zero.
 
-| Актор / trigger | 🟦 Команда | 🟨 Агрегат | 🟧 Событие | 🟪 Реакция | 🟩 Проекция |
-|---|---|---|---|---|---|
-| Инженер | `FreezeSuite` | EvaluationSuite | `SuiteFrozen` | Pin task manifests, repo commits, private tests | SuiteManifest |
-| Harbor | `ScheduleRun` | BenchmarkRun | `BenchmarkRunScheduled` | Allocate isolated environment; reset git tree | RunQueue |
-| Runner | `StartAgentRun` | BenchmarkRun | `AgentRunStarted` | Save versions/config/toolset fingerprint | RunState |
-| Codex/Harbor | `RecordUsage` | BenchmarkRun | `UsageRecorded` / `UsageUnavailable` | Distinguish incremental vs cumulative snapshots | UsageLedger |
-| Grader | `GradeOutcome` | BenchmarkRun | `RunGraded` | Preserve failures/timeouts; no cherry-picking | Results |
-| Analyst | `PublishComparison` | ComparisonReport | `ComparisonPublished` | Aggregate paired runs, quality gating, holdout | CV Evidence |
+**Invariant F:** The fivefold target requires matched, independently graded tasks and complete applicable usage, including retries/failures. A prepared projection or retrieval-only benchmark does not prove agent savings.
 
-**Invariant E:** Учет токенов не складывает cumulative snapshots или cached/reasoning подмножества второй раз. При неизвестной метрике хранится `unknown`, а не `0`.
+## 7. Process managers and consistency
 
-**Invariant F:** Фактор 5× нельзя заявлять до замороженного holdout, повторов, невозрастания регрессий и полной отчетности включая внешние расходы.
+- WorkspaceReindexPolicy: observe changes, invalidate publication, reconcile through native CBM, publish only under the verified source boundary. Repeat work must not make a stale observation current.
+- MemoryIngestionPolicy (target): archive first; derive candidates asynchronously; retry idempotently without rewriting the original. Approval remains independent of extraction.
+- RequestFulfillmentPolicy: authorize source access, plan required obligations, retrieve, verify, compose and prepare; typed failures remain explicit. A denied or incomplete required projection must not become ordinary generation.
+- BenchmarkRunPolicy: freeze, prepare, run, finish/abort, grade and record every matched run; unknown telemetry cannot be synthesized.
 
-## 7. Process managers / саги
+## 8. Design-level hot spots
 
-`WorkspaceReindexPolicy`: реагирует на `WorkspaceChanged`, инвалидирует impacted code evidence, планирует `IndexGeneration`, публикует новую версию **только после** достаточной проверки. Retry идемпотентен по `(workspaceId, generationId, fileHash)`; старый generation не становится автоматически свежим.
+Native daemon/cache isolation, concurrent workspace changes, scale and remote topology remain #363; exact independent LSP facts remain #364. Cloud document consent, local-first memory extraction, deletion/recovery and actual combined delivery require their own acceptance. Real physical provider admission, native SSE, cancellation, multi-turn Hermes and paired economics remain OpenSpec 013/#171. Jev and earlier provider alternatives are research, not active required dependencies.
 
-`MemoryIngestionPolicy`: `SessionArchived → ExtractCandidate → (approval or proposed) → GraphitiProjection`. Сбой extraction оставляет архив целым и регистрирует retry; idempotency по `(sourceDigest, extractorVersion)`.
+## 9. Commands and events — design rules
 
-`RequestFulfillmentPolicy`: `ContextRequested → Authorized → Planned → ParallelSourceQueries → EvidenceResolved → BundleDelivered`. При частичном техсбое ответ `partial` с missing sources; при policy denial — только блок разрешённой операции, без скрытого cloud fallback.
-
-`BenchmarkRunPolicy`: `SuiteFrozen → RunPrepared → RunStarted → RunFinished → Graded → Recorded`. Все терминировавшие run включаются в отчёт, неуспешные не удаляются.
-
-## 8. Design-level hot spots / открытые вопросы
-
-1. Как безопасно дать pod доступ к незакоммиченным файлам на host, без небезопасного hostPath? (ADR-008 открыт)
-2. Какая согласованность filesystem watcher и Git status при конкурентных write/rename/delete/untracked?
-3. Serena GPL vs direct tsserver и реальные контракты инструмента? (ADR-004 открыт)
-4. Локальные embeddings или разрешённая Vertex embedding-модель, time/cost/recall? (ADR-003 открыт)
-5. Откуда Graphiti получает extraction LLM при local-first privacy? (ADR-005 и ADR-007)
-6. Jev vs rule router: цена полного workflow, false-negative routes и cloud privacy? (ADR-002)
-7. Как именно установленный Harbor отдаёт token usage и как правильно обрабатывать cumulative counters? (ADR-009)
-8. Как логировать deny без утечки пользовательского текста? (ADR-007)
-9. Нужно ли вообще persistent code graph за пределами AST/LSP? (ADR-004; отдельный эксперимент)
-
-## 9. Команды и события — правила проектирования
-
-- Event именуется **свершившимся** действием; command — намерением.
-- У события есть `eventId`, `aggregateId`, `occurredAt`, `schemaVersion`, `correlationId` и source, без больших исходников и секретов.
-- Дубли event при retry допустимы; consumer идемпотентен.
-- Outbox/event log — внутренний механизм надёжности, **не обязательная Kafka/event sourcing**.
-- Если owner/consumer не определены, такой event нельзя молча объявлять обязательным для имплементации.
+Name events as facts and commands as intentions. Where an event is genuinely required, define its identity, correlation, version, time and owning consumer; omit source text and secrets. Retries require appropriate idempotency. Choose an outbox only for actual durability needs. A conceptual sticky note does not mandate a class, persisted message, Kafka or a public endpoint.
