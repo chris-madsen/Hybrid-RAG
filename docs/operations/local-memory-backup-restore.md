@@ -8,7 +8,7 @@ This procedure covers only ACE-owned local memory source truth:
 - tombstones;
 - the nested durable Graphiti projection outbox.
 
-It **does not** back up FalkorDB/Graphiti database state, Qdrant vectors/PVCs, Kubernetes Secrets, cloud corpora, or the user worktree. Those remain separate operational evidence before the full release preflight can accept `operations-backup-restore`.
+It **does not** back up FalkorDB/Graphiti database state, native CBM index/cache state, Kubernetes Secrets, cloud corpora, or the user worktree. Those remain separate operational evidence before the full release preflight can accept `operations-backup-restore`.
 
 ## Quiescence is mandatory
 
@@ -62,7 +62,7 @@ After restore, point a stopped/test ACE memory process at the restored root and 
 
 ## Full production evidence
 
-A successful local archive round-trip is necessary but not sufficient for W07/W15. Codex still needs to demonstrate the selected FalkorDB/Graphiti backup/restore procedure, Qdrant/index recovery where applicable, Kubernetes/PVC behavior, restart reconciliation and owner retention/deletion requirements. Only the combined retained evidence may use the full release label `operations-backup-restore`.
+A successful local archive round-trip is necessary but not sufficient for W07/W15. Codex still needs to demonstrate the selected FalkorDB/Graphiti backup/restore procedure, native CBM index recovery where applicable, Kubernetes/PVC behavior, restart reconciliation and owner retention/deletion requirements. Only the combined retained evidence may use the full release label `operations-backup-restore`.
 
 ## Machine-checkable operations evidence
 
@@ -72,7 +72,7 @@ The combined production evidence has six stable checks:
 | --- | --- |
 | `OPS-01` | ACE immutable archive + projection outbox backup, verify and restore preserve exact membership/digests |
 | `OPS-02` | Selected Graphiti/FalkorDB persistence backup + restore returns the expected derived state |
-| `OPS-03` | Qdrant/index recovery restores or truthfully rebuilds current snapshot membership without stale-current claims |
+| `OPS-03` | Native index recovery restores or truthfully rebuilds verified current source coverage without stale-current claims; historical Qdrant evidence is not native-provider evidence |
 | `OPS-04` | ACE/provider restart after restore reconciles pending work and reaches the expected readiness state |
 | `OPS-05` | Retention/deletion behavior after restore preserves survivors and keeps deleted episodes/tombstones deleted |
 | `OPS-06` | Restore occurs into an isolated destination and does not mutate the user worktree or unrelated secrets/state |

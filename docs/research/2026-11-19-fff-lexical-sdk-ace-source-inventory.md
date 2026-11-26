@@ -1,7 +1,7 @@
 ---
 title: "Fact-only source inventory: fff lexical SDK versus ACE retrieval"
 date: 2026-11-19
-researcher: "ChatGPT GitHub-connected session; Hermes host Skill invocation NOT_OBSERVED"
+research_method: "Static repository inspection; Hermes host skill invocation not observed"
 repository: "chris-madsen/Mult-agent-AI-Orchestration"
 branch: "codex/015-fff-lexical-research"
 git_commit: "5f6d941575b17723bcb8b02b5837a4c2f9c6dc1c"
@@ -13,9 +13,9 @@ topics: [lexical-retrieval, native-sdk, source-freshness, benchmarking]
 
 ## 1. Question and scope
 
-> “The second task is to evaluate fff as an existing library for fast lexical search. Do not build a replacement, remove Qdrant/LSP prematurely, or introduce an agent-invoked protocol server where ACE can use the native SDK directly.”
+Evaluate fff as a maintained lexical-search library. The scope excludes a replacement implementation, premature retirement of Qdrant/LSP, and an agent-facing protocol server when the native SDK can satisfy the integration.
 
-**Selected ACE SDLC stage:** **R / Research**, as requested by the owner: evaluate current external implementation and current ACE seams, not implement a new production search provider. Source inspection only; no new TypeSpec, Qdrant/LSP removal, Go/Bifröst gateway change, or LLM tools. An independent experiment on the actual Node SDK is still required before a production decision.
+**SDLC stage:** R / Research. Assess the external implementation and ACE integration boundaries; production implementation is outside this assessment. Source inspection only; no new TypeSpec, Qdrant/LSP removal, Go/Bifröst gateway change, or LLM tools. An independent experiment on the actual Node SDK is still required before a production decision.
 
 **Source identities, read directly:** ACE `main@5f6d941575b17723bcb8b02b5837a4c2f9c6dc1c`; fff `dmtrKovalenko/fff@ab3002a9bfbef53874dd0b56608e34d281791b4c` (GitHub commit 2026-11-16); OpenCode `anomalyco/opencode@d33b5783338b8b350aafc09f7dc2701eeba52a9a`. These are source inspection pins, *not* a claim that every npm publication shares the fff Git HEAD binary.
 

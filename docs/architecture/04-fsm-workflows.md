@@ -1,146 +1,129 @@
-# ACE — FSM и сквозные workflows
+# ACE — State machines and end-to-end workflows
 
-> **Detailed design record:** retained with its original decision dates and implementation assumptions. For the consolidated current and target architecture, read [Architecture Description](architecture-description.md) and the [view catalog](viewpoints.md). Later accepted ADRs and current source take precedence over earlier examples. This relocation does not promote historical evidence to current acceptance.
+> **Design model, not an implementation inventory.** This document reconciles the original logical design with the native CBM cutover and the single Bifröst boundary. Identifiers, proposed events and logical consistency boundaries do not imply that corresponding classes, tables or public operations exist. The [original record](https://github.com/chris-madsen/Hybrid-RAG/blob/d19b8ac04ce3861ee0b477fd5253c684edb5136f/docs/architecture/04-fsm-workflows.md) remains in Git history. Current implementation and acceptance are described in [current runtime architecture](../operations/current-architecture.md), the accepted ADRs and applicable OpenSpec.
 
-**Статус:** Proposed. FSM применяется только там, где порядок переходов защищает инварианты. Роутинг источников по необходимости — decision policy/strategy, **не** state machine. Технология FSM библиотека (например XState) не выбирается автоматически.
+**Status:** logical workflow models. Use explicit state transitions where ordering protects invariants; do not model ranking or every symbol as a state machine. Labels below are conceptual except where the actual v3 protocol decisions are explicitly named.
 
 ## 1. FSM-01: ContextRequest
 
 ```mermaid
 stateDiagram-v2
     [*] --> Received
-    Received --> Authorized: policy allowed
-    Received --> Blocked: policy denied
-    Authorized --> Planned: plan chosen
-    Planned --> Collecting: source queries started
-    Collecting --> Verifying: evidence found or exhausted
-    Collecting --> Degraded: technical partial failure
-    Degraded --> Verifying: continue with available sources
-    Verifying --> Composing: freshness and provenance checked
-    Composing --> Delivered: bundle committed
-    Received --> Failed: malformed request
-    Authorized --> Failed: unrecoverable technical error
-    Collecting --> Failed: no safe path remains
+    Received --> Authorized: input and source scope valid
+    Received --> Blocked: malformed or denied
+    Authorized --> Planned
+    Planned --> Collecting
+    Collecting --> Verifying
+    Collecting --> Blocked: required provider unavailable
+    Verifying --> Composing: evidence current and coverage satisfied
+    Verifying --> Blocked: evidence cannot be verified
+    Composing --> Prepared: signed PREPARED
+    Composing --> Blocked: incomplete or invalid
+    Prepared --> [*]
     Blocked --> [*]
-    Failed --> [*]
-    Delivered --> [*]
 ```
 
-| Source → event → target | Guard / action |
-|---|---|
-| Received + `Authorize` → Authorized | Workspace exists; Policy Gate allowed all planned external destinations (may restrict plan). |
-| Received + `PolicyDenied` → Blocked | Log safe deny; no prohibited fallback. |
-| Authorized + `PlanReady` → Planned | Rule-based strategy initially; multi-route permitted. |
-| Collecting + `SourceTimeout` → Degraded | Record missing source, classify as technical only. |
-| Verifying + `SourceHashMismatch` → Verifying | Re-read/re-resolve once under retry guard or mark changed-during-request; no false verified state. |
-| Composing + `BundleStored` → Delivered | Preserve provenance and full expansion handle. |
+PREPARED ends the projection operation, not the model request. Bifröst must separately authorize each physical attempt using the bound receipt and actual body/route. An authorization denial stops the send; retries require independent authorization. A permitted send is not a provider acknowledgement, and a provider acknowledgement is not proof of agent task success.
 
-**Terminal output classes:** `delivered`, `delivered_partial`, `blocked`, `failed`. `delivered_partial` corresponds to a delivered bundle with explicit warnings; don't fake success.
+Required-source failure must not yield false complete evidence or a silent passthrough. Internal evidence may be partial, but the current native projection may block. Resource deadlines protect finite execution, not arbitrary truncation of exact originals.
 
-**Timeout guardrails** are about resources/excessive loops, **not truncating useful files or generated code**. On large results return exact pagination/expansion handles.
-
-## 2. FSM-02: Code IndexGeneration
+## 2. FSM-02: Code index observation
 
 ```mermaid
 stateDiagram-v2
     [*] --> Pending
-    Pending --> Building: start
-    Building --> Validating: candidate index built
-    Validating --> Published: coverage and hashes accepted
-    Building --> Failed: build error
-    Validating --> Failed: validation error
-    Published --> Stale: workspace changed
-    Stale --> Building: incremental build new generation
-    Failed --> Building: explicit retry
-    Published --> [*]: generation retired
+    Pending --> Building: native index/reconcile
+    Building --> Validating
+    Validating --> Published: verified observation
+    Building --> Failed
+    Validating --> Failed
+    Published --> Stale: changed source or provider loss
+    Stale --> Building
+    Failed --> Building: bounded recovery
 ```
 
-**Critical:** `Stale → Building` creates a **new** generation; previously published one is not mutated or relabelled `current`. `IndexGeneration` is not the mutable individual file; overlay is evaluated live on read. A pod restart can rebuild persisted projections without loss of workspace identity.
+These describe ACE's logical publication validity, not CBM's private database states. CBM owns the native index/cache. An old observation does not become fresh because the process restarted, an index exists or a candidate scored highly. Reconcile source and verify exact bytes; external daemon/cache topology requires separate evidence.
 
-## 3. FSM-03: Session & Knowledge Extraction
+## 3. FSM-03: Session and knowledge extraction
 
 ```mermaid
 stateDiagram-v2
     [*] --> Captured
-    Captured --> Archived: digest stored and verified
-    Archived --> Extracting: asynchronous extraction
-    Extracting --> Projected: derived facts indexed
-    Extracting --> ExtractionFailed: extraction error
+    Captured --> Archived: original digest verified
+    Archived --> Extracting: authorized derived processing
+    Extracting --> Projected
+    Extracting --> ExtractionFailed
     ExtractionFailed --> Extracting: idempotent retry
     Projected --> [*]
-    Archived --> [*]: may remain searchable without extraction
+    Archived --> [*]: archive-only path
 ```
 
-**Archive invariant:** extraction status never impacts integrity of raw archive. `Captured` is not accessible as historical evidence until checksum is verified and archived. Explicit deletion/tombstone policy supersedes append-only storage constraints.
+The archive is independently implemented; derived Graphiti recall through the gateway is a target. Extraction failure cannot corrupt the raw archive. Authorized deletion/tombstone policy governs access and reference-safe cleanup.
 
-## 4. FSM-04: DecisionRecord
+## 4. FSM-04: DecisionRecord (logical temporal model)
 
 ```mermaid
 stateDiagram-v2
     [*] --> Proposed
-    Proposed --> Accepted: human approve
-    Proposed --> Rejected: human reject
-    Accepted --> Superseded: newer decision approved
-    Accepted --> Revoked: explicit revoke
-    Proposed --> Withdrawn: author withdraws
+    Proposed --> Accepted: explicit approval
+    Proposed --> Rejected
+    Proposed --> Withdrawn
+    Accepted --> Superseded: approved replacement
+    Accepted --> Revoked
     Superseded --> [*]
     Rejected --> [*]
-    Revoked --> [*]
     Withdrawn --> [*]
+    Revoked --> [*]
 ```
 
-`Conflicted` — **ортогональный флаг evidence quality**, не отдельное состояние, так как конфликт может существовать и у принятого решения. `Proposed → Accepted` только явным подтверждением владельца или письменного ADR с доказанным provenance. `Superseded` сохраняет reference на новую принятую запись; нет silent overwrite.
+Conflicted is an evidence-quality attribute orthogonal to decision status. Acceptance requires authoritative approval/provenance, not an extraction summary. Supersession preserves the prior decision and rationale.
 
 ## 5. FSM-05: BenchmarkRun
 
 ```mermaid
 stateDiagram-v2
     [*] --> Prepared
-    Prepared --> Running: Harbor environment ready
-    Running --> Finished: agent returned
-    Running --> Aborted: timeout / crash / user cancel
-    Finished --> Grading: quality checks started
-    Aborted --> Grading: grade failure explicitly
-    Grading --> Recorded: usage and grade normalized
-    Grading --> RecordedIncomplete: usage not reliable
+    Prepared --> Running
+    Running --> Finished
+    Running --> Aborted
+    Finished --> Grading
+    Aborted --> Grading
+    Grading --> Recorded: reliable outcome and usage
+    Grading --> RecordedIncomplete: missing evidence
     Recorded --> [*]
     RecordedIncomplete --> [*]
 ```
 
-`Aborted` включён в оценку успешности и стоимость; не удалять этот run. Если usage отсутствует, итоговая запись с `unknown` и причиной, но **не** пригодная для заявления о токеновом превосходстве без оговорок. `Suite` должна быть frozen заранее, а rerun получает новый `runId`.
+Include aborted runs in success/cost accounting. Mark missing usage unknown, not zero. Freeze suite identities before evaluation and give reruns distinct run identities.
 
-## 6. Сквозные workflow-спецификации
+## 6. End-to-end workflow specifications
 
-### UC-01 «Найди retry и почини цикл»
-1. Coding agent отправляет provider-native `/v1/responses` request на настроенный Bifröst endpoint; connector формирует request-bound локальную `ace.context.v3` projection.
-2. Policy Gate разрешает локальный код. Rule router выбирает lexical + local semantic candidates, а документацию добавляет только при соответствующем вопросе/зависимости.
-3. Qdrant возвращает кандидатов `sourceDigest`, Tree-sitter/ast-grep выделяют точные spans, LSP разрешает symbols/references на текущей версии.
-4. EvidenceMerger отбрасывает дубли, не утверждает полное покрытие динамических вызовов.
-5. ACE возвращает APPLY/BLOCK; при APPLY Bifröst добавляет verified evidence к model-bound request, а coding agent по-прежнему сам редактирует файлы и запускает тесты.
-6. После патча Workspace Truth фиксирует изменение; stale результаты не становятся verified current. В следующем запросе активируется live overlay.
+### UC-01: Locate a retry implementation and fix its loop
 
-### UC-03 «Две недели назад обсуждали альтернативу B»
-1. Codex `ace_memory_search` по workspace/date/topic.
-2. Graphiti temporal index предлагает episode pointers.
-3. Raw archive отдаёт оригинальный span и digest, decision timeline даёт статус на запрошенную дату.
-4. При конфликте двух извлечений вернуть обе версии, source links и `uncertain`, а не изобрести компромисс.
-5. При запрете доступа к оригиналу memory отвечает `restricted`, не подставляет непроверенную summary как точную цитату.
+1. Hermes sends native Responses to the configured Bifröst subscription route; the post-auth connector calls local context RPC v3.
+2. ACE verifies request/source scope, discovers candidates through native CBM and rereads exact current source. No independent LSP assertion follows from graph hints.
+3. ACE checks required coverage and prepares additive context with a signed receipt or returns BLOCK.
+4. Bifröst independently authorizes the actual physical attempt and sends only if allowed under the approved scope. The model/agent retains its existing editing and testing tools.
+5. Subsequent requests reconcile changed source observations. A stale hit must not be returned as current.
 
-### UC-04 «Файл изменился в процессе retrieval»
-1. Candidate из Qdrant указывает digest D1.
-2. Live FS показывает D2≠D1.
-3. Вернуть код из текущего файла D2, если разрешён/успешно читается; снова разрешить AST/LSP и обновить overlay. Если конкурентная запись продолжается — `changed_during_request` и безопасный retry/неполнота.
-4. В ответе **никогда** не маркировать D1 как VerifiedCurrent.
+This is the supported source-level design; external provider and multi-turn agent acceptance remain separate.
 
-### UC-09 «Vertex недоступен; Auth запрещён»
-- Timeout Vertex: source unavailable; локальные разрешённые источники работают; `delivered_partial`/degraded и security-safe journal.
-- Forbidden cloud transfer: `blocked` для cloud route; не отправлять в Jev/другой SaaS; возможны только разрешённые локальные маршруты после нового Policy Gate.
+### UC-03: Recall an alternative discussed two weeks earlier (target)
 
-### UC-long «Codex создаёт 2000+ строк»
-- Code-writing выполняет Codex обычными инструментами. ACE не переписывает его patch и не вмешивается во внутренний compaction.
-- Если пользователь/агент запросит полный документ через ACE, он доступен exact bytes либо lossless paging; возвращается checksum, range, continuation marker.
-- Test asserts SHA-256 полного артефакта до/после доступа и отсутствие silent truncation.
+An authorized temporal retrieval operation would retrieve Graphiti candidates, resolve original archive episode references, and distinguish the decision status at the requested time from the current status. Conflicting evidence stays explicit; restricted originals cannot be substituted with fabricated quotations. The active native projection has no memory-search tool exposed to the model and no configured Graphiti provider.
 
-## 7. Защита от сложной FSM
+### UC-04: Source changes during retrieval
 
-Не FSM: semantic ranking, vector search, scoring, выбор источника Jev, state of every symbol, динамический call graph. Их поведение лучше моделировать чистыми функциями/ports и event-based invalidation. Реализация автомата предпочтительно typed state + transition table + property tests. Внешнюю FSM-библиотеку подключать только если реальные требования к параллельным/вложенным состояниям её оправдают.
+If the observed source digest D1 no longer matches the current file D2, invalidate the old evidence and re-observe/reverify under a bounded operation. If the race cannot be resolved, return typed failure or incomplete evidence as applicable. Never mark D1 current merely because the index still returns it.
+
+### UC-09: Vertex unavailable or cloud transfer forbidden
+
+For a future combined required-source plan, a technical Vertex failure must be represented as missing coverage; code evidence alone cannot satisfy a required document obligation. A policy denial prevents the external request, not just its result; no unauthorized alternate service. The current code-only projection does not require Vertex.
+
+### UC-long: Agent generates a large patch
+
+The agent owns patch creation, tool output and its own compaction. ACE preserves original native input and exact authorized source access; compact retrieval does not silently alter a patch. Verify exact original bytes or reassembled ranges with digest comparison. Do not claim a public expansion endpoint that is absent from the current contract.
+
+## 7. Avoid unnecessary state machines
+
+Ranking, native search, candidate scoring and graph traversal are operations, not lifecycle states. Use typed decisions, bounded transitions, property tests and explicit provider failures. Adopt a workflow library only for a demonstrated need. See [current architecture](../operations/current-architecture.md) and [fitness contracts](07-architecture-fitness-contracts.md).

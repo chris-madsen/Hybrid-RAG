@@ -5,7 +5,7 @@ description: Design, extend and verify ACE TypeSpec-first public contracts and g
 
 # ACE TypeSpec Contract-First Codegen
 
-Read root \`AGENTS.md\`, the accepted OpenSpec change, ADR and [full codegen plan](../../../docs/research/sdlc/TYPESPEC-CODEGEN-COVERAGE.md). This is a project-owned skill inspired by the observed Sphericon pipeline; it is **not** a copied Matt Pocock skill.
+Read root \`AGENTS.md\`, the accepted OpenSpec change, ADR and [full codegen plan](../../../docs/research/sdlc/TYPESPEC-CODEGEN-COVERAGE.md). This project-owned skill implements ACE's contract-first generation and verification procedure.
 
 ## When to invoke
 - Adding/changing a public Gateway Projection operation or error.

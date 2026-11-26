@@ -12,7 +12,7 @@ Hermes native Responses client
            code       CBM v0.12.1 native index/AST/graph/semantic/BM25 discovery
                       CBM ranked candidates only
                       external LSP: independent research deferred
-           documents  Vertex AI RAG, only for authorized project_document
+           documents  authorized Vertex adapter (not part of current code-only projection)
            memory     immutable archive/lifecycle code; Graphiti/FalkorDB target
                       (Gateway-native Graphiti currently NOT CONFIGURED)
       -> original source reread + SHA-256/UTF-8 span + policy/receipt checks
@@ -25,9 +25,9 @@ Hermes native Responses client
 
 **External LSP:** the independent adapters and FR-03/OpenSpec contract remain. The code-only RPC does not request LSP evidence and the routed facade lacks `documentSymbols`; startup is not proof of semantic validation. Further research is deferred (#364), not a gate for vector retirement.
 
-**Source ownership:** ACE must reread current source bytes and verify source digests and ranges. CBM graph hints alone can establish current source facts.
+**Source ownership:** ACE must reread current source bytes and verify source digests and ranges. CBM graph hints alone cannot establish current source facts.
 
-**Data ownership:** Vertex AI RAG is the selected documentation search source, subject to both `ACE_ENABLE_VERTEX=true` and `ACE_CLOUD_DOCS_OPT_IN=true`. Graphiti/FalkorDB is the *selected target* for temporal/project memory, with existing immutable-archive/reconciliation code. **The current Gateway runtime explicitly throws if `ACE_ENABLE_GRAPHITI=true`** (`src/bin/ace-runtime.ts`, before provider initialization): the retired tool-server adapter was removed and no Gateway-native memory provider is configured. Thus Graphiti is NOT_READY, not a working full-unified provider.
+**Data ownership:** Vertex AI RAG is the selected documentation search source, subject to both `ACE_ENABLE_VERTEX=true` and `ACE_CLOUD_DOCS_OPT_IN=true`. The actual native Responses projection requests only code and rejects non-code evidence; enabling the adapter does not establish combined document delivery. Graphiti/FalkorDB is the *selected target* for temporal/project memory, with existing immutable-archive/reconciliation code. **The current Gateway runtime explicitly throws if `ACE_ENABLE_GRAPHITI=true`** (`src/bin/ace-runtime.ts`, before provider initialization): the retired tool-server adapter was removed and no Gateway-native memory provider is configured. Thus Graphiti is NOT_READY, not a working full-unified provider.
 
 ## Readiness — code merged is not accepted E2E
 

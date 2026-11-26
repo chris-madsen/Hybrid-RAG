@@ -1,426 +1,163 @@
-> **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
+# ACE — Product Requirements Document v1.0
+
+**Historical requirements baseline: 17 October 2026.** English editorial reconstruction of the [original requirements record](https://github.com/chris-madsen/Hybrid-RAG/blob/d19b8ac04ce3861ee0b477fd5253c684edb5136f/docs/references/PRD-v1.0.md). The original text, its checklist and its exact historical wording remain available at that immutable revision. This document records the initial requirements, not a new approval or a claim that all capabilities are implemented. Later accepted ADRs and OpenSpec govern current implementation.
+
+## 1. Purpose
+
+Adaptive Context Engine (ACE) is an agent-independent context layer intended to improve software engineering tasks by supplying precise, relevant, current evidence from code, project documentation and retained project history. The primary engineering objective is lower total token consumption per correctly completed task without compromising task quality.
+
+The initial reference agent was Codex. The current reference integration uses Hermes with native Responses through Bifröst; that later decision does not change the original evaluation principle. The original author also identified a reproducible engineering demonstration and professional portfolio as secondary personal objectives. These are historical stakeholder goals, not architecture responsibilities.
+
+## 2. Problem and hypothesis
+
+Agents can spend substantial context and time locating symbols, tracing dependencies, rereading files and rediscovering architectural decisions. Long sessions can lose important earlier constraints. Generic text search may return irrelevant, outdated or ambiguous evidence. ACE should retrieve a small useful set while preserving the ability to inspect exact originals.
+
+The initial ambition was at least fivefold reduction in total tokens against a strong native agent on accepted tasks. Earlier estimates against naive and optimized baselines were hypotheses, not results. No target may be represented as demonstrated without matched experiments and independent correctness evidence.
+
+## 3. Users and tasks
+
+- A developer needs accurate evidence for unfamiliar code, refactoring, debugging and implementation.
+- A maintainer needs current project constraints, architectural decisions, source identity and safe behavior after changes.
+- A returning agent needs attributable historical decisions across sessions.
+- An operator needs reproducible local execution, explicit data policy and honest failure diagnostics.
+- An evaluator needs comparable, repeatable measurements of task quality, usage, latency and cost.
+
+## 4. Outcomes
+
+| ID | Original outcome |
+| --- | --- |
+| O-01 | At least 5× aggregate end-to-end token reduction on comparable accepted tasks; hypothesis pending evidence. |
+| O-02 | Maintain or improve independently measured correctness. |
+| O-03 | Reduce unsupported code claims and misleading references. |
+| O-04 | Retrieve relevant retained decisions across gaps of 1–14 or more days. |
+| O-05 | Reduce full workload cost, including auxiliary processing and infrastructure where applicable. |
+| O-06 | Reproducible experiments, inputs, execution and reporting. |
+| O-07 | A credible engineering demonstration based on real results rather than marketing claims. |
+
+Do not count fewer tokens from abandoned, incorrect or incomplete tasks as a successful optimization. Unknown usage is unknown, not zero.
+
+## 5. Scope and non-goals
+
+Initial scope: local repository discovery, structural and semantic evidence, project document retrieval, persistent historical recall, a unified context request, explicit policy, and comparative evaluation. Do not build a new language server, parser, vector database, general-purpose agent orchestrator or replacement coding agent merely to deliver these functions. Full runtime tracing, broad language expansion and AIOps are later possibilities, not first-release prerequisites.
+
+Current decisions select native CBM for code retrieval, Bifröst as the sole agent-facing gateway, internal context RPC v3, separately authorized Vertex documents, and a future Graphiti/FalkorDB memory delivery path. Independent external LSP remains a research question. See [current architecture](../operations/current-architecture.md).
+
+## 6. Use cases
+
+| ID | Scenario | Expected result |
+| --- | --- | --- |
+| UC-01 | Locate retry logic | Relevant implementation with verifiable source and range. |
+| UC-02 | Change an API signature | Definitions, affected references and uncertainty where analysis is incomplete. |
+| UC-03 | Recall an earlier alternative | Relevant original discussion, decision and date, not an invented rationale. |
+| UC-04 | Modify the working tree | Updated evidence or explicit stale/unavailable status. |
+| UC-05 | Find project documentation | Relevant attributed document excerpts under explicit policy. |
+| UC-06 | Investigate dynamically wired behavior | Distinguish observed facts from unresolved dependencies. |
+| UC-07 | Work on a known file | Avoid unnecessary retrieval overhead; preserve normal agent tools. |
+| UC-08 | Compare retrieval approaches | Matched tasks, versions, environment and independent acceptance. |
+| UC-09 | Provider failure | Truthful typed failure or incomplete coverage; never claim absent evidence was retrieved. |
+| UC-10 | Private repository and secrets | Enforce data-class and destination restrictions; redact diagnostic output. |
+
+## 7. Functional requirements
+
+Priorities are retained from v1.0: P0 essential, P1 important, P2 later. This is a requirements inventory, not an implementation checklist.
+
+| ID | Priority | Original requirement |
+| --- | --- | --- |
+| FR-01 | P0 | Ranked lexical and semantic code search. |
+| FR-02 | P0 | Structural discovery of symbols and precise source spans. |
+| FR-03 | P0 | Language-server definitions, references, types and diagnostics. Independent external LSP scope remains open under #364. |
+| FR-04 | P0 | Retrieval from project documentation. |
+| FR-05 | P0 | Unified request and evidence assembly across applicable sources. |
+| FR-06 | P0 | Initially proposed fixed token/result caps and progressive disclosure. ADR-006 supersedes mandatory truncation; preserve exact originals and use evidence-sensitive selection. |
+| FR-07 | P1 | Adapt retrieval to the task and avoid unnecessary operations. |
+| FR-08 | P1 | Search for structural patterns. |
+| FR-09 | P1 | Dependency graph and impact exploration. |
+| FR-10 | P2 | Data flow, control-flow/code-property graph and taint analysis where useful. |
+| FR-11 | P2 | Integrate runtime and test evidence adapters. |
+| FR-12 | P0 | Bind evidence to repository, revision, path, symbol and range as applicable. |
+| FR-13 | P0 | Never present known stale source as current. |
+| FR-14 | P1 | Incremental indexing with current working-tree changes. |
+| FR-15 | P1 | Provenance and evidence method. |
+| FR-16 | P1 | Explicit uncertainty for unresolved dynamic behavior. |
+| FR-17 | P0 | Search original retained historical material. |
+| FR-18 | P0 | Preserve originals separately from derived knowledge. |
+| FR-19 | P0 | Attribute recalled facts to their source and date. |
+| FR-20 | P1 | Represent proposed, accepted, superseded and rejected decisions. |
+| FR-21 | P1 | Support time-aware queries and historical decision state. |
+| FR-22 | P1 | Correct, delete or exclude retained material under policy. |
+| FR-23 | P1 | Link decisions to code, ADRs and commits where evidence exists. |
+| FR-24 | P0 | Integrate with a coding agent without replacing it. The original agent-invoked tool route is retired; ADR-020/021 select native Responses via Bifröst. |
+| FR-25 | P0 | No mandatory agent fork or intervention in hidden reasoning. |
+| FR-26 | P1 | Document integration and operating guidance in AGENTS.md. |
+| FR-27 | P1 | Agent-independent integration contract; original tool-protocol assumption is superseded by the gateway boundary. |
+| FR-28 | P1 | Preserve useful local operation on failures and fail closed for unsafe actions or data. Under the current contract required-source failure blocks projection; no unprotected provider passthrough is authorized. |
+| FR-29 | P0 | Record complete agent-run and usage evidence. |
+| FR-30 | P0 | Compare matched baseline and ACE runs. |
+| FR-31 | P0 | Independent task correctness verification. |
+| FR-32 | P0 | Separate total, cached and uncached tokens and full cost. |
+| FR-33 | P1 | Retrieval metrics including recall, MRR and nDCG on labeled tasks. |
+| FR-34 | P1 | Operational dashboards and observability; ADR-010 defers the full observability stack. |
+| FR-35 | P1 | Ablation experiments isolating contributions of retrieval components. |
+| FR-36 | P1 | Evaluate recall and usefulness across sessions. |
 
-# PRD — Agentic Code Intelligence Harness
+## 8. Non-functional requirements
 
-**Рабочее название:** Adaptive Context Engine (ACE) / Agentic Code Intelligence Harness  
-**Тип документа:** Product Requirements Document (PRD), не техническая архитектура  
-**Version:** 1.0 — proposal for review  
-**Дата:** 17 октября 2026  
-**Статус:** требования собраны; архитектурные решения не утверждены  
-**Первичный агент:** OpenAI Codex; в перспективе — другие coding-агенты  
-**Инициатор / основной пользователь:** DevOps-инженер, самостоятельно разрабатывающий software-проекты с AI-агентами
+| ID | Requirement |
+| --- | --- |
+| NFR-01 | Protect secrets and credentials; safe logging and redaction. |
+| NFR-02 | Explicit residency and external data-transfer policy. |
+| NFR-03 | Honest outage and partial-result behavior. |
+| NFR-04 | Source freshness and explicit stale status. |
+| NFR-05 | Measure latency and avoid unnecessary overhead. |
+| NFR-06 | Reproducible Linux setup. |
+| NFR-07 | Structured diagnostics, tracing and measurements where implemented; full observability deferred by ADR-010. |
+| NFR-08 | Pin provider, model, configuration and task versions. |
+| NFR-09 | Namespace isolation and measured scale behavior. |
+| NFR-10 | Dependency license inventory and SBOM. |
+| NFR-11 | Compact initial evidence with exact source access, not irreversible truncation. |
+| NFR-12 | Treat retrieved content as untrusted data, not instructions. |
+| NFR-13 | Measure CPU, RAM, disk, latency and cost. |
+| NFR-14 | Auditable, source-redacted evidence for claims and decisions. |
 
-> **Коротко:** создать внешний, переиспользуемый harness, который даёт coding-агенту адресный, актуальный, проверяемый и долговременный контекст о коде, документации и прежних инженерных решениях. Целевой прорыв — **5× меньше суммарных токенов на успешно выполненную задачу относительно современного Codex без нашего harness**, без ухудшения качества. Цель — гипотеза, а не обещание достигнутой экономии. Система должна приносить реальную пользу в собственной разработке и стать убедительным, воспроизводимым инженерным кейсом для CV / интервью на DevOps, AI Platform Engineering и LLMOps.
+## 9. Original component shortlist and constraints
 
----
+The October shortlist considered Codex, Serena, Augment, GitNexus and other graph tools; hybrid local RAG, AST/LSP, Vertex, Graphiti and an immutable archive; Harbor or another reproducible evaluator. It compared reuse of maintained products against independent tool composition and a unified context layer. These were alternatives, not an approved stack or a verified feature comparison. The subsequent ADRs and native CBM cutover supersede the standalone vector/embedding/reranking proposals.
 
-## 1. Executive summary
+Selection must consider exact-source correctness, provider support, operational cost, license and data boundaries. Historical external comparisons and links in the original record are not current vendor verification.
 
-### 1.1. Две бизнес-цели
+## 10. Context engine behavior
 
-1. **Практическая:** увеличить эффективность собственной агентной разработки: меньше лишних токенов и повторного исследования проекта, меньше недостоверных утверждений о коде и пропущенных зависимостей, лучше перенос контекста между сессиями.
-2. **Профессиональная:** продемонстрировать востребованные в компаниях навыки: интеграция retired optional tool-call protocol, облачного и локального RAG, AST/LSP, code intelligence, долговременной памяти, CI/CD, observability, экспериментальной оценки, FinOps и security engineering.
+1. Understand the task and decide which authorized sources are relevant.
+2. Retrieve candidates using existing provider capabilities.
+3. Verify current source identity, exact ranges and coverage where applicable.
+4. Compose compact evidence with provenance and explicit limitations.
+5. Preserve access to originals and avoid modifying the agent's unrelated native request fields.
+6. Apply independent security and actual-attempt authorization at delivery.
 
-### 1.2. Продуктовая идея
+These are intended responsibilities, not a declaration of full-unified readiness.
 
-Не писать заново парсеры, language servers, векторные СУБД и агентную платформу. **Организовать готовые движки вокруг единой задачи — уменьшить полные затраты на качественное решение задачи агентом.**
+## 11. Project memory
 
-Продуктовая ценность не в перечне подключений. Ценность — в **адаптивном выборе источников**, объединении их результатов, отслеживании происхождения и актуальности фактов, восстановлении прошлых решений и подготовке компактного контекста для агента.
+Retain authorized original records independently from extracted entities and relations. Represent temporal validity and decision lifecycle; link an answer to original evidence. An earlier rejected approach should be distinguishable from a current accepted constraint. Deletion, correction, access and recovery must be explicit. The original design evaluated Graphiti and other memory systems; the currently selected Graphiti integration is not active in native Responses projection.
 
-### 1.3. Измеримый North Star
+## 12. Evaluation
 
-**Cost / tokens per accepted software-engineering task**, при неизменном или лучшем качестве и сопоставимых условиях. Рядом измеряются accuracy и полнота восстановленного контекста.
+Original comparison arms (historical research design):
 
-### 1.4. Важное ограничение
+| ID | Configuration |
+| --- | --- |
+| B0 | Native Codex without external context layer. |
+| B1 | Codex + Serena. |
+| B2 | Codex + Augment Context Engine. |
+| B3 | Codex + GitNexus or another license-permitted graph tool. |
+| B4 | Codex + local hybrid RAG. |
+| B5 | Codex + independent RAG and AST/LSP integrations. |
+| B6 | Codex + unified ACE layer. |
+| B7 | B6 with and without persistent memory. |
 
-Заявления отдельных производителей о скорости/качестве не считаются доказательством превосходства на наших задачах. «Лучше Augment / Serena / GitNexus» допускается говорить **только для проверенного набора сценариев и зафиксированной методики**.
+Not every arm is required for every task. Current matched Hermes acceptance is governed by [OpenSpec 013](../../openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [#171](https://github.com/chris-madsen/Hybrid-RAG/issues/171). Historical Codex results cannot certify Hermes.
 
----
-
-## 2. Контекст, проблема, мотивация
-
-### 2.1. Проблемы coding-агентов
-
-- Получение полных файлов вместо конкретных символов и связанных фрагментов.
-- Многократный поиск и чтение одних и тех же мест в коде.
-- Избыточное попадание выдачи инструментов в историю агентного цикла и повторную обработку этой истории.
-- Неточные догадки о типах, сигнатурах, ссылках и последствиях изменений.
-- Разрыв между смысловым поиском и формально известными связями внутри программы.
-- Устаревшие RAG-индексы в момент, когда агент изменяет working tree.
-- Потеря обсуждений, отвергнутых альтернатив, аргументов и незавершённых решений между сессиями (дни/недели).
-- Неодинаковое качество поиска кода, проектных документов и runtime/infrastructure-свидетельств.
-- Отсутствие единой доказательной системы сравнения инструментов по качеству, токенам, затратам и скорости.
-
-### 2.2. Почему prompt caching и compaction недостаточны
-
-- Prompt caching экономит обработку повторяющихся входных префиксов; он **не является** архивом инженерных решений или системой поиска по прошлым сессиям.
-- Compaction может сделать историю меньше, но **может не сохранить** альтернативы, мотивы решений, малоиспользуемые подробности и точные исходные сообщения.
-- Даже когда кэш снижает **стоимость**, длинный исходный контекст может по-прежнему влиять на **учитываемые входные токены** и работу агента.
-- Малые контекстные ответы уменьшают не только первоначальное чтение, но **могут уменьшить многократную последующую передачу** информации. Эффект нельзя вычислять как сумму независимых процентов: механизмы перекрываются.
-
-### 2.3. Исходная исследовательская гипотеза
-
-Связка **hybrid RAG + AST + LSP + code graph + persistent memory + adaptive context control** способна уменьшить суммарные затраты относительно разрозненных инструментов, поскольку будет выбирать только необходимую информацию, проверять её и сохранять знания между сессиями.
-
-Оценки из предыдущих обсуждений **8–40× относительно заведомо неэффективного чтения файлов** и **2–5× относительно хорошо оптимизированного агента** — **не измеренные факты**. Они фиксируются как исторические гипотезы, а не как прогнозы или критерии гарантированной доходности.
-
----
-
-## 3. Пользователи и Jobs To Be Done
-
-### P1 — Solo AI-assisted Developer / DevOps-инженер (основной)
-
-«Когда я разрабатываю TypeScript-проект с Codex, я хочу, чтобы он находил нужный код, помнил прежние архитектурные решения и проверял последствия исправлений, а мне не приходилось заново платить токенами и временем за уже исследованные части проекта».
-
-### P2 — AI Platform / DevEx Engineer (вторичный)
-
-«Когда команде нужно внедрять coding-агентов, я хочу подключать проверенные инструменты с контролем доступа, телеметрией и измеримым эффектом, а не создавать ненаблюдаемый зоопарк retired optional tool-call protocol-серверов».
-
-### P3 — Interviewer / hiring manager (стейкхолдер доказательности)
-
-«Я хочу увидеть работающий воспроизводимый проект, инженерные компромиссы и реальные сравнительные показатели, а не список технологий и неподтверждённые проценты».
-
----
-
-## 4. Цели, KPI, ограничения и антицели
-
-### 4.1. Product outcomes
-
-| ID | Цель | Показатель | Целевое условие |
-|---|---|---|---|
-| O-01 | Существенная экономия токенов | End-to-end total tokens на сопоставимую успешно решённую задачу | **Амбициозная цель: ≥5×** по агрегированному честному benchmark против обычного Codex |
-| O-02 | Сохранить качество | Task success / tests / review | Не хуже baseline в пределах заранее зафиксированного допуска; нет критических новых регрессий |
-| O-03 | Меньше ошибок о проекте | Unsupported codebase claims; неверные ссылки / типы / импорты | Ниже baseline, замер до и после |
-| O-04 | Долговременная память | Точность ответов о старых решениях со ссылкой на первоисточник | Выше baseline в сценариях новой сессии через 1–14+ дней |
-| O-05 | Управляемая стоимость | Денежная стоимость успешно решённой задачи | Снижение или доказанный полезный компромисс; учитывать не только токены Codex |
-| O-06 | Инженерная воспроизводимость | Автоматизированные evals, traces, setup | Независимый запуск из публичной инструкции на разрешённой кодовой базе |
-| O-07 | Польза для CV | Работающий demo + документированные результаты | Возможность честно объяснить архитектурный выбор, trade-offs и причинность результата |
-
-**Трактовка 5×:** `R_tokens = baseline_total_tokens / harness_total_tokens`; целевой `R_tokens ≥ 5`. Сравниваются полные агентные траектории, а не только размер ответов retired optional tool-call protocol. Нужны показатели по среднему, медиане, p90 и разбивка по классам задач, чтобы единичные выбросы не создавали ложного успеха.
-
-### 4.2. Guardrails
-
-- Не ухудшать успешность задач ради уменьшения токенов (например, ранним прекращением работы).
-- Не скрывать дополнительные сетевые запросы, время индексирования, расходы на embeddings, память и reranking.
-- Не считать кэшированные токены «бесплатными»: **отдельно** показывать total tokens, cached/uncached и денежную стоимость.
-- Не подменять утверждение «меньше токенов на одной операции» утверждением «меньше токенов на задачу».
-- Не требовать от модели слепо доверять retrieval; явная возможность углубить исследование.
-- Никаких автоматических небезопасных изменений в инфраструктуре или исходниках без стандартных разрешений агента.
-
-### 4.3. Non-goals / исключения первой версии
-
-- Обучение собственной LLM.
-- Создание нового парсера, language server, vector database или полной IDE.
-- Универсальное доказательство отсутствия runtime-вызовов в динамических языках.
-- Гарантия нахождения любых дефектов и абсолютная защита от галлюцинаций.
-- Поддержка десятков языков и всех агентных платформ с первого дня.
-- Построение полноценного AIOps/SRE auto-remediation продукта раньше выполнения цели качества/стоимости кодовой разработки.
-
----
-
-## 5. Ключевые пользовательские сценарии и критерии приёмки
-
-| ID | Сценарий | Что должен получить пользователь | Критерий приёмки |
-|---|---|---|---|
-| UC-01 | «Найди логику retry и исправь цикл» | Релевантные символы, условия, references, требования и тесты | Агента приводят к проверяемым кандидатам без необходимости читать весь репозиторий |
-| UC-02 | Изменение API / сигнатуры | Затрагиваемые интерфейсы, реализации, вызовы, тесты | Возвращаются существующие известные статические связи; неизвестные динамические обозначены как риск |
-| UC-03 | «Где две недели назад обсуждали вариант B?» | Исторические обсуждения, аргументы, статус решения и источники | Корректный ответ в новой сессии без ручной вставки старого чата |
-| UC-04 | Изменение файла во время работы | Актуальные символы после патча; старые записи помечены | Нет молчаливой выдачи заведомо устаревшего RAG-сниппета как текущего кода |
-| UC-05 | Найти требования из ADR / runbook | Нужный раздел документа и источник | Документный retrieval работает отдельно от локального индекса исходников |
-| UC-06 | Анализ динамического handler / DI | Статическая гипотеза, возможные регистрации, runtime-свидетельства (если доступны) | Неполнота анализа явно показана, нет ложного утверждения «точно не вызывается» |
-| UC-07 | Простое изменение в известном файле | Быстрый прямой поиск / symbol fetch | Не возникает лишних обязательных облачных RAG-раундов |
-| UC-08 | Сравнить Codex, Serena, Augment, наш harness | Реплицируемые результаты и raw traces | Все системы проходят один и тот же набор задач при задокументированных ограничениях |
-| UC-09 | Временная недоступность Vertex / vector store | Graceful degradation | Coding-агент продолжает работу через локальные инструменты; отказ и влияние логируются |
-| UC-10 | Частный репозиторий с секретами | Контролируемый маршрут данных | Секреты исключаются из embeddings, traces и внешних индексов по установленной политике |
-
----
-
-## 6. Системы, которые мы должны уметь сравнивать и пытаться превзойти
-
-Цель — **переплюнуть по измеримым результатам на выбранных сценариях**, а не объявить, что у конкурентов «чего-то нет» без проверки.
-
-| Система | Уже решает | Позиция в проекте | Где можно искать наше преимущество |
-|---|---|---|---|
-| **Codex native** | Встроенный shell/search, агентные циклы, собственное управление контекстом | **Основной обязательный baseline** | Меньше общего контекста, повторного исследования и забывания прошлых решений |
-| **Augment Code Context Engine retired optional tool-call protocol** | Семантический поиск и контекст для coding-агентов, включая Codex | **Сильный коммерческий benchmark** | Adaptive routing, долговременная память, прозрачность и локальная data residency, стоимость для конкретных репозиториев |
-| **Serena** | Symbol-aware retrieval/editing, LSP и retired optional tool-call protocol | **И кандидат в стек, и baseline** | Композитные запросы, RAG-документация, межсессионная память и единое измерение полной стоимости |
-| **GitNexus** | Локальный code graph, поиск, анализ влияния изменений, агентные интеграции | **Feature benchmark / изучение подходов** | Достоверность, темпоральная память, работа с документацией, adaptive policy; проверить возможности по версии |
-| **Sourcegraph / Cody / Code Graph** | Корпоративный поиск, определения, references и code graph | **Enterprise benchmark по возможностям** | Лёгкая локальная интеграция, персональные сессии, воспроизводимость, vendor-neutrality |
-| **Aider Repository Map** | Сжатая карта репозитория с ранжированием в token budget | **Референс техники контекстной экономии** | Проверить, даёт ли комбинированный retrieval преимущество над компактным repomap |
-| **Mem0 / Graphiti** | Разные варианты persistent memory, эпизоды и факты | **Candidate components и baseline памяти** | Связь памяти с актуальными символами, доказуемое восстановление оригиналов, отсутствие ложной устаревшей памяти |
-
-**Доказательная оговорка:** публикации Augment о повышении качества — собственные заявления производителя, не результаты наших испытаний. Нельзя считать, что один инструмент строго превосходит другой без контролируемого сравнения. Ссылки на официальные страницы — в разделе 17.
-
-### 6.1. Где не тратить силы на «переплюнуть»
-
-Не ставить целью конкурировать в качестве универсального AST-парсинга, в полноте LSP-протокола, в разработке ANN/vector engine или в создании ещё одной IDE. Использовать специализированные зрелые движки.
-
-### 6.2. Где честно возможна дифференциация
-
-1. **End-to-end token efficiency**, включая размножение контекста по циклу и между сессиями.
-2. **Adaptive retrieval с бюджетом**: поиск зависит от текущей задачи, а не от наличия инструмента.
-3. **Freshness-aware retrieval**: изменения working tree не проигрывают старому vector index.
-4. **Evidence + uncertainty**: явные источники, разрешённые символы и обозначение неполных динамических связей.
-5. **Temporal project memory**: восстановление обсуждений, альтернатив и эволюции решений через недели.
-6. **Проверяемый benchmark** с реальными конкурентами и полной себестоимостью.
-7. **DevOps-grade эксплуатация**: безопасность, CI, observability, воспроизводимость.
-
----
-
-## 7. Функциональные требования
-
-Приоритеты: **P0** — необходимо для проверки основной идеи; **P1** — нужно для beta/полноценной полезности; **P2** — дальнейшее развитие. Это продуктовые приоритеты, **не порядок реализации компонентов**.
-
-### 7.1. Context discovery и retrieval
-
-| ID | Pri | Требование | Проверяемый результат |
-|---|---|---|---|
-| FR-01 | P0 | Гибридный локальный поиск по коду: lexical + semantic с ранжированием | Находит и точный символ, и описанную своими словами функциональность |
-| FR-02 | P0 | AST-aware выдача: функции, классы, интерфейсы, границы, сигнатуры, импорты | Результаты привязаны к существующим символам и диапазонам |
-| FR-03 | P0 | LSP/semantic navigation: definition, references, types, diagnostics | Символы и типы проверяются against текущего проекта |
-| FR-04 | P0 | Документный RAG: README, ADR, спецификации, runbooks | Находит и цитирует релевантные разделы документации |
-| FR-05 | P0 | Единый context request, комбинирующий retrieval / AST / LSP | Один запрос может собрать минимально достаточный, дедуплицированный пакет |
-| FR-06 | P0 | `max_tokens`, `max_results`, progressive disclosure | Ответы строго ограничены бюджетом, возможен явный drill-down |
-| FR-07 | P1 | Task-adaptive routing и отказ от ненужных шагов | Известный символ не вынуждает запускать векторный поиск |
-| FR-08 | P1 | Структурный поиск паттернов | Находит вызовы, конструкции и структурные антипаттерны |
-| FR-09 | P1 | Связи по call graph / class graph / imports и impact analysis | Для правки показываются релевантные зависимости и уровень достоверности |
-| FR-10 | P2 | Адресный data-flow, CFG/CPG и taint analysis | Сложные изменения допускают углубление анализа по запросу |
-| FR-11 | P2 | Runtime trace / тестовые evidence adapters | Когда данные доступны, факт наблюдавшегося вызова отделяется от статической гипотезы |
-
-### 7.2. Freshness и источники фактов
-
-| ID | Pri | Требование | Проверяемый результат |
-|---|---|---|---|
-| FR-12 | P0 | Каждому code result сопоставить repo, revision/working-tree, path, symbol/range | Можно проверить, к какому состоянию относится факт |
-| FR-13 | P0 | Не возвращать известные устаревшие сниппеты как текущий код | После локального изменения видны актуальные данные или «stale/unavailable» |
-| FR-14 | P1 | Локальное incremental indexing и overlay для незакоммиченных правок | Полный reindex не обязателен после каждой небольшой правки |
-| FR-15 | P1 | Provenance и тип свидетельства: LSP, AST, RAG, test, runtime, memory | У агента есть ссылка для проверки исходного утверждения |
-| FR-16 | P1 | Отображать неполноту анализа: DI, reflection, динамические вызовы, внешние сервисы | «Не найдено» не преобразуется в «не существует» |
-
-### 7.3. Persistent Project Memory
-
-| ID | Pri | Требование | Проверяемый результат |
-|---|---|---|---|
-| FR-17 | P0 | Поиск по исходным прошлым обсуждениям между сессиями | Можно найти точную беседу 14+ дней назад по приблизительному описанию |
-| FR-18 | P0 | Двухуровневая память: история эпизодов + извлечённые факты/решения | Помнит, что обсуждалось, что было принято и что было отложено |
-| FR-19 | P0 | Ссылки на первоисточник и дату | Любое существенное утверждение о прошлой договорённости проверяемо |
-| FR-20 | P1 | Состояние решения: proposed / accepted / superseded / rejected | Старая идея не выдаётся за актуальное обязательное решение |
-| FR-21 | P1 | Time-aware retrieval: «что мы думали на тот момент?» | Можно восстановить эволюцию, а не только последнее состояние |
-| FR-22 | P1 | Исправление / удаление / исключение воспоминаний и данных | Пользователь контролирует сохранение, очистку и приватность |
-| FR-23 | P1 | Связь архитектурных решений с кодом / commit / ADR | Восстановленная память помогает именно текущей задаче кодинга |
-
-### 7.4. Агентная интеграция
-
-| ID | Pri | Требование | Проверяемый результат |
-|---|---|---|---|
-| FR-24 | P0 | Интеграция с Codex через поддерживаемые расширяемые интерфейсы (retired optional tool-call protocol в первую очередь) | Codex может вызвать единый контекстный инструмент |
-| FR-25 | P0 | Без принудительной замены Codex или вмешательства в закрытые внутренности модели | Codex продолжает использовать стандартные инструменты |
-| FR-26 | P1 | Context policy и необязательные рекомендации в AGENTS.md | Агент направляется к эффективным инструментам, но не лишается fallback |
-| FR-27 | P1 | Экспортируемый интерфейс для других retired optional tool-call protocol-совместимых агентов | Не требуется переписывать retrieval при смене клиента |
-| FR-28 | P1 | Fail-open для доступности поиска, fail-closed для рискованных действий и доступа к данным | Недоступный retrieval не блокирует обычный поиск; security guardrail не отключается |
-
-### 7.5. Evaluation и прозрачность
-
-| ID | Pri | Требование | Проверяемый результат |
-|---|---|---|---|
-| FR-29 | P0 | Логирование полного агентного run и usage по шагам | Можно восстановить сумму токенов и действий |
-| FR-30 | P0 | Автоматические сопоставимые baseline / experiment runs | Каждая конфигурация проходит одинаковые исходные задачи |
-| FR-31 | P0 | Проверка correctness независимыми тестами / рубрикой | Экономия не достигается за счёт пропущенных исправлений |
-| FR-32 | P0 | Раздельный учёт total/cached/uncached tokens и денежных затрат | Видна разница между token savings и cash savings |
-| FR-33 | P1 | Retrieval quality metrics: Recall@K, MRR/nDCG для размеченных задач | Можно установить, помогает ли поиск находить нужные символы |
-| FR-34 | P1 | Dashboard: стоимость, токены, latency, качество, index freshness | Метрики сравниваются по версиям харнесса |
-| FR-35 | P1 | Ablation study для отдельных и комбинированных компонентов | Можно доказать вклад memory, AST/LSP и retrieval |
-| FR-36 | P1 | Повторение задач на новых сессиях | Измеряется эффект восстановления памяти через разрыв истории |
-
----
-
-## 8. Нефункциональные требования
-
-| ID | Область | Требование |
-|---|---|---|
-| NFR-01 | Безопасность | Секреты, `.env`, ключи, токены, клиентские данные не индексируются без явного разрешения; секреты маскируются в telemetry |
-| NFR-02 | Приватность | Понятная политика data residency: что отправляется в Vertex/облако и что остаётся локально |
-| NFR-03 | Надёжность | Недоступность отдельного индекса не вызывает ложных «успешных» ответов; fallback и error provenance |
-| NFR-04 | Актуальность | Ответы по коду указывают версию; известные несоответствия working tree блокируют выдачу как «verified-current» |
-| NFR-05 | Производительность | Наблюдается end-to-end latency; на целевых задачах не допускается неконтролируемый рост tool calls и времени |
-| NFR-06 | Портируемость | Linux — обязательная среда; воспроизводимые локальные команды / контейнерный запуск |
-| NFR-07 | Эксплуатация | Structured logs, tracing, error rates, latency histograms, token-cost attribution |
-| NFR-08 | Воспроизводимость | Pin версий, фиксированные тестовые репозитории / commits, dataset manifest, seed и идентичные задачи |
-| NFR-09 | Масштабирование | От одного TypeScript-репозитория до нескольких без потери namespace isolation |
-| NFR-10 | Управление лицензиями | SBOM/список лицензий и проверка допустимости корпоративного использования до включения в дистрибутив |
-| NFR-11 | Контроль контекста | Ответ по умолчанию компактен; детальная выдача только при явном запросе |
-| NFR-12 | Защита от prompt injection | Исходники, README и воспоминания трактуются как недоверенные данные, не как управляющие инструкции |
-| NFR-13 | Ресурсная эффективность | Измерять RAM/CPU/disk, стоимость переиндексации, cloud costs и реальное время выполнения |
-| NFR-14 | Аудит | Для каждого сопоставления и прогонов сохраняются конфигурация, версии и метрики с исключением приватного содержимого |
-
----
-
-## 9. Готовые компоненты: что использовать, а что оставить на выбор
-
-**Это продуктовый shortlist, не утверждённая схема развёртывания.** «Основной кандидат» означает приоритетную проверку, а не обязательную зависимость.
-
-| Задача | Основной кандидат для оценки | Альтернатива / контроль | Почему полезно для навыков и продукта |
-|---|---|---|---|
-| Coding agent | **Codex** | Другой retired optional tool-call protocol-совместимый агент позднее | Реальная цель внедрения, понятный baseline |
-| Агентный протокол | **retired optional tool-call protocol** | Native APIs / CLI adapters, если обосновано | Широко применимый интеграционный навык |
-| Документация и ADR | **Google Vertex AI RAG Engine** | Локальный документный RAG | Cloud AI, IAM, ingestion, retrieval, enterprise patterns |
-| Локальный кодовый RAG | **Qdrant** | **LanceDB**, при необходимости SQLite FTS + vectors | Hybrid search, индексация, data lifecycle |
-| Lexical search | **ripgrep** | Zoekt для больших много-repo наборов | Хороший дешёвый baseline и fallback |
-| Структурный AST search | **ast-grep** | Tree-sitter / TypeScript Compiler API | Готовая структурная работа с кодом |
-| Semantic navigation | **Serena** | `typescript-language-server` / SolidLSP / direct TypeScript API | Определения, references, types, diagnostics, редактирование |
-| Graph / impact | **CodeGraphContext** | GitNexus как benchmark; SCIP / отдельные graph indexes | Отдельный граф связей без изобретения парсера |
-| Persistent memory | **Graphiti** | **Mem0** (особенно как готовая интеграция и benchmark) | Эпизоды, временные факты, cross-session retrieval |
-| Evals / LLM observability | **Langfuse** | OpenTelemetry + собственный benchmark runner | Tracing, datasets, experiments, cost и качество |
-| Distributed tracing | **OpenTelemetry** | Экспорт в имеющуюся observability | Профессионально релевантный стандарт |
-| Дополнительный статический анализ | **CodeQL** (по потребности) | Joern / CPG, тесты, runtime traces | Data flow, security/code quality; не требуется в каждом вызове |
-| CI/CD и воспроизводимость | **GitHub Actions + Docker** | Другие CI-движки / контейнерные среды | Демонстрация DevOps и AI Platform Engineering |
-
-### 9.1. Принципы выбора компонентов
-
-- **Функциональная полнота:** покрывает ли пользовательский сценарий, а не просто имеет нужный термин в README.
-- **Точность и свежесть:** полнота символов/ссылок, корректность после рабочей правки.
-- **End-to-end экономика:** токены + embeddings + LLM-as-judge + облако + CPU/RAM/операционные расходы.
-- **Интеграция:** зрелый API/retired optional tool-call protocol, наблюдаемость, стабильность, поддержка платформы.
-- **Licensing / security / data residency.**
-- **Доказательства:** воспроизводимые evals против alternatives.
-
-### 9.2. Важные лицензии и зависимости
-
-- **Serena:** в актуальном описании проекта приложение — `GPL-3.0-or-later`, а компонент **SolidLSP** — `MIT`; важно отличать запуск отдельного retired optional tool-call protocol-сервиса от включения кода в собственный продукт. Перед корпоративным распространением — юридическая проверка.
-- **GitNexus:** `PolyForm Noncommercial 1.0.0`, то есть **не считать permissive open source** и не делать его без проверки лицензионной базой коммерческого дистрибутива. Можно рассматривать функциональность и легитимные исследовательские сценарии в рамках условий лицензии.
-- **CodeGraphContext:** README декларирует MIT; подтвердить лицензию и зависимости при выборе.
-- **Graphiti:** `Apache-2.0` в метаданных `graphiti-core`; проверить все компоненты и используемые backend.
-- **Langfuse:** open-source core заявлен под MIT, часть enterprise governance опционально коммерческая; проверить версию дистрибутива.
-- **Mem0:** cloud retired optional tool-call protocol предполагает передачу памяти на удалённый сервис; on-prem/local возможности и лицензию конкретной сборки проверить отдельно.
-- **Vertex AI RAG:** облачная обработка, IAM, условия Google Cloud, доступность по региону и data residency требуют отдельного согласования.
-
----
-
-## 10. Продуктовая логика Unified Context Engine
-
-**Не архитектура компонентов, а ожидаемое поведение:**
-
-1. **Понять запрос:** точный символ, неясная функциональность, изменение контракта, документация, прошлое решение, bug investigation.
-2. **Выбрать достаточные источники:** direct symbol/LSP, AST, lexical, code RAG, documentation RAG, memory или их сочетание.
-3. **Разрешить кандидатов к конкретным символам** и актуальному состоянию кода; по необходимости расширить связями.
-4. **Сопоставить факты с исходниками/документами/историей**, включая обозначение противоречий и неизвестного.
-5. **Дедуплицировать и ранжировать** с учётом relevance, confidence, freshness и token budget.
-6. **Вернуть минимально достаточный Context Bundle** плюс доступные ссылки и команду для подробного раскрытия.
-7. **Обновить индекс/память после изменений**, не блокируя текущую работу ненужным тяжёлым reindex.
-
-Три принципиальных правила:
-
-- **Не запускать все движки без необходимости.** Небольшая известная функция не требует полного облачного RAG-поиска.
-- **Не смешивать «похоже по смыслу» с «доказано, что это тот же символ».** Семантическая близость — кандидат, а не подтверждённый reference.
-- **Не выдавать историческое решение за действующее**, если в последующих сессиях оно было пересмотрено.
-
-**Концептуальная структура ответа** (не фиксирует формат API):
-
-```yaml
-request: "Где реализовано восстановление сессии?"
-context_budget_tokens: 2500
-items:
-  - source: live-lsp
-    repo: example-project
-    revision: working-tree
-    symbol: SessionManager.restore
-    location: src/session/manager.ts:120-168
-    evidence: exact-definition
-  - source: docs-rag
-    document: ADR-012
-    section: "Session recovery"
-    evidence: retrieved-document
-  - source: temporal-memory
-    conversation_date: 2026-10-03
-    decision_status: superseded
-    evidence: original-session-link
-uncertainty:
-  - "Dynamic plugin registration not fully resolved"
-```
-
-*Пример полностью условный; это не данные реального проекта.*
-
----
-
-## 11. Отдельный продуктовый блок: долговременная память проекта
-
-### 11.1. Почему это must-have, а не украшение
-
-Первоначальная идея охватывала экономию внутри одной задачи. Однако реальная разработка включает **десятки сессий**, архитектурные споры, отложенные гипотезы, исправления требований и возвращение к старым темам. Потеря этих знаний ведёт к повторным исследованиям, новым токенам и ошибочным решениям.
-
-### 11.2. Что хранить
-
-- **Original episodes:** исходные диалоги, сообщения, timestamp, project/session ID, ссылки на files/commits.
-- **Decision records:** что выбрано, почему, какие альтернативы и риски, кто подтвердил, текущий статус.
-- **Technical knowledge:** найденные причины багов, проверенные ограничения, ссылки на tests и ADR.
-- **Unresolved work:** незавершённые идеи, TODO и гипотезы с датой и источником.
-- **Temporal links:** когда факт стал действующим и когда/чем был заменён.
-
-### 11.3. Как избегать «галлюцинаций памяти»
-
-- Хранить оригиналы отдельно от сжатых summaries.
-- Ответ «мы обсуждали X» подкреплять ссылкой на сообщение или event.
-- Неизвестное не додумывать; если найден только summary — так и сообщать.
-- Конфликт между прошлой памятью и текущим кодом маркировать как конфликт контекстов.
-- Уметь вручную исправить статус решения и исключить ошибочно извлечённую память.
-
-### 11.4. Альтернативы
-
-- **Mem0:** быстрый старт и готовые механизмы памяти/интеграции с Codex; проверить облачный маршрут и качество истории.
-- **Graphiti:** темпоральные эпизоды и связи, полезные для «что решили две недели назад и почему потом изменили?»; более сложная эксплуатация.
-- **Простой append-only архив + BM25 / hybrid search:** сильный baseline, который обязан участвовать в сравнении, чтобы не создавать избыточную сложность.
-
----
-
-## 12. Benchmark — обязательная часть продукта
-
-### 12.1. Правильный baseline
-
-**Нормальный современный Codex**, с доступными ему стандартными инструментами и оптимизациями. Нельзя искусственно отключать кэш, compaction, shell, grep или ухудшать инструкции baseline, чтобы получить красивый коэффициент.
-
-### 12.2. Рекомендуемые группы тестов
-
-1. **Code discovery:** найти неизвестную функцию по описанию поведения.
-2. **Multi-file refactoring:** изменение интерфейса со всеми использованиями.
-3. **Bug fixing:** воспроизведение и исправление известного failing test.
-4. **Architecture-constrained change:** выполнить задачу с учётом ADR.
-5. **Working-tree freshness:** повторный поиск после нескольких патчей.
-6. **Long-horizon memory:** восстановить решение из прошлой сессии, включая отвергнутую альтернативу.
-7. **Dynamic uncertainty:** plugin/DI/reflection, где отсутствие references не доказывает отсутствие вызовов.
-8. **Control tasks:** простая задача с известным файлом, где harness не должен мешать.
-
-Исходный тестовый репозиторий для первых испытаний: **TypeScript chess trainer**, упомянутый в предыдущем обсуждении (`/media/ilja/DATA/chess/trainer/`). Этот локальный путь — **контекстная исходная информация, не подтверждение доступности каталога в среде будущих испытаний**. Для публичного портфолио нужен разрешённый репозиторий/fixture с воспроизводимым набором задач.
-
-### 12.3. Сравниваемые конфигурации
-
-| ID | Конфигурация | Назначение |
-|---|---|---|
-| B0 | Codex без внешнего harness | Главный baseline |
-| B1 | Codex + Serena | Цена/выигрыш symbol-aware LSP |
-| B2 | Codex + Augment Context Engine retired optional tool-call protocol | Сильный коммерческий ориентир |
-| B3 | Codex + GitNexus (в разрешённых лицензией условиях) или аналогичный graph tool | Графовый benchmark |
-| B4 | Codex + локальный hybrid RAG | Вклад семантического поиска |
-| B5 | Codex + RAG + AST/LSP как **независимые** retired optional tool-call protocol-инструменты | Выявить пользу простого набора интеграций |
-| B6 | Codex + **наш Unified Harness** | Проверка именно интеграционного слоя |
-| B7 | B6 без persistent memory и B6 с memory | Межсессионный эффект |
-
-Не обязательно все конфигурации запускать на каждой задаче; протокол должен заранее фиксировать состав релевантного сравнения. Закрытые коммерческие продукты могут ограничивать сбор идентичных метрик — это нужно явно указать в отчётах.
-
-### 12.4. Протокол честного эксперимента
-
-- Одинаковая модель/версия, reasoning effort, системные ограничения, задача, стартовый commit, лимит времени и environment.
-- Изоляция working tree и восстановление исходного состояния перед каждым запуском.
-- Сохранение task manifest, конфигурации инструментов и версии источников данных.
-- Несколько независимых запусков на задачу из-за стохастичности агентов; порядок конфигураций по возможности рандомизировать.
-- Разделение задач для настройки retrieval и **holdout set** для финального объявления результата.
-- Запрет leakage правильного патча или скрытых тестов в индекс и prompts.
-- Проверка функциональной корректности, регрессий, статической диагностики и соответствия требованиям.
-- Учёт стоимости построения индекса и памяти в отдельной строке и в амортизированной стоимости на workload.
-- Никаких unsupported claims о «победе» при малой выборке: показывать разброс и неопределённость.
-
-### 12.5. Метрики и формулы
-
-**Основные**
+Freeze task manifests, independent tests, source revision, agent/model/version, effort, tools, time budget and environment. Reset the worktree between runs. Separate tuning from the holdout; prevent leakage of expected patches or hidden tests. Repeat where needed and report variation, excluded runs, failed attempts and scope.
 
 ```text
 run_total_tokens = sum(actual per-call input_tokens + output_tokens)
@@ -429,171 +166,59 @@ token_reduction_factor = baseline_total_tokens / harness_total_tokens
 cost_per_success = total_workload_cost / number_of_accepted_tasks
 ```
 
-Не суммировать cumulative usage snapshots как отдельные вызовы: это приводит к двойному счёту. Хранить исходные события и нормализованные поля отдельно; если какая-то телеметрия не доступна — отмечать `unknown`, не подставлять нули.
+Avoid double-counting cumulative snapshots or cached subsets. Report quality, failure rate, latency, tool activity, source correctness, retrieval metrics and additional infrastructure/model expenses. A 5× claim needs complete comparable actual usage and independent acceptance on a predeclared task population. A smaller saving with higher quality can still be useful, but report the measured result rather than the target.
 
-**Дополнительные**
+## 13. Product stages (historical)
 
-- Prompt cached input tokens и effective billed cost.
-- End-to-end latency, p50/p95; tool calls; количество прочитанных строк/файлов.
-- Pass rate, patch acceptance, post-change regression, CI correctness.
-- Fact-error rate: несуществующие символы, неверные references, ложные утверждения о вызовах.
-- Retrieval recall@K / MRR / nDCG на размеченных запросах.
-- Memory recall accuracy, temporal consistency, source-attribution accuracy.
-- Freshness violations: случаи выдачи stale snippet как current.
-- Дополнительные расходы: embedding, reranking, managed RAG, vector index, LLM memory extraction, storage и runtime overhead.
+0. Discovery and benchmark foundation.
+1. Integrated MVP covering retrieval, structural/semantic evidence, documentation, minimal memory and evaluation.
+2. Adaptive selection, working-tree freshness, temporal recall and quality gates.
+3. Reproducible engineering-grade release and operational evidence.
+4. Optional expansion after core value is demonstrated.
 
-### 12.6. Критерий достижения 5×
+These stages do not authorize obsolete integration paths or change active acceptance gates.
 
-Говорить **«5× меньше токенов»** можно, только если заранее определены population задач и агрегирование; результат воспроизводим на holdout; качество не просело; фактическая суммарная телеметрия полная. Рядом обязательно указывать число задач, число прогонов, конфигурацию baseline, диапазон разброса и исключения.
+## 14. Build versus reuse
 
-**Успех проекта не сводится к одному числу:** даже если окажется 2–3×, но качество выше, память надёжнее, а решение дешевле/управляемее для нужного workload, продукт имеет подтверждённую полезность. Не подменять продуктовый исход желаемой цифрой для CV.
+Prefer maintained engines and adapter boundaries; evaluate native alternatives rather than reimplementing indexing, parsing, semantic analysis or graph storage without evidence. A collection of independent tools is a possible experimental baseline, not necessarily a good unified architecture. The original research hypothesis is a coherent, policy-aware context layer that reduces redundant work.
 
----
+## 15. Risks
 
-## 13. Scope и roadmap на уровне продукта (без архитектурного дизайна)
+| ID | Risk |
+| --- | --- |
+| R-01 | The 5× hypothesis is not achieved. |
+| R-02 | Mature competing integrations outperform the proposed composition. |
+| R-03 | Auxiliary retrieval or cloud costs offset model savings. |
+| R-04 | Stale or ambiguous source produces incorrect context. |
+| R-05 | Derived memory invents or misattributes decisions. |
+| R-06 | Static discovery misses dynamic dependencies. |
+| R-07 | Dependency licenses constrain adoption or distribution. |
+| R-08 | Private source or conversations cross an unauthorized boundary. |
+| R-09 | Indexing and additional operations increase latency. |
+| R-10 | Tuning leaks into holdout or overfits the benchmark. |
+| R-11 | Provider and agent versions change. |
+| R-12 | Scope expands into unrelated infrastructure or AIOps work. |
 
-### Stage 0 — Discovery & Benchmark Foundation
+Mitigate through matched independent tests, exact-source verification, explicit policy, version pins, reliable usage and bounded scope.
 
-**Результат:** честный baseline Codex, перечень типовых задач, токеновые traces, сравнение готовых альтернатив, политика приватности. **Решение о дальнейшем scope принимается по профилю трат и дефектов.**
+## 16. Required evidence and deliverables
 
-### Stage 1 — Integrated MVP
+Working implementation, documented operation, independent correctness and economics results, architecture and decision records, security and reproducibility evidence. The original professional-demonstration goal is subordinate to these engineering facts. Do not publish unmeasured savings or fabricate portfolio achievements.
 
-**Обязательное покрытие всей первоначальной идеи:** локальный code retrieval, AST и LSP, документный RAG, минимальная persistent session recall, единый context bundle и метрики. Не откладывать RAG или LSP только ради демонстрации трёх CRUD-инструментов для символов.
+## 17. References and authority
 
-**Важная разница:** минимальная глубина реализации каждого слоя допустима; отсутствие целого слоя — не проверка нашей основной гипотезы.
+- [Current architecture](../operations/current-architecture.md)
+- [ADR register](ADR-000-decision-register.md)
+- [Architecture fitness contracts](../architecture/07-architecture-fitness-contracts.md)
+- [Native provider cutover](../plans/2026-11-25-native-cbm-cutover-and-legacy-retirement.md)
+- [Original October requirements and external research references](https://github.com/chris-madsen/Hybrid-RAG/blob/d19b8ac04ce3861ee0b477fd5253c684edb5136f/docs/references/PRD-v1.0.md)
 
-### Stage 2 — Beta: Adaptive + Fresh + Temporal
+The historical requirements are preserved in Git; later accepted decisions determine current scope. This editorial revision does not mark the original final owner-agreement checklist item complete.
 
-Adaptive routing, incremental freshness, полноценные статусы решений, temporal queries, impact context, quality gates, серия end-to-end benchmarks.
+## 18. Open questions and acceptance
 
-### Stage 3 — Release candidate: Engineering-grade
+The current unresolved questions are native-provider absolute retrieval quality and scale, independent LSP scope, actual document and temporal delivery, provider-wire and real-agent acceptance, and matched-task economics. Use the canonical OpenSpec trackers and issue records; do not infer acceptance from the existence of this PRD.
 
-CI/CD, monitoring, эксплуатационная документация, управление секретами, лицензии, portable setup, демонстрация на публичных заданиях, reproducible benchmark report.
+## 19. Requirements record status
 
-### Stage 4 — Optional expansion
-
-Другие языки, multi-repo, data-flow/CPG, runtime tracing, связка Code + Infrastructure + Runtime, команды и корпоративные политики. Это развитие **после доказанной пользы основного harness**.
-
----
-
-## 14. Варианты решения: готовое купить/подключить vs построить свой слой
-
-| Вариант | Плюсы | Минусы | Решение для R&D |
-|---|---|---|---|
-| Только Augment / Serena | Быстро, мало собственного кода | Ограниченный контроль полной стратегии; сложнее показать собственное engineering достижение | Обязательный benchmark |
-| Простая связка независимых retired optional tool-call protocol | Быстрая интеграция, демонстрация навыков | Модель сама маршрутизирует запросы; возможно избыточное повторение инструментов | Промежуточный baseline |
-| Собственный Unified Context Layer поверх готовых движков | Контроль маршрутизации, бюджеты, memory, freshness, telemetry | Собственная сложность и риск ухудшить скорость/качество | **Основная продуктовая гипотеза** |
-| Полностью собственные движки AST/LSP/vector | Максимальный контроль | Высокая стоимость и бессмысленное дублирование зрелых решений | Не выбирать без исключительного обоснования |
-
-### Build-versus-buy decision gate
-
-Перед добавлением любой подсистемы команда фиксирует:
-
-1. Какую конкретную проблему существующий инструмент не решил на реальных задачах?
-2. Какая ожидается метрика улучшения?
-3. Есть ли более простой способ конфигурировать/переиспользовать готовый компонент?
-4. Сколько стоит поддержка собственного кода?
-5. Как доказать улучшение и откатить неудачную гипотезу?
-
----
-
-## 15. Риски, ограничения, смягчающие меры
-
-| Риск | Последствие | Предлагаемая мера |
-|---|---|---|
-| R-01: 5× не достигается | Цель для CV не подтверждена | Сначала честный baseline, затем оптимизация основных источников расходов, публиковать реальные цифры |
-| R-02: Конкуренты уже лучше по контексту | Продукт дублирует существующий | Head-to-head, адаптивный retrieval и память только при положительном incremental effect |
-| R-03: Token saving компенсируется облачной ценой | Падает бизнес-ценность | Считать полную денежную стоимость и индексирование |
-| R-04: Неверный / stale retrieval | Ошибочные изменения, ложная уверенность | Live symbol verification, revision metadata, fallback |
-| R-05: Историческая память выдумывает прошлые решения | Архитектурная путаница | Immutable source episodes, ссылки, статусы и correction workflow |
-| R-06: Динамические вызовы не видны LSP | Пропущенное последствие правки | Unknown/unverified status, optional traces / data flow |
-| R-07: Лицензии GitNexus / Serena | Нельзя легально использовать в нужной форме | Separate adapter vs redistribution analysis; permissive alternatives; юридическая проверка |
-| R-08: Утечка кода через embeddings / внешние API | Конфиденциальность / compliance | Local-first code retrieval, opt-in облачные маршруты, secret scanning |
-| R-09: retired optional tool-call protocol и сервисы увеличат latency | Агент станет медленнее | Query budget, timeout, caching, direct path, оценка p95 |
-| R-10: Benchmark подогнан | CV-результат недостоверен | Holdout, независимые тесты, raw data, open methodology |
-| R-11: Vendor/API churn | Поломка интеграций | Adapter interfaces, pinned versions, compatibility tests |
-| R-12: Scope creep в AIOps | Основная цель не достигнута | Отложить infra/runtime expansion до успешного ядра |
-
----
-
-## 16. Что должно остаться артефактами для CV и собеседования
-
-1. **Работающий и доступный для демонстрации harness**, использующий реальные готовые code-intelligence и retrieval компоненты.
-2. **Public/portfolio репозиторий** без закрытых исходников и секретов; инструкции развёртывания.
-3. **PRD (этот документ)** и будущие ADR / threat model / архитектура с зафиксированными trade-offs.
-4. **Benchmark suite** с исходными задачами, воспроизводимыми командами, результатами и traces.
-5. **Comparison report** Codex vs готовые продукты vs наш Unified Harness (без рекламных преувеличений).
-6. **CI/CD + observability**: панели качества, времени и стоимости, защита от регрессий.
-7. **Engineering narrative:** почему выбраны готовые движки; что написано самостоятельно; где выигрыш; где готовые решения лучше; какой ROI.
-
-**Пример CV-пункта — использовать только после получения подтверждённых результатов:**
-
-> Built an retired optional tool-call protocol-based Adaptive Context Harness for Codex integrating local hybrid code retrieval, AST/LSP semantic intelligence, project-documentation RAG, and temporal project memory. Benchmarked against native Codex and off-the-shelf context engines, achieving **[X×] lower end-to-end token usage** across **[N] reproducible tasks** while maintaining **[quality metric]**. Implemented CI/CD, tracing, indexing freshness controls, and cost observability.
-
-Отдельно стоит знать, что **интеграция сервисов с воспроизводимым результатом сама по себе ценный AI Platform Engineering кейс**, даже если результат не опередит Augment по всем задачам.
-
----
-
-## 17. Источники и evidence register
-
-Ниже — первичные страницы продуктов/официальные технические документы, проверенные при подготовке 17.10.2026. Их содержимое и лицензии могут меняться: перед имплементацией перепроверить конкретный tag/commit и условия использования. Этот перечень **поддерживает описание возможностей**, но не подтверждает нашу будущую экономию.
-
-### Системы сравнения
-
-- Augment Context Engine retired optional tool-call protocol, официальный анонс: <https://www.augmentcode.com/blog/context-engine-retired-tool-protocol-now-live> — vendor-reported результаты; не независимый benchmark.
-- Serena, проект и лицензия: <https://github.com/oraios/serena> и <https://github.com/oraios/serena/blob/main/README.md>.
-- GitNexus, README и noncommercial license: <https://github.com/abhigyanpatwari/GitNexus/blob/main/gitnexus/README.md>.
-- Sourcegraph Cody context / code graph: <https://sourcegraph.com/docs/cody/core-concepts/context>, <https://sourcegraph.com/docs/cody/core-concepts/code-graph>.
-- Aider repository map: <https://aider.chat/docs/repomap.html>.
-
-### Кандидаты компонентов
-
-- Google RAG Engine, overview (в новой документации также представлен в Gemini Enterprise Agent Platform): <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/rag-engine/rag-overview>.
-- Google RAG Engine, quickstart и security limitations: <https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/rag-engine/rag-quickstart>.
-- Qdrant hybrid search: <https://qdrant.tech/documentation/search/text-search/hybrid-search/>.
-- LanceDB OSS / embedded / search: <https://github.com/lancedb/docs/blob/main/docs/index.mdx>.
-- ast-grep retired optional tool-call protocol, experimental: <https://github.com/ast-grep/ast-grep-retired-tool-protocol>.
-- CodeGraphContext README (MIT заявлен авторами): <https://github.com/CodeGraphContext/CodeGraphContext/blob/main/README.md>.
-- Graphiti temporal-memory retired optional tool-call protocol: <https://github.com/getzep/graphiti/blob/main/retired-tool-protocol_server/README.md>.
-- Graphiti Python package license: <https://github.com/getzep/graphiti/blob/main/pyproject.toml>.
-- Mem0 Codex integration: <https://github.com/mem0ai/mem0/blob/main/docs/integrations/codex.mdx>.
-- Langfuse self-host / evaluation: <https://langfuse.com/resources/engineering/clarifications>.
-- OpenTelemetry specification: <https://github.com/open-telemetry/opentelemetry-specification>.
-
-### Предпосылка от инициатора
-
-Документ **«Постановка задачи: экономный и точный coding-харнесс для AI-агентов»**, загруженный вместе с проектным обсуждением. Он формулирует стартовую гипотезу и TypeScript testbed. **Настоящий PRD расширяет** первоначальную постановку: не откладывает RAG+AST+LSP как исследуемую связку, добавляет persistent temporal memory, сравнительный конкурентный benchmark и требования для профессионального портфолио.
-
----
-
-## 18. Вопросы, оставляемые на этап архитектуры (не блокируют PRD)
-
-1. Как именно устроить маршрутизацию retrieval, чтобы уменьшить не только размер ответа, но и число LLM/tool rounds?
-2. В каких условиях Qdrant лучше LanceDB для нашего repo-size, churn и retrieval-quality target?
-3. Как выбирать между Serena, прямым TypeScript Language Service и SolidLSP, не дублируя parsing/typechecking?
-4. Как представлять symbol IDs, cross-repo graph, commit/working-tree overlay и границы свежести?
-5. Как синхронизировать source episodes, summaries и временной граф: Graphiti, Mem0 или комбинация?
-6. Нужно ли размещать документацию в Vertex AI или локальный RAG достаточен с учётом цены и data policy?
-7. Как гарантировать, что агент реально использует оптимизированный контекст, сохранив возможность прямого поиска?
-8. Какие данные telemetry предоставляет текущая версия Codex CLI/API и что придётся дополнительно инструментировать?
-9. Где проходит граница между интеллектуальным поиском и runtime/security analysis?
-10. Как развёртывать и управлять секретами в локальном / cloud / corporate окружении?
-
-**Следующий документ после согласования PRD:** архитектура уровня C4 / ADR, выбор продуктов по сравнительной матрице, data flow / security model, затем план реализации и eval design.
-
----
-
-## 19. Definition of Done для этого PRD
-
-- [x] Зафиксированы обе цели: собственная продуктивность и CV/portfolio value.
-- [x] Главный aspirational KPI — честная цель 5× против современного Codex.
-- [x] Включены RAG, AST, LSP, графовые связи и долговременная память.
-- [x] Отмечен эффект повторной передачи и потери контекста между сессиями.
-- [x] Указаны конкуренты и обязательно сравниваемые готовые продукты.
-- [x] Указаны инженерно и корпоративно релевантные candidate technologies.
-- [x] Учтены исходники, документация, текущий working tree, эпизоды и история решений.
-- [x] Есть требования безопасности, эксплуатации, лицензирования и измерений.
-- [x] Архитектура не предрешена: кандидаты и исследовательские вопросы отделены от требований.
-- [ ] Финальное согласование инициатором.
-
-**Решение, запрашиваемое по PRD:** подтвердить ценность продукта и требования; после этого переходить к архитектуре, не начиная реализацию отдельных компонентов ради самого процесса.
+The original v1.0 checklist documented requirements preparation, not implementation acceptance. Final owner agreement was not checked in that record. No approval is inferred by translating or editing it.

@@ -9,4 +9,4 @@ Define upload, delete and get URL flows. Upload: auth, validate MIME/size, proce
 3. Note N/A and evidence gaps rather than invent undocumented APIs or storage guarantees.
 4. Record owner approval before work changes the public contract.
 
-**Portability:** design artifact structure is reusable; Go/Fiber/S3 implementation details are a video case study, not ACE decisions.
+**Applicability:** this illustrative Go/Fiber/S3 service demonstrates reusable design artifacts. Its implementation choices are not ACE architecture decisions.

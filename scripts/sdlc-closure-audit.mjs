@@ -329,8 +329,8 @@ const architectureAuthorityGuard = async () => {
     }
   }
   const required = [
-    ['docs/architecture/01-strategic-ddd.md', 'Bifröst Gateway projection adapter'],
-    ['docs/architecture/05-contracts-and-deployment.md', 'Gateway Projection Surface — sole agent-facing delivery'],
+    ['docs/architecture/01-strategic-ddd.md', 'Translate native Bifröst requests into local context RPC calls'],
+    ['docs/architecture/05-contracts-and-deployment.md', 'Gateway projection surface — sole agent-facing delivery'],
     ['docs/architecture/07-architecture-fitness-contracts.md', 'DBC-09 Gateway/connector conformance'],
   ];
   const missingAuthority = [];

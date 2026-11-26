@@ -18,7 +18,7 @@ Start with the [Architecture Description](architecture/README.md) for the system
 
 ## Current system and acceptance
 
-ACE is an agent-neutral context engine, integrated behind Bifröst as the sole model-facing gateway. The current code composition uses native Responses with the internal TypeSpec context RPC v3; Codebase Memory supplies structural and native semantic/BM25 discovery, Qdrant adds dense/sparse retrieval, and LSP independently validates symbols. Vertex AI RAG handles authorized project documents. The immutable archive exists; the selected Graphiti/FalkorDB live temporal provider remains unavailable in the current runtime.
+ACE is an agent-neutral context engine, integrated behind Bifröst as the sole model-facing gateway. The current code composition uses native Responses with the internal TypeSpec context RPC v3; Codebase Memory is the sole code retrieval engine, providing structural, graph, native semantic and BM25 discovery. Independent LSP research is separate (#364); the code-only native projection does not request LSP evidence. Vertex AI RAG is the selected opt-in document adapter, but combined document delivery through the native projection is not established. The immutable archive exists; the selected Graphiti/FalkorDB live temporal provider remains unavailable in the current runtime.
 
 See [current runtime](operations/current-architecture.md), the [CBM integration](operations/codebase-memory-provider.md), [OpenSpec 013](../openspec/changes/013-gateway-g11-production-acceptance/tasks.md) and [OpenSpec 014](../openspec/changes/014-ace-audit-reliability-remediation/tasks.md) for the source and acceptance boundary. Local tests, implemented adapters and build evidence are not live provider/agent acceptance.
 

@@ -1,6 +1,6 @@
 > **Archived design evidence:** Any former optional model-invoked tool integration described here is retired. The current target architecture provides ACE context only through the Bifröst LLM Gateway. Historical descriptions are not implementation instructions.
 
-# Quality Gates adoption plan — scoped changes, no tool explosion
+# Quality Gates adoption plan — scoped implementation and tool selection
 
 **Status:** historical rollout plan with current-state annotations. QG0–QG2 are installed, QG4 is installed report-only by design, QG5/TypeSpec-native Responses v2 generation is active, and QG6 is implemented with scheduled OSV, deterministic/property coverage, pinned CodeQL and targeted critical mutation. Remote links are scheduled signal-only. Treat the per-section proposal wording below as rationale, not evidence that merged gates are absent. Existing ACE scripts/CI and the current quality-gate catalog are authoritative for installed status.
 
@@ -19,7 +19,7 @@
 
 **Goal:** extend docs-only \`git diff --check\` with a real offline relative-link/anchor verification for changed Markdown.
 
-**Implementation approach:** pilot **lychee** as maintained tool (same family as Sphericon), pin version, use \`--offline\` and configuration excluding intentional generated links. No generic regex parser unless this tool is incompatible.
+**Implementation approach:** pilot **lychee** as a maintained link checker, pin version, use \`--offline\` and configuration excluding intentional generated links. No generic regex parser unless this tool is incompatible.
 
 **Files:** scoped GitHub workflow change, tool version/lock configuration if chosen, minimal docs runbook and fixtures. Avoid sweeping formatting and avoid network access.
 
@@ -55,7 +55,7 @@
 
 **RED:** an intentional violating code fixture is detected with rule ID + repair hint. **GREEN:** allowed examples and real existing accepted paths pass. **False-positive test:** same suspicious string inside comment/fixture/legitimate code is not flagged. **Gate:** report-only until scoped fixture validated, then block new violations. **Review:** owner signs off each rule's semantic equivalence to accepted ADR.
 
-**Files:** rule config, rules and fixture files, scoped \`check:arch\` command or equivalent, CI invocation, docs index. Do not copy Sphericon's Go ast-grep rules.
+**Files:** rule config, rules and fixture files, scoped \`check:arch\` command or equivalent, CI invocation, docs index. Define and test rules against ACE's TypeScript architecture.
 
 ## PR-QG3 — pre-code Design Consistency gate (P0)
 
@@ -112,7 +112,7 @@
 
 ## Gate baseline policy
 
-Sphericon currently requires immediate fixes/no baseline for its check rules. ACE should likewise fix manageable violations before enabling a new rule. If a new noncritical rule finds widespread old debt, **temporary report-only** with frozen exceptions, owners, expiration and no expansion is acceptable. Critical auth/egress/source-freshness or secrets failures are blocking from day one.
+Fix manageable violations before enabling a new rule; a permanent violation baseline would permit existing defects to persist. If a new noncritical rule finds widespread old debt, **temporary report-only** with frozen exceptions, owners, expiration and no expansion is acceptable. Critical auth/egress/source-freshness or secrets failures are blocking from day one.
 
 ## Rollout / ownership table
 

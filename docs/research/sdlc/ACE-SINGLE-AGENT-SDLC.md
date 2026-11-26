@@ -77,7 +77,7 @@ Use [codebase-researcher.md](source/agents/codebase-researcher.md) as a sequenti
 Store research in a durable, existing research location. Keep as-is findings separate from any later design proposal.
 
 ### Design
-Use [design_feature.md](source/commands/design_feature.md) with conditional research. Adapt the video's output types into existing OpenSpec design sections:
+Use [design_feature.md](source/commands/design_feature.md) with conditional research. Record the applicable design artifacts in the existing OpenSpec sections:
 1. Architecture: C4 context/container/component and actual proposed DI/ports.
 2. Behavior: normal/error/timeout/cancellation sequences; DFD and state transitions.
 3. Decisions: alternatives, rationale, risk, owner and ADR change if required.

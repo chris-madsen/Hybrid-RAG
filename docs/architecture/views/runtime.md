@@ -37,7 +37,7 @@ This sequence describes the accepted integration and source-level behavior. Actu
 
 ## Contract and ownership
 
-- Hermes subscription base prefix: /chatgpt_passthrough; Bifröst native ingress: /chatgpt_passthrough/backend-api/codex/responses.
+- Hermes subscription SDK base prefix: /chatgpt_passthrough/backend-api/codex; Bifröst native ingress: /chatgpt_passthrough/backend-api/codex/responses.
 - ACE internal TypeSpec contract: ace.context.v3, with health, capabilities, project and authorize-attempt under /internal/ace-context/v3.
 - Bifröst owns authentication forwarding, final request dispatch, provider retries, response stream and accounting. ACE does not generate a second model request or claim coding-host transcript attestation from request visibility.
 - Context projection preserves native input and opaque request fields, adds verified evidence and checks final request binding. Required retrieval failure or unauthorized destination must not become silent passthrough.

@@ -19,8 +19,8 @@ flowchart LR
     Bifrost -->|"authorized final native request"| Provider["ChatGPT / Codex provider"]
     Core -->|"read and verify"| Workspace["Workspace / original source"]
     Core --> CBM["Codebase Memory"]
-    Core --> LSP["External language servers"]
-    Core -->|"authorized project documents"| Vertex["Vertex AI RAG"]
+    Core -.-> LSP["Independent language-server research"]
+    Core -.->|"separate authorized document adapter"| Vertex["Vertex AI RAG"]
     Core --> Archive["Immutable local archive"]
     Core -. "target temporal recall" .-> Memory["Graphiti / FalkorDB"]
     Harbor["Harbor evaluation"] --> Hermes

@@ -22,13 +22,13 @@
 
 ### Provenance rule for Claude Code / Claw Code
 
-Use reconstructed Claude Code material as an **engineering reference** when it exposes useful harness design: lifecycle boundaries, tool contracts, compaction invariants, file/LSP behavior, provider normalization, and context-delivery strategies are all valid inputs to the architecture review. The objective is to take the good engineering ideas seriously rather than exclude them because they originated in leaked material.
+The historical assessment considers harness lifecycle boundaries, tool contracts, compaction invariants, file/LSP behavior, provider normalization and context delivery. Reconstructed or leaked proprietary material is not a licensed implementation dependency; design evaluation does not establish permission to reuse source code.
 
 For code landing in this repository, keep provenance explicit. Prefer either (a) clearly MIT-authored later Claw Code modules/commits, or (b) a fresh implementation of the observed design against public protocols/libraries. Do not paste large verbatim proprietary/reconstructed Anthropic source blobs into ACE without a separate licensing/ownership decision. This is a repository-risk rule, not a ban on studying or adopting the engineering design.
 
 ## Executive decision
 
-Do **not** glue Aider, Claw Code and ACE together as three runtimes. That would recreate the same complexity problem.
+Do not deploy Aider, Claw Code and ACE as three cooperating retrieval runtimes: that would duplicate lifecycle management and integration boundaries.
 
 The target is one small ACE retrieval subsystem in TypeScript:
 
