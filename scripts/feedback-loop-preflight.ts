@@ -31,7 +31,7 @@ import {
 } from '../src/domain/feedback-loop-experiment.js';
 import { verifyCompiledRuntimeProvenance } from '../src/application/runtime-provenance.js';
 import { verifyAceRuntimeBundle } from '../src/application/ace-runtime-bundle.js';
-import { readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
+import { assessTaskRuntimeProbe, readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt, type TaskRuntimeProbeStages } from '../src/domain/hermes-task-runtime-probe.js';
 
 type CheckStatus = 'ready' | 'not_ready' | 'unknown' | 'not_required';
 
@@ -41,6 +41,7 @@ interface PreflightCheck {
   readonly identity?: string;
   readonly hermesRuntimeReceipts?: readonly HermesTaskRuntimeReceipt[];
   readonly agentAdapterSha256?: string;
+  readonly stages?: TaskRuntimeProbeStages;
 }
 
 interface PreflightManifest {
@@ -107,18 +108,6 @@ const nativeTaskProjection = (
     status: 'ready',
     reason: 'compiled native Context RPC projection and mutation passed in every pinned task image without network; provider wire remains uncertified',
     identity: expectedBundleDigest,
-  };
-};
-
-const taskRuntimeProbe = (
-  bundlePath: string | undefined,
-  taskImages: readonly { readonly reference: string; readonly digest: string }[] | undefined,
-): PreflightCheck => {
-  void bundlePath;
-  void taskImages;
-  return {
-    status: 'not_ready',
-    reason: 'a real, provenance-bound Hermes/Bifröst/ACE task-container probe and provider-wire receipt are still required; source-only preflight cannot certify C07',
   };
 };
 
@@ -488,7 +477,6 @@ const main = async (): Promise<void> => {
     taskVerifier: await taskVerifier(args.nativeJobPath),
     harborImageDigest: dockerImages(effectiveImageDigest, manifestTaskImages),
     aceRuntimeBundle: await aceRuntimeBundle(args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256),
-    taskRuntimeProbe: taskRuntimeProbe(args.aceRuntimeBundlePath, manifestTaskImages),
   };
   const harborVersion = checks.harbor.identity;
   if (experimentManifest === undefined) {
@@ -534,6 +522,20 @@ const main = async (): Promise<void> => {
     experimentManifest, args.aceRuntimeBundlePath, currentSourceCommit, probeImages,
     [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding, checks.bifrostEndpoint],
   );
+  checks.taskRuntimeProbe = assessTaskRuntimeProbe({
+    sourceCommit: currentSourceCommit,
+    bundleSha256: experimentManifest?.aceRuntimeBundleSha256,
+    endpointSha256: experimentManifest?.bifrostEndpointSha256,
+    modelSha256: experimentManifest?.model.startsWith(feedbackHermesProviderPrefix)
+      ? sha256(experimentManifest.model.slice(feedbackHermesProviderPrefix.length)) : undefined,
+    reasoningEffort: experimentManifest?.reasoningEffort,
+    taskImages: probeImages,
+    taskImageStatus: checks.harborImageDigest.status,
+    aceBundleStatus: checks.aceRuntimeBundle.status,
+    nativeProjectionStatus: checks.nativeTaskProjection.status,
+    hermesRuntimeStatus: checks.agentRuntimeDigest.status,
+    hermesRuntimeReceipts: checks.agentRuntimeDigest.hermesRuntimeReceipts ?? [],
+  });
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
     'harbor', 'harborRun', 'harborDatasetPinned',
