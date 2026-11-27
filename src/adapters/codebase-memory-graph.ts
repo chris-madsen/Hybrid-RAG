@@ -308,6 +308,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     const maxNativeRows = 500;
     const combined: RankedCandidate[] = [];
     const seen = new Set<string>();
+    let hasMore = false;
     // A native row that cannot be mapped to an exact, verified ACE source
     // candidate is not a delivered result. Continue through CBM's own ordered
     // BM25 pages so such rows do not hide later mappable candidates.
@@ -332,13 +333,24 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       if (hits === undefined || !Array.isArray(rows) || rows.length > pageLimit) {
         return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'));
       }
-      const hasMore = page?.has_more;
+      const pageHasMore = page?.has_more;
+      const truncated = page?.truncated;
       const nextOffset = page?.next_offset;
-      if (typeof hasMore !== 'boolean'
-        || (hasMore && (!Number.isSafeInteger(nextOffset) || Number(nextOffset) <= offset
-          || Number(nextOffset) !== offset + rows.length))) {
-        return err(domainError('INVALID_EXTERNAL_RESPONSE', 'codebase_memory.search_graph', 'native BM25 pagination metadata is missing, malformed, or non-advancing'));
+      if (typeof pageHasMore !== 'boolean' || typeof truncated !== 'boolean'
+        || (pageHasMore && !truncated)) {
+        return err(domainError('INVALID_EXTERNAL_RESPONSE', 'codebase_memory.search_graph', 'native BM25 pagination metadata is missing or contradictory'));
       }
+      if (pageHasMore && rows.length === 0) {
+        return err(domainError('EXTERNAL_UNAVAILABLE', 'codebase_memory.search_graph', 'native BM25 continuation requires a higher output budget and cannot advance'));
+      }
+      if (!pageHasMore && truncated) {
+        return err(domainError('EXTERNAL_UNAVAILABLE', 'codebase_memory.search_graph', 'native BM25 response is truncated without a continuation page'));
+      }
+      if (pageHasMore && (!Number.isSafeInteger(nextOffset) || Number(nextOffset) <= offset
+        || Number(nextOffset) !== offset + rows.length)) {
+        return err(domainError('INVALID_EXTERNAL_RESPONSE', 'codebase_memory.search_graph', 'native BM25 continuation cursor is malformed or non-advancing'));
+      }
+      hasMore = pageHasMore;
       for (const hit of hits) {
         if (combined.length >= limit) break;
         const candidate = await resolveCandidate(hit);
@@ -348,6 +360,10 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       }
       if (!hasMore) break;
       offset = Number(nextOffset);
+    }
+    if (hasMore && offset >= maxNativeRows && combined.length < limit) {
+      return err(domainError('EXTERNAL_UNAVAILABLE', 'codebase_memory.search_graph',
+        'native BM25 row bound was reached before the requested candidate shortlist was filled'));
     }
     return ok(combined);
   };
