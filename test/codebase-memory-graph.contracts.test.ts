@@ -64,7 +64,10 @@ test('native semantic shortlist is completed by native BM25 when semantic result
     command: process.execPath,
     args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--partial-semantic-bm25'],
     candidates: () => [semantic, exact, third, fourth],
-    trace: { record: (event) => operations.push(event.operation) },
+    trace: { record: (event) => {
+      // Queue notifications are not completed provider RPCs.
+      if (!event.operation.endsWith('_request_queued')) operations.push(event.operation);
+    } },
   });
   try {
     const indexed = await Effect.runPromise(graph.reindex());
