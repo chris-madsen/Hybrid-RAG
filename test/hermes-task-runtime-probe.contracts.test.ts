@@ -1,6 +1,57 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { assessTaskRuntimeProbe, pinnedHermesCommit, readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
+
+test('packaged Hermes provenance uses its install stamp without requiring Git metadata', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-hermes-install-stamp-'));
+  const script = resolve(import.meta.dirname, '../scripts/hermes-task-runtime-probe.py');
+  const checkStamp = (directory: string) => spawnSync('python3', ['-c', [
+    'import importlib.util, pathlib, sys',
+    'spec = importlib.util.spec_from_file_location("hermes_probe", sys.argv[1])',
+    'module = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(module)',
+    'print(module.read_install_stamp(pathlib.Path(sys.argv[2]))["commit"])',
+  ].join('\n'), script, directory], {
+    encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  const stamp = {
+    schemaVersion: 2,
+    commit: pinnedHermesCommit,
+    branch: 'v0.22.3',
+    dirty: false,
+    source: 'ci',
+    distribution: 'docker',
+    updateMechanism: 'external',
+    baseVersion: '0.22.3',
+    displayVersion: '0.22.3',
+    distance: 0,
+  };
+
+  try {
+    writeFileSync(join(root, 'install-stamp.json'), JSON.stringify(stamp));
+    const valid = checkStamp(root);
+    assert.equal(valid.status, 0, valid.stderr);
+    assert.equal(valid.stdout.trim(), pinnedHermesCommit);
+
+    const invalidStamps: ReadonlyArray<{ readonly change: Record<string, unknown>; readonly reason: RegExp }> = [
+      { change: { commit: 'f'.repeat(40) }, reason: /HERMES_INSTALL_STAMP_COMMIT_MISMATCH/u },
+      { change: { dirty: true }, reason: /HERMES_INSTALL_STAMP_DIRTY/u },
+      { change: { distance: false }, reason: /HERMES_INSTALL_STAMP_VERSION_MISMATCH/u },
+    ];
+    for (const { change, reason } of invalidStamps) {
+      writeFileSync(join(root, 'install-stamp.json'), JSON.stringify({ ...stamp, ...change }));
+      const invalid = checkStamp(root);
+      assert.equal(invalid.status, 1);
+      assert.match(invalid.stderr, reason);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('local Hermes task probe is pinned to installed version, executable, endpoint, model and immutable task image', () => {
   const expected = { sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64), reference: 'task:1',
