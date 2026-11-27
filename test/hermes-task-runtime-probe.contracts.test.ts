@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assessTaskRuntimeProbe, pinnedHermesCommit, readHermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
+import { assessTaskRuntimeProbe, pinnedHermesCommit, readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
 
 test('local Hermes task probe is pinned to installed version, executable, endpoint, model and immutable task image', () => {
   const expected = { sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64), reference: 'task:1',
@@ -79,4 +79,36 @@ test('C07 preflight treats malformed task-image identity as blocked evidence', (
   assert.equal(result.status, 'not_ready');
   assert.equal(result.stages.taskImages, 'not_ready');
   assert.equal(result.stages.hermesRuntime, 'not_ready');
+});
+
+
+test('C07 preflight rejects a null task-image entry without throwing', () => {
+  const result = assessTaskRuntimeProbe({ sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64),
+    endpointSha256: 'c'.repeat(64), modelSha256: 'd'.repeat(64), reasoningEffort: 'high',
+    taskImages: [null as unknown as { readonly reference: string; readonly digest: string }],
+    taskImageStatus: 'ready', aceBundleStatus: 'ready', nativeProjectionStatus: 'ready',
+    hermesRuntimeStatus: 'ready', hermesRuntimeReceipts: [{} as HermesTaskRuntimeReceipt] });
+
+  assert.equal(result.status, 'not_ready');
+  assert.equal(result.stages.taskImages, 'not_ready');
+  assert.equal(result.stages.hermesRuntime, 'not_ready');
+});
+
+test('C07 preflight accepts a bound 64-character source commit identity', () => {
+  const expected = { sourceCommit: 'a'.repeat(64), bundleSha256: 'b'.repeat(64), endpointSha256: 'c'.repeat(64),
+    modelSha256: 'd'.repeat(64), reasoningEffort: 'high' };
+  const taskImages = [{ reference: 'hermes-task:0.22.3', digest: 'sha256:' + 'e'.repeat(64) }];
+  const receipt = { schemaVersion: 1 as const, status: 'READY' as const, hermesCommit: pinnedHermesCommit,
+    hermesVersion: 'v0.22.3' as const, hermesSdkVersion: '2.24.0' as const, nativeResponsesObserved: true as const,
+    providerWireCertified: false as const, hermesExecutableSha256: 'f'.repeat(64), hermesTransportSha256: '1'.repeat(64),
+    sourceCommit: expected.sourceCommit, bundleSha256: expected.bundleSha256, imageReference: taskImages[0]!.reference,
+    imageDigest: taskImages[0]!.digest, localImageId: taskImages[0]!.digest, endpointSha256: expected.endpointSha256,
+    modelSha256: expected.modelSha256, reasoningEffort: expected.reasoningEffort };
+  const result = assessTaskRuntimeProbe({ ...expected, taskImages, taskImageStatus: 'ready',
+    aceBundleStatus: 'ready', nativeProjectionStatus: 'ready', hermesRuntimeStatus: 'ready',
+    hermesRuntimeReceipts: [receipt] });
+
+  assert.equal(result.stages.taskImages, 'ready');
+  assert.equal(result.stages.hermesRuntime, 'ready');
+  assert.equal(result.status, 'not_ready');
 });

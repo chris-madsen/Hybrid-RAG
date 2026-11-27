@@ -99,7 +99,7 @@ export interface TaskRuntimeProbeAssessmentInput {
 
 export const assessTaskRuntimeProbe = (input: TaskRuntimeProbeAssessmentInput): TaskRuntimeProbeAssessment => {
   const images = Array.isArray(input.taskImages) ? input.taskImages : [];
-  const imagesValid = /^[a-f0-9]{40}$/u.test(input.sourceCommit)
+  const imagesValid = /^[a-f0-9]{40,64}$/u.test(input.sourceCommit)
     && Array.isArray(input.taskImages)
     && images.length > 0
     && images.every((image) => typeof image === 'object' && image !== null
@@ -112,8 +112,8 @@ export const assessTaskRuntimeProbe = (input: TaskRuntimeProbeAssessmentInput): 
   const nativeProjection: TaskRuntimeProbeStageStatus = input.nativeProjectionStatus === 'ready'
     && taskImages === 'ready' && aceBundle === 'ready' ? 'ready' : 'not_ready';
 
-  const expectedReceipts = images.map((image) => input.hermesRuntimeReceipts.find((receipt) =>
-    receipt.imageReference === image.reference && receipt.imageDigest === image.digest));
+  const expectedReceipts = imagesValid ? images.map((image) => input.hermesRuntimeReceipts.find((receipt) =>
+    receipt.imageReference === image.reference && receipt.imageDigest === image.digest)) : [];
   const receiptsBound = input.hermesRuntimeStatus === 'ready' && imagesValid
     && input.endpointSha256 !== undefined && digest(input.endpointSha256)
     && input.modelSha256 !== undefined && digest(input.modelSha256)
