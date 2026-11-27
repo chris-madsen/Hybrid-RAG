@@ -12,6 +12,43 @@ export const nativeProjectionRunnerVersion = 'native-projection-holdout/v1';
 
 /** The release collector, merge, gate and preflight must admit the same
  * frozen corpus shape. Historical/dev evaluators remain independent. */
+export const assertNativeDevelopmentHoldout = (holdout: RetrievalHoldout): void => {
+  const repositories = holdout.repositories ?? [];
+  assert.ok(holdout.schemaVersion === 1 && holdout.status === 'development_source_bound'
+    && repositories.length >= 1 && holdout.cases.length > 0, 'native development corpus requires explicit source-bound status');
+  const repositoryIds = new Set<string>();
+  for (const repository of repositories) {
+    assert.ok(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(repository.id)
+      && !repositoryIds.has(repository.id)
+      && /^[a-f0-9]{40,64}$/iu.test(repository.revision)
+      && /^[a-f0-9]{64}$/u.test(repository.sourceManifestSha256),
+    'development repository must bind a unique ID, exact revision and source-manifest SHA-256');
+    repositoryIds.add(repository.id);
+  }
+  const caseIds = new Set<string>();
+  for (const item of holdout.cases) {
+    assert.ok(item.id.trim().length > 0 && !caseIds.has(item.id)
+      && item.query.trim().length > 0 && item.repositoryId !== undefined
+      && repositoryIds.has(item.repositoryId) && item.relevantCandidateIds.length > 0
+      && new Set(item.relevantCandidateIds).size === item.relevantCandidateIds.length
+      && item.relevantCandidateIds.every((id) => id.trim().length > 0)
+      && item.relevantSourceIdentities !== undefined && item.relevantSourceIdentities.length > 0
+      && item.relevantSourceIdentities.every((source) => {
+        const path = ingestRepoPath(source.repoPath);
+        return path._tag === 'Ok' && path.value === source.repoPath
+          && /^[a-f0-9]{64}$/u.test(source.sourceDigest);
+      })
+      && new Set(item.relevantSourceIdentities.map((source) => source.repoPath)).size
+        === item.relevantSourceIdentities.length,
+    'development cases require unique query IDs, bound repository, candidate labels and exact source labels');
+    caseIds.add(item.id);
+  }
+  assert.ok(holdout.cases.some((item) => item.critical === true), 'development corpus requires at least one critical case');
+  assert.ok(repositories.every((repository) => holdout.cases.some((item) => item.repositoryId === repository.id)),
+    'every development repository must contribute at least one case');
+};
+
+/** Release admission remains a separate, stricter contract. */
 export const assertNativeReleaseHoldout = (holdout: RetrievalHoldout): void => {
   const repositories = holdout.repositories ?? [];
   assert.ok(holdout.schemaVersion === 1 && holdout.status === 'frozen_multi_repository_holdout'

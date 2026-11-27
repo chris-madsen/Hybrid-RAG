@@ -4,7 +4,7 @@ import test from 'node:test';
 import { makeProjectionReceiptClaims, signProjectionReceipt } from '../src/application/projection-receipt.js';
 import { addVerifiedContextToResponses } from '../src/domain/responses-projection.js';
 import { canonicalBenchmarkCandidateId, retrievalBenchmarkStages, sha256, type RetrievalBenchmarkTraceEvent } from '../src/domain/retrieval-benchmark.js';
-import { deriveNativeProjectionObservations, nativeProjectionRunnerVersion, validateNativeProjectionRunEvidence, type NativeProjectionEvidence } from '../scripts/native-projection-evidence.js';
+import { assertNativeDevelopmentHoldout, assertNativeReleaseHoldout, deriveNativeProjectionObservations, nativeProjectionRunnerVersion, validateNativeProjectionRunEvidence, type NativeProjectionEvidence } from '../scripts/native-projection-evidence.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import { evaluateRetrievalStrategy, evaluateRetrievalQualityPolicy, validateNativeRetrievalRunIdentity, type RetrievalHoldout, type RetrievalStrategyRun, type RetrievalQualityPolicy } from '../src/domain/retrieval-quality-evaluation.js';
 import {
@@ -253,6 +253,25 @@ test('native release evidence rejects retired stages, foreign provider and missi
       ...item, stageStatuses: { ...item.stageStatuses!, dense: 'executed' },
     })),
   }, revision)._tag, 'Err');
+});
+
+test('native development corpus requires exact labels and stays outside release admission', () => {
+  const repository = holdout.repositories![0]!;
+  const cases = holdout.cases.filter((item) => item.repositoryId === repository.id).slice(0, 4).map((item) => ({
+    ...item,
+    relevantSourceIdentities: [{ repoPath, sourceDigest }],
+  }));
+  const development: RetrievalHoldout = {
+    schemaVersion: 1, status: 'development_source_bound', repositories: [repository], cases,
+  };
+  assert.doesNotThrow(() => assertNativeDevelopmentHoldout(development));
+  assert.throws(() => assertNativeReleaseHoldout(development), /native release holdout requires/u);
+  assert.throws(() => assertNativeDevelopmentHoldout({
+    ...development,
+    cases: development.cases.map((item, index) => index === 0
+      ? { ...item, relevantSourceIdentities: undefined }
+      : item),
+  }), /development cases require/u);
 });
 
 test('AR08 native projection refuses a source-recall label outside the bound manifest', () => {

@@ -73,6 +73,14 @@ Provider-authored precision/recall labels are not accepted as evidence.
 
 Do not use it as W03/DBC release evidence. The normative run must use a separately frozen, unseen multi-repository holdout with `status: "frozen_multi_repository_holdout"`.
 
+For native development measurements, use a separate external corpus with
+status development_source_bound, exact repository revisions/manifests, and
+source labels on every case. The native projection runner accepts this
+explicit development status and still derives observations from captured final
+bodies and receipts. Development evidence cannot pass release preflight and
+must not be relabeled as a frozen release holdout. Keep the corpus, captures,
+and results outside the repository.
+
 A release-grade holdout must bind every repository before any final strategy result is inspected:
 
 ```json
