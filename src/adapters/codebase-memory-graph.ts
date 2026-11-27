@@ -295,7 +295,8 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
         direction: 'both', depth: 2, format: 'json' }));
 
   const searchRows = async (query: string, limit: number,
-    resolveCandidate: (target: NativeGraphRow) => Promise<CodeCandidate | undefined>, requestId?: string): Promise<Result<readonly RankedCandidate[], DomainError>> => {
+    resolveCandidate: (target: NativeGraphRow) => Promise<CodeCandidate | undefined>,
+    expectedGeneration: number, requestId?: string): Promise<Result<readonly RankedCandidate[], DomainError>> => {
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
     }
@@ -303,26 +304,40 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     // tokenization (including camelCase) and BM25 ranking. semantic_query
     // instead expects separately supplied keywords, not a full sentence.
     // ACE must not invent keywords or combine independent rank lists.
-    const response = await transport.invoke('search_graph', {
-      project,
-      query,
-      limit,
-      format: 'json',
-      max_output_tokens: 8192,
-    }, requestId);
-    if (response._tag === 'Err') return response;
-    const hits = lexicalRows(root, response.value);
-    if (hits === undefined) {
-      return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'));
-    }
+    const pageSize = 20;
+    const maxNativeRows = 500;
     const combined: RankedCandidate[] = [];
     const seen = new Set<string>();
-    for (const hit of hits) {
-      if (combined.length >= limit) break;
-      const candidate = await resolveCandidate(hit);
-      if (candidate === undefined || seen.has(candidate.candidateId)) continue;
-      seen.add(candidate.candidateId);
-      combined.push({ candidate, score: hit.score, freshness: 'unknown' });
+    // A native row that cannot be mapped to an exact, verified ACE source
+    // candidate is not a delivered result. Continue through CBM's own ordered
+    // BM25 pages so such rows do not hide later mappable candidates.
+    for (let offset = 0; offset < maxNativeRows && combined.length < limit; offset += pageSize) {
+      if (closed || project === undefined || reindexing !== undefined || generation !== expectedGeneration) {
+        return err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during paged retrieval'));
+      }
+      const pageLimit = Math.min(pageSize, maxNativeRows - offset);
+      const response = await transport.invoke('search_graph', {
+        project,
+        query,
+        limit: pageLimit,
+        offset,
+        format: 'json',
+        max_output_tokens: 8192,
+      }, requestId);
+      if (response._tag === 'Err') return response;
+      const rows = object(response.value)?.rows;
+      const hits = lexicalRows(root, response.value);
+      if (hits === undefined || !Array.isArray(rows) || rows.length > pageLimit) {
+        return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'));
+      }
+      for (const hit of hits) {
+        if (combined.length >= limit) break;
+        const candidate = await resolveCandidate(hit);
+        if (candidate === undefined || seen.has(candidate.candidateId)) continue;
+        seen.add(candidate.candidateId);
+        combined.push({ candidate, score: hit.score, freshness: 'unknown' });
+      }
+      if (rows.length < pageLimit) break;
     }
     return ok(combined);
   };
@@ -362,7 +377,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
         candidate.symbolName !== undefined && matchesName(target.qn, candidate.symbolName));
       return matches.length === 1 ? matches[0] : undefined;
     };
-    const native = await searchRows(input.query, input.limit, sourceCandidateFor, input.requestId);
+    const native = await searchRows(input.query, input.limit, sourceCandidateFor, searchGeneration, input.requestId);
     if (native._tag === 'Err') return native;
     // Native ranking is the only ranking authority. Do not supplement it
     // with query-derived identifiers, graph expansion, dirty-path promotion,

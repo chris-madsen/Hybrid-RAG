@@ -70,10 +70,17 @@ connection.onRequest('tools/call', (input) => {
         const query = input.arguments.query;
         // An unexpected search mode or rewritten input fails the contract.
         if (input.arguments.semantic_query || !['find exact evidence', 'duplicate lexical', 'unowned lexical',
-          'unmatched lexical', 'full lexical', 'Find exactEvidence and third', 'malformed lexical'].includes(query)) {
+          'unmatched lexical', 'full lexical', 'Find exactEvidence and third', 'paged lexical',
+          'malformed lexical'].includes(query)) {
           data = { error: 'expected unchanged native BM25 query' };
         } else if (query === 'malformed lexical') {
           data = { cols: ['qn', 'file'], rows: [] };
+        } else if (query === 'paged lexical') {
+          const offset = input.arguments.offset ?? 0;
+          data = { cols: ['qn', 'file', 'rank'], rows: offset === 0
+            ? Array.from({ length: input.arguments.limit }, (_, index) =>
+              ['fixture.unowned.' + index, 'src/unindexed.ts', -1 + index / 100])
+            : [['fixture.semantic', 'src/semantic.ts', -0.1]] };
         } else {
           data = { cols: ['qn', 'file', 'rank'], rows: [
             ['fixture.semantic', 'src/semantic.ts', -0.9],

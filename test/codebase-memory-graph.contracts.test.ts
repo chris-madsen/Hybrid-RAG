@@ -59,7 +59,9 @@ test('free-text retrieval delegates unchanged query and ranking to native CBM BM
   const third = candidate('third-candidate', 'src/third.ts', 'third');
   const fourth = candidate('fourth-candidate', 'src/fourth.ts', 'fourth');
   const operations: string[] = [];
-  const graph = makeCodebaseMemoryGraph({
+  let graph: ReturnType<typeof makeCodebaseMemoryGraph>;
+  let reindexDuringPage: Promise<{ readonly _tag: string }> | undefined;
+  graph = makeCodebaseMemoryGraph({
     rootPath: resolve(process.cwd()),
     command: process.execPath,
     args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--native-bm25'],
@@ -67,6 +69,9 @@ test('free-text retrieval delegates unchanged query and ranking to native CBM BM
     trace: { record: (event) => {
       // Queue notifications are not completed provider RPCs.
       if (!event.operation.endsWith('_request_queued')) operations.push(event.operation);
+      if (event.operation === 'search_graph' && event.requestId === 'invalidate-after-native-page') {
+        reindexDuringPage = Effect.runPromise(graph.reindex());
+      }
     } },
   });
   try {
@@ -96,6 +101,27 @@ test('free-text retrieval delegates unchanged query and ranking to native CBM BM
       }
       assert.deepEqual(operations, ['search_graph']);
     }
+    operations.length = 0;
+    const paged = await Effect.runPromise(graph.search({ query: 'paged lexical', limit: 1 }));
+    assert.equal(paged._tag, 'Ok');
+    if (paged._tag === 'Ok') {
+      assert.deepEqual(paged.value.map((item) => item.candidate.candidateId), [semantic.candidateId],
+        'continue native BM25 pages past unmappable hits without changing native order');
+    }
+    assert.deepEqual(operations, ['search_graph', 'search_graph']);
+
+    operations.length = 0;
+    reindexDuringPage = undefined;
+    const invalidated = await Effect.runPromise(graph.search({
+      query: 'paged lexical', limit: 1, requestId: 'invalidate-after-native-page',
+    }));
+    assert.equal(invalidated._tag, 'Err');
+    if (invalidated._tag === 'Err') assert.equal(invalidated.error.code, 'NOT_READY');
+    assert.ok(reindexDuringPage, 'fixture must publish a new generation after the first native page');
+    assert.equal((await reindexDuringPage)._tag, 'Ok');
+    assert.equal(operations.filter((operation) => operation === 'search_graph').length, 1,
+      'generation change after a native page must prevent the next stale BM25 request');
+
     const malformed = await Effect.runPromise(graph.search({ query: 'malformed lexical', limit: 2 }));
     assert.equal(malformed._tag, 'Err');
   } finally {
