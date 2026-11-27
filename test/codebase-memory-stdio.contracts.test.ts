@@ -71,9 +71,15 @@ test('native stdio session reuses one process across indexing, outlines and grap
     assert.doesNotMatch(JSON.stringify(traces), /private test needle/u,
       'safe native provider trace must not retain query text');
     const logEntries = readLog(log);
-    assert.deepEqual(logEntries.map((item) => item.method), [
-      'initialize', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call', 'tools/call',
-    ]);
+    assert.deepEqual(logEntries.map((item) => [item.method, item.tool]), [
+      ['initialize', undefined],
+      ['tools/call', 'index_repository'],
+      ['tools/call', 'get_file_outline'],
+      ['tools/call', 'trace_path'],
+      ['tools/call', 'query_graph'],
+      ['tools/call', 'detect_changes'],
+      ['tools/call', 'search_graph'],
+    ], 'one free-text native query, no extra ranking or traversal RPC');
     assert.equal(new Set(logEntries.map((item) => item.pid)).size, 1);
     assert.ok(logEntries.every((item) => item.method !== 'tools/list'));
   } finally {

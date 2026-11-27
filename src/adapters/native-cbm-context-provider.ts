@@ -29,9 +29,7 @@ import {
 } from '../domain/retrieval-benchmark.js';
 import type { SemanticDefinition } from '../domain/semantic.js';
 import {
-  workingContextFromSnapshot,
   type RepoPath,
-  type WorkingContext,
   type WorkingContextHints,
   type WorkspaceId,
 } from '../domain/workspace.js';
@@ -156,12 +154,10 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
       if (input.workspaceId !== activeConfig.workspaceId) {
         return err(domainError('POLICY_DENIED', 'workspace_id', 'context provider belongs to another workspace'));
       }
-      let requestWorkingContext: WorkingContext | undefined;
       if (activeConfig.workspaceManifest !== undefined) {
         if (activeConfig.workspaceSync !== undefined) {
           const refreshed = yield* activeConfig.workspaceSync.refresh();
           if (refreshed._tag === 'Err') return refreshed;
-          requestWorkingContext = refreshed.value.workingContext;
           const configBehindSync = activeConfig.indexKey !== undefined
             && refreshed.value.state.indexKey !== activeConfig.indexKey;
           if (refreshed.value.refreshed || configBehindSync) {
@@ -190,7 +186,6 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
         } else {
           const currentSnapshot = yield* activeConfig.files.snapshot(activeConfig.rootPath, Date.now());
           if (currentSnapshot._tag === 'Err') return currentSnapshot;
-          requestWorkingContext = workingContextFromSnapshot(currentSnapshot.value);
           const currentManifest = workspaceManifestFromSnapshot(
             currentSnapshot.value,
             activeConfig.scopeFingerprint ?? activeConfig.workspaceManifest.scopeFingerprint,
@@ -263,11 +258,6 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
           query: input.query,
           limit,
           requestId: requestId.value,
-          changedPaths: [
-            ...(requestWorkingContext?.stagedPaths ?? []),
-            ...(requestWorkingContext?.unstagedPaths ?? []),
-            ...(requestWorkingContext?.untrackedPaths ?? []),
-          ],
         });
         if (result._tag === 'Err') {
           codeProviderError = result.error;
