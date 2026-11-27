@@ -254,6 +254,7 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
       if (includeCode) {
         const limit = activeConfig.candidateLimit ?? 6;
         const startedAt = Date.now();
+        deliveryTraceStartedAtMs = startedAt;
         const result = yield* activeConfig.codeGraph.search({
           query: input.query,
           limit,
@@ -283,7 +284,14 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
           );
         }
         if (codeProviderError !== undefined) {
-          if (input.sourceRequirements === undefined) return err(codeProviderError);
+          if (input.sourceRequirements === undefined) {
+            recordBenchmarkStage(
+              activeConfig.benchmarkTrace, activeConfig.benchmarkProviderIdentities,
+              requestId.value, 'delivered', [], deliveryTraceStartedAtMs,
+              activeConfig.benchmarkRepositoryId, 'unavailable',
+            );
+            return err(codeProviderError);
+          }
           warnings.push('native code retrieval unavailable: ' + codeProviderError.code);
           failed.push('code', 'lsp');
         }
@@ -744,7 +752,7 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
         complete: sourceCoverageComplete(sourceCoverage),
         ...(activeConfig.coverage === undefined ? {} : { indexCoverage: activeConfig.coverage }),
       };
-      if (includeCode && codeProviderError === undefined && deliveryTraceStartedAtMs !== undefined) {
+      if (includeCode && deliveryTraceStartedAtMs !== undefined) {
         const finalVerifiedIds = new Set(covered.evidence
           .filter((item) => item.source === 'code'
             && item.freshness === 'current' && item.proofClass === 'direct')
@@ -755,7 +763,8 @@ export const makeNativeCbmContextProvider = (config: NativeCbmContextConfig) => 
         });
         // A final exact-source-verified retrieval observation, not a physical
         // Bifröst/model send. Zero hits from an executed search score as misses.
-        const incompleteVerification = failed.includes('code') || stalePaths.length > 0;
+        const incompleteVerification = codeProviderError !== undefined
+          || failed.includes('code') || stalePaths.length > 0;
         recordBenchmarkStage(
           activeConfig.benchmarkTrace,
           activeConfig.benchmarkProviderIdentities,

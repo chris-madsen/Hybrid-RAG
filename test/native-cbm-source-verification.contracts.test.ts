@@ -123,6 +123,59 @@ test('AR06+AR07 CBM emits exact verified content without artifacts and truthful 
 
 
 
+test('native CBM empty result records delivered as unavailable instead of dropping the final trace stage', async () => {
+  const benchmark = createRetrievalBenchmarkTraceCollector('native-empty-result');
+  const codeGraph: CodeGraphCandidatePort = {
+    search: () => Effect.succeed(ok([])),
+  };
+  const files: WorkspaceFilePort = {
+    canonicalizeRoot: () => Effect.succeed(ok('/repo')),
+    observeChanges: () => Effect.succeed(ok({ headRevision: 'a'.repeat(40), changedPaths: [], addedPaths: [], deletedPaths: [], renamed: [] })),
+    snapshot: () => Effect.succeed(ok({ headRevision: 'a'.repeat(40), files: [], removedPaths: [] })),
+    readExact: () => Effect.succeed(ok({ bytes: source, digest: digest as never })),
+  };
+  const artifacts: ArtifactStore = {
+    storeExact: () => Effect.succeed(ok({ handle: 'unused', digest: digest as never, sizeBytes: source.length })),
+    readRange: () => Effect.succeed(err(domainError('ARTIFACT_NOT_FOUND', 'handle', 'unused'))),
+  };
+  const semantics: SemanticAnalysisPort = {
+    definition: () => Effect.succeed(ok([])),
+    references: () => Effect.succeed(ok([])),
+    typeInfo: () => Effect.succeed(ok(undefined)),
+    diagnostics: () => Effect.succeed(ok([])),
+  };
+  const provider = makeNativeCbmContextProvider({
+    mode: 'cbm',
+    workspaceId,
+    rootPath: '/repo',
+    files,
+    codeGraph,
+    artifacts,
+    semantics,
+    newRequestId: () => 'native-empty-result',
+    benchmarkTrace: benchmark,
+  });
+  const context = mustOk(await Effect.runPromise(provider.search({
+    workspaceId,
+    query: 'an authorized query with no native candidate',
+    includeDocs: false,
+    includeMemory: false,
+    sourceRequirements: {
+      code: { requirement: 'required', allowed: true },
+      structural: { requirement: 'not_requested', allowed: true },
+      lsp: { requirement: 'not_requested', allowed: true },
+      documentation: { requirement: 'not_requested', allowed: true },
+      memory: { requirement: 'not_requested', allowed: true },
+    },
+  })));
+  assert.equal(context.complete, false);
+  assert.ok(context.partialSources.includes('code'));
+  const delivered = benchmark.events.filter((item) => item.stage === 'delivered');
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0]?.status, 'unavailable');
+  assert.deepEqual(delivered[0]?.candidates, []);
+});
+
 test('synchronized provider catches up when another request already published a newer index key', async () => {
   let searchedAfterReconcile = false;
   let reconcileCalls = 0;

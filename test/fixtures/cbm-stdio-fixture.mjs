@@ -70,12 +70,60 @@ connection.onRequest('tools/call', (input) => {
         const query = input.arguments.query;
         // An unexpected search mode or rewritten input fails the contract.
         if (input.arguments.semantic_query || !['find exact evidence', 'duplicate lexical', 'unowned lexical',
-          'unmatched lexical', 'full lexical', 'Find exactEvidence and third', 'malformed lexical'].includes(query)) {
+          'unmatched lexical', 'full lexical', 'Find exactEvidence and third', 'paged lexical',
+          'short page lexical', 'malformed page lexical', 'bounded lexical', 'terminal truncated lexical',
+          'budget no cursor lexical', 'contradictory page lexical', 'malformed lexical'].includes(query)) {
           data = { error: 'expected unchanged native BM25 query' };
         } else if (query === 'malformed lexical') {
           data = { cols: ['qn', 'file'], rows: [] };
+        } else if (query === 'paged lexical') {
+          const offset = input.arguments.offset ?? 0;
+          const rows = offset === 0
+            ? Array.from({ length: input.arguments.limit }, (_, index) =>
+              ['fixture.unowned.' + index, 'src/unindexed.ts', -1 + index / 100])
+            : [['fixture.semantic', 'src/semantic.ts', -0.1]];
+          data = { cols: ['qn', 'file', 'rank'], rows, has_more: offset === 0,
+            truncated: offset === 0, ...(offset === 0 ? { truncation_reason: 'page_limit' } : {}),
+            next_offset: offset === 0 ? 20 : 21, total: 21 };
+        } else if (query === 'short page lexical') {
+          const offset = input.arguments.offset ?? 0;
+          const rows = offset === 0
+            ? [['fixture.unowned.a', 'src/unindexed.ts', -1], ['fixture.unowned.b', 'src/unindexed.ts', -0.9]]
+            : [['fixture.semantic', 'src/semantic.ts', -0.1]];
+          data = { cols: ['qn', 'file', 'rank'], rows, has_more: offset === 0,
+            truncated: offset === 0, ...(offset === 0 ? { truncation_reason: 'output_budget' } : {}),
+            next_offset: offset === 0 ? 2 : 3, total: 3, total_relation: 'eq' };
+        } else if (query === 'malformed page lexical') {
+          data = { cols: ['qn', 'file', 'rank'], rows: [['fixture.unowned.a', 'src/unindexed.ts', -1]],
+            has_more: true, truncated: true, truncation_reason: 'page_limit', total: 2 };
+        } else if (query === 'bounded lexical') {
+          const offset = input.arguments.offset ?? 0;
+          const allRows = [
+            ...Array.from({ length: 500 }, (_, index) =>
+              ['fixture.unowned.' + index, 'src/unindexed.ts', -1 + index / 1000]),
+            ['fixture.semantic', 'src/semantic.ts', -0.1],
+          ];
+          const rows = allRows.slice(offset, offset + input.arguments.limit);
+          const nextOffset = offset + rows.length;
+          const hasMore = nextOffset < allRows.length;
+          data = { cols: ['qn', 'file', 'rank'], rows, has_more: hasMore, truncated: hasMore,
+            ...(hasMore ? { truncation_reason: 'page_limit', next_offset: nextOffset } : {}),
+            total: allRows.length, total_relation: 'eq' };
+        } else if (query === 'terminal truncated lexical') {
+          const rows = [['fixture.unowned.a', 'src/unindexed.ts', -1]];
+          data = { cols: ['qn', 'file', 'rank'], rows, has_more: false, truncated: true,
+            truncation_reason: 'output_budget', total: rows.length, total_relation: 'eq' };
+        } else if (query === 'budget no cursor lexical') {
+          data = { cols: ['qn', 'file', 'rank'], rows: [], has_more: true, truncated: true,
+            truncation_reason: 'output_budget', continuation_requires_higher_budget: true,
+            total: 1, total_relation: 'eq' };
+        } else if (query === 'contradictory page lexical') {
+          const offset = input.arguments.offset ?? 0;
+          const rows = offset === 0 ? [['fixture.unowned.a', 'src/unindexed.ts', -1]] : [];
+          data = { cols: ['qn', 'file', 'rank'], rows, has_more: offset === 0, truncated: false,
+            next_offset: offset === 0 ? 1 : 1, total: offset === 0 ? 2 : 1, total_relation: 'eq' };
         } else {
-          data = { cols: ['qn', 'file', 'rank'], rows: [
+          const rows = [
             ['fixture.semantic', 'src/semantic.ts', -0.9],
             ...(query === 'duplicate lexical' ? [['fixture.semantic', 'src/semantic.ts', -0.8]] : []),
             ...(query === 'unowned lexical' ? [['fixture.other', 'src/unindexed.ts', -0.8]] : []),
@@ -85,12 +133,15 @@ connection.onRequest('tools/call', (input) => {
               ['fixture.third', 'src/third.ts', -0.6],
               ['fixture.fourth', 'src/fourth.ts', -0.5],
             ] : []),
-          ] };
+          ];
+          data = { cols: ['qn', 'file', 'rank'], rows, has_more: false, truncated: false,
+            next_offset: rows.length, total: rows.length };
         }
       } else {
         data = input.arguments.semantic_query
           ? { semantic: { cols: ['qn', 'file', 'score'], rows: [] } }
-          : { cols: ['qn', 'file', 'rank'], rows: [] };
+          : { cols: ['qn', 'file', 'rank'], rows: [], has_more: false, truncated: false,
+            next_offset: 0, total: 0 };
       }
       break;
     case 'trace_path':

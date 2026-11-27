@@ -39,7 +39,7 @@ test('native CBM BM25 rows use documented columns without inventing a search ran
   }), [{ qn: 'ace.makeNativeCbmContextProvider', file: 'src/adapters/native-cbm-context-provider.ts', score: 7.5 }]);
 });
 
-test('free-text retrieval delegates unchanged query and ranking to native CBM BM25', async () => {
+test('free-text retrieval delegates unchanged query and ranking to native CBM BM25', async (t) => {
   const workspaceId = 'cbm-partial-search-workspace' as CodeCandidate['workspaceId'];
   const candidate = (id: string, repoPath: string, symbolName: string): CodeCandidate => ({
     candidateId: id as CodeCandidate['candidateId'],
@@ -59,7 +59,9 @@ test('free-text retrieval delegates unchanged query and ranking to native CBM BM
   const third = candidate('third-candidate', 'src/third.ts', 'third');
   const fourth = candidate('fourth-candidate', 'src/fourth.ts', 'fourth');
   const operations: string[] = [];
-  const graph = makeCodebaseMemoryGraph({
+  let graph: ReturnType<typeof makeCodebaseMemoryGraph>;
+  let reindexDuringPage: Promise<{ readonly _tag: string }> | undefined;
+  graph = makeCodebaseMemoryGraph({
     rootPath: resolve(process.cwd()),
     command: process.execPath,
     args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--native-bm25'],
@@ -67,6 +69,9 @@ test('free-text retrieval delegates unchanged query and ranking to native CBM BM
     trace: { record: (event) => {
       // Queue notifications are not completed provider RPCs.
       if (!event.operation.endsWith('_request_queued')) operations.push(event.operation);
+      if (event.operation === 'search_graph' && event.requestId === 'invalidate-after-native-page') {
+        reindexDuringPage = Effect.runPromise(graph.reindex());
+      }
     } },
   });
   try {
@@ -96,6 +101,74 @@ test('free-text retrieval delegates unchanged query and ranking to native CBM BM
       }
       assert.deepEqual(operations, ['search_graph']);
     }
+    operations.length = 0;
+    const paged = await Effect.runPromise(graph.search({ query: 'paged lexical', limit: 1 }));
+    assert.equal(paged._tag, 'Ok');
+    if (paged._tag === 'Ok') {
+      assert.deepEqual(paged.value.map((item) => item.candidate.candidateId), [semantic.candidateId],
+        'continue native BM25 pages past unmappable hits without changing native order');
+    }
+    assert.deepEqual(operations, ['search_graph', 'search_graph']);
+
+    operations.length = 0;
+    const shortPage = await Effect.runPromise(graph.search({ query: 'short page lexical', limit: 1 }));
+    assert.equal(shortPage._tag, 'Ok');
+    if (shortPage._tag === 'Ok') {
+      assert.deepEqual(shortPage.value.map((item) => item.candidate.candidateId), [semantic.candidateId],
+        'continue when CBM returns a budget-shortened page with has_more and next_offset');
+    }
+    assert.deepEqual(operations, ['search_graph', 'search_graph']);
+
+    operations.length = 0;
+    const malformedPage = await Effect.runPromise(graph.search({ query: 'malformed page lexical', limit: 1 }));
+    assert.equal(malformedPage._tag, 'Err', 'a truncated page without next_offset is not a successful empty search');
+    if (malformedPage._tag === 'Err') assert.equal(malformedPage.error.code, 'INVALID_EXTERNAL_RESPONSE');
+    assert.deepEqual(operations, ['search_graph']);
+
+    await t.test('pagination cap reports incomplete when a mappable candidate remains beyond the cap', async () => {
+      operations.length = 0;
+      const beyondCap = await Effect.runPromise(graph.search({ query: 'bounded lexical', limit: 1 }));
+      assert.equal(beyondCap._tag, 'Err', 'a 500-row cap with native continuation must not report a successful short result');
+      if (beyondCap._tag === 'Err') assert.equal(beyondCap.error.code, 'EXTERNAL_UNAVAILABLE');
+      assert.equal(operations.filter((operation) => operation === 'search_graph').length, 25);
+    });
+
+    await t.test('terminal native truncation is unavailable even when has_more is false', async () => {
+      operations.length = 0;
+      const terminalTruncated = await Effect.runPromise(graph.search({ query: 'terminal truncated lexical', limit: 1 }));
+      assert.equal(terminalTruncated._tag, 'Err', 'a terminal truncated page must not become a successful empty result');
+      if (terminalTruncated._tag === 'Err') assert.equal(terminalTruncated.error.code, 'EXTERNAL_UNAVAILABLE');
+      assert.deepEqual(operations, ['search_graph']);
+    });
+
+    await t.test('budget-shortened page without a continuation cursor is unavailable', async () => {
+      operations.length = 0;
+      const noCursor = await Effect.runPromise(graph.search({ query: 'budget no cursor lexical', limit: 1 }));
+      assert.equal(noCursor._tag, 'Err', 'a higher-budget continuation request must not become successful empty output');
+      if (noCursor._tag === 'Err') assert.equal(noCursor.error.code, 'EXTERNAL_UNAVAILABLE');
+      assert.deepEqual(operations, ['search_graph']);
+    });
+
+    await t.test('contradictory native pagination metadata is rejected', async () => {
+      operations.length = 0;
+      const contradictory = await Effect.runPromise(graph.search({ query: 'contradictory page lexical', limit: 1 }));
+      assert.equal(contradictory._tag, 'Err');
+      if (contradictory._tag === 'Err') assert.equal(contradictory.error.code, 'INVALID_EXTERNAL_RESPONSE');
+      assert.deepEqual(operations, ['search_graph']);
+    });
+
+    operations.length = 0;
+    reindexDuringPage = undefined;
+    const invalidated = await Effect.runPromise(graph.search({
+      query: 'paged lexical', limit: 1, requestId: 'invalidate-after-native-page',
+    }));
+    assert.equal(invalidated._tag, 'Err');
+    if (invalidated._tag === 'Err') assert.equal(invalidated.error.code, 'NOT_READY');
+    assert.ok(reindexDuringPage, 'fixture must publish a new generation after the first native page');
+    assert.equal((await reindexDuringPage)._tag, 'Ok');
+    assert.equal(operations.filter((operation) => operation === 'search_graph').length, 1,
+      'generation change after a native page must prevent the next stale BM25 request');
+
     const malformed = await Effect.runPromise(graph.search({ query: 'malformed lexical', limit: 2 }));
     assert.equal(malformed._tag, 'Err');
   } finally {
