@@ -55,8 +55,14 @@ from final delivery is invalid, not a zero or a pass. Native projection evidence
 derives this telemetry from the captured projected body and receipt, excluding
 reused-source markers, and revalidates source labels against the exact pinned
 manifest. Optional policy thresholds minSourceRecallAt5 and
-minCriticalSourceRecallAt5 fail closed when metrics are unknown or below
-threshold. Thresholds must be declared before the final independent run.
+minCriticalSourceRecallAt5 fail closed when metrics are unknown, non-finite,
+below threshold, or labels cover only a subset of the applicable cases.
+The overall gate requires labels for every case; the critical gate requires
+labels for every critical case. Subset scores remain descriptive only. Both
+coverage counts are reported. Thresholds must be declared before the final
+independent run. Local projection capture is not physical provider delivery;
+receipt encoding and digest consistency do not independently authenticate
+an untrusted capture.
 
 Frozen runs additionally require `sourceCommit`, `runnerVersion`, non-empty
 `providerIdentities`, and all six stage-rank arrays. The runtime benchmark

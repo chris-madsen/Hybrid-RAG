@@ -202,6 +202,46 @@ test('source-path recall stays unknown without labels and requires delivery iden
 });
 
 
+test('whole-holdout source thresholds reject partial labels and non-finite metrics', () => {
+  const identity = { repoPath: 'src/expected.ts', sourceDigest: 'd'.repeat(64) };
+  const partial: RetrievalHoldout = {
+    ...holdout,
+    cases: holdout.cases.map((item, index) => index === 0
+      ? { ...item, relevantSourceIdentities: [identity] } : item),
+  };
+  const digest = createHash('sha256').update(JSON.stringify(partial)).digest('hex');
+  const observed: RetrievalStrategyRun = {
+    ...run, holdoutSha256: digest,
+    observations: run.observations.map((item, index) => index === 0 ? {
+      ...item, retrievedSourceIdentities: item.retrievedCandidateIds.map(() => identity),
+    } : item),
+  };
+  const result = evaluateRetrievalStrategy(partial, observed);
+  assert.equal(result._tag, 'Ok');
+  if (result._tag === 'Err') throw Error(result.error.message);
+  assert.equal(result.value.sourceRecallAt5, 1, 'subset score remains observable');
+  assert.equal(result.value.sourceLabelledCases, 1);
+  assert.equal(result.value.criticalSourceLabelledCases, 1);
+  assert.equal(result.value.criticalCases, 2);
+  const gate = { ...policy, requiredHoldoutSha256: digest,
+    minSourceRecallAt5: 1, minCriticalSourceRecallAt5: 1 };
+  const verdict = evaluateRetrievalQualityPolicy(result.value, digest, gate);
+  assert.equal(verdict._tag, 'Ok');
+  if (verdict._tag === 'Ok') {
+    assert.equal(verdict.value.measurementAccepted, false);
+    assert.ok(verdict.value.failures.includes('source_recall_at_5_incomplete_labels'));
+    assert.ok(verdict.value.failures.includes('critical_source_recall_at_5_incomplete_labels'));
+  }
+  const invalid = evaluateRetrievalQualityPolicy({
+    ...result.value, sourceRecallAt5: Number.NaN, criticalSourceRecallAt5: Infinity,
+  }, digest, gate);
+  assert.equal(invalid._tag, 'Ok');
+  if (invalid._tag === 'Ok') {
+    assert.ok(invalid.value.failures.includes('source_recall_at_5_unknown'));
+    assert.ok(invalid.value.failures.includes('critical_source_recall_at_5_unknown'));
+  }
+});
+
 test('retrieval evaluator rejects incomplete runs and duplicate ranked candidate IDs', () => {
   const incomplete = evaluateRetrievalStrategy(holdout, {
     ...run,

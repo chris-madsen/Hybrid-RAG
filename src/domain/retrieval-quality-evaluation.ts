@@ -112,6 +112,8 @@ export interface RetrievalQualityMetrics {
   readonly holdoutStatus: string;
   readonly cases: number;
   readonly sourceLabelledCases: number;
+  readonly criticalCases: number;
+  readonly criticalSourceLabelledCases: number;
   readonly sourceRecallAt1: number | null;
   readonly sourceRecallAt3: number | null;
   readonly sourceRecallAt5: number | null;
@@ -482,6 +484,8 @@ export const evaluateRetrievalStrategy = (
     holdoutStatus: holdout.status,
     cases: scores.length,
     sourceLabelledCases: sourceScores.length,
+    criticalCases: critical.length,
+    criticalSourceLabelledCases: criticalSourceScores.length,
     sourceRecallAt1: sourceScores.length === 0 ? null : mean(sourceScores.map((item) => item.recallAt(1))),
     sourceRecallAt3: sourceScores.length === 0 ? null : mean(sourceScores.map((item) => item.recallAt(3))),
     sourceRecallAt5: sourceScores.length === 0 ? null : mean(sourceScores.map((item) => item.recallAt(5))),
@@ -565,12 +569,18 @@ export const evaluateRetrievalQualityPolicy = (
   if (metrics.mrr < policy.minMrr) failures.push('mrr_below_threshold');
   if (metrics.ndcgAt5 < policy.minNdcgAt5) failures.push('ndcg_at_5_below_threshold');
   if (policy.minSourceRecallAt5 !== undefined) {
-    if (typeof metrics.sourceRecallAt5 !== 'number') failures.push('source_recall_at_5_unknown');
-    else if (metrics.sourceRecallAt5 < policy.minSourceRecallAt5) failures.push('source_recall_at_5_below_threshold');
+    if (typeof metrics.sourceRecallAt5 !== 'number' || !unit(metrics.sourceRecallAt5)) {
+      failures.push('source_recall_at_5_unknown');
+    } else if (metrics.sourceLabelledCases !== metrics.cases) {
+      failures.push('source_recall_at_5_incomplete_labels');
+    } else if (metrics.sourceRecallAt5 < policy.minSourceRecallAt5) failures.push('source_recall_at_5_below_threshold');
   }
   if (policy.minCriticalSourceRecallAt5 !== undefined) {
-    if (typeof metrics.criticalSourceRecallAt5 !== 'number') failures.push('critical_source_recall_at_5_unknown');
-    else if (metrics.criticalSourceRecallAt5 < policy.minCriticalSourceRecallAt5) {
+    if (typeof metrics.criticalSourceRecallAt5 !== 'number' || !unit(metrics.criticalSourceRecallAt5)) {
+      failures.push('critical_source_recall_at_5_unknown');
+    } else if (metrics.criticalSourceLabelledCases !== metrics.criticalCases) {
+      failures.push('critical_source_recall_at_5_incomplete_labels');
+    } else if (metrics.criticalSourceRecallAt5 < policy.minCriticalSourceRecallAt5) {
       failures.push('critical_source_recall_at_5_below_threshold');
     }
   }
