@@ -111,6 +111,21 @@ test('free-text retrieval delegates unchanged query and ranking to native CBM BM
     assert.deepEqual(operations, ['search_graph', 'search_graph']);
 
     operations.length = 0;
+    const shortPage = await Effect.runPromise(graph.search({ query: 'short page lexical', limit: 1 }));
+    assert.equal(shortPage._tag, 'Ok');
+    if (shortPage._tag === 'Ok') {
+      assert.deepEqual(shortPage.value.map((item) => item.candidate.candidateId), [semantic.candidateId],
+        'continue when CBM returns a budget-shortened page with has_more and next_offset');
+    }
+    assert.deepEqual(operations, ['search_graph', 'search_graph']);
+
+    operations.length = 0;
+    const malformedPage = await Effect.runPromise(graph.search({ query: 'malformed page lexical', limit: 1 }));
+    assert.equal(malformedPage._tag, 'Err', 'a truncated page without next_offset is not a successful empty search');
+    if (malformedPage._tag === 'Err') assert.equal(malformedPage.error.code, 'INVALID_EXTERNAL_RESPONSE');
+    assert.deepEqual(operations, ['search_graph']);
+
+    operations.length = 0;
     reindexDuringPage = undefined;
     const invalidated = await Effect.runPromise(graph.search({
       query: 'paged lexical', limit: 1, requestId: 'invalidate-after-native-page',

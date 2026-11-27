@@ -311,7 +311,8 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     // A native row that cannot be mapped to an exact, verified ACE source
     // candidate is not a delivered result. Continue through CBM's own ordered
     // BM25 pages so such rows do not hide later mappable candidates.
-    for (let offset = 0; offset < maxNativeRows && combined.length < limit; offset += pageSize) {
+    let offset = 0;
+    while (offset < maxNativeRows && combined.length < limit) {
       if (closed || project === undefined || reindexing !== undefined || generation !== expectedGeneration) {
         return err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during paged retrieval'));
       }
@@ -325,10 +326,18 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
         max_output_tokens: 8192,
       }, requestId);
       if (response._tag === 'Err') return response;
-      const rows = object(response.value)?.rows;
+      const page = object(response.value);
+      const rows = page?.rows;
       const hits = lexicalRows(root, response.value);
       if (hits === undefined || !Array.isArray(rows) || rows.length > pageLimit) {
         return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'));
+      }
+      const hasMore = page?.has_more;
+      const nextOffset = page?.next_offset;
+      if (typeof hasMore !== 'boolean'
+        || (hasMore && (!Number.isSafeInteger(nextOffset) || Number(nextOffset) <= offset
+          || Number(nextOffset) !== offset + rows.length))) {
+        return err(domainError('INVALID_EXTERNAL_RESPONSE', 'codebase_memory.search_graph', 'native BM25 pagination metadata is missing, malformed, or non-advancing'));
       }
       for (const hit of hits) {
         if (combined.length >= limit) break;
@@ -337,7 +346,8 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
         seen.add(candidate.candidateId);
         combined.push({ candidate, score: hit.score, freshness: 'unknown' });
       }
-      if (rows.length < pageLimit) break;
+      if (!hasMore) break;
+      offset = Number(nextOffset);
     }
     return ok(combined);
   };
