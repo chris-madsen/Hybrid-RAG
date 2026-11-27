@@ -11,7 +11,7 @@ import { ingestRepoPath } from '../src/domain/workspace.js';
 import { sha256, type RetrievalBenchmarkTraceEvent, type RetrievalBenchmarkTerminalReceipt } from '../src/domain/retrieval-benchmark.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import type { RetrievalHoldout, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
-import { assertNativeReleaseHoldout, checkedFrozenManifest, deriveNativeProjectionObservations, nativeProjectionRunnerVersion,
+import { assertNativeDevelopmentHoldout, assertNativeReleaseHoldout, checkedFrozenManifest, deriveNativeProjectionObservations, nativeProjectionRunnerVersion,
   type NativeProjectionCapture, type NativeProjectionEvidence } from './native-projection-evidence.js';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
@@ -27,7 +27,8 @@ const command = process.env.ACE_CBM_COMMAND;
 assert.ok(command && isAbsolute(command), 'ACE_CBM_COMMAND must point to the pinned native executable');
 const holdoutBytes = await readFile(resolve(holdoutArg));
 const holdout = JSON.parse(holdoutBytes.toString('utf8')) as RetrievalHoldout;
-assertNativeReleaseHoldout(holdout);
+if (holdout.status === 'development_source_bound') assertNativeDevelopmentHoldout(holdout);
+else assertNativeReleaseHoldout(holdout);
 const holdoutSha256 = sha256(holdoutBytes);
 const manifestBytes = await readFile(resolve(manifestArg));
 const manifest = checkedFrozenManifest(holdout, repositoryId, manifestBytes);
@@ -199,6 +200,6 @@ const run: RetrievalStrategyRun = {
   observations, projectionEvidence: [{ path: evidencePath, sha256: sha256(evidenceBytes) }],
 };
 await writeFile(join(output, 'native-run.json'), JSON.stringify(run, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-process.stdout.write(JSON.stringify({ repositoryId, cases: observations.length,
+process.stdout.write(JSON.stringify({ repositoryId, holdoutStatus: holdout.status, cases: observations.length,
   blocked: captures.filter((item) => (item.decision as { kind?: unknown }).kind === 'BLOCK').length,
   sourceCommit: runtime.sourceCommit, providerWireCertified: false, output }) + '\n');

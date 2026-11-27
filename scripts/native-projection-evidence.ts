@@ -5,13 +5,50 @@ import { addVerifiedContextToResponses, decodeNativeResponsesBody, validateRespo
 import { canonicalBenchmarkCandidateId, retrievalBenchmarkStages, sha256, validateRetrievalBenchmarkTraceArtifact,
   type RetrievalBenchmarkTraceEvent, type RetrievalBenchmarkTerminalReceipt } from '../src/domain/retrieval-benchmark.js';
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
-import type { RetrievalHoldout, RetrievalHoldoutCase, RetrievalObservation, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
+import type { RetrievalHoldout, RetrievalHoldoutCase, RetrievalObservation, RetrievalSourceIdentity, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
 import { ingestRepoPath } from '../src/domain/workspace.js';
 
 export const nativeProjectionRunnerVersion = 'native-projection-holdout/v1';
 
 /** The release collector, merge, gate and preflight must admit the same
  * frozen corpus shape. Historical/dev evaluators remain independent. */
+export const assertNativeDevelopmentHoldout = (holdout: RetrievalHoldout): void => {
+  const repositories = holdout.repositories ?? [];
+  assert.ok(holdout.schemaVersion === 1 && holdout.status === 'development_source_bound'
+    && repositories.length >= 1 && holdout.cases.length > 0, 'native development corpus requires explicit source-bound status');
+  const repositoryIds = new Set<string>();
+  for (const repository of repositories) {
+    assert.ok(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(repository.id)
+      && !repositoryIds.has(repository.id)
+      && /^[a-f0-9]{40,64}$/iu.test(repository.revision)
+      && /^[a-f0-9]{64}$/u.test(repository.sourceManifestSha256),
+    'development repository must bind a unique ID, exact revision and source-manifest SHA-256');
+    repositoryIds.add(repository.id);
+  }
+  const caseIds = new Set<string>();
+  for (const item of holdout.cases) {
+    assert.ok(item.id.trim().length > 0 && !caseIds.has(item.id)
+      && item.query.trim().length > 0 && item.repositoryId !== undefined
+      && repositoryIds.has(item.repositoryId) && item.relevantCandidateIds.length > 0
+      && new Set(item.relevantCandidateIds).size === item.relevantCandidateIds.length
+      && item.relevantCandidateIds.every((id) => id.trim().length > 0)
+      && item.relevantSourceIdentities !== undefined && item.relevantSourceIdentities.length > 0
+      && item.relevantSourceIdentities.every((source) => {
+        const path = ingestRepoPath(source.repoPath);
+        return path._tag === 'Ok' && path.value === source.repoPath
+          && /^[a-f0-9]{64}$/u.test(source.sourceDigest);
+      })
+      && new Set(item.relevantSourceIdentities.map((source) => source.repoPath)).size
+        === item.relevantSourceIdentities.length,
+    'development cases require unique query IDs, bound repository, candidate labels and exact source labels');
+    caseIds.add(item.id);
+  }
+  assert.ok(holdout.cases.some((item) => item.critical === true), 'development corpus requires at least one critical case');
+  assert.ok(repositories.every((repository) => holdout.cases.some((item) => item.repositoryId === repository.id)),
+    'every development repository must contribute at least one case');
+};
+
+/** Release admission remains a separate, stricter contract. */
 export const assertNativeReleaseHoldout = (holdout: RetrievalHoldout): void => {
   const repositories = holdout.repositories ?? [];
   assert.ok(holdout.schemaVersion === 1 && holdout.status === 'frozen_multi_repository_holdout'
@@ -116,6 +153,10 @@ export const deriveNativeProjectionObservations = (
   'native projection evidence identity mismatch');
   const manifest = checkedFrozenManifest(holdout, evidence.repositoryId, bytes(evidence.manifestBase64));
   const sourceDigests = new Map(manifest.entries.map((item) => [item.path, item.sha256]));
+  for (const item of holdout.cases.filter((entry) => entry.repositoryId === evidence.repositoryId)) {
+    assert.ok(item.relevantSourceIdentities?.every((source) => sourceDigests.get(source.repoPath) === source.sourceDigest) ?? true,
+      'source-recall label is outside or stale for the pinned manifest');
+  }
   assert.ok(validateRetrievalBenchmarkTraceArtifact(evidence.trace, evidence.terminal).valid, 'native trace persistence proof invalid');
   const events = evidence.trace.split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line) as RetrievalBenchmarkTraceEvent);
   for (const event of events) {
@@ -157,7 +198,7 @@ export const deriveNativeProjectionObservations = (
       assert.ok(typeof decision.reasonCode === 'string' && decision.reasonCode.length > 0 && binding === undefined
         && decision.bodyBase64 === undefined && decision.projectionReceipt === undefined
         && decision.projectedBodySha256 === undefined, 'invalid blocked projection');
-      return { ...common, retrievedCandidateIds: [], payloadCharacters: 0, payloadBytes: 0,
+      return { ...common, retrievedCandidateIds: [], retrievedSourceIdentities: [], payloadCharacters: 0, payloadBytes: 0,
         duplicateSourceHits: 0, ...stages([], 'unavailable') };
     }
     assert.ok(decision.kind === 'PREPARED' && binding && typeof decision.projectionReceipt === 'string'
@@ -208,6 +249,7 @@ export const deriveNativeProjectionObservations = (
     })), 'receipt claims do not bind exact body and evidence IDs');
     const ranks: string[] = [];
     const raw: string[] = [];
+    const retrievedSources: RetrievalSourceIdentity[] = [];
     const sources = new Set<string>();
     let duplicates = 0;
     let cursor = 0;
@@ -231,6 +273,7 @@ export const deriveNativeProjectionObservations = (
         assert.ok(!ranks.includes(canonical), 'duplicate delivered canonical ID');
         ranks.push(canonical);
         raw.push(candidate.runtimeCandidateId);
+        retrievedSources.push({ repoPath: candidate.repoPath, sourceDigest: candidate.sourceDigest });
         if (sources.has(candidate.repoPath)) duplicates += 1;
         sources.add(candidate.repoPath);
       } else {
@@ -239,7 +282,7 @@ export const deriveNativeProjectionObservations = (
       }
     }
     assert.ok(cursor === contextText.length, 'unbound text in actual projection');
-    return { ...common, retrievedCandidateIds: ranks, rawRetrievedCandidateIds: raw,
+    return { ...common, retrievedCandidateIds: ranks, retrievedSourceIdentities: retrievedSources, rawRetrievedCandidateIds: raw,
       payloadCharacters: contextText.length, payloadBytes: Buffer.byteLength(contextText, 'utf8'),
       duplicateSourceHits: duplicates, ...stages(ranks, 'executed') };
   });
