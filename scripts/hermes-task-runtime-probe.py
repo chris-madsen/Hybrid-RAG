@@ -75,6 +75,43 @@ def read_install_stamp(root):
     return stamp
 
 
+def pinned_version_matches(version, expected_commit=HERMES_COMMIT):
+    if not isinstance(version, str) or f"Hermes Agent {HERMES_VERSION} " not in version:
+        return False
+    return re.search(rf"\b(?:upstream|local) {re.escape(expected_commit[:8])}[a-f0-9]*\b", version) is not None
+
+
+def read_install_provenance(root, expected_commit=HERMES_COMMIT):
+    # A clean exact Git checkout is authoritative when the installation retains
+    # its source tree. Packaged task images may omit .git; those must carry the
+    # pinned installer stamp instead. Never turn a malformed Git checkout into
+    # a stamp-based success.
+    if (root / ".git").exists():
+        git_env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+        try:
+            root_path = root.resolve(strict=True)
+            git_root = Path(output("git", "-C", str(root_path), "rev-parse", "--show-toplevel", env=git_env))
+            git_root = git_root.resolve(strict=True)
+            check(git_root == root_path, "HERMES_INSTALL_ROOT_MISMATCH")
+            commit = output("git", "-C", str(root_path), "rev-parse", "HEAD", env=git_env)
+            check(commit == expected_commit, "HERMES_SOURCE_COMMIT_MISMATCH")
+            dirty = output("git", "-C", str(root_path), "status", "--porcelain=v1",
+                           "--untracked-files=all", env=git_env)
+            check(not dirty, "HERMES_SOURCE_DIRTY")
+        except (OSError, subprocess.CalledProcessError):
+            raise RuntimeError("HERMES_GIT_PROVENANCE_UNAVAILABLE") from None
+        provenance = {"source": "git", "commit": commit}
+        if (root_path / "install-stamp.json").exists():
+            stamp = read_install_stamp(root_path)
+            check(stamp["commit"] == commit, "HERMES_INSTALL_STAMP_COMMIT_MISMATCH")
+            provenance["installStamp"] = stamp
+        return provenance
+
+    stamp = read_install_stamp(root)
+    check(stamp["commit"] == expected_commit, "HERMES_INSTALL_STAMP_COMMIT_MISMATCH")
+    return {"source": "install-stamp", "commit": stamp["commit"], "installStamp": stamp}
+
+
 def run_transport(root, endpoint_digest, model, effort):
     # Import the pinned Hermes implementation, not a substitute transport.
     sys.path.insert(0, str(root))
@@ -169,6 +206,7 @@ def main():
         # Preserve the installation's actual owning HOME/PM store. Isolate all
         # per-session configuration and auth in an empty temporary profile.
         env = {"PATH": os.environ["PATH"], "HOME": str(Path.home()), "HERMES_HOME": home,
+               "GIT_OPTIONAL_LOCKS": "0",
                "HERMES_CODEX_BASE_URL": os.environ.get("HERMES_CODEX_BASE_URL", ""),
                "PYTHONDONTWRITEBYTECODE": "1",
                "ACE_HERMES_LOCAL_CHAIN": os.environ.get("ACE_HERMES_LOCAL_CHAIN", "")}
@@ -176,9 +214,8 @@ def main():
         match = re.search(r"^Install directory: (.+)$", version, re.MULTILINE)
         check(match is not None, "HERMES_INSTALL_ROOT_MISSING")
         root = Path(match.group(1)).resolve(strict=True)
-        stamp = read_install_stamp(root)
-        check(f"Hermes Agent {HERMES_VERSION} " in version
-              and f"upstream {HERMES_COMMIT[:8]}" in version, "HERMES_RUNTIME_VERSION_MISMATCH")
+        provenance = read_install_provenance(root)
+        check(pinned_version_matches(version), "HERMES_RUNTIME_VERSION_MISMATCH")
         check(Path(launcher).resolve(strict=True).is_relative_to(root), "HERMES_EXECUTABLE_ORIGIN_MISMATCH")
         # Resolve the installed dependency environment using Hermes's own PM
         # selection, not a guessed venv location or the system OpenAI SDK.
@@ -190,8 +227,8 @@ def main():
         observation = json.loads(result.splitlines()[-1])
         check(observation.get("nativeResponsesObserved") is True
               and observation.get("providerWireCertified") is False, "HERMES_TRANSPORT_EVIDENCE_MISSING")
-        check(read_install_stamp(root) == stamp, "HERMES_INSTALL_STAMP_CHANGED")
-        print(json.dumps({"schemaVersion": 1, "status": "READY", "hermesCommit": stamp["commit"],
+        check(read_install_provenance(root) == provenance, "HERMES_INSTALL_PROVENANCE_CHANGED")
+        print(json.dumps({"schemaVersion": 1, "status": "READY", "hermesCommit": provenance["commit"],
                           "hermesVersion": HERMES_VERSION, "hermesExecutableSha256": sha(Path(launcher).read_bytes()),
                           **observation}))
 

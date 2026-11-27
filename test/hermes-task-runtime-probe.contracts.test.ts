@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -51,6 +51,69 @@ test('packaged Hermes provenance uses its install stamp without requiring Git me
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('Git-installed Hermes provenance binds the exact clean source checkout without a package stamp', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-hermes-git-install-'));
+  const script = resolve(import.meta.dirname, '../scripts/hermes-task-runtime-probe.py');
+  const python = [
+    'import importlib.util, pathlib, sys',
+    'spec = importlib.util.spec_from_file_location("hermes_probe", sys.argv[1])',
+    'module = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(module)',
+    'print(module.read_install_provenance(pathlib.Path(sys.argv[2]), sys.argv[3])["commit"])',
+  ].join('\n');
+  const run = (expectedCommit: string) => spawnSync('python3', ['-c', python, script, root, expectedCommit], {
+    encoding: 'utf8', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { stdio: 'ignore' });
+
+  try {
+    git('init', '--quiet');
+    git('config', 'user.name', 'ACE test');
+    git('config', 'user.email', 'ace-test@example.invalid');
+    writeFileSync(join(root, 'transport.py'), 'verified source fixture\n');
+    git('add', 'transport.py');
+    git('commit', '--quiet', '-m', 'fixture');
+    const commit = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+
+    const verified = run(commit);
+    assert.equal(verified.status, 0, verified.stderr);
+    assert.equal(verified.stdout.trim(), commit);
+
+    const mismatched = run('f'.repeat(40));
+    assert.notEqual(mismatched.status, 0);
+    assert.match(mismatched.stderr, /HERMES_SOURCE_COMMIT_MISMATCH/u);
+
+    writeFileSync(join(root, 'untracked.py'), 'dirty fixture\n');
+    const dirty = run(commit);
+    assert.notEqual(dirty.status, 0);
+    assert.match(dirty.stderr, /HERMES_SOURCE_DIRTY/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Hermes version output binds both Git-source labels to the pinned commit', () => {
+  const script = resolve(import.meta.dirname, '../scripts/hermes-task-runtime-probe.py');
+  const python = [
+    'import importlib.util, sys',
+    'spec = importlib.util.spec_from_file_location("hermes_probe", sys.argv[1])',
+    'module = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(module)',
+    'print(module.pinned_version_matches(sys.argv[2], sys.argv[3]))',
+  ].join('\n');
+  const matches = (version: string) => spawnSync('python3', ['-c', python, script, version, pinnedHermesCommit], {
+    encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  const shortCommit = pinnedHermesCommit.slice(0, 8);
+  for (const sourceLabel of ['local', 'upstream']) {
+    const verified = matches(`Hermes Agent v0.22.3 (build) · stable · ${sourceLabel} ${shortCommit}`);
+    assert.equal(verified.status, 0, verified.stderr);
+    assert.equal(verified.stdout.trim(), 'True');
+  }
+  assert.equal(matches(`Hermes Agent v0.22.3 (build) · stable · local ${'f'.repeat(8)}`).stdout.trim(), 'False');
+  assert.equal(matches(`Hermes Agent v0.22.2 (build) · stable · local ${shortCommit}`).stdout.trim(), 'False');
 });
 
 test('local Hermes task probe is pinned to installed version, executable, endpoint, model and immutable task image', () => {
