@@ -396,8 +396,8 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     // Neither is a source dependency. Only named dependency-bearing edges
     // may expand the structural shortlist.
     const dependencyRelations = [
-      'CALLS', 'IMPORTS', 'REFERENCES_FILE', 'EXTENDS', 'IMPLEMENTS',
-      'OVERRIDES', 'DEPENDS_ON', 'TESTS', 'TESTS_FILE', 'CONFIGURES',
+      'CALLS', 'IMPORTS', 'REFERENCES_FILE', 'INHERITS', 'IMPLEMENTS',
+      'OVERRIDE', 'DEPENDS_ON', 'TESTS', 'TESTS_FILE', 'CONFIGURES',
       'HTTP_CALLS', 'GRPC_CALLS', 'ASYNC_CALLS', 'HANDLES', 'SPAWNS',
       'EMITS', 'LISTENS_ON', 'READS', 'WRITES', 'USES_TYPE',
     ];
@@ -500,6 +500,16 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       if (direct.length >= input.limit) break;
     }
 
+    // With a full direct shortlist and no possible linked slot under the
+    // existing allocation policy, expansion cannot change the result. Do not
+    // spend native calls or the request deadline on unreachable output.
+    const minDirectSlots = Math.max(1, Math.ceil(input.limit * 0.6));
+    const finish = (results: readonly RankedCandidate[]): Result<readonly RankedCandidate[], DomainError> =>
+      closed || project === undefined || generation !== searchGeneration
+        ? err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during retrieval'))
+        : ok(results);
+    if (direct.length === input.limit && minDirectSlots === input.limit) return finish(direct);
+
     // All call graph traversal is delegated to CBM. ACE only decodes explicit
     // qualified names and requests their source locations from native Cypher.
     const seeds = [...new Map(nativeHits.filter((hit) => candidatesByFile.has(hit.file))
@@ -577,12 +587,9 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       linked.push({ candidate, score: 1, freshness: 'unknown' });
       if (linked.length >= input.limit) break;
     }
-    if (closed || project === undefined || generation !== searchGeneration) {
-      return err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during retrieval'));
-    }
-    if (linked.length === 0) return ok(direct.slice(0, input.limit));
-    const directSlots = Math.max(1, Math.ceil(input.limit * 0.6), input.limit - linked.length);
-    return ok([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
+    if (linked.length === 0) return finish(direct.slice(0, input.limit));
+    const directSlots = Math.max(minDirectSlots, input.limit - linked.length);
+    return finish([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
   });
 
   return {
