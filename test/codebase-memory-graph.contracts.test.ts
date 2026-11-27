@@ -39,7 +39,7 @@ test('native CBM BM25 rows use documented columns without inventing a search ran
   }), [{ qn: 'ace.makeNativeCbmContextProvider', file: 'src/adapters/native-cbm-context-provider.ts', score: 7.5 }]);
 });
 
-test('native semantic shortlist is completed by native BM25 when semantic results are underfilled', async () => {
+test('free-text retrieval delegates unchanged query and ranking to native CBM BM25', async () => {
   const workspaceId = 'cbm-partial-search-workspace' as CodeCandidate['workspaceId'];
   const candidate = (id: string, repoPath: string, symbolName: string): CodeCandidate => ({
     candidateId: id as CodeCandidate['candidateId'],
@@ -62,7 +62,7 @@ test('native semantic shortlist is completed by native BM25 when semantic result
   const graph = makeCodebaseMemoryGraph({
     rootPath: resolve(process.cwd()),
     command: process.execPath,
-    args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--partial-semantic-bm25'],
+    args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--native-bm25'],
     candidates: () => [semantic, exact, third, fourth],
     trace: { record: (event) => {
       // Queue notifications are not completed provider RPCs.
@@ -72,7 +72,7 @@ test('native semantic shortlist is completed by native BM25 when semantic result
   try {
     const indexed = await Effect.runPromise(graph.reindex());
     assert.equal(indexed._tag, 'Ok');
-    for (const query of ['find exact evidence', 'duplicate semantic', 'unowned semantic', 'unmatched semantic', 'full semantic']) {
+    for (const query of ['find exact evidence', 'duplicate lexical', 'unowned lexical', 'unmatched lexical', 'full lexical']) {
       operations.length = 0;
       const found = await Effect.runPromise(graph.search({ query, limit: 2 }));
       assert.equal(found._tag, 'Ok', query);
@@ -82,7 +82,7 @@ test('native semantic shortlist is completed by native BM25 when semantic result
           exact.candidateId,
         ], query);
       }
-      assert.deepEqual(operations, query === 'full semantic' ? ['search_graph'] : ['search_graph', 'search_graph'],
+      assert.deepEqual(operations, ['search_graph'],
         'only native search modes may rank: ' + query);
     }
     for (const limit of [4, 5, 6]) {
@@ -94,7 +94,7 @@ test('native semantic shortlist is completed by native BM25 when semantic result
           [semantic, exact, third, fourth].map((item) => item.candidateId),
           'preserve native order and return underfill rather than invent linked hits');
       }
-      assert.deepEqual(operations, limit === 4 ? ['search_graph'] : ['search_graph', 'search_graph']);
+      assert.deepEqual(operations, ['search_graph']);
     }
     const malformed = await Effect.runPromise(graph.search({ query: 'malformed lexical', limit: 2 }));
     assert.equal(malformed._tag, 'Err');

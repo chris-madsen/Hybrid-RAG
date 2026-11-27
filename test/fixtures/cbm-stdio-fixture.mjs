@@ -30,11 +30,11 @@ connection.onRequest('initialize', (input) => {
 connection.onRequest('tools/call', (input) => {
   log({ method: 'tools/call', tool: input.name });
   if (input.name === 'search_graph'
-    && input.arguments?.semantic_query?.[0] === 'crash-provider') {
+    && (input.arguments?.query ?? input.arguments?.semantic_query?.[0]) === 'crash-provider') {
     process.exit(19);
   }
   if (input.name === 'search_graph'
-    && input.arguments?.semantic_query?.[0] === 'close-input-provider') {
+    && (input.arguments?.query ?? input.arguments?.semantic_query?.[0]) === 'close-input-provider') {
     // Deliberately leave the child alive with its input closed; a subsequent
     // parent write races JSON-RPC disposal rather than normal process exit.
     process.stdin.once('close', () => log({ method: 'stdin-closed' }));
@@ -43,7 +43,7 @@ connection.onRequest('tools/call', (input) => {
     return new Promise(() => undefined);
   }
   if (input.name === 'search_graph'
-    && input.arguments?.semantic_query?.[0] === 'hang-provider') {
+    && (input.arguments?.query ?? input.arguments?.semantic_query?.[0]) === 'hang-provider') {
     if (process.argv.includes('--ignore-termination')) {
       process.on('SIGTERM', () => undefined);
       // Keep the process alive even when the cancelled parent closes stdin.
@@ -66,34 +66,31 @@ connection.onRequest('tools/call', (input) => {
       };
       break;
     case 'search_graph':
-      if (process.argv.includes('--partial-semantic-bm25')) {
-        data = input.arguments.semantic_query
-          ? { semantic: { cols: ['qn', 'file', 'score'], rows: [
-            ['fixture.semantic', 'src/semantic.ts', 0.9],
-            ...(input.arguments.semantic_query[0] === 'duplicate semantic' ? [['fixture.semantic', 'src/semantic.ts', 0.8]] : []),
-            ...(input.arguments.semantic_query[0] === 'unowned semantic' ? [['fixture.other', 'src/unindexed.ts', 0.8]] : []),
-            ...(input.arguments.semantic_query[0] === 'unmatched semantic' ? [['fixture.other', 'src/exact-evidence.ts', 0.8]] : []),
-            ...(input.arguments.semantic_query[0] === 'full semantic' ? [['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8]] : []),
-            ...(input.arguments.semantic_query[0] === 'Find exactEvidence and third' ? [
-              ['fixture.exactEvidence', 'src/exact-evidence.ts', 0.8],
-              ['fixture.third', 'src/third.ts', 0.7],
-              ['fixture.fourth', 'src/fourth.ts', 0.6],
+      if (process.argv.includes('--native-bm25')) {
+        const query = input.arguments.query;
+        // An unexpected search mode or rewritten input fails the contract.
+        if (input.arguments.semantic_query || !['find exact evidence', 'duplicate lexical', 'unowned lexical',
+          'unmatched lexical', 'full lexical', 'Find exactEvidence and third', 'malformed lexical'].includes(query)) {
+          data = { error: 'expected unchanged native BM25 query' };
+        } else if (query === 'malformed lexical') {
+          data = { cols: ['qn', 'file'], rows: [] };
+        } else {
+          data = { cols: ['qn', 'file', 'rank'], rows: [
+            ['fixture.semantic', 'src/semantic.ts', -0.9],
+            ...(query === 'duplicate lexical' ? [['fixture.semantic', 'src/semantic.ts', -0.8]] : []),
+            ...(query === 'unowned lexical' ? [['fixture.other', 'src/unindexed.ts', -0.8]] : []),
+            ...(query === 'unmatched lexical' ? [['fixture.other', 'src/exact-evidence.ts', -0.8]] : []),
+            ['fixture.exactEvidence', 'src/exact-evidence.ts', -0.7],
+            ...(query === 'Find exactEvidence and third' ? [
+              ['fixture.third', 'src/third.ts', -0.6],
+              ['fixture.fourth', 'src/fourth.ts', -0.5],
             ] : []),
-          ] } }
-          : { cols: ['qn', 'file', 'rank'], rows: [
-            ['fixture.semantic', 'src/semantic.ts', -0.2],
-            ['fixture.exactEvidence', 'src/exact-evidence.ts', -0.1],
           ] };
+        }
       } else {
         data = input.arguments.semantic_query
           ? { semantic: { cols: ['qn', 'file', 'score'], rows: [] } }
           : { cols: ['qn', 'file', 'rank'], rows: [] };
-      }
-      if (!input.arguments.semantic_query && input.arguments.query === 'full semantic') {
-        data = { error: 'BM25 must not be called for a full valid semantic shortlist' };
-      }
-      if (!input.arguments.semantic_query && input.arguments.query === 'malformed lexical') {
-        data = { cols: ['qn', 'file'], rows: [] };
       }
       break;
     case 'trace_path':

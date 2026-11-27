@@ -299,49 +299,31 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
     }
+    // CBM v0.12.1 query accepts an unmodified free-text string and owns
+    // tokenization (including camelCase) and BM25 ranking. semantic_query
+    // instead expects separately supplied keywords, not a full sentence.
+    // ACE must not invent keywords or combine independent rank lists.
     const response = await transport.invoke('search_graph', {
       project,
-      semantic_query: [query],
-      semantic_limit: Math.min(100, limit),
-      limit: 1,
+      query,
+      limit,
       format: 'json',
       max_output_tokens: 8192,
     }, requestId);
     if (response._tag === 'Err') return response;
-    const hits = semanticRows(root, response.value);
+    const hits = lexicalRows(root, response.value);
     if (hits === undefined) {
-      return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented semantic result table'));
-    }
-    // Count distinct source-bound candidates, not raw provider rows. A full
-    // table may contain duplicates, unindexed paths or unmatched symbols.
-    const combined: RankedCandidate[] = [];
-    const seen = new Set<string>();
-    const append = async (rows: readonly NativeGraphRow[]): Promise<void> => {
-      for (const hit of rows) {
-        if (combined.length >= limit) break;
-        const candidate = await resolveCandidate(hit);
-        if (candidate === undefined || seen.has(candidate.candidateId)) continue;
-        seen.add(candidate.candidateId);
-        combined.push({ candidate, score: hit.score, freshness: 'unknown' });
-      }
-    };
-    await append(hits);
-    if (combined.length >= limit) return ok(combined);
-    // Supplement only an underfilled shortlist using CBM's own BM25.
-    // Preserve native order, semantic first; no ACE score fusion.
-    const lexical = await transport.invoke('search_graph', {
-      project,
-      query,
-      limit: Math.min(100, limit),
-      format: 'json',
-      max_output_tokens: 8192,
-    }, requestId);
-    if (lexical._tag === 'Err') return lexical;
-    const fallback = lexicalRows(root, lexical.value);
-    if (fallback === undefined) {
       return err(domainError('UNSUPPORTED_PROVIDER', 'codebase_memory', 'Codebase Memory did not return its documented BM25 result table'));
     }
-    await append(fallback);
+    const combined: RankedCandidate[] = [];
+    const seen = new Set<string>();
+    for (const hit of hits) {
+      if (combined.length >= limit) break;
+      const candidate = await resolveCandidate(hit);
+      if (candidate === undefined || seen.has(candidate.candidateId)) continue;
+      seen.add(candidate.candidateId);
+      combined.push({ candidate, score: hit.score, freshness: 'unknown' });
+    }
     return ok(combined);
   };
 
