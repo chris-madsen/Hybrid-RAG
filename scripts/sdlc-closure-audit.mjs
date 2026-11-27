@@ -178,7 +178,9 @@ const requirements = [
   {
     id: 'OPENSPEC_GATEWAY_AUTHORITY',
     file: 'openspec/config.yaml',
-    contains: ['Bifröst LLM Gateway is the sole supported ACE context delivery path', 'active change 010-gateway-only-ownership with production acceptance in 013-gateway-g11-production-acceptance'],
+    contains: ['Bifröst LLM Gateway is the sole supported ACE context delivery path', 'Provider-native Responses is the only supported generation protocol',
+      '010-gateway-only-ownership', '013-gateway-g11-production-acceptance', 'internal ace.context.v3 RPC',
+      'Each protected physical attempt requires fresh single-use authorization'],
     excludes: ['Hermes ContextEngine request-time transformation', 'retired optional tool-call protocol facade'],
   },
 ];

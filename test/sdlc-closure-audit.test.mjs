@@ -16,6 +16,32 @@ test('SDLC closure audit passes the repository and labels external E2E honestly'
   assert.ok(result.results.every((entry) => entry.status === 'PASS'));
 });
 
+test('OpenSpec authority gate requires current ownership, native protocol and per-attempt authorization', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ace-openspec-authority-'));
+  try {
+    mkdirSync(join(root, 'openspec'), { recursive: true });
+    const file = 'openspec/config.yaml';
+    const current = readFileSync(resolve(file), 'utf8');
+    const evaluate = (body) => {
+      writeFileSync(join(root, file), body);
+      const run = spawnSync(process.execPath, [audit, '--root', root], { encoding: 'utf8' });
+      return JSON.parse(run.stdout).results.find((entry) => entry.id === 'OPENSPEC_GATEWAY_AUTHORITY');
+    };
+    assert.equal(evaluate(current).status, 'PASS');
+    for (const phrase of ['010-gateway-only-ownership', '013-gateway-g11-production-acceptance',
+      'Provider-native Responses is the only supported generation protocol',
+      'internal ace.context.v3 RPC', 'Each protected physical attempt requires fresh single-use authorization']) {
+      assert.ok(current.includes(phrase));
+      const result = evaluate(current.replaceAll(phrase, 'stale authority'));
+      assert.equal(result.status, 'FAIL');
+      assert.ok(result.missing.includes(phrase));
+    }
+    assert.equal(evaluate(current + '\nHermes ContextEngine request-time transformation\n').status, 'FAIL');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('SDLC closure gate rejects a regression to unconditional OAuth-route denial', () => {
   const root = mkdtempSync(join(tmpdir(), 'ace-g11-oauth-closure-negative-'));
   try {
