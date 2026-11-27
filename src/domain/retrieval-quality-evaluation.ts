@@ -6,6 +6,7 @@ import type {
 } from './retrieval-benchmark.js';
 import { retrievalBenchmarkStages } from './retrieval-benchmark.js';
 import { nativeCodeRetrieval } from './retrieval.js';
+import { ingestRepoPath } from './workspace.js';
 
 export interface RetrievalHoldoutRepository {
   readonly id: string;
@@ -13,6 +14,11 @@ export interface RetrievalHoldoutRepository {
   readonly revision: string;
   /** Digest of the repository source manifest used to derive candidate labels. */
   readonly sourceManifestSha256: string;
+}
+
+export interface RetrievalSourceIdentity {
+  readonly repoPath: string;
+  readonly sourceDigest: string;
 }
 
 export interface RetrievalHoldoutCase {
@@ -34,10 +40,7 @@ export interface RetrievalHoldoutCase {
   /** Optional pinned, independently labeled source identities for AR08.
    * A path without its source digest does NOT qualify as recall ground truth.
    */
-  readonly relevantSourceIdentities?: readonly Readonly<{
-    repoPath: string;
-    sourceDigest: string;
-  }>[];
+  readonly relevantSourceIdentities?: readonly RetrievalSourceIdentity[];
 }
 
 export interface RetrievalHoldout {
@@ -51,6 +54,8 @@ export interface RetrievalObservation {
   readonly caseId: string;
   /** Ranked, best first. IDs are scored against the frozen holdout labels. */
   readonly retrievedCandidateIds: readonly string[];
+  /** Exact source identities aligned with newly delivered candidate IDs, derived from captured body bytes. */
+  readonly retrievedSourceIdentities?: readonly RetrievalSourceIdentity[];
   /** Optional raw runtime IDs retained for trace correlation; never used for scoring. */
   readonly rawRetrievedCandidateIds?: readonly string[];
   readonly payloadCharacters: number;
@@ -106,6 +111,17 @@ export interface RetrievalQualityMetrics {
   readonly strategy: string;
   readonly holdoutStatus: string;
   readonly cases: number;
+  readonly sourceLabelledCases: number;
+  readonly sourceRecallAt1: number | null;
+  readonly sourceRecallAt3: number | null;
+  readonly sourceRecallAt5: number | null;
+  readonly criticalSourceRecallAt5: number | null;
+  readonly missedCriticalSourceCaseIds: readonly string[] | null;
+  readonly missedRelevantSourceIdentities: readonly Readonly<{
+    caseId: string;
+    repoPath: string;
+    sourceDigest: string;
+  }>[] | null;
   readonly repositoryCount: number;
   readonly recallAt1: number;
   readonly recallAt3: number;
@@ -139,6 +155,9 @@ export interface RetrievalQualityPolicy {
   readonly minCriticalRecallAt5: number;
   readonly minMrr: number;
   readonly minNdcgAt5: number;
+  /** Optional predeclared gates for exact, newly delivered path+digest coverage. */
+  readonly minSourceRecallAt5?: number;
+  readonly minCriticalSourceRecallAt5?: number;
   readonly maxPayloadCharactersMean?: number;
   readonly maxDuplicateSourceHitsMean?: number;
   readonly maxExpansionCallsMean?: number;
@@ -163,6 +182,10 @@ export interface RetrievalQualityVerdict {
 }
 
 const sha256 = (value: string): boolean => /^[a-f0-9]{64}$/u.test(value);
+const canonicalRepoPath = (value: string): boolean => {
+  const parsed = ingestRepoPath(value);
+  return parsed._tag === 'Ok' && parsed.value === value;
+};
 const unit = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
 const nonNegative = (value: number): boolean => Number.isFinite(value) && value >= 0;
 const validStageStatus = (value: RetrievalBenchmarkStageStatus): boolean =>
@@ -272,7 +295,7 @@ const validateHoldout = (holdout: RetrievalHoldout): Result<void, DomainError> =
     if (item.relevantSourceIdentities !== undefined && (
       item.relevantSourceIdentities.length === 0
       || item.relevantSourceIdentities.some((source) =>
-        source.repoPath.trim().length === 0 || !sha256(source.sourceDigest))
+        !canonicalRepoPath(source.repoPath) || !sha256(source.sourceDigest))
       || new Set(item.relevantSourceIdentities.map((source) =>
         source.repoPath)).size !== item.relevantSourceIdentities.length
     )) {
@@ -341,6 +364,7 @@ export const evaluateRetrievalStrategy = (
     return err(domainError('INVALID_BENCHMARK', 'retrieval_run', 'run must contain exactly one observation for every holdout case'));
   }
   for (const observation of run.observations) {
+    const holdoutCase = holdout.cases.find((item) => item.id === observation.caseId) as RetrievalHoldoutCase;
     const integerCounters = [
       observation.payloadCharacters,
       observation.duplicateSourceHits,
@@ -353,6 +377,13 @@ export const evaluateRetrievalStrategy = (
       observation.uniqueContentBytes,
       observation.duplicateContextBytesAvoided,
     ].filter((value): value is number => value !== undefined);
+    const sourceTelemetry = observation.retrievedSourceIdentities;
+    if ((sourceTelemetry !== undefined && (sourceTelemetry.length !== observation.retrievedCandidateIds.length
+      || sourceTelemetry.some((source) => !canonicalRepoPath(source.repoPath) || !sha256(source.sourceDigest))))
+      || (holdoutCase.relevantSourceIdentities !== undefined && sourceTelemetry === undefined)) {
+      return err(domainError('INVALID_BENCHMARK', 'retrieval_run.source_identity',
+        'source-labeled cases require exact source identities aligned with the final delivered candidates'));
+    }
     if (new Set(observation.retrievedCandidateIds).size !== observation.retrievedCandidateIds.length
       || !nullableCounter(observation.expansionCalls)
       || !nullableCounter(observation.nativeReadDuplicates)
@@ -408,6 +439,18 @@ export const evaluateRetrievalStrategy = (
     };
   });
   const critical = scores.filter((item) => item.item.critical === true);
+  const sourceScores = holdout.cases.flatMap((item) => {
+    if (item.relevantSourceIdentities === undefined) return [];
+    const observed = run.observations.find((entry) => entry.caseId === item.id) as RetrievalObservation;
+    const relevant = new Set(item.relevantSourceIdentities.map((source) => source.repoPath + '\\0' + source.sourceDigest));
+    const recallAt = (k: number): number => {
+      const top = new Set((observed.retrievedSourceIdentities ?? []).slice(0, k).map((source) =>
+        source.repoPath + '\\0' + source.sourceDigest));
+      return [...relevant].filter((identity) => top.has(identity)).length / relevant.size;
+    };
+    return [{ item, observed, recallAt }];
+  });
+  const criticalSourceScores = sourceScores.filter((item) => item.item.critical === true);
   const byteMetrics: Partial<Record<
   'payloadBytesMean'
   | 'initialEvidenceBytesMean'
@@ -438,6 +481,21 @@ export const evaluateRetrievalStrategy = (
     strategy: run.strategy,
     holdoutStatus: holdout.status,
     cases: scores.length,
+    sourceLabelledCases: sourceScores.length,
+    sourceRecallAt1: sourceScores.length === 0 ? null : mean(sourceScores.map((item) => item.recallAt(1))),
+    sourceRecallAt3: sourceScores.length === 0 ? null : mean(sourceScores.map((item) => item.recallAt(3))),
+    sourceRecallAt5: sourceScores.length === 0 ? null : mean(sourceScores.map((item) => item.recallAt(5))),
+    criticalSourceRecallAt5: criticalSourceScores.length === 0 ? null
+      : mean(criticalSourceScores.map((item) => item.recallAt(5))),
+    missedCriticalSourceCaseIds: criticalSourceScores.length === 0 ? null
+      : criticalSourceScores.filter((item) => item.recallAt(5) < 1).map((item) => item.item.id),
+    missedRelevantSourceIdentities: sourceScores.length === 0 ? null : sourceScores.flatMap(({ item, observed }) => {
+      const delivered = new Set((observed.retrievedSourceIdentities ?? []).slice(0, 5).map((source) =>
+        source.repoPath + '\\0' + source.sourceDigest));
+      return (item.relevantSourceIdentities ?? [])
+        .filter((source) => !delivered.has(source.repoPath + '\\0' + source.sourceDigest))
+        .map((source) => ({ caseId: item.id, repoPath: source.repoPath, sourceDigest: source.sourceDigest }));
+    }),
     repositoryCount: holdout.repositories?.length
       ?? new Set(holdout.cases.flatMap((item) => item.repositoryId === undefined ? [] : [item.repositoryId])).size,
     recallAt1: mean(scores.map((item) => item.r1)),
@@ -470,8 +528,10 @@ export const evaluateRetrievalQualityPolicy = (
     policy.minMrr,
     policy.minNdcgAt5,
   ];
+  const sourceQuality = [policy.minSourceRecallAt5, policy.minCriticalSourceRecallAt5]
+    .filter((value): value is number => value !== undefined);
   if (!sha256(policy.requiredHoldoutSha256) || !sha256(holdoutSha256)
-    || !quality.every(unit) || policy.selectedStrategy.trim().length === 0
+    || !quality.every(unit) || !sourceQuality.every(unit) || policy.selectedStrategy.trim().length === 0
     || policy.requiredHoldoutStatus.trim().length === 0) {
     return err(domainError('INVALID_BENCHMARK', 'retrieval_policy', 'retrieval quality policy is invalid'));
   }
@@ -504,6 +564,16 @@ export const evaluateRetrievalQualityPolicy = (
   if (metrics.criticalRecallAt5 < policy.minCriticalRecallAt5) failures.push('critical_recall_at_5_below_threshold');
   if (metrics.mrr < policy.minMrr) failures.push('mrr_below_threshold');
   if (metrics.ndcgAt5 < policy.minNdcgAt5) failures.push('ndcg_at_5_below_threshold');
+  if (policy.minSourceRecallAt5 !== undefined) {
+    if (typeof metrics.sourceRecallAt5 !== 'number') failures.push('source_recall_at_5_unknown');
+    else if (metrics.sourceRecallAt5 < policy.minSourceRecallAt5) failures.push('source_recall_at_5_below_threshold');
+  }
+  if (policy.minCriticalSourceRecallAt5 !== undefined) {
+    if (typeof metrics.criticalSourceRecallAt5 !== 'number') failures.push('critical_source_recall_at_5_unknown');
+    else if (metrics.criticalSourceRecallAt5 < policy.minCriticalSourceRecallAt5) {
+      failures.push('critical_source_recall_at_5_below_threshold');
+    }
+  }
   if (policy.maxPayloadCharactersMean !== undefined
     && metrics.payloadCharactersMean > policy.maxPayloadCharactersMean) failures.push('payload_above_threshold');
   if (policy.maxDuplicateSourceHitsMean !== undefined

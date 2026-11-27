@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   evaluateRetrievalQualityPolicy,
@@ -92,6 +93,114 @@ test('retrieval evaluator scores ranked IDs and compactness counters from one ma
   assert.equal(evaluated.value.latencyP95Ms, 30);
   assert.deepEqual(evaluated.value.missedCriticalCaseIds, []);
 });
+
+test('source-path recall scores exact delivered source identities separately from candidate ranks', () => {
+  const sourceA = 'd'.repeat(64);
+  const sourceB = 'e'.repeat(64);
+  const sourceHoldout: RetrievalHoldout = {
+    schemaVersion: 1,
+    status: 'frozen_holdout',
+    cases: [{
+      id: 'multi-file-critical',
+      query: 'find both files required to handle a retry safely',
+      relevantCandidateIds: ['range-a', 'range-b'],
+      relevantSourceIdentities: [
+        { repoPath: 'src/a.ts', sourceDigest: sourceA },
+        { repoPath: 'src/b.ts', sourceDigest: sourceB },
+      ],
+      critical: true,
+    }],
+  };
+  const sourceHoldoutSha = createHash('sha256').update(JSON.stringify(sourceHoldout)).digest('hex');
+  const sourceRun = {
+    ...run,
+    holdoutSha256: sourceHoldoutSha,
+    observations: [{
+      ...run.observations[0]!,
+      caseId: 'multi-file-critical',
+      retrievedCandidateIds: ['unrelated-range-a', 'unrelated-range-b', 'unrelated-range-c'],
+      retrievedSourceIdentities: [
+        { repoPath: 'src/a.ts', sourceDigest: sourceA },
+        { repoPath: 'src/a.ts', sourceDigest: sourceA },
+        { repoPath: 'src/unrelated.ts', sourceDigest: 'f'.repeat(64) },
+      ],
+    }],
+  } as unknown as RetrievalStrategyRun;
+
+  const evaluated = evaluateRetrievalStrategy(sourceHoldout, sourceRun);
+  assert.equal(evaluated._tag, 'Ok');
+  if (evaluated._tag === 'Err') throw new Error(evaluated.error.message);
+  const sourceMetrics = evaluated.value as typeof evaluated.value & {
+    readonly sourceLabelledCases?: number;
+    readonly sourceRecallAt1?: number | null;
+    readonly sourceRecallAt3?: number | null;
+    readonly sourceRecallAt5?: number | null;
+    readonly criticalSourceRecallAt5?: number | null;
+    readonly missedCriticalSourceCaseIds?: readonly string[] | null;
+    readonly missedRelevantSourceIdentities?: readonly Readonly<{
+      caseId: string; repoPath: string; sourceDigest: string;
+    }>[] | null;
+  };
+
+  assert.equal(evaluated.value.recallAt5, 0, 'candidate-range recall remains separate');
+  assert.equal(sourceMetrics.sourceLabelledCases, 1);
+  assert.equal(sourceMetrics.sourceRecallAt1, 0.5);
+  assert.equal(sourceMetrics.sourceRecallAt3, 0.5, 'duplicate chunks from one path cannot inflate path coverage');
+  assert.equal(sourceMetrics.sourceRecallAt5, 0.5);
+  assert.equal(sourceMetrics.criticalSourceRecallAt5, 0.5);
+  assert.deepEqual(sourceMetrics.missedCriticalSourceCaseIds, ['multi-file-critical']);
+  assert.deepEqual(sourceMetrics.missedRelevantSourceIdentities, [{
+    caseId: 'multi-file-critical', repoPath: 'src/b.ts', sourceDigest: sourceB,
+  }]);
+
+  const sourcePolicy = {
+    ...policy,
+    requiredHoldoutSha256: sourceHoldoutSha,
+    minRecallAt1: 0, minRecallAt3: 0, minRecallAt5: 0, minCriticalRecallAt5: 0, minMrr: 0, minNdcgAt5: 0,
+    minSourceRecallAt5: 0.75,
+    minCriticalSourceRecallAt5: 0.75,
+  } as RetrievalQualityPolicy;
+  const verdict = evaluateRetrievalQualityPolicy(evaluated.value, sourceHoldoutSha, sourcePolicy);
+  assert.equal(verdict._tag, 'Ok');
+  if (verdict._tag === 'Err') throw new Error(verdict.error.message);
+  assert.equal(verdict.value.measurementAccepted, false);
+  assert.ok(verdict.value.failures.includes('source_recall_at_5_below_threshold'));
+  assert.ok(verdict.value.failures.includes('critical_source_recall_at_5_below_threshold'));
+});
+
+test('source-path recall stays unknown without labels and requires delivery identities when labeled', () => {
+  const unlabelled = evaluateRetrievalStrategy(holdout, run);
+  assert.equal(unlabelled._tag, 'Ok');
+  if (unlabelled._tag === 'Err') throw new Error(unlabelled.error.message);
+  const unlabelledMetrics = unlabelled.value as typeof unlabelled.value & {
+    readonly sourceLabelledCases?: number;
+    readonly sourceRecallAt1?: number | null;
+    readonly sourceRecallAt3?: number | null;
+    readonly sourceRecallAt5?: number | null;
+  };
+  assert.equal(unlabelledMetrics.sourceLabelledCases, 0);
+  assert.equal(unlabelledMetrics.sourceRecallAt1, null);
+  assert.equal(unlabelledMetrics.sourceRecallAt3, null);
+  assert.equal(unlabelledMetrics.sourceRecallAt5, null);
+  const sourceGated = evaluateRetrievalQualityPolicy(unlabelled.value, holdoutSha, {
+    ...policy, minSourceRecallAt5: 0.5, minCriticalSourceRecallAt5: 0.5,
+  });
+  assert.equal(sourceGated._tag, 'Ok');
+  if (sourceGated._tag === 'Ok') {
+    assert.ok(sourceGated.value.failures.includes('source_recall_at_5_unknown'));
+    assert.ok(sourceGated.value.failures.includes('critical_source_recall_at_5_unknown'));
+  }
+
+  const sourceLabeledHoldout: RetrievalHoldout = {
+    ...holdout,
+    cases: holdout.cases.map((item, index) => index === 0 ? {
+      ...item,
+      relevantSourceIdentities: [{ repoPath: 'src/expected.ts', sourceDigest: 'd'.repeat(64) }],
+    } : item),
+  };
+  assert.equal(evaluateRetrievalStrategy(sourceLabeledHoldout, run)._tag, 'Err');
+});
+
 
 test('retrieval evaluator rejects incomplete runs and duplicate ranked candidate IDs', () => {
   const incomplete = evaluateRetrievalStrategy(holdout, {
@@ -493,13 +602,31 @@ test('AR08 frozen source-recall labels require exact digest/path and cannot sile
   }, run);
   assert.equal(invalid._tag, 'Err');
   if (invalid._tag === 'Err') assert.equal(invalid.error.path, 'retrieval_holdout.source_identity');
-  const valid = evaluateRetrievalStrategy({
+  const labeledHoldout: RetrievalHoldout = {
     ...holdout,
     cases: holdout.cases.map((item, index) => index === 0
       ? { ...item, relevantSourceIdentities: [{ repoPath: 'src/code.ts', sourceDigest: 'a'.repeat(64) }] }
       : item),
-  }, run);
-  assert.equal(valid._tag, 'Ok', 'validated source labels do not alter independent candidate scoring');
+  };
+  const missingDelivery = evaluateRetrievalStrategy(labeledHoldout, run);
+  assert.equal(missingDelivery._tag, 'Err', 'source labels cannot be scored from candidate IDs alone');
+  if (missingDelivery._tag === 'Err') assert.equal(missingDelivery.error.path, 'retrieval_run.source_identity');
+  const valid = evaluateRetrievalStrategy(labeledHoldout, {
+    ...run,
+    observations: run.observations.map((observation, index) => index === 0 ? {
+      ...observation,
+      retrievedSourceIdentities: [
+        { repoPath: 'src/code.ts', sourceDigest: 'a'.repeat(64) },
+        { repoPath: 'src/other.ts', sourceDigest: 'b'.repeat(64) },
+        { repoPath: 'src/third.ts', sourceDigest: 'c'.repeat(64) },
+      ],
+    } : observation),
+  });
+  assert.equal(valid._tag, 'Ok');
+  if (valid._tag === 'Ok') {
+    assert.equal(valid.value.recallAt5, 2 / 3, 'candidate scoring remains independently based on candidate labels');
+    assert.equal(valid.value.sourceRecallAt5, 1);
+  }
 });
 
 test('AR08 a frozen task cannot label two conflicting revisions of the same repository path', () => {

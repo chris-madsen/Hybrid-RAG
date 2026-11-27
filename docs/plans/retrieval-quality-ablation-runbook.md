@@ -45,6 +45,19 @@ The evaluator computes from the ranked IDs itself:
 - repeated native reads after ACE;
 - latency p95.
 
+When a case has independently pinned source identities (repoPath plus source
+SHA-256), source recall at 1/3/5 and critical source recall at 5 are scored
+separately from candidate-range recall. The per-case score is the fraction of
+unique labeled path+digest identities present in the first k newly delivered
+source spans; repeated chunks from one file do not inflate it. Unlabeled cases
+produce null source metrics. A labeled case without retrieved source identities
+from final delivery is invalid, not a zero or a pass. Native projection evidence
+derives this telemetry from the captured projected body and receipt, excluding
+reused-source markers, and revalidates source labels against the exact pinned
+manifest. Optional policy thresholds minSourceRecallAt5 and
+minCriticalSourceRecallAt5 fail closed when metrics are unknown or below
+threshold. Thresholds must be declared before the final independent run.
+
 Frozen runs additionally require `sourceCommit`, `runnerVersion`, non-empty
 `providerIdentities`, and all six stage-rank arrays. The runtime benchmark
 boundary writes raw runtime candidate IDs plus source digest/range metadata;
