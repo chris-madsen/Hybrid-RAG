@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { Effect } from 'effect';
-import { makeCodebaseMemoryGraph, nativeTraceQualifiedNames, nativeQueryGraphFiles, nativeQueryGraphTargets, nativeQualifiedSymbolCandidate, parseCodebaseMemoryLexicalRows, parseCodebaseMemorySemanticRows } from '../src/adapters/codebase-memory-graph.js';
+import { makeCodebaseMemoryGraph, nativeQueryGraphFiles, nativeQueryGraphTargets, nativeQualifiedSymbolCandidate, parseCodebaseMemoryLexicalRows, parseCodebaseMemorySemanticRows } from '../src/adapters/codebase-memory-graph.js';
 import type { CodeCandidate } from '../src/domain/retrieval.js';
 import { buildLocalCodeIndex } from '../src/adapters/local-code-index.js';
 import { makeNodeWorkspacePort } from '../src/adapters/node-workspace-port.js';
@@ -58,14 +58,12 @@ test('native semantic shortlist is completed by native BM25 when semantic result
   const exact = candidate('exact-candidate', 'src/exact-evidence.ts', 'exactEvidence');
   const third = candidate('third-candidate', 'src/third.ts', 'third');
   const fourth = candidate('fourth-candidate', 'src/fourth.ts', 'fourth');
-  const linked = candidate('linked-candidate', 'src/linked.ts', 'linked');
-  const override = candidate('override-candidate', 'src/override.ts', 'overrideTarget');
   const operations: string[] = [];
   const graph = makeCodebaseMemoryGraph({
     rootPath: resolve(process.cwd()),
     command: process.execPath,
     args: [resolve('test/fixtures/cbm-stdio-fixture.mjs'), '--partial-semantic-bm25'],
-    candidates: () => [semantic, exact, third, fourth, linked, override],
+    candidates: () => [semantic, exact, third, fourth],
     trace: { record: (event) => operations.push(event.operation) },
   });
   try {
@@ -81,21 +79,19 @@ test('native semantic shortlist is completed by native BM25 when semantic result
           exact.candidateId,
         ], query);
       }
-      assert.ok(!operations.some((operation) =>
-        ['trace_path', 'query_graph', 'detect_changes'].includes(operation)),
-      'a full direct shortlist with no linked slots must not expand the graph: ' + query);
+      assert.deepEqual(operations, query === 'full semantic' ? ['search_graph'] : ['search_graph', 'search_graph'],
+        'only native search modes may rank: ' + query);
     }
-    const mixed = await Effect.runPromise(graph.search({ query: 'linked underfill', limit: 5 }));
-    assert.equal(mixed._tag, 'Ok');
-    if (mixed._tag === 'Ok') {
-      assert.deepEqual(mixed.value.map((item) => item.candidate.candidateId),
-        [semantic, exact, third, fourth, linked].map((item) => item.candidateId));
-    }
-    const inherited = await Effect.runPromise(graph.search({ query: 'linked inheritance override', limit: 6 }));
-    assert.equal(inherited._tag, 'Ok');
-    if (inherited._tag === 'Ok') {
-      assert.deepEqual(inherited.value.map((item) => item.candidate.candidateId),
-        [semantic, exact, third, fourth, linked, override].map((item) => item.candidateId));
+    for (const limit of [4, 5, 6]) {
+      operations.length = 0;
+      const found = await Effect.runPromise(graph.search({ query: 'Find exactEvidence and third', limit }));
+      assert.equal(found._tag, 'Ok');
+      if (found._tag === 'Ok') {
+        assert.deepEqual(found.value.map((item) => item.candidate.candidateId),
+          [semantic, exact, third, fourth].map((item) => item.candidateId),
+          'preserve native order and return underfill rather than invent linked hits');
+      }
+      assert.deepEqual(operations, limit === 4 ? ['search_graph'] : ['search_graph', 'search_graph']);
     }
     const malformed = await Effect.runPromise(graph.search({ query: 'malformed lexical', limit: 2 }));
     assert.equal(malformed._tag, 'Err');
@@ -104,12 +100,7 @@ test('native semantic shortlist is completed by native BM25 when semantic result
   }
 });
 
-test('native graph traversal and Cypher are decoded from upstream wire shape', () => {
-  assert.deepEqual(nativeTraceQualifiedNames({
-    callees: { cols: ['name', 'hop'], groups: [
-      { qn_prefix: 'ace.src.handlers', rows: [['dispatch', 1], ['validate', 2]] },
-    ] },
-  }), ['ace.src.handlers.dispatch', 'ace.src.handlers.validate']);
+test('native Cypher diagnostics decode source paths from upstream wire shape', () => {
   assert.deepEqual(nativeQueryGraphFiles(resolve(process.cwd()), {
     columns: ['file', 'qn'], rows: [
       ['src/application/ports.ts', 'ace.ports'],
@@ -273,8 +264,8 @@ test('installed Codebase Memory indexes ACE and returns source-bound candidates'
     ));
     assert.equal(built._tag, 'Ok', JSON.stringify(built._tag === 'Err' ? built.error : 'ok'));
     if (built._tag === 'Ok') {
-      // Full candidate inventory in the selected subset: the exact-name
-      // path must find the declaration even when unrelated candidates exist.
+      // Full candidate inventory in the selected subset: native search must
+      // find the declaration even when unrelated candidates exist.
       const actual = makeCodebaseMemoryGraph({ rootPath: root, candidates: () => built.value.index.candidates, timeoutMs: 165_000 });
       try {
         assert.equal((await Effect.runPromise(actual.reindex()))._tag, 'Ok');

@@ -144,26 +144,6 @@ const lexicalRows = (root: string, response: unknown): readonly NativeGraphRow[]
 export const parseCodebaseMemorySemanticRows = semanticRows;
 export const parseCodebaseMemoryLexicalRows = lexicalRows;
 
-/** Decode native CBM grouped trace_path response, not traversal logic. */
-export const nativeTraceQualifiedNames = (value: unknown): readonly string[] => {
-  const root = object(value);
-  const names: string[] = [];
-  for (const side of ['callees', 'callers'] as const) {
-    const trace = object(root?.[side]);
-    if (!Array.isArray(trace?.groups)) continue;
-    for (const groupValue of trace.groups) {
-      const group = object(groupValue);
-      if (typeof group?.qn_prefix !== 'string' || !Array.isArray(group.rows)) continue;
-      for (const row of group.rows) {
-        if (!Array.isArray(row) || typeof row[0] !== 'string') continue;
-        const qn = group.qn_prefix.length ? group.qn_prefix + '.' + row[0] : row[0];
-        if (qn && names.length < 64) names.push(qn);
-      }
-    }
-  }
-  return names;
-};
-
 /** Native query_graph always reports columns/rows; file values need validation. */
 interface NativeGraphTarget {
   readonly file: RepoPath;
@@ -196,25 +176,6 @@ export const nativeQueryGraphTargets = (
 /** File-only decoder retained for source-ownership and native contract tests. */
 export const nativeQueryGraphFiles = (root: string, value: unknown): readonly RepoPath[] | undefined =>
   nativeQueryGraphTargets(root, value)?.map((node) => node.file);
-
-/** Impact results may contain nested source-path records; decode only explicit fields. */
-const nativeImpactFiles = (root: string, result: unknown): readonly RepoPath[] => {
-  const files: RepoPath[] = [];
-  const collect = (value: unknown, depth: number): void => {
-    if (depth > 10 || files.length >= 150) return;
-    if (Array.isArray(value)) { for (const item of value) collect(item, depth + 1); return; }
-    const o = object(value);
-    if (o === undefined) return;
-    for (const [key, item] of Object.entries(o)) {
-      if (['file_path', 'repo_path', 'file'].includes(key) && typeof item === 'string') {
-        const path = ownedPath(root, item);
-        if (path !== undefined) files.push(path);
-      } else if (typeof item === 'object' && item !== null) collect(item, depth + 1);
-    }
-  };
-  collect(result, 0);
-  return files;
-};
 
 /**
  * CBM graph nodes are identified by qualified name, not a short symbol name.
@@ -334,7 +295,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
         direction: 'both', depth: 2, format: 'json' }));
 
   const searchRows = async (query: string, limit: number,
-    resolveCandidate: (target: NativeGraphTarget) => Promise<CodeCandidate | undefined>, requestId?: string): Promise<Result<readonly NativeGraphRow[], DomainError>> => {
+    resolveCandidate: (target: NativeGraphRow) => Promise<CodeCandidate | undefined>, requestId?: string): Promise<Result<readonly RankedCandidate[], DomainError>> => {
     if (project === undefined || reindexing !== undefined) {
       return err(domainError('NOT_READY', 'codebase_memory', 'Codebase Memory index is not ready for the published source'));
     }
@@ -353,7 +314,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     }
     // Count distinct source-bound candidates, not raw provider rows. A full
     // table may contain duplicates, unindexed paths or unmatched symbols.
-    const combined: NativeGraphRow[] = [];
+    const combined: RankedCandidate[] = [];
     const seen = new Set<string>();
     const append = async (rows: readonly NativeGraphRow[]): Promise<void> => {
       for (const hit of rows) {
@@ -361,7 +322,7 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
         const candidate = await resolveCandidate(hit);
         if (candidate === undefined || seen.has(candidate.candidateId)) continue;
         seen.add(candidate.candidateId);
-        combined.push(hit);
+        combined.push({ candidate, score: hit.score, freshness: 'unknown' });
       }
     };
     await append(hits);
@@ -384,44 +345,6 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
     return ok(combined);
   };
 
-  /**
-   * Ask CBM to traverse real outgoing and incoming edges, not just resolve
-   * the seed symbol itself. Both sides are bounded and remain candidate hints
-   * until ACE rereads the original file. Never infer an edge in this adapter.
-   */
-  const adjacentNativeFiles = async (files: readonly RepoPath[]): Promise<readonly NativeGraphTarget[]> => {
-    const owned = [...new Set(files)].filter((file) => /^[\w./-]+$/u.test(file)).slice(0, 8);
-    if (owned.length === 0) return [];
-    // CBM also stores semantic similarity and historical co-change links.
-    // Neither is a source dependency. Only named dependency-bearing edges
-    // may expand the structural shortlist.
-    const dependencyRelations = [
-      'CALLS', 'IMPORTS', 'REFERENCES_FILE', 'INHERITS', 'IMPLEMENTS',
-      'OVERRIDE', 'DEPENDS_ON', 'TESTS', 'TESTS_FILE', 'CONFIGURES',
-      'HTTP_CALLS', 'GRPC_CALLS', 'ASYNC_CALLS', 'HANDLES', 'SPAWNS',
-      'EMITS', 'LISTENS_ON', 'READS', 'WRITES', 'USES_TYPE',
-    ];
-    // CBM 0.12.1 parses relationship alternation inside [:TYPE1|TYPE2].
-    // Its WHERE parser intentionally rejects type(r), even though type(r)
-    // is available as a RETURN expression. Never silently swallow that error
-    // and call an unfiltered semantic edge a dependency.
-    const relation = dependencyRelations.join('|');
-    const predicate = owned.map((file) => "origin.file_path = '" + file + "'").join(' OR ');
-    const queries = [
-      'MATCH (origin)-[r:' + relation + ']->(other) WHERE (' + predicate + ')'
-        + ' RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50',
-      'MATCH (other)-[r:' + relation + ']->(origin) WHERE (' + predicate + ')'
-        + ' RETURN DISTINCT other.file_path AS file, other.qualified_name AS qn LIMIT 50',
-    ];
-    const result: NativeGraphTarget[] = [];
-    for (const query of queries) {
-      const traversed = await Effect.runPromise(queryGraph(query));
-      if (traversed._tag !== 'Ok') continue;
-      result.push(...(nativeQueryGraphTargets(root, traversed.value) ?? []));
-    }
-    return result;
-  };
-
   const search: CodeGraphCandidatePort['search'] = (input) => Effect.promise(async () => {
     if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 100) {
       return err(domainError('INVALID_INPUT', 'limit', 'Codebase Memory search limit must be between 1 and 100'));
@@ -434,162 +357,39 @@ export const makeCodebaseMemoryGraph = (options: CodebaseMemoryOptions): Codebas
       candidatesByFile.set(candidate.repoPath, list);
     }
     const outlineCache = new Map<RepoPath, readonly NativeOutlineRow[] | undefined>();
-    const sourceCandidateFor = async (target: NativeGraphTarget): Promise<CodeCandidate | undefined> => {
+    const sourceCandidateFor = async (target: NativeGraphRow): Promise<CodeCandidate | undefined> => {
       const candidates = candidatesByFile.get(target.file) ?? [];
       if (candidates.length === 0) return undefined;
-      if (target.qn !== undefined) {
-        // A single indexed candidate still must match the native symbol
-        // identity; otherwise a cross-file edge can falsely implicate an
-        // unrelated declaration from the same source file.
-        if (candidates.length === 1) {
-          const only = candidates[0]!;
-          return only.symbolName !== undefined && matchesName(target.qn, only.symbolName)
-            ? only : undefined;
-        }
-        let current = outlineCache.get(target.file);
-        if (!outlineCache.has(target.file)) {
-          const fetched = await Effect.runPromise(outline(target.file));
-          current = fetched._tag === 'Ok' ? fetched.value : undefined;
-          outlineCache.set(target.file, current);
-        }
-        const exact = current === undefined ? undefined
-          : nativeQualifiedSymbolCandidate(candidates, target.qn, current);
-        if (exact !== undefined) return exact;
-        // The native qualified name may reference a file-only node. A
-        // unique short-name match is safe; same-name collisions fail closed.
-        const matches = candidates.filter((candidate) =>
-          candidate.symbolName !== undefined && matchesName(target.qn!, candidate.symbolName));
-        return matches.length === 1 ? matches[0] : undefined;
+      // Resolve native search hits to the existing verified source inventory.
+      // This is identity mapping, not query interpretation or ranking.
+      if (candidates.length === 1) {
+        const only = candidates[0]!;
+        return only.symbolName !== undefined && matchesName(target.qn, only.symbolName)
+          ? only : undefined;
       }
-      // Impact results without a symbol do not claim a precise callee.
-      return candidates.find((candidate) => candidate.structuralKind === 'module'
-        && candidate.symbolName === target.file) ?? candidates[0];
+      let current = outlineCache.get(target.file);
+      if (!outlineCache.has(target.file)) {
+        const fetched = await Effect.runPromise(outline(target.file));
+        current = fetched._tag === 'Ok' ? fetched.value : undefined;
+        outlineCache.set(target.file, current);
+      }
+      const exact = current === undefined ? undefined
+        : nativeQualifiedSymbolCandidate(candidates, target.qn, current);
+      if (exact !== undefined) return exact;
+      const matches = candidates.filter((candidate) =>
+        candidate.symbolName !== undefined && matchesName(target.qn, candidate.symbolName));
+      return matches.length === 1 ? matches[0] : undefined;
     };
     const native = await searchRows(input.query, input.limit, sourceCandidateFor, input.requestId);
     if (native._tag === 'Err') return native;
-    // A natural-language semantic vector alone can miss explicitly named
-    // declarations. Ask the upstream graph for exact names, not an ACE
-    // lexical index. Only bounded identifier-shaped literals enter Cypher.
-    const identifiers = [...new Set(input.query.match(/[A-Za-z_][A-Za-z0-9_]{2,}/gu) ?? [])]
-      .filter((name) => /[a-z][A-Z]|_|^[A-Z][A-Z0-9]+$/u.test(name)).slice(0, 8);
-    const explicit: NativeGraphRow[] = [];
-    if (identifiers.length > 0) {
-      const predicate = identifiers.map((name) => "n.name = '" + name + "'").join(' OR ');
-      const found = await Effect.runPromise(queryGraph('MATCH (n) WHERE ' + predicate
-        + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 50'));
-      if (found._tag === 'Ok') {
-        for (const target of nativeQueryGraphTargets(root, found.value) ?? []) {
-          if (target.qn !== undefined && candidatesByFile.has(target.file)) {
-            explicit.push({ file: target.file, qn: target.qn, score: 1 });
-          }
-        }
-      }
+    // Native ranking is the only ranking authority. Do not supplement it
+    // with query-derived identifiers, graph expansion, dirty-path promotion,
+    // fabricated scores or direct/linked quotas. An underfilled shortlist is
+    // returned as observed, subject to the same publication fence.
+    if (closed || project === undefined || generation !== searchGeneration) {
+      return err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during retrieval'));
     }
-    // Explicit file references disambiguate only graph-returned candidates.
-    // Never treat a path mentioned in the prompt as authorized source proof.
-    const explicitHits = [...explicit.filter((hit) => input.query.includes(hit.file)),
-      ...explicit.filter((hit) => !input.query.includes(hit.file))];
-    const nativeHits = [...explicitHits, ...native.value];
-    const direct: RankedCandidate[] = [];
-    const seen = new Set<string>();
-    for (const hit of nativeHits) {
-      const candidate = await sourceCandidateFor({ file: hit.file, qn: hit.qn });
-      if (candidate === undefined || seen.has(candidate.candidateId)) continue;
-      seen.add(candidate.candidateId);
-      direct.push({ candidate, score: hit.score, freshness: 'unknown' });
-      if (direct.length >= input.limit) break;
-    }
-
-    // With a full direct shortlist and no possible linked slot under the
-    // existing allocation policy, expansion cannot change the result. Do not
-    // spend native calls or the request deadline on unreachable output.
-    const minDirectSlots = Math.max(1, Math.ceil(input.limit * 0.6));
-    const finish = (results: readonly RankedCandidate[]): Result<readonly RankedCandidate[], DomainError> =>
-      closed || project === undefined || generation !== searchGeneration
-        ? err(domainError('NOT_READY', 'codebase_memory', 'native graph invalidated during retrieval'))
-        : ok(results);
-    if (direct.length === input.limit && minDirectSlots === input.limit) return finish(direct);
-
-    // All call graph traversal is delegated to CBM. ACE only decodes explicit
-    // qualified names and requests their source locations from native Cypher.
-    const seeds = [...new Map(nativeHits.filter((hit) => candidatesByFile.has(hit.file))
-      .map((hit) => [hit.qn, hit])).values()].slice(0, 3);
-    const relatedNames: string[] = [];
-    for (const seed of seeds) {
-      const traced = await Effect.runPromise(trace(seed.qn));
-      if (traced._tag === 'Ok') relatedNames.push(...nativeTraceQualifiedNames(traced.value));
-    }
-    const qns = [...new Set([...seeds.map((hit) => hit.qn), ...relatedNames])]
-      .filter((qn) => /^[\w./:$#-]+$/u.test(qn)).slice(0, 40);
-    const linkedTargets: NativeGraphTarget[] = [
-      ...(await adjacentNativeFiles(seeds.map((seed) => seed.file))),
-    ];
-    if (qns.length > 0) {
-      const predicate = qns.map((qn) => "n.qualified_name = '" + qn + "'").join(' OR ');
-      const query = 'MATCH (n) WHERE ' + predicate
-        + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 50';
-      const graph = await Effect.runPromise(queryGraph(query));
-      if (graph._tag === 'Ok') {
-        linkedTargets.push(...(nativeQueryGraphTargets(root, graph.value) ?? []));
-      }
-    }
-    if ((input.changedPaths?.length ?? 0) > 0) {
-      // Uncommitted edits are not in git's base...HEAD diff. For working
-      // changes query CBM's OWN symbol graph by changed file and trace from
-      // those definitions, rather than treating the previous commit as the
-      // current working-tree change.
-      const edited = [...new Set(input.changedPaths ?? [])].filter((file) =>
-        candidatesByFile.has(file) && /^[\w./-]+$/u.test(file)).slice(0, 12);
-      if (edited.length > 0) {
-        // Dirty source files may themselves reference changed neighbors even
-        // when CBM's CALLS trace cannot resolve dynamic or aliased symbols.
-        linkedTargets.push(...await adjacentNativeFiles(edited));
-        const byPath = edited.map((file) => "n.file_path = '" + file + "'").join(' OR ');
-        const symbols = await Effect.runPromise(queryGraph(
-          'MATCH (n) WHERE ' + byPath
-          + ' RETURN n.qualified_name AS qn, n.file_path AS file LIMIT 36'));
-        if (symbols._tag === 'Ok') {
-          const shape = object(symbols.value);
-          const i = Array.isArray(shape?.columns) ? shape.columns.indexOf('qn') : -1;
-          if (i >= 0 && Array.isArray(shape?.rows)) {
-            for (const row of shape.rows.slice(0, 3)) {
-              if (!Array.isArray(row) || typeof row[i] !== 'string') continue;
-              const walked = await Effect.runPromise(trace(row[i]));
-              if (walked._tag !== 'Ok') continue;
-              const names = nativeTraceQualifiedNames(walked.value)
-                .filter((name) => /^[\w./:$#-]+$/u.test(name)).slice(0, 20);
-              if (names.length === 0) continue;
-              const predicate = names.map((name) =>
-                "n.qualified_name = '" + name + "'").join(' OR ');
-              const source = await Effect.runPromise(queryGraph(
-                'MATCH (n) WHERE ' + predicate + ' RETURN n.file_path AS file, n.qualified_name AS qn LIMIT 30'));
-              if (source._tag === 'Ok') linkedTargets.push(
-                ...(nativeQueryGraphTargets(root, source.value) ?? []));
-            }
-          }
-        }
-      }
-      // Native detect_changes is a COMMITTED branch/merge-base impact query,
-      // not a current dirty-worktree diff. Only use the resulting blast-radius
-      // when the provider explicitly reports one of the edited source paths.
-      const impact = await Effect.runPromise(detectChanges());
-      if (impact._tag === 'Ok') {
-        const impactPaths = nativeImpactFiles(root, impact.value);
-        if (impactPaths.some((file) => edited.includes(file))) linkedTargets.push(...impactPaths.map((file) => ({ file })));
-      }
-    }
-
-    const linked: RankedCandidate[] = [];
-    for (const target of linkedTargets) {
-      const candidate = await sourceCandidateFor(target);
-      if (candidate === undefined || seen.has(candidate.candidateId)) continue;
-      seen.add(candidate.candidateId);
-      linked.push({ candidate, score: 1, freshness: 'unknown' });
-      if (linked.length >= input.limit) break;
-    }
-    if (linked.length === 0) return finish(direct.slice(0, input.limit));
-    const directSlots = Math.max(minDirectSlots, input.limit - linked.length);
-    return finish([...direct.slice(0, directSlots), ...linked].slice(0, input.limit));
+    return native;
   });
 
   return {
