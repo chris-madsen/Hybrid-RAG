@@ -75,8 +75,13 @@ def read_install_stamp(root):
     return stamp
 
 
-def pinned_version_matches(version, expected_commit=HERMES_COMMIT):
-    if not isinstance(version, str) or f"Hermes Agent {HERMES_VERSION} " not in version:
+def pinned_version_matches(version, expected_commit=HERMES_COMMIT, allow_git_version=False):
+    if not isinstance(version, str):
+        return False
+    release_identity = f"Hermes Agent {HERMES_VERSION} " in version
+    shallow_git_identity = (allow_git_version
+                            and f"Hermes Agent vgit.{expected_commit[:7]} " in version)
+    if not release_identity and not shallow_git_identity:
         return False
     return re.search(rf"\b(?:upstream|local) {re.escape(expected_commit[:8])}[a-f0-9]*\b", version) is not None
 
@@ -215,7 +220,8 @@ def main():
         check(match is not None, "HERMES_INSTALL_ROOT_MISSING")
         root = Path(match.group(1)).resolve(strict=True)
         provenance = read_install_provenance(root)
-        check(pinned_version_matches(version), "HERMES_RUNTIME_VERSION_MISMATCH")
+        check(pinned_version_matches(version, provenance["commit"], allow_git_version=provenance["source"] == "git"),
+              "HERMES_RUNTIME_VERSION_MISMATCH")
         check(Path(launcher).resolve(strict=True).is_relative_to(root), "HERMES_EXECUTABLE_ORIGIN_MISMATCH")
         # Resolve the installed dependency environment using Hermes's own PM
         # selection, not a guessed venv location or the system OpenAI SDK.

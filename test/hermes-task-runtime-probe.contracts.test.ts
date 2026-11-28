@@ -116,6 +116,24 @@ test('Hermes version output binds both Git-source labels to the pinned commit', 
   assert.equal(matches(`Hermes Agent v0.22.2 (build) · stable · local ${shortCommit}`).stdout.trim(), 'False');
 });
 
+test('tagless Hermes Git version output is accepted only with the pinned source commit', () => {
+  const script = resolve(import.meta.dirname, '../scripts/hermes-task-runtime-probe.py');
+  const result = spawnSync('python3', ['-c', [
+    'import importlib.util, sys',
+    'spec = importlib.util.spec_from_file_location("hermes_probe", sys.argv[1])',
+    'module = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(module)',
+    'version = sys.argv[2]',
+    'print(module.pinned_version_matches(version, sys.argv[3], allow_git_version=True))',
+    'print(module.pinned_version_matches(version.replace("local " + sys.argv[3][:8], "local ffffffff"), sys.argv[3], allow_git_version=True))',
+    'print(module.pinned_version_matches(version, sys.argv[3]))',
+  ].join('\n'), script, 'Hermes Agent vgit.5b147ab (build) stable local 5b147ab036d6', pinnedHermesCommit], {
+    encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.stdout.trim().split('\n'), ['True', 'False', 'False']);
+});
+
 test('local Hermes task probe is pinned to installed version, executable, endpoint, model and immutable task image', () => {
   const expected = { sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64), reference: 'task:1',
     digest: 'sha256:' + 'c'.repeat(64), endpointSha256: 'd'.repeat(64), modelSha256: 'e'.repeat(64), reasoningEffort: 'high' };
