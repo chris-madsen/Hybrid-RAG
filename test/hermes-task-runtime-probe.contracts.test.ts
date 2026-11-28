@@ -244,3 +244,104 @@ test('C07 preflight accepts a bound 64-character source commit identity', () => 
   assert.equal(result.stages.hermesRuntime, 'ready');
   assert.equal(result.status, 'not_ready');
 });
+
+test('C07 preflight reports the verified local Bifrost denial chain separately from provider wire and task outcome', () => {
+  const expected = { sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64), endpointSha256: 'c'.repeat(64),
+    modelSha256: 'd'.repeat(64), reasoningEffort: 'high' };
+  const runtimeSha256 = '4'.repeat(64);
+  const evidence = {
+    schemaVersion: 1, status: 'local-native-chain-denied', sourceCommit: expected.sourceCommit,
+    bifrostCommit: '039f8964b3b8312170fbeb01d6fcbf7a556cdccd',
+    bifrostCatalogClean: true,
+    bifrostBinarySha256: '2'.repeat(64), bifrostPluginSha256: '3'.repeat(64),
+    bifrostConfigSha256: '1'.repeat(64),
+    aceRuntimeSha256: runtimeSha256, runtimeProvenanceSha256: '5'.repeat(64), aceEntrypointSha256: runtimeSha256,
+    plugin: { name: 'ace-bifrost-context', placement: 'post_builtin', order: 0, invoked: true },
+    networkIsolation: 'loopback_only', physicalAttemptCount: 1, projectionCount: 1, deliveredEventCount: 1,
+    nativeCbmSearchObserved: true, fixtureSourceDigest: '6'.repeat(64),
+    hermes: { schemaVersion: 1, status: 'READY', hermesCommit: pinnedHermesCommit, hermesVersion: 'v0.22.3',
+      hermesSdkVersion: '2.24.0', hermesExecutableSha256: '7'.repeat(64), hermesTransportSha256: '8'.repeat(64),
+      endpointSha256: expected.endpointSha256, modelSha256: expected.modelSha256, reasoningEffort: expected.reasoningEffort,
+      nativeResponsesObserved: true, providerWireCertified: false, localChainObserved: true,
+      physicalDenialObserved: true, ingressBodySha256: '9'.repeat(64) },
+    requestId: 'ace-' + 'a'.repeat(32), attemptId: 'bf-attempt-' + 'b'.repeat(32),
+    baseBodySha256: '9'.repeat(64), preparedBodySha256: 'c'.repeat(64), finalBodySha256: 'c'.repeat(64),
+    projectionReceiptSha256: 'd'.repeat(64), retrievalTraceSha256: 'e'.repeat(64),
+    terminalReceiptSha256: 'f'.repeat(64), policyAuditSha256: '0'.repeat(64),
+    reasonCode: 'DESTINATION_NOT_ALLOWED', providerWireCertified: false,
+  };
+  const input = { ...expected, taskImages: [], taskImageStatus: 'not_ready' as const,
+    aceBundleStatus: 'not_ready' as const, nativeProjectionStatus: 'not_ready' as const,
+    hermesRuntimeStatus: 'not_ready' as const, hermesRuntimeReceipts: [],
+    localChainEvidenceStatus: 'loaded', localChainEvidence: evidence, expectedRuntimeSha256: runtimeSha256,
+  } as unknown as Parameters<typeof assessTaskRuntimeProbe>[0];
+  const result = assessTaskRuntimeProbe(input);
+
+  assert.equal(result.status, 'not_ready');
+  assert.equal(result.stages.bifrostSourceAndPlugin, 'ready');
+  assert.equal(result.stages.localNoEgressChain, 'ready');
+  assert.equal(result.stages.providerWire, 'not_run');
+  assert.equal(result.stages.c07TaskOutcome, 'not_run');
+
+  const alteredDelivery = assessTaskRuntimeProbe({ ...input,
+    localChainEvidence: { ...evidence, finalBodySha256: 'f'.repeat(64) } });
+  assert.equal(alteredDelivery.stages.bifrostSourceAndPlugin, 'ready');
+  assert.equal(alteredDelivery.stages.localNoEgressChain, 'not_ready');
+});
+
+test('C07 preflight rejects a caller-supplied ready flag without the local chain bindings', () => {
+  const result = assessTaskRuntimeProbe({ sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64),
+    endpointSha256: 'c'.repeat(64), modelSha256: 'd'.repeat(64), reasoningEffort: 'high',
+    taskImages: [], taskImageStatus: 'not_ready', aceBundleStatus: 'not_ready', nativeProjectionStatus: 'not_ready',
+    hermesRuntimeStatus: 'not_ready', hermesRuntimeReceipts: [], localChainEvidenceStatus: 'loaded',
+    localChainEvidence: { status: 'ready' }, expectedRuntimeSha256: '4'.repeat(64),
+  } as unknown as Parameters<typeof assessTaskRuntimeProbe>[0]);
+
+  assert.equal(result.stages.bifrostSourceAndPlugin, 'not_ready');
+  assert.equal(result.stages.localNoEgressChain, 'not_ready');
+});
+
+test('C07 preflight rejects altered, stale, or provider-certified local chain evidence', () => {
+  const expected = { sourceCommit: 'a'.repeat(40), bundleSha256: 'b'.repeat(64), endpointSha256: 'c'.repeat(64),
+    modelSha256: 'd'.repeat(64), reasoningEffort: 'high' };
+  const runtimeSha256 = '4'.repeat(64);
+  const base = {
+    schemaVersion: 1, status: 'local-native-chain-denied', sourceCommit: expected.sourceCommit,
+    bifrostCommit: '039f8964b3b8312170fbeb01d6fcbf7a556cdccd', bifrostCatalogClean: true,
+    bifrostBinarySha256: '2'.repeat(64), bifrostPluginSha256: '3'.repeat(64), aceRuntimeSha256: runtimeSha256,
+    bifrostConfigSha256: '1'.repeat(64),
+    runtimeProvenanceSha256: '5'.repeat(64), aceEntrypointSha256: runtimeSha256,
+    plugin: { name: 'ace-bifrost-context', placement: 'post_builtin', order: 0, invoked: true },
+    networkIsolation: 'loopback_only', physicalAttemptCount: 1, projectionCount: 1, deliveredEventCount: 1,
+    nativeCbmSearchObserved: true, fixtureSourceDigest: '6'.repeat(64),
+    hermes: { schemaVersion: 1, status: 'READY', hermesCommit: pinnedHermesCommit, hermesVersion: 'v0.22.3',
+      hermesSdkVersion: '2.24.0', hermesExecutableSha256: '7'.repeat(64), hermesTransportSha256: '8'.repeat(64),
+      endpointSha256: expected.endpointSha256, modelSha256: expected.modelSha256, reasoningEffort: expected.reasoningEffort,
+      nativeResponsesObserved: true, providerWireCertified: false, localChainObserved: true,
+      physicalDenialObserved: true, ingressBodySha256: '9'.repeat(64) },
+    requestId: 'ace-' + 'a'.repeat(32), attemptId: 'bf-attempt-' + 'b'.repeat(32),
+    baseBodySha256: '9'.repeat(64), preparedBodySha256: 'c'.repeat(64), finalBodySha256: 'c'.repeat(64),
+    projectionReceiptSha256: 'd'.repeat(64), retrievalTraceSha256: 'e'.repeat(64),
+    terminalReceiptSha256: 'f'.repeat(64), policyAuditSha256: '0'.repeat(64),
+    reasonCode: 'DESTINATION_NOT_ALLOWED', providerWireCertified: false,
+  };
+  for (const { evidence, bifrostStatus } of [
+    { evidence: { ...base, sourceCommit: 'f'.repeat(40) }, bifrostStatus: 'not_ready' },
+    { evidence: { ...base, bifrostCommit: 'f'.repeat(40) }, bifrostStatus: 'not_ready' },
+    { evidence: { ...base, plugin: { ...base.plugin, invoked: false } }, bifrostStatus: 'not_ready' },
+    { evidence: { ...base, aceEntrypointSha256: 'f'.repeat(64) }, bifrostStatus: 'ready' },
+    { evidence: { ...base, finalBodySha256: 'f'.repeat(64) }, bifrostStatus: 'ready' },
+    { evidence: { ...base, reasonCode: 'OTHER_DENIAL' }, bifrostStatus: 'ready' },
+    { evidence: { ...base, providerWireCertified: true }, bifrostStatus: 'ready' },
+    { evidence: { ...base, networkIsolation: 'host_network' }, bifrostStatus: 'ready' },
+  ]) {
+    const result = assessTaskRuntimeProbe({ ...expected, taskImages: [], taskImageStatus: 'not_ready',
+      aceBundleStatus: 'not_ready', nativeProjectionStatus: 'not_ready', hermesRuntimeStatus: 'not_ready',
+      hermesRuntimeReceipts: [], localChainEvidenceStatus: 'loaded', localChainEvidence: evidence,
+      expectedRuntimeSha256: runtimeSha256 });
+    assert.equal(result.stages.bifrostSourceAndPlugin, bifrostStatus);
+    assert.equal(result.stages.localNoEgressChain, 'not_ready');
+    assert.equal(result.stages.providerWire, 'not_run');
+    assert.equal(result.stages.c07TaskOutcome, 'not_run');
+  }
+});

@@ -49,6 +49,6 @@ export const resolveRealProviderRuntime = async (scriptDirectory) => {
     runnerClean: runnerStatus.length === 0,
     runtimeRoot,
     sourceCommit,
-    executable: resolve(runtimeRoot, 'dist/bin/ace-context-rpc.js'),
+    executable: resolve(runtimeRoot, 'dist/bin/ace-runtime.js'),
   };
 };

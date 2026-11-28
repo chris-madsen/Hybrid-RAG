@@ -414,3 +414,12 @@ test('task image receipt binds actual multiline smoke output to source, bundle a
   }
   assert.equal(validateNativeTaskProjectionReceipt('not JSON', expected), false);
 });
+
+test('feedback preflight checks the ACE runtime entrypoint bound by runtime provenance', async () => {
+  const source = await readFile('scripts/feedback-loop-preflight.ts', 'utf8');
+  assert.match(source, /resolve\(runtimeRoot, 'dist\/bin\/ace-runtime\.js'\)/u);
+  assert.doesNotMatch(source, /resolve\(runtimeRoot, 'dist\/bin\/ace-context-rpc\.js'\)/u);
+  const runtimeResolver = await readFile('scripts/real-provider-runtime.mjs', 'utf8');
+  assert.match(runtimeResolver, /dist\/bin\/ace-runtime\.js/u);
+  assert.doesNotMatch(runtimeResolver, /dist\/bin\/ace-context-rpc\.js/u);
+});
