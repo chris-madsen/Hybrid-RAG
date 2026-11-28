@@ -7,6 +7,7 @@ import { canonicalBenchmarkCandidateId, retrievalBenchmarkStages, sha256, valida
 import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import type { RetrievalHoldout, RetrievalHoldoutCase, RetrievalObservation, RetrievalSourceIdentity, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
 import { ingestRepoPath } from '../src/domain/workspace.js';
+import { assertNativeCandidateLimitEvidence } from './native-holdout-runner-config.mjs';
 
 export const nativeProjectionRunnerVersion = 'native-projection-holdout/v1';
 
@@ -100,6 +101,8 @@ export interface NativeProjectionEvidence {
   readonly trace: string;
   readonly terminal: RetrievalBenchmarkTerminalReceipt;
   readonly captures: readonly NativeProjectionCapture[];
+  /** Absent in historical artifacts; new runner output binds the applied CBM shortlist limit. */
+  readonly candidateLimit?: number;
 }
 
 const hash = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -151,6 +154,7 @@ export const deriveNativeProjectionObservations = (
     && evidence.sourceCommit === sourceCommit && evidence.runnerVersion === nativeProjectionRunnerVersion
     && evidence.terminal.sourceCommit === sourceCommit && evidence.terminal.runnerVersion === evidence.runnerVersion,
   'native projection evidence identity mismatch');
+  assertNativeCandidateLimitEvidence(evidence.candidateLimit, holdout.status);
   const manifest = checkedFrozenManifest(holdout, evidence.repositoryId, bytes(evidence.manifestBase64));
   const sourceDigests = new Map(manifest.entries.map((item) => [item.path, item.sha256]));
   for (const item of holdout.cases.filter((entry) => entry.repositoryId === evidence.repositoryId)) {
