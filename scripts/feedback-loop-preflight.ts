@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync, realpathSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import {
@@ -31,6 +31,7 @@ import {
 } from '../src/domain/feedback-loop-experiment.js';
 import { verifyCompiledRuntimeProvenance } from '../src/application/runtime-provenance.js';
 import { verifyAceRuntimeBundle } from '../src/application/ace-runtime-bundle.js';
+import { readLocalNativeChainEvidence } from './local-native-chain-evidence.js';
 import { assessTaskRuntimeProbe, readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt, type TaskRuntimeProbeStages } from '../src/domain/hermes-task-runtime-probe.js';
 
 type CheckStatus = 'ready' | 'not_ready' | 'unknown' | 'not_required';
@@ -430,27 +431,6 @@ const parseArgs = (): {
   };
 };
 
-const readLocalNativeChainEvidence = async (path: string | undefined, sourceRoot: string): Promise<{
-  readonly status: 'not_run' | 'loaded' | 'unavailable';
-  readonly evidence?: unknown;
-}> => {
-  if (path === undefined) return { status: 'not_run' };
-  try {
-    const evidencePath = realpathSync(path);
-    const checkoutRoot = realpathSync(sourceRoot);
-    const relativePath = relative(checkoutRoot, evidencePath);
-    const isWithinCheckout = relativePath === '' || (!isAbsolute(relativePath)
-      && relativePath !== '..' && !relativePath.startsWith(`..${sep}`));
-    if (isWithinCheckout) {
-      return { status: 'unavailable' };
-    }
-    const metadata = await stat(evidencePath);
-    if (!metadata.isFile() || metadata.size > 16 * 1024) return { status: 'unavailable' };
-    return { status: 'loaded', evidence: JSON.parse(await readFile(evidencePath, 'utf8')) as unknown };
-  } catch {
-    return { status: 'unavailable' };
-  }
-};
 
 const main = async (): Promise<void> => {
   const args = parseArgs();
