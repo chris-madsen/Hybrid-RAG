@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import test from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { failureEvidence, safeCode } from '../scripts/g11-local-native-chain.mjs';
+import { failureEvidence, safeCode, writeLocalChainEvidence } from '../scripts/g11-local-native-chain.mjs';
 
 test('G11 failure evidence exposes safe physical outcomes without request or source data', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'ace-g11-failure-evidence-'));
@@ -43,6 +43,27 @@ test('G11 failure evidence exposes safe physical outcomes without request or sou
       'private-request-id', 'private-receipt', 'private-query']) assert.ok(!serialized.includes(secret));
     assert.equal(safeCode('HERMES_UNEXPECTED_DENIAL_STATUS_500'), 'HERMES_UNEXPECTED_DENIAL_STATUS_500');
     assert.equal(safeCode('private reason'), undefined);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('local chain evidence is written only outside source checkouts and never overwrites a prior receipt', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'ace-g11-chain-evidence-'));
+  const sourceRoot = join(directory, 'source');
+  const externalRoot = join(directory, 'external');
+  const linkedSource = join(directory, 'linked-source');
+  const receiptPath = join(externalRoot, 'chain-evidence.json');
+  const receipt = { schemaVersion: 1, status: 'local-native-chain-denied', providerWireCertified: false };
+  try {
+    await Promise.all([mkdir(sourceRoot), mkdir(externalRoot)]);
+    await symlink(sourceRoot, linkedSource, 'dir');
+    await writeLocalChainEvidence(receiptPath, receipt, [sourceRoot]);
+    assert.deepEqual(JSON.parse(await readFile(receiptPath, 'utf8')), receipt);
+    await assert.rejects(writeLocalChainEvidence(receiptPath, receipt, [sourceRoot]), /already exists/u);
+    await assert.rejects(writeLocalChainEvidence(join(sourceRoot, 'chain-evidence.json'), receipt, [sourceRoot]), /outside the source checkout/u);
+    await assert.rejects(writeLocalChainEvidence(join(linkedSource, 'nested', 'chain-evidence.json'), receipt, [sourceRoot]), /outside the source checkout/u);
+    await assert.rejects(access(join(sourceRoot, 'nested')), { code: 'ENOENT' });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

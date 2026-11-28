@@ -15,5 +15,5 @@ test('native feedback preflight requires the verified bundle instead of historic
   assert.match(preflight, /verifyAceRuntimeBundle/u);
   assert.match(preflight, /'aceRuntimeBundle', 'nativeTaskProjection', 'taskRuntimeProbe'/u);
   assert.doesNotMatch(preflight, /fastembed-sparse-worker|sparseEmbedding|qdrantUrl|embeddingCache/u);
-  assert.match(preflight, /real, provenance-bound Hermes\/Bifröst\/ACE task-container probe/u);
+  assert.match(preflight, /assessTaskRuntimeProbe/u);
 });

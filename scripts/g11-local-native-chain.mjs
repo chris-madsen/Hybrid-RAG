@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { spawnRealProviderProcess } from './real-provider-process.mjs';
@@ -14,6 +14,50 @@ const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const jsonl = async (path) => (await readFile(path, 'utf8')).trim().split('\n').map(JSON.parse);
 const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
 export const safeCode = (value) => typeof value === 'string' && /^[A-Z][A-Z0-9_]{3,100}$/u.test(value) ? value : undefined;
+
+export async function writeLocalChainEvidence(path, evidence, sourceRoots) {
+  if (typeof path !== 'string' || !isAbsolute(path) || !Array.isArray(sourceRoots) || sourceRoots.length === 0) {
+    throw new Error('local-chain evidence path and source roots must be absolute');
+  }
+  const target = resolve(path);
+  const roots = await Promise.all(sourceRoots.map((root) => realpath(root)));
+  const within = (root, candidate) => {
+    const childPath = relative(root, candidate);
+    return childPath === '' || (!isAbsolute(childPath) && childPath !== '..' && !childPath.startsWith('..' + sep));
+  };
+  if (roots.some((root) => within(root, target))) throw new Error('local-chain evidence must be outside the source checkout');
+  let existingParent = dirname(target);
+  let canonicalExistingParent;
+  while (true) {
+    try {
+      canonicalExistingParent = await realpath(existingParent);
+      break;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      const parent = dirname(existingParent);
+      if (parent === existingParent) throw error;
+      existingParent = parent;
+    }
+  }
+  if (roots.some((root) => within(root, canonicalExistingParent))) {
+    throw new Error('local-chain evidence must be outside the source checkout');
+  }
+  await mkdir(dirname(target), { recursive: true });
+  const parent = await realpath(dirname(target));
+  if (roots.some((root) => within(root, join(parent, basename(target))))) {
+    throw new Error('local-chain evidence must be outside the source checkout');
+  }
+  const bytes = JSON.stringify(evidence) + '\n';
+  if (Buffer.byteLength(bytes, 'utf8') > 16 * 1024) throw new Error('local-chain evidence exceeds the receipt size limit');
+  const receiptPath = join(parent, basename(target));
+  try {
+    await writeFile(receiptPath, bytes, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+  } catch (error) {
+    if (error?.code === 'EEXIST') throw new Error('local-chain evidence already exists');
+    throw error;
+  }
+  return receiptPath;
+}
 
 export async function failureEvidence(directory, tracePath, providerTracePath) {
   const [audit, trace, providerTrace, receipt] = await Promise.all([
@@ -174,21 +218,30 @@ export async function runLocalNativeChain({ directory, endpoint, workspaceId, mo
     const delivered = events.filter((event) => event.requestId === projection.providerRequestId && event.stage === 'delivered');
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].status, 'executed');
-    const fixtureDigest = sha(await readFile(join(directory, 'workspace', 'service.ts')));
+    const fixtureSourceDigest = sha(await readFile(join(directory, 'workspace', 'service.ts')));
     assert.ok(delivered[0].candidates.some((candidate) => candidate.repoPath === 'service.ts'
-      && candidate.sourceDigest === fixtureDigest && candidate.range.startLine === 1), 'verified fixture definition must be delivered');
+      && candidate.sourceDigest === fixtureSourceDigest && candidate.range.startLine === 1), 'verified fixture definition must be delivered');
     assert.equal(new Set(projection.selectedEvidenceIds).size, projection.selectedEvidenceIds.length);
     assert.deepEqual(delivered[0].candidates.map((candidate) => candidate.evidenceId).sort(), [...projection.selectedEvidenceIds].sort());
-    return { status: 'local-native-chain-denied', sourceCommit: runtime.sourceCommit,
+    const evidence = { schemaVersion: 1, status: 'local-native-chain-denied', sourceCommit: runtime.sourceCommit,
       bifrostCommit, bifrostBinarySha256: sha(await readFile(binary)), bifrostPluginSha256: sha(await readFile(plugin)),
+      bifrostConfigSha256: sha(await readFile(join(root, 'config.json'))),
+      bifrostCatalogClean: true,
       aceRuntimeSha256: runtimeSha, runtimeProvenanceSha256: sha(provenanceBytes),
       aceEntrypointSha256: sha(await readFile(runtime.executable)),
+      plugin: { name: 'ace-bifrost-context', placement: 'post_builtin', order: 0, invoked: true },
+      networkIsolation: 'loopback_only', physicalAttemptCount: 1, projectionCount: 1, deliveredEventCount: 1,
+      nativeCbmSearchObserved: true, fixtureSourceDigest,
       hermes, requestId: binding.requestId, attemptId: binding.attemptId,
       baseBodySha256: projection.baseBodySha256, preparedBodySha256: binding.preparedBodySha256, finalBodySha256: binding.bodySha256,
       projectionReceiptSha256: binding.projectionReceiptSha256,
       retrievalTraceSha256: terminal.traceDigest, terminalReceiptSha256: sha(terminalBytes),
       policyAuditSha256: sha(await readFile(join(directory, 'state', 'gateway-policy-audit.jsonl'))), reasonCode: attempt.reasonCode,
       providerWireCertified: false };
+    if (process.env.ACE_G11_CHAIN_EVIDENCE_PATH !== undefined) {
+      await writeLocalChainEvidence(process.env.ACE_G11_CHAIN_EVIDENCE_PATH, evidence, [runtime.runnerRoot, runtime.runtimeRoot]);
+    }
+    return evidence;
   } finally {
     await stopRealProviderProcess(gateway, { termTimeoutMs: 5000 });
   }

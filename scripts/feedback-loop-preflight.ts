@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync, realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import {
   dockerImageDigestPattern,
   feedbackHermesProviderPrefix,
@@ -31,7 +31,8 @@ import {
 } from '../src/domain/feedback-loop-experiment.js';
 import { verifyCompiledRuntimeProvenance } from '../src/application/runtime-provenance.js';
 import { verifyAceRuntimeBundle } from '../src/application/ace-runtime-bundle.js';
-import { readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt } from '../src/domain/hermes-task-runtime-probe.js';
+import { readLocalNativeChainEvidence } from './local-native-chain-evidence.js';
+import { assessTaskRuntimeProbe, readHermesTaskRuntimeReceipt, type HermesTaskRuntimeReceipt, type TaskRuntimeProbeStages } from '../src/domain/hermes-task-runtime-probe.js';
 
 type CheckStatus = 'ready' | 'not_ready' | 'unknown' | 'not_required';
 
@@ -41,6 +42,7 @@ interface PreflightCheck {
   readonly identity?: string;
   readonly hermesRuntimeReceipts?: readonly HermesTaskRuntimeReceipt[];
   readonly agentAdapterSha256?: string;
+  readonly stages?: TaskRuntimeProbeStages;
 }
 
 interface PreflightManifest {
@@ -107,18 +109,6 @@ const nativeTaskProjection = (
     status: 'ready',
     reason: 'compiled native Context RPC projection and mutation passed in every pinned task image without network; provider wire remains uncertified',
     identity: expectedBundleDigest,
-  };
-};
-
-const taskRuntimeProbe = (
-  bundlePath: string | undefined,
-  taskImages: readonly { readonly reference: string; readonly digest: string }[] | undefined,
-): PreflightCheck => {
-  void bundlePath;
-  void taskImages;
-  return {
-    status: 'not_ready',
-    reason: 'a real, provenance-bound Hermes/Bifröst/ACE task-container probe and provider-wire receipt are still required; source-only preflight cannot certify C07',
   };
 };
 
@@ -269,7 +259,7 @@ const sourceCheckout = (): { readonly check: PreflightCheck; readonly commit: st
 
 const compiledRuntime = async (): Promise<PreflightCheck> => {
   const runtimeRoot = resolve('.');
-  const executable = resolve(runtimeRoot, 'dist/bin/ace-context-rpc.js');
+  const executable = resolve(runtimeRoot, 'dist/bin/ace-runtime.js');
   if (!existsSync(executable)) return { status: 'not_ready', reason: 'compiled ACE runtime is missing' };
   const verified = await verifyCompiledRuntimeProvenance(runtimeRoot, executable);
   return verified._tag === 'Err'
@@ -398,6 +388,7 @@ const parseArgs = (): {
   readonly aceRuntimeBundlePath?: string;
   readonly imageDigest?: string;
   readonly experimentManifestPath?: string;
+  readonly localNativeChainEvidencePath?: string;
   readonly fastLocal: boolean;
 } => {
   const args = process.argv.slice(2);
@@ -408,6 +399,7 @@ const parseArgs = (): {
   let aceRuntimeBundlePath: string | undefined;
   let imageDigest: string | undefined;
   let experimentManifestPath: string | undefined;
+  let localNativeChainEvidencePath: string | undefined;
   let fastLocal = false;
   while (args.length > 0) {
     const current = args.shift();
@@ -423,7 +415,8 @@ const parseArgs = (): {
     else if (current === '--ace-runtime-bundle' && value !== undefined) aceRuntimeBundlePath = resolve(value);
     else if (current === '--image-digest' && value !== undefined) imageDigest = value.trim();
     else if (current === '--experiment-manifest' && value !== undefined) experimentManifestPath = resolve(value);
-    else throw new Error('Usage: tsx scripts/feedback-loop-preflight.ts [--fast-local] [--output dir] [--task-manifest path] [--native-job path] [--ace-job path] [--ace-runtime-bundle path] [--image-digest sha256:<64hex>] [--experiment-manifest path]');
+    else if (current === '--local-native-chain-evidence' && value !== undefined) localNativeChainEvidencePath = resolve(value);
+    else throw new Error('Usage: tsx scripts/feedback-loop-preflight.ts [--fast-local] [--output dir] [--task-manifest path] [--native-job path] [--ace-job path] [--ace-runtime-bundle path] [--image-digest sha256:<64hex>] [--experiment-manifest path] [--local-native-chain-evidence path]');
   }
   return {
     outputDirectory: resolve(outputDirectory),
@@ -433,9 +426,11 @@ const parseArgs = (): {
     ...(aceRuntimeBundlePath === undefined ? {} : { aceRuntimeBundlePath }),
     ...(imageDigest === undefined ? {} : { imageDigest }),
     ...(experimentManifestPath === undefined ? {} : { experimentManifestPath }),
+    ...(localNativeChainEvidencePath === undefined ? {} : { localNativeChainEvidencePath }),
     fastLocal,
   };
 };
+
 
 const main = async (): Promise<void> => {
   const args = parseArgs();
@@ -488,8 +483,8 @@ const main = async (): Promise<void> => {
     taskVerifier: await taskVerifier(args.nativeJobPath),
     harborImageDigest: dockerImages(effectiveImageDigest, manifestTaskImages),
     aceRuntimeBundle: await aceRuntimeBundle(args.aceRuntimeBundlePath, experimentManifest?.aceRuntimeBundleSha256),
-    taskRuntimeProbe: taskRuntimeProbe(args.aceRuntimeBundlePath, manifestTaskImages),
   };
+  const localChainEvidence = await readLocalNativeChainEvidence(args.localNativeChainEvidencePath, resolve('.'));
   const harborVersion = checks.harbor.identity;
   if (experimentManifest === undefined) {
     checks.experimentBinding = { status: 'not_ready', reason: 'experiment manifest is required for exact-current feedback preflight' };
@@ -534,6 +529,25 @@ const main = async (): Promise<void> => {
     experimentManifest, args.aceRuntimeBundlePath, currentSourceCommit, probeImages,
     [checks.sourceCheckout, checks.runtimeProvenance, checks.aceRuntimeBundle, checks.harborImageDigest, checks.experimentBinding, checks.bifrostEndpoint],
   );
+  checks.taskRuntimeProbe = assessTaskRuntimeProbe({
+    sourceCommit: currentSourceCommit,
+    bundleSha256: experimentManifest?.aceRuntimeBundleSha256,
+    endpointSha256: experimentManifest?.bifrostEndpointSha256,
+    modelSha256: experimentManifest?.model.startsWith(feedbackHermesProviderPrefix)
+      ? sha256(experimentManifest.model.slice(feedbackHermesProviderPrefix.length)) : undefined,
+    reasoningEffort: experimentManifest?.reasoningEffort,
+    taskImages: probeImages,
+    taskImageStatus: checks.harborImageDigest.status,
+    aceBundleStatus: checks.aceRuntimeBundle.status,
+    nativeProjectionStatus: checks.nativeTaskProjection.status,
+    hermesRuntimeStatus: checks.agentRuntimeDigest.status,
+    hermesRuntimeReceipts: checks.agentRuntimeDigest.hermesRuntimeReceipts ?? [],
+    localChainEvidenceStatus: localChainEvidence.status,
+    localChainEvidence: localChainEvidence.evidence,
+    expectedRuntimeSha256: checks.runtimeProvenance.status === 'ready'
+      && checks.runtimeProvenance.identity?.startsWith(`${currentSourceCommit}:`) === true
+      ? checks.runtimeProvenance.identity.slice(currentSourceCommit.length + 1) : undefined,
+  });
   const required = [
     'sourceCheckout', 'runtimeProvenance', 'node', 'npm', 'astGrep', 'typescriptLanguageServer',
     'harbor', 'harborRun', 'harborDatasetPinned',
