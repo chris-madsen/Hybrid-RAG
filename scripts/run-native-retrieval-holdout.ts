@@ -13,12 +13,14 @@ import { nativeCodeRetrieval } from '../src/domain/retrieval.js';
 import type { RetrievalHoldout, RetrievalStrategyRun } from '../src/domain/retrieval-quality-evaluation.js';
 import { assertNativeDevelopmentHoldout, assertNativeReleaseHoldout, checkedFrozenManifest, deriveNativeProjectionObservations, nativeProjectionRunnerVersion,
   type NativeProjectionCapture, type NativeProjectionEvidence } from './native-projection-evidence.js';
+import { resolveNativeCandidateLimitConfig } from './native-holdout-runner-config.mjs';
 import { resolveRealProviderRuntime } from './real-provider-runtime.mjs';
 import { spawnRealProviderProcess, stopRealProviderProcess } from './real-provider-process.mjs';
 
-const [holdoutArg, manifestArg, repositoryId, checkoutArg, outputArg] = process.argv.slice(2);
-assert.ok(holdoutArg && manifestArg && repositoryId && checkoutArg && outputArg && process.argv.length === 7,
-  'Usage: npm run run:native-retrieval-holdout -- <holdout.json> <manifest.json> <repo-id> <checkout> <new-external-output-dir>');
+const args = process.argv.slice(2);
+const [holdoutArg, manifestArg, repositoryId, checkoutArg, outputArg, candidateLimitOption] = args;
+assert.ok(holdoutArg && manifestArg && repositoryId && checkoutArg && outputArg && (args.length === 5 || args.length === 6),
+  'Usage: npm run run:native-retrieval-holdout -- <holdout.json> <manifest.json> <repo-id> <checkout> <new-external-output-dir> [--dev-candidate-limit=<1..20>]');
 assert.ok(process.platform === 'linux' && process.env.ACE_CBM_HOLDOUT_ISOLATED === 'true',
   'run only in a dedicated Linux account or isolated container with no unrelated CBM daemon; no model egress');
 const runtime = await resolveRealProviderRuntime(import.meta.dirname);
@@ -29,6 +31,7 @@ const holdoutBytes = await readFile(resolve(holdoutArg));
 const holdout = JSON.parse(holdoutBytes.toString('utf8')) as RetrievalHoldout;
 if (holdout.status === 'development_source_bound') assertNativeDevelopmentHoldout(holdout);
 else assertNativeReleaseHoldout(holdout);
+const candidateLimitConfig = resolveNativeCandidateLimitConfig(candidateLimitOption, holdout.status);
 const holdoutSha256 = sha256(holdoutBytes);
 const manifestBytes = await readFile(resolve(manifestArg));
 const manifest = checkedFrozenManifest(holdout, repositoryId, manifestBytes);
@@ -94,6 +97,7 @@ const child = spawnRealProviderProcess(process.execPath, [runtime.executable], {
     ACE_WORKSPACE_ROOT: workspace, ACE_ALLOWED_ROOTS: workspace, ACE_WORKSPACE_ID: workspaceId,
     ACE_STATE_DIR: join(output, 'state'), ACE_ARTIFACT_DIR: join(output, 'artifacts'),
     ACE_CONTEXT_RPC_HOST: '127.0.0.1', ACE_CONTEXT_RPC_PORT: String(port), ACE_CONTEXT_RPC_SHARED_SECRET: secret,
+    ...candidateLimitConfig.childEnvironment,
     ACE_CONTEXT_EXTERNAL_LLM_OPT_IN: 'true', ACE_CONTEXT_ALLOWED_LLM_PROVIDERS_JSON: '["mock"]',
     ACE_CONTEXT_ALLOWED_LLM_MODELS_BY_PROVIDER_JSON: '{"mock":["test-model"]}',
     ACE_CONTEXT_ALLOWED_LLM_DATA_CLASSES_JSON: '["private_source"]',
@@ -189,6 +193,7 @@ await verifyCheckout();
 const evidence: NativeProjectionEvidence = {
   schemaVersion: 1, holdoutSha256, sourceCommit: runtime.sourceCommit, runnerVersion: nativeProjectionRunnerVersion,
   repositoryId, manifestBase64: manifestBytes.toString('base64'), trace, terminal, captures,
+  candidateLimit: candidateLimitConfig.candidateLimit,
 };
 const observations = deriveNativeProjectionObservations(holdout, evidence, holdoutSha256, runtime.sourceCommit);
 const evidencePath = join(output, 'projection-evidence.json');

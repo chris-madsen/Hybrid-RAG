@@ -289,6 +289,13 @@ test('AR08 native projection refuses a source-recall label outside the bound man
   }, invalidSha, revision), /source-recall label is outside or stale for the pinned manifest/u);
 });
 
+test('native projection evidence rejects a tuned candidate limit on frozen release holdout', () => {
+  const evidence = fixtureEvidence('a');
+  assert.throws(() => deriveNativeProjectionObservations(holdout, {
+    ...evidence, candidateLimit: 10,
+  }, holdoutFile.sha256, revision), /default candidate limit/u);
+});
+
 test('native gate rejects fabricated ranks and a missing capture even with a valid identity', async () => {
   const reader = async (path: string): Promise<RetainedJsonEvidence> => {
     const capture = captures.find((item) => item.path === path);
